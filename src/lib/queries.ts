@@ -1,0 +1,74 @@
+import { cookies } from "next/headers";
+
+import type { Book, Goal, Trade } from "@/lib/domain";
+import { createClient } from "@/lib/supabase/server";
+
+/** 어떤 북을 보고 있는지는 쿠키로 기억한다 — URL을 오염시키지 않기 위해. */
+export const ACTIVE_BOOK_COOKIE = "active_book";
+
+export async function requireUser() {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) throw new Error("인증이 필요합니다.");
+  return { supabase, user };
+}
+
+export async function listBooks(): Promise<Book[]> {
+  const { supabase } = await requireUser();
+  const { data, error } = await supabase
+    .from("books")
+    .select("*")
+    .order("created_at", { ascending: false });
+  if (error) throw new Error(error.message);
+  return data;
+}
+
+/** 활성 북 — 쿠키에 지정된 북, 없으면 가장 최근 북. 북이 하나도 없으면 null. */
+export async function getActiveBook(books?: Book[]): Promise<Book | null> {
+  const all = books ?? (await listBooks());
+  if (all.length === 0) return null;
+
+  const preferred = (await cookies()).get(ACTIVE_BOOK_COOKIE)?.value;
+  return all.find((b) => b.id === preferred) ?? all[0];
+}
+
+export async function listTrades(bookId: string): Promise<Trade[]> {
+  const { supabase } = await requireUser();
+  const { data, error } = await supabase
+    .from("trades")
+    .select("*")
+    .eq("book_id", bookId)
+    .order("entry_at", { ascending: true })
+    .order("seq", { ascending: true });
+  if (error) throw new Error(error.message);
+  return data;
+}
+
+export async function getTrade(id: string): Promise<Trade | null> {
+  const { supabase } = await requireUser();
+  const { data, error } = await supabase.from("trades").select("*").eq("id", id).maybeSingle();
+  if (error) throw new Error(error.message);
+  return data;
+}
+
+export async function listGoals(bookId: string): Promise<Goal[]> {
+  const { supabase } = await requireUser();
+  const { data, error } = await supabase.from("goals").select("*").eq("book_id", bookId);
+  if (error) throw new Error(error.message);
+  return data;
+}
+
+/** 북 내 다음 순번 — 시트의 `순번`을 이어받는다. */
+export async function nextSeq(bookId: string): Promise<number> {
+  const { supabase } = await requireUser();
+  const { data, error } = await supabase
+    .from("trades")
+    .select("seq")
+    .eq("book_id", bookId)
+    .order("seq", { ascending: false })
+    .limit(1);
+  if (error) throw new Error(error.message);
+  return (data[0]?.seq ?? 0) + 1;
+}

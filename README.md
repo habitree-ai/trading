@@ -1,36 +1,91 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# 트레이딩 누적기록
 
-## Getting Started
+캡쳐를 올리면 거래가 **데이터화 → 누적 → 대시보드**로 이어지는 매매일지.
+데이터 항목과 지표 체계는 2024년부터 운영해 온 **구글시트 매매일지**를 정규화한 것이다.
 
-First, run the development server:
+## 왜 만드는가
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+기존 시트는 탭(= 계좌/기간별 일지)마다 컬럼이 다르게 진화했고, 계산값을 셀에 박아둔 탓에
+`#REF!`·`#VALUE!`로 깨진 곳이 많다. 이 프로젝트는 같은 항목 체계를 정규화된 스키마로 옮기고,
+**원자값만 저장하고 파생지표는 전부 계산**해서 그 문제를 구조적으로 없앤다.
+
+## 구성
+
+| 경로 | 내용 |
+|---|---|
+| `src/lib/domain.ts` | 도메인 모델 — 시트 컬럼 ↔ 앱 필드 매핑을 주석으로 명시 |
+| `src/lib/metrics.ts` | **지표 엔진** — 시트 KPI 블록을 재현한 순수 함수 |
+| `src/lib/metrics.test.ts` | 지표 단위 테스트 (시트 실제 탭 값 재현 포함) |
+| `src/lib/format.ts` | 표시 포맷 — 시각은 `Asia/Seoul` 고정(하이드레이션 불일치 방지) |
+| `src/lib/queries.ts` | 서버 조회 계층 |
+| `src/app/(app)/` | 대시보드 · 거래 · 복기 · 목표 · 북 관리 |
+| `src/components/charts.tsx` | Recharts — 자금 곡선 · 드로다운 · 기간 손익 |
+| `src/lib/extract/` | **캡쳐 추출** — 정규화 · 거래소 어댑터 · 브라우저 OCR |
+| `src/app/api/extract/` | AI 비전 폴백 (OCR 신뢰도가 낮을 때만) |
+| `supabase/migrations/` | 스키마 · RLS · Storage 버킷 |
+
+## 캡쳐 추출
+
+```
+캡쳐 선택 → Storage 업로드(원본 먼저 보존) → 브라우저 OCR(Tesseract, eng)
+  → 거래소 어댑터 파싱 → 신뢰도 ≥ 0.75 면 폼 프리필
+  → 아니면 /api/extract 로 AI 비전 재시도 → 폼 프리필
+  → 확인이 필요한 칸은 테두리 강조 + 안내 문구
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+지원 거래소: **OKX** (`src/lib/extract/okx.ts`). 새 거래소는 `ExchangeAdapter`를 구현해
+`src/lib/extract/index.ts`의 `ADAPTERS`에 추가하면 된다.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+OKX 화면을 다루며 부딪힌 함정들 — 전부 테스트로 고정해 뒀다:
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+- **`Close long` 캡쳐엔 진입 정보가 없다.** 청산가·손익만 있으므로 진입가·진입시각은 사람이 채워야 한다. 폼이 그 사실을 안내한다.
+- **`₮`는 테더 기호다.** 원화(`₩`)로 오인하면 통화 파싱이 깨진다.
+- **`Creation time`엔 연도가 없다.** 연도가 붙은 `Fill details` 타임스탬프를 우선 쓰고, 없으면 올해로 가정했다고 알린다.
+- **`Order price` ≠ `Fill price`.** 실제 체결가인 후자를 쓴다.
+- **`Closed PnL`과 `Closed PnL%`는 다른 값이다.**
 
-## Learn More
+## 지표 산식
 
-To learn more about Next.js, take a look at the following resources:
+시트 수식을 역산해 3개 탭에서 일치를 확인했다.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```
+승률       = 승 / (승 + 패)
+평균수익   = mean(pnl > 0),  평균손실 = mean(|pnl < 0|)
+손익비     = 평균수익 / 평균손실
+이익기대치 = 승률 × 손익비
+손실기대치 = 패률
+기대치값   = 이익기대치 − 손실기대치     ← R 단위 기대값
+누적 최고치 = running max(자금),  MDD = min((자금 − 최고치) / 최고치)
+차액       = 최종자금 − 초기자금 + 출금누계
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+`손익비`는 시트 탭마다 수식이 달랐으나(7.62 / 12.57 / 12.79 …) **표준 payoff ratio
+(평균수익 ÷ 평균손실)로 확정**했다.
 
-## Deploy on Vercel
+### 손익 교차검증
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+`crossCheckPnl()`이 `투입 × (청산가 − 진입가) / 진입가 × 방향`으로 손익을 되짚어
+입력값과 대조한다. 부호가 반대거나 25% 넘게 어긋나면 저장 전에 경고한다.
+OCR이 자릿수를 밀거나 방향을 반대로 읽는 사고를 여기서 잡는다.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## 색 규칙
+
+손익의 적/녹은 거래소 캡쳐와 색을 맞추기 위한 선택이다. 적녹색약에게 두 색은 구분되지
+않으므로(검증 결과 ΔE 3.3), **0선 기준 막대 방향 · 항상 표기되는 `+`/`−` 부호 · 승/패 텍스트 배지**로
+이중 인코딩해 색 단독에 의존하지 않는다.
+
+## 개발
+
+```bash
+npm install
+cp .env.example .env.local   # Supabase URL / publishable key 입력
+npm run dev
+npm test                     # 지표·포맷 단위 테스트
+```
+
+`AI_GATEWAY_API_KEY`가 없으면 AI 폴백은 503으로 안내만 하고, OCR 경로는 그대로 동작한다.
+
+## 진행 상태
+
+- **완료** — 스키마 + RLS(타인 데이터 0건 실증) + 인증 + 북/거래 CRUD + 지표 엔진 + 대시보드 + 복기 분석 + OKX 캡쳐 추출
+- **다음** — 목표 β/α 2중 관리, 배포
