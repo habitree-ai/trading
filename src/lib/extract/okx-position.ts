@@ -1,5 +1,5 @@
 import type { ExchangeAdapter, ExtractedFields } from "@/lib/extract/types";
-import { toIsoKst, toNumber, valueAfter } from "@/lib/extract/normalize";
+import { toIsoKst, toNumber, valueAfter, valueBelow } from "@/lib/extract/normalize";
 
 /**
  * OKX 모바일 `Position details` 화면 어댑터 — 상단 요약 + `Order history`.
@@ -26,6 +26,39 @@ interface Fill {
 }
 
 const FILL_HEAD = /(Open|Close)\s+(long|short)\s+(\d{1,2}\/\d{1,2}[,\s]+\d{1,2}:\d{2}(?::\d{2})?)/i;
+
+/**
+ * 상단 요약의 두 칸 — `Realized PnL`과 `Closed`.
+ *
+ * 실제 OCR은 두 라벨을 한 줄에, 두 값을 다음 줄에 늘어놓는다:
+ *   `Realized PnL (USDT) Closed (USDT)`
+ *   `+30.36 8,458.84`
+ * 라벨 옆에서 값을 찾으면 `(USDT)`를 집어 조용히 실패한다.
+ * OCR이 `PnL`을 `PrL`로, `USDT`를 `USD`로 흘리는 것까지 감안한다.
+ */
+function parseSummaryPair(header: string): { realized?: number; closedCost?: number } {
+  const lines = header.split(/\r?\n/);
+
+  for (let i = 0; i < lines.length; i += 1) {
+    if (!/Realized\s*P\w?L/i.test(lines[i])) continue;
+    const pairedWithClosed = /Closed/i.test(lines[i]);
+
+    for (let j = i + 1; j < lines.length; j += 1) {
+      const next = lines[j].trim();
+      if (next === "") continue;
+
+      const numbers = (next.match(/[+-]?[\d,]+(?:\.\d+)?/g) ?? [])
+        .map((token) => toNumber(token))
+        .filter((n): n is number => n !== undefined);
+
+      return {
+        realized: numbers[0],
+        closedCost: pairedWithClosed ? numbers[1] : undefined,
+      };
+    }
+  }
+  return {};
+}
 
 /** `Order history` 아래를 주문 단위로 쪼갠다. */
 function parseFills(body: string): Fill[] {
@@ -152,11 +185,15 @@ export const okxPositionAdapter: ExchangeAdapter = {
       .filter((f): f is NonNullable<typeof f> => f !== null)
       .sort((a, b) => Date.parse(a.at) - Date.parse(b.at));
 
-    if (entry) {
-      fields.entry_price = entry.price;
-      fields.notional = entry.notional;
-    }
+    if (entry) fields.entry_price = entry.price;
     if (exit) fields.exit_price = exit.price;
+
+    // `Closed (USDT)` = 청산된 부분의 **진입 기준 원가**. 청산 체결액이 아니다.
+    // (부분청산이면 진입 합계보다 작다 — 5084는 진입 10,217.03 중 8,458.84 만 닫혔다.)
+    // 이 거래의 규모는 실제로 닫힌 만큼이라, 진입 합계를 쓰면 손익 교차검증이 어긋난다.
+    const summary = parseSummaryPair(header);
+    const closedCost = summary.closedCost ?? toNumber(valueBelow(header, /^\s*Closed\s*\(/i));
+    fields.notional = closedCost ?? entry?.notional;
 
     // 진입 시각은 헤더의 `Time opened`(연도 포함)가 가장 믿을 만하다.
     fields.entry_at =
@@ -176,7 +213,7 @@ export const okxPositionAdapter: ExchangeAdapter = {
     if (tradingFee !== undefined) fields.fee = tradingFee;
     if (fundingFee !== undefined) fields.fundingFee = fundingFee;
 
-    const realized = toNumber(valueAfter(header, /^\s*Realized\s*PnL/i));
+    const realized = summary.realized;
 
     if (fills.length === 0) {
       notes.push("`Order history`에서 체결 내역을 읽지 못했습니다.");
@@ -193,6 +230,27 @@ export const okxPositionAdapter: ExchangeAdapter = {
         "`Closed`가 비어 있어 포지션이 아직 열려 있습니다(부분청산). 확정된 거래로 기록할지 확인해 주세요.",
       );
       suspect.push("exit_at", "exit_price");
+    }
+
+    /*
+      체결액 불변식으로 손익을 되짚는다 — 캡쳐 3장에서 모두 성립을 확인했다.
+        롱: 손익 = 청산 체결액 − 청산분 원가
+        숏: 손익 = 청산분 원가 − 청산 체결액   (먼저 팔고 나중에 되사므로 뒤집힌다)
+      가격·수량을 거치지 않아 OCR이 자릿수를 밀면 바로 드러난다.
+    */
+    if (closedCost !== undefined && closes.length > 0 && fields.pnl !== undefined && fields.side) {
+      const closeAmount = closes.reduce((a, f) => a + f.filled, 0);
+      const implied =
+        fields.side === "long" ? closeAmount - closedCost : closedCost - closeAmount;
+      // 화면 반올림 때문에 완전히 같지는 않다 — 0.05 또는 손익의 1% 중 큰 쪽까지 허용.
+      const tolerance = Math.max(0.05, Math.abs(fields.pnl) * 0.01);
+
+      if (Math.abs(implied - fields.pnl) > tolerance) {
+        suspect.push("pnl", "notional");
+        notes.push(
+          `체결액 대조가 어긋납니다 — 체결액으로 되짚은 손익 ${implied.toFixed(2)}, 화면 ${fields.pnl}.`,
+        );
+      }
     }
 
     // 화면이 직접 알려주는 실현손익과 대조한다 — 어긋나면 숫자를 잘못 읽은 것이다.

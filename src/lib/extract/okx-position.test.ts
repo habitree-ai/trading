@@ -3,98 +3,92 @@ import { describe, expect, it } from 'vitest';
 import { okxPositionAdapter } from '@/lib/extract/okx-position';
 import { extractFromText } from '@/lib/extract';
 
-/** 롱 · 주문 2건 · `Closed --`(부분청산으로 포지션 잔존). */
-const LONG_PARTIAL = `15:45
-BTCUSDT Perpetual Long
-Realized PnL (USDT)
-+30.36
-Closed (USDT)
-8,458.84
+/**
+ * 픽스처는 **실제 브라우저 OCR이 뱉은 원문**이다(주문번호만 가림).
+ *
+ * 이상적으로 다듬은 텍스트를 쓰면 실제 오독을 놓친다 — 예전 픽스처는
+ * 라벨과 값을 한 줄씩 갈라 놓아, 두 칸이 한 줄에 붙는 실제 배치를 못 잡았다.
+ * OCR은 `PnL`을 `PrL`로, `Long`을 `Loc`으로, `₮`를 `¥`로 흘린다.
+ */
+
+/** 롱 · 주문 2건 · `Closed -`(부분청산으로 포지션 잔존). */
+const LONG_PARTIAL = `15:45 all ©)
+< BTCUSDT Perpetual Loc 0
+Realized PnL (USDT) Closed (USDT)
++30.36 8,458.84
 Closed PnL +35.31 USDT
 Trading fee -4.95225492 USDT
 Funding fee --
 Time opened 07/27/2026, 10:47:53
-Closed --
-
+Closed -
 Order history
-
-Close long 07/27, 13:20:35 +35.31 USDT
+Close long 07/27,13:20:35 +35.31 USDT
 Filled 8,494.16 USDT
-Fill price ₮65,390
+Fill price ¥65,390
 Fee -1.27412415 USDT
 Order number 1000000000000000001
-
-Open long 07/27, 10:47:53
+Open long 07/27,10:47:53
 Filled 10,217.03 USDT
-Fill price ₮65,118.1
+Fill price ¥65,118.1
 Fee -3.67813076 USDT
-Order number 1000000000000000002`;
+Order number 1000000000000000002
+`;
 
 /** 숏 · 손실 · 완전청산. 배지 색이 롱과 뒤집혀 나오는 화면. */
-const SHORT_LOSS = `15:45
-BTCUSDT Perpetual Short
-Realized PnL (USDT)
--26.51
-Closed (USDT)
-9,674.71
+const SHORT_LOSS = `15:45 all ©)
+< BTCUSDT Perpetual short 0
+Realized PrL (USDT) Closed (USD)
+-26.51 9,674.71
 Closed PnL -19.54 USDT
 Trading fee -6.97282438 USDT
 Funding fee --
 Time opened 07/27/2026, 05:37:45
 Closed 07/27/2026, 06:24:56
-
 Order history
-
 Close short 07/27, 06:24:56 -19.54 USDT
 Filled 9,694.25 USDT
-Fill price ₮64,757.84762859
+Fill price ¥64,757.84762859
 Fee -3.48992992 USDT
 Order number 1000000000000000003
-
-Open short 07/27, 05:37:45
+Open short 07/27,05:37:45
 Filled 9,674.71 USDT
-Fill price ₮64,627.3
+Fill price ¥64,627.3
 Fee -3.48289445 USDT
-Order number 1000000000000000004`;
+Order number 1000000000000000004
+`;
 
 /** 분할 진입 2건 + 분할 청산 2건 · 펀딩피 있음. */
-const SPLIT_FILLS = `15:45
-BTCUSDT Perpetual Long
-Realized PnL (USDT)
-+52.13
-Closed (USDT)
-10,685.02
+const SPLIT_FILLS = `15:45 al 0)
+< BTCUSDT Perpetual Loc 0
+Realized PrL (USDT) Closed (USD)
++52.13 10,685.02
 Closed PnL +57.62 USDT
 Trading fee -5.28103906 USDT
 Funding fee -0.20918 USDT
 Time opened 07/27/2026, 06:47:23
 Closed 07/27/2026, 10:35:07
-
 Order history
-
 Close long 07/27, 10:35:07 +0.77 USDT
 Filled 2,746.68 USDT
-Fill price ₮64,933.3
+Fill price ¥64,933.3
 Fee -0.98880429 USDT
 Order number 1000000000000000005
-
 Close long 07/27, 07:32:50 +56.85 USDT
 Filled 7,995.97 USDT
-Fill price ₮65,380
+Fill price ¥65,380
 Fee -1.1993961 USDT
 Order number 1000000000000000006
-
 Open long 07/27, 07:05:12
 Filled 3,589.38 USDT
-Fill price ₮65,143
+Fill price ¥65,143
 Fee -0.53840689 USDT
 Order number 1000000000000000007
-
 Open long 07/27, 06:47:23
 Filled 7,095.64 USDT
-Fill price ₮64,800.4
+Fill price ¥64,800.4
 Fee -2.55443176 USDT
-Order number 1000000000000000008`;
+Order number 1000000000000000008
+`;
 
 describe('OKX 포지션 상세 — 진입·청산이 한 장에 있다', () => {
   const r = okxPositionAdapter.parse(LONG_PARTIAL);
@@ -123,9 +117,50 @@ describe('OKX 포지션 상세 — 진입·청산이 한 장에 있다', () => {
     expect(r.fields.pnl! + r.fields.fee!).toBeCloseTo(30.36, 2);
   });
 
-  it('`Closed --` 는 포지션이 아직 열려 있다는 뜻이라 알린다', () => {
+  it('부분청산이면 규모는 실제로 닫힌 만큼이다 — 진입 합계가 아니다', () => {
+    // 진입 10,217.03 중 8,458.84 만 닫혔다. 진입 합계를 쓰면 교차검증이 17% 어긋난다.
+    expect(r.fields.notional).toBeCloseTo(8458.84, 2);
+    expect(r.fields.notional).not.toBeCloseTo(10217.03, 2);
+
+    const implied =
+      r.fields.notional! * ((r.fields.exit_price! - r.fields.entry_price!) / r.fields.entry_price!);
+    expect(implied).toBeCloseTo(r.fields.pnl!, 0);
+  });
+
+  it('체결액 불변식으로 손익이 맞는다 (롱: 청산체결액 − 청산분 원가)', () => {
+    // 8,494.16 − 8,458.84 = 35.32 ≈ 화면 35.31
+    expect(r.notes.join(' ')).not.toContain('체결액 대조가 어긋납니다');
+  });
+
+  it('`Closed` 가 비어 있으면 포지션이 아직 열려 있다는 뜻이라 알린다', () => {
     expect(r.notes.join(' ')).toContain('포지션이 아직 열려 있습니다');
     expect(r.suspect).toContain('exit_at');
+  });
+});
+
+describe('검증이 실제로 도는가 — 값을 일부러 어긋나게 넣어 본다', () => {
+  it('손익을 조작하면 실현손익 대조에 걸린다', () => {
+    // 값이 라벨 다음 줄에 있어 `Realized PnL (USDT)`를 같은 줄로 읽으면
+    // `(USDT)`를 집어 조용히 건너뛴다 — 그러면 이 검증은 영원히 안 돈다.
+    const r = okxPositionAdapter.parse(LONG_PARTIAL.replace('Closed PnL +35.31', 'Closed PnL +999.00'));
+
+    expect(r.notes.join(' ')).toContain('실현손익 대조가 어긋납니다');
+    expect(r.suspect).toContain('pnl');
+  });
+
+  it('청산 체결액을 조작하면 체결액 대조에 걸린다', () => {
+    const r = okxPositionAdapter.parse(LONG_PARTIAL.replace('Filled 8,494.16 USDT', 'Filled 9,494.16 USDT'));
+
+    expect(r.notes.join(' ')).toContain('체결액 대조가 어긋납니다');
+    expect(r.suspect).toContain('pnl');
+  });
+
+  it('숏은 불변식이 뒤집힌다 — 롱 공식을 그대로 쓰면 걸린다', () => {
+    const r = okxPositionAdapter.parse(SHORT_LOSS);
+
+    // 원가 9,674.71 − 청산체결액 9,694.25 = −19.54 ✓
+    expect(r.notes.join(' ')).not.toContain('체결액 대조가 어긋납니다');
+    expect(r.fields.notional).toBeCloseTo(9674.71, 2);
   });
 });
 
@@ -160,7 +195,9 @@ describe('OKX 포지션 상세 — 숏 손실 (배지 색이 뒤집힌 화면)',
 describe('OKX 포지션 상세 — 분할 진입·분할 청산', () => {
   const r = okxPositionAdapter.parse(SPLIT_FILLS);
 
-  it('진입 명목가는 체결 합계다 — 화면의 Closed(USDT)와 일치', () => {
+  it('완전청산이면 청산분 원가와 진입 합계가 같다', () => {
+    // 진입 7,095.64 + 3,589.38 = 10,685.02 = 화면의 Closed(USDT).
+    // 부분청산에서는 둘이 갈린다(LONG_PARTIAL 참고) — 규모는 항상 닫힌 쪽을 쓴다.
     expect(r.fields.notional).toBeCloseTo(10685.02, 2);
   });
 

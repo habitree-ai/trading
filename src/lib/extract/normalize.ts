@@ -106,3 +106,24 @@ export function valueAfter(text: string, label: RegExp): string | undefined {
   if (!line) return undefined;
   return line.replace(label, "").trim() || undefined;
 }
+
+/**
+ * 라벨 **다음 줄**의 값.
+ *
+ * OKX 포지션 화면의 큰 숫자들은 라벨과 값이 두 줄로 나뉜다:
+ *   `Realized PnL (USDT)` / `+30.36`
+ *   `Closed (USDT)` / `8,458.84`
+ * 같은 줄만 보면 `(USDT)`를 값으로 집어 파싱이 조용히 실패한다.
+ */
+export function valueBelow(text: string, label: RegExp): string | undefined {
+  const lines = text.split(/\r?\n/);
+
+  for (let i = 0; i < lines.length; i += 1) {
+    if (!label.test(lines[i])) continue;
+    for (let j = i + 1; j < lines.length; j += 1) {
+      const next = lines[j].trim();
+      if (next !== "") return next;
+    }
+  }
+  return undefined;
+}
