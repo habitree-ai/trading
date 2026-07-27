@@ -30,6 +30,12 @@ function mean(values: readonly number[]): Maybe {
 /** 거래 1건에서 계산되는 파생값 — 시트의 계산 컬럼들에 대응. */
 export interface TradeDerived {
   trade: Trade;
+  /**
+   * 계좌가 실제로 움직인 금액 = 손익 + 수수료.
+   * OKX가 `Realized PnL`로 부르는 값이고, `pnl`(Closed PnL)은 수수료 이전 총액이다.
+   * 100배 레버리지에서 수수료는 손익의 10%에 육박해 무시할 수 없다.
+   */
+  net: number;
   /** 시트의 `자금` — 이 거래 직전 자금 */
   equityBefore: number;
   /** 시트의 `자금` — 이 거래 직후 자금 */
@@ -62,20 +68,21 @@ export function deriveTrades(book: Book, trades: readonly Trade[]): TradeDerived
 
   return sorted.map((trade) => {
     const equityBefore = trade.equity_before ?? running;
-    const pnl = trade.pnl ?? 0;
+    const net = (trade.pnl ?? 0) + (trade.fee ?? 0);
     const withdrawal = trade.withdrawal ?? 0;
-    const equityAfter = trade.equity_after ?? equityBefore + pnl - withdrawal;
+    const equityAfter = trade.equity_after ?? equityBefore + net - withdrawal;
 
     running = equityAfter;
     peak = Math.max(peak, equityAfter);
 
     return {
       trade,
+      net,
       equityBefore,
       equityAfter,
       peak,
       drawdownPct: peak === 0 ? 0 : (equityAfter - peak) / peak,
-      pnlPct: trade.pnl === null ? null : ratio(trade.pnl, equityBefore),
+      pnlPct: trade.pnl === null ? null : ratio(net, equityBefore),
       riskPct: riskPct(trade),
       rr: [rrFor(trade, trade.tp1_price), rrFor(trade, trade.tp2_price), rrFor(trade, trade.tp3_price)],
     };
@@ -208,8 +215,9 @@ export function computeMetrics(book: Book, derived: readonly TradeDerived[]): Bo
   const losses = closed.filter((d) => d.trade.result === 'loss');
   const breakEvens = closed.filter((d) => d.trade.result === 'be');
 
-  const winPnls = wins.map((d) => d.trade.pnl ?? 0);
-  const lossPnls = losses.map((d) => d.trade.pnl ?? 0);
+  // 손익비·기대치도 수수료를 뺀 실제 금액으로 계산한다.
+  const winPnls = wins.map((d) => d.net);
+  const lossPnls = losses.map((d) => d.net);
 
   const avgWin = mean(winPnls);
   const avgLoss = mean(lossPnls.map(Math.abs));
@@ -227,7 +235,7 @@ export function computeMetrics(book: Book, derived: readonly TradeDerived[]): Bo
 
   const grossProfit = winPnls.reduce((a, b) => a + b, 0);
   const grossLoss = lossPnls.reduce((a, b) => a + b, 0);
-  const netPnl = derived.reduce((a, d) => a + (d.trade.pnl ?? 0), 0);
+  const netPnl = derived.reduce((a, d) => a + d.net, 0);
 
   const streaks = computeStreaks(closed.map((d) => d.trade.result));
 
@@ -330,7 +338,7 @@ export function bucketBy(
     const anchor = d.trade.exit_at ?? d.trade.entry_at;
     const key = keyFn(anchor);
     const bucket = map.get(key) ?? { key, pnl: 0, wins: 0, losses: 0, count: 0 };
-    bucket.pnl += d.trade.pnl ?? 0;
+    bucket.pnl += d.net;
     bucket.count += 1;
     if (d.trade.result === 'win') bucket.wins += 1;
     if (d.trade.result === 'loss') bucket.losses += 1;
@@ -369,7 +377,7 @@ export function groupPerformance(
     .map(([key, list]) => {
       const wins = list.filter((d) => d.trade.result === 'win').length;
       const losses = list.filter((d) => d.trade.result === 'loss').length;
-      const pnls = list.map((d) => d.trade.pnl ?? 0);
+      const pnls = list.map((d) => d.net);
       const netPnl = pnls.reduce((a, b) => a + b, 0);
       return {
         key,

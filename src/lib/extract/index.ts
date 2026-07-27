@@ -1,8 +1,12 @@
 import { okxAdapter } from "@/lib/extract/okx";
+import { okxPositionAdapter } from "@/lib/extract/okx-position";
 import type { ExchangeAdapter, ExtractResult } from "@/lib/extract/types";
 
-/** 등록된 거래소 어댑터. 새 거래소는 여기에 추가한다. */
-export const ADAPTERS: ExchangeAdapter[] = [okxAdapter];
+/**
+ * 등록된 거래소 어댑터. 새 거래소·화면은 여기에 추가한다.
+ * 포지션 상세가 주문 상세보다 정보가 많으므로 먼저 둔다(동점이면 앞이 이긴다).
+ */
+export const ADAPTERS: ExchangeAdapter[] = [okxPositionAdapter, okxAdapter];
 
 /** 신뢰도가 이 아래면 AI 비전으로 다시 시도한다. */
 export const AI_FALLBACK_THRESHOLD = 0.75;

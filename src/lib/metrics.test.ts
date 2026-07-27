@@ -225,6 +225,37 @@ describe('computeMetrics — 시트 KPI 블록', () => {
   });
 });
 
+describe('수수료 반영 — 계좌가 실제로 움직인 금액', () => {
+  it('자금 곡선은 손익이 아니라 손익+수수료로 이어진다', () => {
+    seq = 0;
+    // OKX 캡쳐 기준: Closed PnL +35.31, 수수료 -4.95 → 실현손익 +30.36
+    const derived = deriveTrades(book, [trade({ pnl: 35.31, fee: -4.95, result: 'win' })]);
+
+    expect(derived[0].net).toBeCloseTo(30.36, 2);
+    expect(derived[0].equityAfter).toBeCloseTo(130.36, 2);
+  });
+
+  it('손익비·기대치도 수수료를 반영한다', () => {
+    seq = 0;
+    const derived = deriveTrades(book, [
+      trade({ pnl: 20, fee: -10, result: 'win' }), // 실제 +10
+      trade({ pnl: -20, fee: -10, result: 'loss' }), // 실제 -30
+    ]);
+    const m = computeMetrics(book, derived);
+
+    expect(m.avgWin).toBeCloseTo(10, 10);
+    expect(m.avgLoss).toBeCloseTo(30, 10);
+    expect(m.payoffRatio).toBeCloseTo(1 / 3, 10);
+    expect(m.netPnl).toBeCloseTo(-20, 10);
+  });
+
+  it('수수료가 비면 손익 그대로 쓴다', () => {
+    seq = 0;
+    const derived = deriveTrades(book, [trade({ pnl: 12.4, result: 'win' })]);
+    expect(derived[0].net).toBeCloseTo(12.4, 10);
+  });
+});
+
 describe('crossCheckPnl — OCR 오독을 잡는 안전망', () => {
   const base = {
     side: 'long' as const,
