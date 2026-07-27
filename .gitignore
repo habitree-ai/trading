@@ -43,3 +43,5 @@ next-env.d.ts
 # 캡쳐 샘플 — 빌드에 필요 없는 바이너리.
 # 파싱 계약은 src/lib/extract/okx.test.ts 의 텍스트 픽스처가 고정한다.
 IMG/
+
+.vercel
