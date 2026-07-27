@@ -22,6 +22,7 @@ interface Fill {
   filled: number;
   price: number;
   fee: number;
+  orderNo?: string;
 }
 
 const FILL_HEAD = /(Open|Close)\s+(long|short)\s+(\d{1,2}\/\d{1,2}[,\s]+\d{1,2}:\d{2}(?::\d{2})?)/i;
@@ -62,6 +63,9 @@ function parseFills(body: string): Fill[] {
     else if (/^\s*Fill\s*price\b/i.test(line))
       current.price = toNumber(valueAfter(line, /^\s*Fill\s*price\b/i));
     else if (/^\s*Fee\b/i.test(line)) current.fee = toNumber(valueAfter(line, /^\s*Fee\b/i)) ?? 0;
+    else if (/^\s*Order\s*number\b/i.test(line)) {
+      current.orderNo = valueAfter(line, /^\s*Order\s*number\b/i)?.match(/\d{6,}/)?.[0];
+    }
   }
   flush();
 
@@ -141,7 +145,9 @@ export const okxPositionAdapter: ExchangeAdapter = {
     fields.fills = fills
       .map((f) => {
         const at = toIsoKst(f.time, fallbackYear);
-        return at ? { role: f.role, at, price: f.price, amount: f.filled, fee: f.fee } : null;
+        return at
+          ? { role: f.role, at, price: f.price, amount: f.filled, fee: f.fee, orderNo: f.orderNo }
+          : null;
       })
       .filter((f): f is NonNullable<typeof f> => f !== null)
       .sort((a, b) => Date.parse(a.at) - Date.parse(b.at));
@@ -162,12 +168,13 @@ export const okxPositionAdapter: ExchangeAdapter = {
       ? toIsoKst(closes[0]?.time, fallbackYear) // 주문 목록의 첫 줄이 마지막 청산
       : toIsoKst(closedRaw, fallbackYear);
 
-    // 손익은 총액(Closed PnL), 수수료는 거래+펀딩 합계로 나눠 담는다.
-    // 계좌가 실제로 움직인 값 = Closed PnL + 수수료 = Realized PnL.
+    // 계좌가 실제로 움직인 값 = Closed PnL + 거래 수수료 + 펀딩비 = Realized PnL.
+    // 거래 수수료는 체결 비용, 펀딩비는 보유 비용이라 성격이 달라 따로 담는다.
     fields.pnl = toNumber(valueAfter(header, /^\s*Closed\s*PnL\b/i));
-    const tradingFee = toNumber(valueAfter(header, /^\s*Trading\s*fee\b/i)) ?? 0;
-    const fundingFee = toNumber(valueAfter(header, /^\s*Funding\s*fee\b/i)) ?? 0;
-    if (tradingFee !== 0 || fundingFee !== 0) fields.fee = tradingFee + fundingFee;
+    const tradingFee = toNumber(valueAfter(header, /^\s*Trading\s*fee\b/i));
+    const fundingFee = toNumber(valueAfter(header, /^\s*Funding\s*fee\b/i));
+    if (tradingFee !== undefined) fields.fee = tradingFee;
+    if (fundingFee !== undefined) fields.fundingFee = fundingFee;
 
     const realized = toNumber(valueAfter(header, /^\s*Realized\s*PnL/i));
 
@@ -190,7 +197,7 @@ export const okxPositionAdapter: ExchangeAdapter = {
 
     // 화면이 직접 알려주는 실현손익과 대조한다 — 어긋나면 숫자를 잘못 읽은 것이다.
     if (realized !== undefined && fields.pnl !== undefined) {
-      const computed = fields.pnl + (fields.fee ?? 0);
+      const computed = fields.pnl + (fields.fee ?? 0) + (fields.fundingFee ?? 0);
       if (Math.abs(computed - realized) > 0.02) {
         suspect.push("pnl", "fee");
         notes.push(

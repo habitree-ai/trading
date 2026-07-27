@@ -96,6 +96,20 @@ describe("OKX 어댑터 — Order details(청산) 화면", () => {
   it("필수 항목이 다 찼으므로 신뢰도가 높다", () => {
     expect(result.confidence).toBe(1);
   });
+
+  it("`Cross 100x` 배지에서 마진 모드를 읽는다 — 청산 위험이 달라 복기 축이 된다", () => {
+    expect(result.fields.marginMode).toBe("cross");
+    expect(okxAdapter.parse(OKX_CLOSE_LONG.replace("Cross", "Isolated")).fields.marginMode).toBe(
+      "isolated",
+    );
+  });
+
+  it("주문번호를 체결로 남긴다 — 포지션 캡쳐와 같은 거래인지 알아보는 열쇠", () => {
+    const fills = result.fields.fills ?? [];
+    expect(fills).toHaveLength(1);
+    expect(fills[0].role).toBe("close");
+    expect(fills[0].orderNo).toMatch(/^\d{6,}$/);
+  });
 });
 
 describe("OKX 어댑터 — 진입 주문 화면", () => {

@@ -152,6 +152,7 @@ export type Database = {
           fee: number | null
           filled_at: string
           id: string
+          order_no: string | null
           price: number
           role: Database["public"]["Enums"]["fill_role"]
           trade_id: string
@@ -163,6 +164,7 @@ export type Database = {
           fee?: number | null
           filled_at: string
           id?: string
+          order_no?: string | null
           price: number
           role: Database["public"]["Enums"]["fill_role"]
           trade_id: string
@@ -174,6 +176,7 @@ export type Database = {
           fee?: number | null
           filled_at?: string
           id?: string
+          order_no?: string | null
           price?: number
           role?: Database["public"]["Enums"]["fill_role"]
           trade_id?: string
@@ -248,8 +251,10 @@ export type Database = {
           exit_at: string | null
           exit_price: number | null
           fee: number | null
+          funding_fee: number | null
           id: string
           leverage: number | null
+          margin_mode: Database["public"]["Enums"]["margin_mode"] | null
           note: string | null
           notional: number | null
           pnl: number | null
@@ -279,8 +284,10 @@ export type Database = {
           exit_at?: string | null
           exit_price?: number | null
           fee?: number | null
+          funding_fee?: number | null
           id?: string
           leverage?: number | null
+          margin_mode?: Database["public"]["Enums"]["margin_mode"] | null
           note?: string | null
           notional?: number | null
           pnl?: number | null
@@ -310,8 +317,10 @@ export type Database = {
           exit_at?: string | null
           exit_price?: number | null
           fee?: number | null
+          funding_fee?: number | null
           id?: string
           leverage?: number | null
+          margin_mode?: Database["public"]["Enums"]["margin_mode"] | null
           note?: string | null
           notional?: number | null
           pnl?: number | null
@@ -352,6 +361,7 @@ export type Database = {
       capture_kind: "position" | "chart" | "balance"
       extract_engine: "ocr" | "ai" | "manual"
       fill_role: "open" | "close"
+      margin_mode: "cross" | "isolated"
       goal_metric:
         | "return_pct"
         | "max_drawdown_pct"
@@ -502,6 +512,7 @@ export const Constants = {
         "risk_per_trade_pct",
         "trade_count",
       ],
+      margin_mode: ["cross", "isolated"],
       goal_period: ["week", "month", "year"],
       goal_tier: ["beta", "alpha"],
       trade_result: ["win", "loss", "be", "open"],

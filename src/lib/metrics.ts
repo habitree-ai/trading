@@ -31,8 +31,8 @@ function mean(values: readonly number[]): Maybe {
 export interface TradeDerived {
   trade: Trade;
   /**
-   * 계좌가 실제로 움직인 금액 = 손익 + 수수료.
-   * OKX가 `Realized PnL`로 부르는 값이고, `pnl`(Closed PnL)은 수수료 이전 총액이다.
+   * 계좌가 실제로 움직인 금액 = 손익 + 거래 수수료 + 펀딩비.
+   * OKX가 `Realized PnL`로 부르는 값이고, `pnl`(Closed PnL)은 비용 이전 총액이다.
    * 100배 레버리지에서 수수료는 손익의 10%에 육박해 무시할 수 없다.
    */
   net: number;
@@ -68,7 +68,7 @@ export function deriveTrades(book: Book, trades: readonly Trade[]): TradeDerived
 
   return sorted.map((trade) => {
     const equityBefore = trade.equity_before ?? running;
-    const net = (trade.pnl ?? 0) + (trade.fee ?? 0);
+    const net = (trade.pnl ?? 0) + (trade.fee ?? 0) + (trade.funding_fee ?? 0);
     const withdrawal = trade.withdrawal ?? 0;
     const equityAfter = trade.equity_after ?? equityBefore + net - withdrawal;
 

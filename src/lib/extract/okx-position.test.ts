@@ -22,13 +22,13 @@ Close long 07/27, 13:20:35 +35.31 USDT
 Filled 8,494.16 USDT
 Fill price ₮65,390
 Fee -1.27412415 USDT
-Order number 0000000000000000000
+Order number 1000000000000000001
 
 Open long 07/27, 10:47:53
 Filled 10,217.03 USDT
 Fill price ₮65,118.1
 Fee -3.67813076 USDT
-Order number 0000000000000000000`;
+Order number 1000000000000000002`;
 
 /** 숏 · 손실 · 완전청산. 배지 색이 롱과 뒤집혀 나오는 화면. */
 const SHORT_LOSS = `15:45
@@ -49,13 +49,13 @@ Close short 07/27, 06:24:56 -19.54 USDT
 Filled 9,694.25 USDT
 Fill price ₮64,757.84762859
 Fee -3.48992992 USDT
-Order number 0000000000000000000
+Order number 1000000000000000003
 
 Open short 07/27, 05:37:45
 Filled 9,674.71 USDT
 Fill price ₮64,627.3
 Fee -3.48289445 USDT
-Order number 0000000000000000000`;
+Order number 1000000000000000004`;
 
 /** 분할 진입 2건 + 분할 청산 2건 · 펀딩피 있음. */
 const SPLIT_FILLS = `15:45
@@ -76,25 +76,25 @@ Close long 07/27, 10:35:07 +0.77 USDT
 Filled 2,746.68 USDT
 Fill price ₮64,933.3
 Fee -0.98880429 USDT
-Order number 0000000000000000000
+Order number 1000000000000000005
 
 Close long 07/27, 07:32:50 +56.85 USDT
 Filled 7,995.97 USDT
 Fill price ₮65,380
 Fee -1.1993961 USDT
-Order number 0000000000000000000
+Order number 1000000000000000006
 
 Open long 07/27, 07:05:12
 Filled 3,589.38 USDT
 Fill price ₮65,143
 Fee -0.53840689 USDT
-Order number 0000000000000000000
+Order number 1000000000000000007
 
 Open long 07/27, 06:47:23
 Filled 7,095.64 USDT
 Fill price ₮64,800.4
 Fee -2.55443176 USDT
-Order number 0000000000000000000`;
+Order number 1000000000000000008`;
 
 describe('OKX 포지션 상세 — 진입·청산이 한 장에 있다', () => {
   const r = okxPositionAdapter.parse(LONG_PARTIAL);
@@ -116,7 +116,7 @@ describe('OKX 포지션 상세 — 진입·청산이 한 장에 있다', () => {
     expect(r.fields.exit_at).toBe('2026-07-27T04:20:35.000Z');
   });
 
-  it('손익은 총액, 수수료는 거래+펀딩 합계로 나눠 담는다', () => {
+  it('손익은 총액, 거래 수수료는 따로 담는다', () => {
     expect(r.fields.pnl).toBe(35.31);
     expect(r.fields.fee).toBeCloseTo(-4.95225492, 6);
     // 손익 + 수수료 == 화면의 실현손익 +30.36
@@ -151,6 +151,10 @@ describe('OKX 포지션 상세 — 숏 손실 (배지 색이 뒤집힌 화면)',
   it('실현손익 대조가 맞는다', () => {
     expect(r.fields.pnl! + r.fields.fee!).toBeCloseTo(-26.51, 2);
   });
+
+  it('펀딩비가 `--`면 값을 만들지 않는다', () => {
+    expect(r.fields.fundingFee).toBeUndefined();
+  });
 });
 
 describe('OKX 포지션 상세 — 분할 진입·분할 청산', () => {
@@ -176,9 +180,18 @@ describe('OKX 포지션 상세 — 분할 진입·분할 청산', () => {
     expect(implied).toBeCloseTo(57.62, 0);
   });
 
-  it('펀딩피를 수수료에 합산한다', () => {
-    expect(r.fields.fee).toBeCloseTo(-5.28103906 - 0.20918, 6);
-    expect(r.fields.pnl! + r.fields.fee!).toBeCloseTo(52.13, 2);
+  it('거래 수수료와 펀딩비를 따로 담는다 — 체결 비용과 보유 비용은 성격이 다르다', () => {
+    expect(r.fields.fee).toBeCloseTo(-5.28103906, 8);
+    expect(r.fields.fundingFee).toBeCloseTo(-0.20918, 8);
+    // 셋을 더하면 화면의 실현손익 +52.13
+    expect(r.fields.pnl! + r.fields.fee! + r.fields.fundingFee!).toBeCloseTo(52.13, 2);
+  });
+
+  it('주문번호를 체결마다 남긴다 — 같은 거래를 두 번 등록하는 것을 막는 열쇠', () => {
+    const nos = (r.fields.fills ?? []).map((f) => f.orderNo);
+    expect(nos).toHaveLength(4);
+    expect(new Set(nos).size).toBe(4);
+    expect(nos.every((n) => /^\d{6,}$/.test(n ?? ''))).toBe(true);
   });
 
   it('낱개 체결을 시간순으로 그대로 넘긴다 — 차트가 평균가가 아닌 실제 좌표를 찍어야 한다', () => {

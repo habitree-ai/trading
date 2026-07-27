@@ -23,6 +23,8 @@ export function toPrefill(fields: ExtractedFields): Prefill {
   put("stop_price", str(fields.stop_price));
   put("pnl", str(fields.pnl));
   put("fee", str(fields.fee));
+  put("funding_fee", str(fields.fundingFee));
+  put("margin_mode", fields.marginMode);
   put("equity_after", str(fields.equity_after));
   put("entry_at", fields.entry_at ? toLocalInput(fields.entry_at) : undefined);
   put("exit_at", fields.exit_at ? toLocalInput(fields.exit_at) : undefined);

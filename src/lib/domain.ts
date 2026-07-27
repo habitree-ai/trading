@@ -59,8 +59,12 @@ export interface Trade {
   entry_price: number | null;
   /** 청산가 — 거래소 캡쳐의 `Fill price`. 시트에는 없던 항목 */
   exit_price: number | null;
-  /** 수수료 — 부호 포함(보통 음수). 시트에는 없던 항목 */
+  /** 거래 수수료 — 체결 비용. 부호 포함(보통 음수) */
   fee: number | null;
+  /** 펀딩비 — 보유 비용. 거래 수수료와 성격이 달라 나눠 둔다 */
+  funding_fee: number | null;
+  /** 교차/격리 — 청산 위험이 달라 복기 축이 된다 */
+  margin_mode: 'cross' | 'isolated' | null;
   /** 시트의 `손절가` */
   stop_price: number | null;
   /** 시트의 `TP1`~`TP3` (익절1~3) */
@@ -96,6 +100,8 @@ export interface TradeFill {
   price: number;
   amount: number | null;
   fee: number | null;
+  /** 거래소 주문번호 — 같은 거래를 두 번 등록하지 못하게 막는 열쇠 */
+  order_no: string | null;
   created_at: string;
 }
 

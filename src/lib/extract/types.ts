@@ -14,6 +14,8 @@ export interface ExtractedFill {
   /** 체결 금액(견적통화) */
   amount: number;
   fee: number;
+  /** 거래소 주문번호 — 같은 거래를 두 번 등록하는 것을 막는 열쇠. */
+  orderNo?: string;
 }
 
 /** 캡쳐에서 뽑아낸 값들 — 전부 선택적이다. 한 장으로 거래가 완성되지 않는 경우가 많다. */
@@ -26,7 +28,12 @@ export interface ExtractedFields {
   exit_price?: number;
   stop_price?: number;
   pnl?: number;
+  /** 거래 수수료 (OKX `Trading fee`) */
   fee?: number;
+  /** 펀딩비 (OKX `Funding fee`) — 보유 비용이라 거래 수수료와 나눈다. */
+  fundingFee?: number;
+  /** 교차/격리 — 청산 위험이 달라 복기 축이 된다. */
+  marginMode?: 'cross' | 'isolated';
   entry_at?: string;
   exit_at?: string;
   equity_after?: number;

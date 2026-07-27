@@ -41,6 +41,11 @@ export const okxAdapter: ExchangeAdapter = {
 
     fields.leverage = toLeverage(text.match(/\b\d+(?:\.\d+)?\s*[xX×]/)?.[0]);
 
+    // `Cross` / `Isolated` 배지 — 청산 위험이 전혀 달라 복기 축이 된다.
+    // 포지션 상세 화면에는 없고 주문 상세에만 찍힌다.
+    const margin = text.match(/\b(Cross|Isolated)\b/i);
+    if (margin) fields.marginMode = margin[1].toLowerCase() as "cross" | "isolated";
+
     // 청산가 — `Fill price`가 실제 체결가라 `Order price`보다 우선한다.
     const fillPrice = toNumber(valueAfter(text, /^\s*Fill\s*price\b/i));
     const orderPrice = toNumber(valueAfter(text, /^\s*Order\s*price\b/i));
@@ -55,10 +60,26 @@ export const okxAdapter: ExchangeAdapter = {
     fields.pnl_pct = toPercent(valueAfter(text, /^\s*Closed\s*PnL\s*%/i));
     fields.fee = toNumber(valueAfter(text, /^\s*Fee\b/i));
 
+    // 주문번호 — 같은 거래를 두 번 등록하는 것을 막는 열쇠.
+    const orderNo = valueAfter(text, /^\s*Order\s*number\b/i)?.match(/\d{6,}/)?.[0];
+
     // 체결 시각 — `Fill details`의 타임스탬프에만 연도가 붙는다.
     const fillStamp = text.match(/\d{1,2}\/\d{1,2}\/\d{4}[,\s]+\d{1,2}:\d{2}(?::\d{2})?/);
     const creationLine = valueAfter(text, /^\s*Creation\s*time\b/i);
     const filledAt = toIsoKst(fillStamp?.[0], fallbackYear) ?? toIsoKst(creationLine, fallbackYear);
+
+    if (orderNo && price !== undefined && filledAt && fields.orderRole) {
+      fields.fills = [
+        {
+          role: fields.orderRole,
+          at: filledAt,
+          price,
+          amount: fields.notional ?? 0,
+          fee: fields.fee ?? 0,
+          orderNo,
+        },
+      ];
+    }
 
     if (fields.orderRole === "close") {
       fields.exit_price = price;

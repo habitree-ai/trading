@@ -210,11 +210,18 @@ export function TradeForm({
         />
         <Field
           name="fee"
-          label="수수료"
-          hint="보통 음수"
+          label="거래 수수료"
+          hint="체결 비용"
           numeric
           defaultValue={v("fee")}
           suspect={suspect.has("fee")}
+        />
+        <Field
+          name="funding_fee"
+          label="펀딩비"
+          hint="보유 비용"
+          numeric
+          defaultValue={v("funding_fee")}
         />
       </Section>
 
@@ -243,6 +250,21 @@ export function TradeForm({
           defaultValue={v("leverage")}
           suspect={suspect.has("leverage")}
         />
+        <div>
+          <label className={LABEL} htmlFor="f-margin_mode">
+            마진 모드
+          </label>
+          <select
+            id="f-margin_mode"
+            name="margin_mode"
+            defaultValue={v("margin_mode")}
+            className={INPUT}
+          >
+            <option value="">미지정</option>
+            <option value="cross">교차 (Cross)</option>
+            <option value="isolated">격리 (Isolated)</option>
+          </select>
+        </div>
       </Section>
 
       <Section title="가격 · 목표">
