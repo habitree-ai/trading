@@ -7,6 +7,7 @@ import {
   CartesianGrid,
   Cell,
   ReferenceArea,
+  ReferenceDot,
   ReferenceLine,
   ResponsiveContainer,
   Tooltip,
@@ -126,6 +127,45 @@ export function TradeChart({
     return [min - pad, max + pad];
   }, [rows, entryPrice, exitPrice, stopPrice]);
 
+  /**
+   * 라벨을 점의 어느 쪽에 붙일지 정한다.
+   *
+   * 항상 바깥쪽(진입=왼쪽, 청산=오른쪽)으로 빼면 차트 가장자리에서 글자가 잘린다.
+   * 가장자리에 가까우면 안쪽으로 뒤집는다.
+   */
+  const { entryAlign, exitAlign, entryDy, exitDy, stopSide } = useMemo(() => {
+    const first = rows[0]?.t ?? 0;
+    const last = rows[rows.length - 1]?.t ?? 0;
+    const span = last - first;
+    const frac = (t: number) => (span > 0 ? (t - first) / span : 0.5);
+
+    // 일봉처럼 봉이 굵으면 진입·청산이 같거나 인접한 봉에 놓여 라벨이 겹친다.
+    // 그럴 땐 좌우로 못 가르니 같은 쪽에 붙이고 가격이 높은 쪽을 위로 밀어낸다.
+    const crowded =
+      exitBar !== null && Math.abs(frac(exitBar) - frac(entryBar)) < 0.12;
+
+    if (crowded) {
+      const side = frac(entryBar) > 0.5 ? ("left" as const) : ("right" as const);
+      const entryHigher = (entryPrice ?? 0) >= (exitPrice ?? 0);
+      return {
+        entryAlign: side,
+        exitAlign: side,
+        entryDy: entryHigher ? -16 : 16,
+        exitDy: entryHigher ? 16 : -16,
+        // 손절 라벨은 마커가 없는 쪽으로 보낸다.
+        stopSide: frac(entryBar) > 0.5 ? ('left' as const) : ('right' as const),
+      };
+    }
+
+    return {
+      entryAlign: frac(entryBar) < 0.28 ? ('right' as const) : ('left' as const),
+      exitAlign: exitBar !== null && frac(exitBar) > 0.72 ? ('left' as const) : ('right' as const),
+      entryDy: 0,
+      exitDy: 0,
+      stopSide: frac(entryBar) > 0.5 ? ('left' as const) : ('right' as const),
+    };
+  }, [rows, entryBar, exitBar, entryPrice, exitPrice]);
+
   const held =
     exitPrice !== null && entryPrice !== null
       ? ((exitPrice - entryPrice) / entryPrice) * (side === "long" ? 1 : -1)
@@ -213,34 +253,59 @@ export function TradeChart({
                 />
               ) : null}
 
+              {/* 손절가만 가로선으로 남긴다 — 체결이 아니라 '그었던 선'이라서. */}
               {stopPrice !== null ? (
                 <ReferenceLine
                   y={stopPrice}
                   stroke="var(--loss)"
                   strokeDasharray="2 4"
-                  label={{ value: "손절", position: "insideBottomLeft", fill: "var(--loss)", fontSize: 10 }}
-                />
-              ) : null}
-              {entryPrice !== null ? (
-                <ReferenceLine
-                  y={entryPrice}
-                  stroke="var(--accent)"
-                  strokeDasharray="4 4"
-                  label={{ value: "진입", position: "insideTopLeft", fill: "var(--accent)", fontSize: 10 }}
-                />
-              ) : null}
-              {exitPrice !== null ? (
-                <ReferenceLine
-                  y={exitPrice}
-                  stroke="var(--beta)"
-                  strokeDasharray="4 4"
-                  label={{ value: "청산", position: "insideTopLeft", fill: "var(--beta)", fontSize: 10 }}
+                  label={<LineLabel text={`손절 ${num(stopPrice)}`} align={stopSide} />}
                 />
               ) : null}
 
-              <ReferenceLine x={entryBar} stroke="var(--accent)" strokeWidth={1.5} />
-              {exitBar !== null ? (
-                <ReferenceLine x={exitBar} stroke="var(--beta)" strokeWidth={1.5} />
+              {/*
+                진입·청산은 가로선+세로선을 겹치는 대신 체결이 일어난 좌표에 점을 찍는다.
+                선 두 개가 교차하면 어느 쌍이 한 거래인지 눈으로 짝지어야 해서 헷갈린다.
+              */}
+              {entryPrice !== null ? (
+                <ReferenceDot
+                  x={entryBar}
+                  y={entryPrice}
+                  r={5}
+                  fill="var(--accent)"
+                  stroke="var(--surface)"
+                  strokeWidth={2}
+                  ifOverflow="extendDomain"
+                  label={
+                    <MarkerLabel
+                      title={`진입 ${num(entryPrice)}`}
+                      sub={formatFull(entryMs)}
+                      color="var(--accent)"
+                      align={entryAlign}
+                      dy={entryDy}
+                    />
+                  }
+                />
+              ) : null}
+              {exitPrice !== null && exitBar !== null ? (
+                <ReferenceDot
+                  x={exitBar}
+                  y={exitPrice}
+                  r={5}
+                  fill="var(--beta)"
+                  stroke="var(--surface)"
+                  strokeWidth={2}
+                  ifOverflow="extendDomain"
+                  label={
+                    <MarkerLabel
+                      title={`청산 ${num(exitPrice)}`}
+                      sub={formatFull(exitMs!)}
+                      color="var(--beta)"
+                      align={exitAlign}
+                      dy={exitDy}
+                    />
+                  }
+                />
               ) : null}
 
               <Tooltip
@@ -285,10 +350,107 @@ export function TradeChart({
       </div>
 
       <p className="mt-2 text-[11px] text-dim">
-        막대는 각 봉의 고가~저가 범위이고, 색은 시가 대비 종가 방향입니다. 세로선이 진입·청산
-        시점, 음영이 보유 구간입니다.
+        막대는 각 봉의 고가~저가 범위이고, 색은 시가 대비 종가 방향입니다.{" "}
+        <span className="text-accent">●</span> 진입 · <span className="text-beta">●</span> 청산
+        지점에 가격과 시각을 함께 적었고, 음영이 보유 구간입니다.
       </p>
     </section>
+  );
+}
+
+/**
+ * 가로 기준선(손절가)에 붙는 라벨.
+ *
+ * Recharts의 `insideBottomLeft` 같은 내장 위치는 글자 폭을 고려하지 않아 왼쪽으로 넘쳐
+ * 잘린다. 플롯 영역 좌표를 직접 받아 안쪽으로 들여 그린다.
+ */
+function LineLabel({
+  viewBox,
+  text,
+  align,
+}: {
+  viewBox?: { x?: number; y?: number; width?: number };
+  text: string;
+  align: 'left' | 'right';
+}) {
+  const x = viewBox?.x;
+  const y = viewBox?.y;
+  const width = viewBox?.width;
+  if (typeof x !== 'number' || typeof y !== 'number' || typeof width !== 'number') return null;
+
+  // Recharts가 넘겨주는 viewBox.x가 음수로 들어오는 경우가 있어 0으로 잘라낸다.
+  const left = Math.max(x, 0);
+  const inset = 8;
+  return (
+    <text
+      x={align === 'left' ? left + inset : left + width - inset}
+      y={y + 13}
+      textAnchor={align === 'left' ? 'start' : 'end'}
+      fontSize={10}
+      fill="var(--loss)"
+      stroke="var(--surface)"
+      strokeWidth={3.5}
+      paintOrder="stroke"
+      pointerEvents="none"
+    >
+      {text}
+    </text>
+  );
+}
+
+/**
+ * 체결 지점에 붙는 라벨 — 가격과 시각을 함께 적는다.
+ *
+ * 진입은 항상 청산보다 왼쪽에 있으므로 진입 라벨은 왼쪽, 청산 라벨은 오른쪽으로 빼면
+ * 두 라벨이 겹치지 않는다. 캔들 위에 글자가 묻히지 않도록 배경색 테두리로 후광을 준다.
+ */
+function MarkerLabel({
+  viewBox,
+  title,
+  sub,
+  color,
+  align,
+  dy = 0,
+}: {
+  viewBox?: { x?: number; y?: number };
+  title: string;
+  sub: string;
+  color: string;
+  align: "left" | "right";
+  /** 같은 봉에 두 라벨이 겹칠 때 세로로 밀어내는 양. */
+  dy?: number;
+}) {
+  const x = viewBox?.x;
+  const rawY = viewBox?.y;
+  if (typeof x !== "number" || typeof rawY !== "number") return null;
+  const y = rawY + dy;
+
+  const gap = 11;
+  const anchor = align === "left" ? "end" : "start";
+  const tx = align === "left" ? x - gap : x + gap;
+  const halo = {
+    stroke: "var(--surface)",
+    strokeWidth: 3.5,
+    paintOrder: "stroke" as const,
+  };
+
+  return (
+    <g pointerEvents="none">
+      <text
+        x={tx}
+        y={y - 5}
+        textAnchor={anchor}
+        fontSize={11}
+        fontWeight={600}
+        fill={color}
+        {...halo}
+      >
+        {title}
+      </text>
+      <text x={tx} y={y + 9} textAnchor={anchor} fontSize={10} fill="var(--text-dim)" {...halo}>
+        {sub}
+      </text>
+    </g>
   );
 }
 

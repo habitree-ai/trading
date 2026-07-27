@@ -79,12 +79,12 @@ export function TradeTable({ rows, currency }: { rows: TradeDerived[]; currency:
                 "순번",
                 "방향",
                 "종목",
-                "진입",
-                "종료",
+                "진입 (가격 · 시각)",
+                "청산 (가격 · 시각)",
                 "승패",
                 "투입",
                 "Lv",
-                `손익 (${currency})`,
+                `실현손익 (${currency})`,
                 "손익률",
                 "자금",
                 "MDD",
@@ -97,7 +97,7 @@ export function TradeTable({ rows, currency }: { rows: TradeDerived[]; currency:
             </tr>
           </thead>
           <tbody>
-            {visible.map(({ trade, equityAfter, drawdownPct, pnlPct }) => (
+            {visible.map(({ trade, equityAfter, drawdownPct, pnlPct, net }) => (
               <tr key={trade.id} className="border-t border-border hover:bg-surface-2/60">
                 <td className="tnum px-3 py-2 text-dim">{trade.seq}</td>
                 <td className="px-3 py-2">
@@ -106,19 +106,21 @@ export function TradeTable({ rows, currency }: { rows: TradeDerived[]; currency:
                   </span>
                 </td>
                 <td className="px-3 py-2 font-medium">{trade.symbol}</td>
-                <td className="tnum px-3 py-2 text-xs whitespace-nowrap text-dim">
-                  {dateTime(trade.entry_at)}
-                </td>
-                <td className="tnum px-3 py-2 text-xs whitespace-nowrap text-dim">
-                  {dateTime(trade.exit_at)}
-                </td>
+                <FillCell price={trade.entry_price} at={trade.entry_at} />
+                <FillCell price={trade.exit_price} at={trade.exit_at} />
                 <td className="px-3 py-2">
                   <ResultBadge result={trade.result} />
                 </td>
                 <td className="tnum px-3 py-2 text-dim">{num(trade.notional, 0)}</td>
                 <td className="tnum px-3 py-2 text-dim">{num(trade.leverage, 1)}</td>
-                <td className={`tnum px-3 py-2 font-medium ${pnlClass(trade.pnl)}`}>
-                  {signed(trade.pnl)}
+                {/* 계좌가 실제로 움직인 값(=손익+수수료)을 앞세우고, 내역은 아래 작게. */}
+                <td className={`px-3 py-2 whitespace-nowrap ${pnlClass(net)}`}>
+                  <div className="tnum font-medium">{signed(net)}</div>
+                  {trade.fee ? (
+                    <div className="tnum text-[11px] text-dim">
+                      {signed(trade.pnl)} · 수수료 {signed(trade.fee)}
+                    </div>
+                  ) : null}
                 </td>
                 <td className={`tnum px-3 py-2 ${pnlClass(pnlPct)}`}>{signedPct(pnlPct)}</td>
                 <td className="tnum px-3 py-2">{num(equityAfter, 0)}</td>
@@ -149,6 +151,16 @@ export function TradeTable({ rows, currency }: { rows: TradeDerived[]; currency:
         </table>
       </div>
     </div>
+  );
+}
+
+/** 체결 한 칸에 가격과 시각을 함께 담는다 — 둘을 따로 보면 짝짓기가 어렵다. */
+function FillCell({ price, at }: { price: number | null; at: string | null }) {
+  return (
+    <td className="px-3 py-2 whitespace-nowrap">
+      <div className="tnum text-sm">{num(price)}</div>
+      <div className="tnum text-[11px] text-dim">{dateTime(at)}</div>
+    </td>
   );
 }
 
