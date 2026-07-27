@@ -81,6 +81,24 @@ export interface Trade {
   updated_at: string;
 }
 
+/**
+ * 체결 1건 — 분할 진입·분할 청산을 낱개로 보관한다.
+ *
+ * 거래의 `entry_price`/`exit_price`는 가중평균가라 어느 한 시점의 가격이 아니다.
+ * 차트에 점으로 찍으려면 실제 체결 좌표가 필요하다.
+ */
+export interface TradeFill {
+  id: string;
+  trade_id: string;
+  user_id: string;
+  role: 'open' | 'close';
+  filled_at: string;
+  price: number;
+  amount: number | null;
+  fee: number | null;
+  created_at: string;
+}
+
 export interface TradeImage {
   id: string;
   trade_id: string | null;

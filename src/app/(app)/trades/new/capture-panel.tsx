@@ -7,8 +7,9 @@ import { CAPTURE_KIND_LABEL, type CaptureKind } from "@/lib/domain";
 import { AI_FALLBACK_THRESHOLD, extractFromText } from "@/lib/extract";
 import { runOcr } from "@/lib/extract/ocr";
 import { fromAi, toPrefill, type AiExtraction, type Prefill } from "@/lib/extract/to-prefill";
-import type { ExtractedFields } from "@/lib/extract/types";
+import type { ExtractedFields, ExtractedFill } from "@/lib/extract/types";
 import { createClient } from "@/lib/supabase/client";
+import type { Json } from "@/lib/supabase/database.types";
 
 type Stage = "idle" | "uploading" | "ocr" | "ai" | "done" | "error";
 
@@ -36,6 +37,7 @@ export function CapturePanel({ bookId, userId }: { bookId: string; userId: strin
   const [notes, setNotes] = useState<string[]>([]);
   const [suspect, setSuspect] = useState<string[]>([]);
   const [prefill, setPrefill] = useState<Prefill>({});
+  const [fills, setFills] = useState<ExtractedFill[]>([]);
   const [attached, setAttached] = useState<Attached[]>([]);
   // 프리필이 바뀌면 폼을 새로 마운트해야 defaultValue가 다시 반영된다.
   const [formKey, setFormKey] = useState(0);
@@ -130,10 +132,16 @@ export function CapturePanel({ bookId, userId }: { bookId: string; userId: strin
     // 4) 추출 결과를 캡쳐 기록에 남기고 폼에 꽂는다.
     await supabase
       .from("trade_images")
-      .update({ ocr_raw: ocrText || null, extracted: { ...parsed.fields }, engine })
+      .update({
+        ocr_raw: ocrText || null,
+        // 구조체를 그대로 넘기면 Json 타입과 안 맞아 한 번 직렬화한다.
+        extracted: JSON.parse(JSON.stringify(parsed.fields)) as Json,
+        engine,
+      })
       .eq("id", row.data.id);
 
     setPrefill((prev) => ({ ...prev, ...toPrefill(parsed.fields) }));
+    if (parsed.fields.fills?.length) setFills(parsed.fields.fills);
     setSuspect(parsed.suspect);
     setNotes(parsed.notes);
     setFormKey((k) => k + 1);
@@ -230,6 +238,7 @@ export function CapturePanel({ bookId, userId }: { bookId: string; userId: strin
         prefill={prefill}
         suspectFields={suspect}
         imageIds={attached.map((a) => a.id)}
+        fills={fills}
       />
     </div>
   );

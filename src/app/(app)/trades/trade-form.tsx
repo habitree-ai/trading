@@ -6,6 +6,7 @@ import { useFormStatus } from "react-dom";
 import { createTrade, updateTrade, type TradeFormState } from "@/app/(app)/trades/actions";
 import type { Trade } from "@/lib/domain";
 import type { Prefill } from "@/lib/extract/to-prefill";
+import type { ExtractedFill } from "@/lib/extract/types";
 import { toLocalInput } from "@/lib/format";
 import { crossCheckPnl, type PnlCrossCheck } from "@/lib/metrics";
 
@@ -95,6 +96,7 @@ export function TradeForm({
   prefill,
   suspectFields = [],
   imageIds = [],
+  fills,
 }: {
   bookId: string;
   trade?: Trade;
@@ -103,6 +105,8 @@ export function TradeForm({
   suspectFields?: string[];
   /** 저장 시 이 거래에 연결할 캡쳐 이미지들. */
   imageIds?: string[];
+  /** 캡쳐에서 읽은 낱개 체결 — 차트가 실제 좌표를 찍는 데 쓴다. */
+  fills?: ExtractedFill[];
 }) {
   const [state, action] = useActionState<TradeFormState, FormData>(
     trade ? updateTrade : createTrade,
@@ -132,6 +136,9 @@ export function TradeForm({
       {imageIds.map((id) => (
         <input key={id} type="hidden" name="image_ids" value={id} />
       ))}
+      {fills && fills.length > 0 ? (
+        <input type="hidden" name="fills" value={JSON.stringify(fills)} />
+      ) : null}
 
       <Section title="거래 개요">
         <div>

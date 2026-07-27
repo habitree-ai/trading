@@ -181,6 +181,28 @@ describe('OKX 포지션 상세 — 분할 진입·분할 청산', () => {
     expect(r.fields.pnl! + r.fields.fee!).toBeCloseTo(52.13, 2);
   });
 
+  it('낱개 체결을 시간순으로 그대로 넘긴다 — 차트가 평균가가 아닌 실제 좌표를 찍어야 한다', () => {
+    const fills = r.fields.fills ?? [];
+    expect(fills).toHaveLength(4);
+
+    // 06:47:23 KST == 2026-07-26T21:47:23Z
+    expect(fills[0]).toMatchObject({ role: 'open', at: '2026-07-26T21:47:23.000Z', price: 64800.4 });
+    expect(fills[1]).toMatchObject({ role: 'open', price: 65143 });
+    expect(fills[2]).toMatchObject({ role: 'close', price: 65380 });
+    expect(fills[3]).toMatchObject({ role: 'close', price: 64933.3 });
+
+    // 평균가는 어느 체결가와도 같지 않다 — 그래서 한 점으로 찍으면 캔들에서 벗어난다.
+    expect(fills.map((f) => f.price)).not.toContain(r.fields.entry_price);
+    expect(fills.map((f) => f.price)).not.toContain(r.fields.exit_price);
+  });
+
+  it('체결 금액 합계가 명목가와 맞는다', () => {
+    const opened = (r.fields.fills ?? [])
+      .filter((f) => f.role === 'open')
+      .reduce((a, f) => a + f.amount, 0);
+    expect(opened).toBeCloseTo(10685.02, 2);
+  });
+
   it('합쳤다는 사실을 알린다', () => {
     expect(r.notes.join(' ')).toContain('분할 체결(진입 2건 · 청산 2건)');
   });

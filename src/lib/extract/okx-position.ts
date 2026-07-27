@@ -137,6 +137,15 @@ export const okxPositionAdapter: ExchangeAdapter = {
     const entry = vwap(opens);
     const exit = vwap(closes);
 
+    // 낱개 체결을 그대로 넘긴다 — 차트는 평균가가 아니라 이 좌표에 점을 찍어야 한다.
+    fields.fills = fills
+      .map((f) => {
+        const at = toIsoKst(f.time, fallbackYear);
+        return at ? { role: f.role, at, price: f.price, amount: f.filled, fee: f.fee } : null;
+      })
+      .filter((f): f is NonNullable<typeof f> => f !== null)
+      .sort((a, b) => Date.parse(a.at) - Date.parse(b.at));
+
     if (entry) {
       fields.entry_price = entry.price;
       fields.notional = entry.notional;

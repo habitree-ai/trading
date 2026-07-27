@@ -15,6 +15,7 @@ import {
   YAxis,
 } from "recharts";
 
+import type { TradeFill } from "@/lib/domain";
 import { num, pct, signed } from "@/lib/format";
 import { BAR_MS, pickBar, windowFor, type Bar as OkxBar, type Candle } from "@/lib/okx";
 
@@ -43,6 +44,7 @@ export function TradeChart({
   entryPrice,
   exitPrice,
   stopPrice,
+  fills = [],
 }: {
   symbol: string;
   side: "long" | "short";
@@ -51,6 +53,12 @@ export function TradeChart({
   entryPrice: number | null;
   exitPrice: number | null;
   stopPrice: number | null;
+  /**
+   * 낱개 체결. 분할 체결이면 `entryPrice`/`exitPrice`는 가중평균가라
+   * 어느 한 시점의 가격이 아니다 — 그대로 찍으면 캔들 밖으로 떠오른다.
+   * 체결이 있으면 실제 좌표에 찍고, 평균가는 가로 기준선으로만 표시한다.
+   */
+  fills?: TradeFill[];
 }) {
   const entryMs = Date.parse(entryAt);
   const exitMs = exitAt ? Date.parse(exitAt) : null;
@@ -170,6 +178,30 @@ export function TradeChart({
     };
   }, [rows, entryBar, exitBar, entryPrice, exitPrice]);
 
+  /**
+   * 차트에 찍을 점들.
+   *
+   * 체결 내역이 있으면 그것이 정답이다. 없으면(수동 입력) 진입가·청산가가
+   * 곧 그 시점의 가격이므로 한 점씩만 찍는다.
+   */
+  const points = useMemo(() => {
+    if (fills.length > 0) {
+      return fills.map((f) => ({
+        key: f.id,
+        role: f.role,
+        ms: Date.parse(f.filled_at),
+        price: f.price,
+      }));
+    }
+    const single: { key: string; role: "open" | "close"; ms: number; price: number }[] = [];
+    if (entryPrice !== null) single.push({ key: "entry", role: "open", ms: entryMs, price: entryPrice });
+    if (exitPrice !== null && exitMs !== null)
+      single.push({ key: "exit", role: "close", ms: exitMs, price: exitPrice });
+    return single;
+  }, [fills, entryPrice, exitPrice, entryMs, exitMs]);
+
+  const splitFills = fills.length > 2;
+
   const held =
     exitPrice !== null && entryPrice !== null
       ? ((exitPrice - entryPrice) / entryPrice) * (side === "long" ? 1 : -1)
@@ -279,49 +311,62 @@ export function TradeChart({
               ) : null}
 
               {/*
-                진입·청산은 가로선+세로선을 겹치는 대신 체결이 일어난 좌표에 점을 찍는다.
-                선 두 개가 교차하면 어느 쌍이 한 거래인지 눈으로 짝지어야 해서 헷갈린다.
+                평균가는 어느 한 시점의 가격이 아니라 점으로 찍을 수 없다.
+                분할 체결이면 평균가는 가로 기준선으로만 두고, 점은 실제 체결 좌표에 찍는다.
               */}
-              {entryPrice !== null ? (
-                <ReferenceDot
-                  x={entryBar}
+              {splitFills && entryPrice !== null ? (
+                <ReferenceLine
                   y={entryPrice}
-                  r={5}
-                  fill="var(--accent)"
-                  stroke="var(--surface)"
-                  strokeWidth={2}
-                  ifOverflow="extendDomain"
-                  label={
-                    <MarkerLabel
-                      title={`진입 ${num(entryPrice)}`}
-                      sub={formatFull(entryMs)}
-                      color="var(--accent)"
-                      align={entryAlign}
-                      dy={entryDy}
-                    />
-                  }
+                  stroke="var(--accent)"
+                  strokeDasharray="1 5"
+                  label={<LineLabel text={`평균진입 ${num(entryPrice)}`} align={stopSide} color="var(--accent)" />}
                 />
               ) : null}
-              {exitPrice !== null && exitBar !== null ? (
-                <ReferenceDot
-                  x={exitBar}
+              {splitFills && exitPrice !== null ? (
+                <ReferenceLine
                   y={exitPrice}
-                  r={5}
-                  fill="var(--beta)"
-                  stroke="var(--surface)"
-                  strokeWidth={2}
-                  ifOverflow="extendDomain"
-                  label={
-                    <MarkerLabel
-                      title={`청산 ${num(exitPrice)}`}
-                      sub={formatFull(exitMs!)}
-                      color="var(--beta)"
-                      align={exitAlign}
-                      dy={exitDy}
-                    />
-                  }
+                  stroke="var(--beta)"
+                  strokeDasharray="1 5"
+                  label={<LineLabel text={`평균청산 ${num(exitPrice)}`} align={stopSide} color="var(--beta)" />}
                 />
               ) : null}
+
+              {/*
+                체결이 일어난 좌표에 점을 찍는다. 가로선+세로선을 겹치면 어느 쌍이
+                한 거래인지 눈으로 짝지어야 해서 헷갈린다.
+              */}
+              {points.map((p, i) => {
+                const isOpen = p.role === "open";
+                const color = isOpen ? "var(--accent)" : "var(--beta)";
+                const sameRole = points.filter((q) => q.role === p.role);
+                const order = sameRole.indexOf(p) + 1;
+                const label = `${isOpen ? "진입" : "청산"}${
+                  sameRole.length > 1 ? ` ${order}` : ""
+                } ${num(p.price)}`;
+
+                return (
+                  <ReferenceDot
+                    key={p.key}
+                    x={barOf(p.ms)}
+                    y={p.price}
+                    r={5}
+                    fill={color}
+                    stroke="var(--surface)"
+                    strokeWidth={2}
+                    ifOverflow="extendDomain"
+                    label={
+                      <MarkerLabel
+                        title={label}
+                        sub={formatFull(p.ms)}
+                        color={color}
+                        align={isOpen ? entryAlign : exitAlign}
+                        // 같은 역할이 여러 건이면 라벨이 겹치지 않게 층을 나눈다.
+                        dy={(isOpen ? entryDy : exitDy) + (order - 1) * 30 * (i % 2 === 0 ? -1 : 1)}
+                      />
+                    }
+                  />
+                );
+              })}
 
               <Tooltip
                 cursor={{ fill: "var(--surface-2)", opacity: 0.5 }}
@@ -392,10 +437,12 @@ function LineLabel({
   viewBox,
   text,
   align,
+  color = 'var(--loss)',
 }: {
   viewBox?: { x?: number; y?: number; width?: number };
   text: string;
   align: 'left' | 'right';
+  color?: string;
 }) {
   const x = viewBox?.x;
   const y = viewBox?.y;
@@ -411,7 +458,7 @@ function LineLabel({
       y={y + 13}
       textAnchor={align === 'left' ? 'start' : 'end'}
       fontSize={10}
-      fill="var(--loss)"
+      fill={color}
       stroke="var(--surface)"
       strokeWidth={3.5}
       paintOrder="stroke"

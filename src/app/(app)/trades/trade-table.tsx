@@ -5,13 +5,22 @@ import { Fragment, useMemo, useState, useTransition } from "react";
 
 import { deleteTrade } from "@/app/(app)/trades/actions";
 import { TradeChart } from "@/components/trade-chart";
-import { RESULT_LABEL, SIDE_LABEL, type TradeResult } from "@/lib/domain";
+import { RESULT_LABEL, SIDE_LABEL, type TradeFill, type TradeResult } from "@/lib/domain";
 import { dateTime, num, pct, pnlClass, signed, signedPct } from "@/lib/format";
 import type { TradeDerived } from "@/lib/metrics";
 
 type ResultFilter = TradeResult | "all";
 
-export function TradeTable({ rows, currency }: { rows: TradeDerived[]; currency: string }) {
+export function TradeTable({
+  rows,
+  currency,
+  fillsByTrade = {},
+}: {
+  rows: TradeDerived[];
+  currency: string;
+  /** 거래 id → 낱개 체결. 차트가 평균가 대신 실제 좌표를 찍는 데 쓴다. */
+  fillsByTrade?: Record<string, TradeFill[]>;
+}) {
   const [pending, startTransition] = useTransition();
   const [result, setResult] = useState<ResultFilter>("all");
   const [symbol, setSymbol] = useState("all");
@@ -179,6 +188,7 @@ export function TradeTable({ rows, currency }: { rows: TradeDerived[]; currency:
           entryPrice={selected.entry_price}
           exitPrice={selected.exit_price}
           stopPrice={selected.stop_price}
+          fills={fillsByTrade[selected.id] ?? []}
         />
       ) : null}
     </div>

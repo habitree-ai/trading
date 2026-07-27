@@ -145,6 +145,50 @@ export type Database = {
           },
         ]
       }
+      trade_fills: {
+        Row: {
+          amount: number | null
+          created_at: string
+          fee: number | null
+          filled_at: string
+          id: string
+          price: number
+          role: Database["public"]["Enums"]["fill_role"]
+          trade_id: string
+          user_id: string
+        }
+        Insert: {
+          amount?: number | null
+          created_at?: string
+          fee?: number | null
+          filled_at: string
+          id?: string
+          price: number
+          role: Database["public"]["Enums"]["fill_role"]
+          trade_id: string
+          user_id: string
+        }
+        Update: {
+          amount?: number | null
+          created_at?: string
+          fee?: number | null
+          filled_at?: string
+          id?: string
+          price?: number
+          role?: Database["public"]["Enums"]["fill_role"]
+          trade_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "trade_fills_trade_id_fkey"
+            columns: ["trade_id"]
+            isOneToOne: false
+            referencedRelation: "trades"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       trade_images: {
         Row: {
           confidence: number | null
@@ -307,6 +351,7 @@ export type Database = {
       book_status: "active" | "closed"
       capture_kind: "position" | "chart" | "balance"
       extract_engine: "ocr" | "ai" | "manual"
+      fill_role: "open" | "close"
       goal_metric:
         | "return_pct"
         | "max_drawdown_pct"
@@ -448,6 +493,7 @@ export const Constants = {
       book_status: ["active", "closed"],
       capture_kind: ["position", "chart", "balance"],
       extract_engine: ["ocr", "ai", "manual"],
+      fill_role: ["open", "close"],
       goal_metric: [
         "return_pct",
         "max_drawdown_pct",

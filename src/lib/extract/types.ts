@@ -1,5 +1,21 @@
 import type { Side } from "@/lib/domain";
 
+/**
+ * 체결 1건.
+ *
+ * 분할 체결이면 거래의 진입가·청산가는 가중평균가가 되는데, 평균가는 어느 한 시점의
+ * 가격이 아니라 차트에 점으로 찍을 수 없다. 낱개 체결을 따로 남겨 실제 좌표에 찍는다.
+ */
+export interface ExtractedFill {
+  role: "open" | "close";
+  /** UTC ISO */
+  at: string;
+  price: number;
+  /** 체결 금액(견적통화) */
+  amount: number;
+  fee: number;
+}
+
 /** 캡쳐에서 뽑아낸 값들 — 전부 선택적이다. 한 장으로 거래가 완성되지 않는 경우가 많다. */
 export interface ExtractedFields {
   symbol?: string;
@@ -18,6 +34,8 @@ export interface ExtractedFields {
   pnl_pct?: number;
   /** 주문 화면이 '진입'인지 '청산'인지 — 무엇이 빠졌는지 안내하는 데 쓴다. */
   orderRole?: "open" | "close";
+  /** 개별 체결 — 포지션 상세 화면에서만 나온다. */
+  fills?: ExtractedFill[];
 }
 
 export interface ExtractResult {

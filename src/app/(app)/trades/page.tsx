@@ -3,13 +3,14 @@ import Link from "next/link";
 import { TradeTable } from "@/app/(app)/trades/trade-table";
 import { EmptyBook } from "@/components/empty-book";
 import { deriveTrades } from "@/lib/metrics";
-import { getActiveBook, listTrades } from "@/lib/queries";
+import { getActiveBook, listFillsByTrade, listTrades } from "@/lib/queries";
 
 export default async function TradesPage() {
   const book = await getActiveBook();
   if (!book) return <EmptyBook />;
 
   const derived = deriveTrades(book, await listTrades(book.id));
+  const fillsByTrade = await listFillsByTrade(book.id);
 
   return (
     <div className="space-y-5">
@@ -33,7 +34,7 @@ export default async function TradesPage() {
           아직 거래가 없습니다. 첫 기록을 추가해 주세요.
         </p>
       ) : (
-        <TradeTable rows={derived} currency={book.base_currency} />
+        <TradeTable rows={derived} currency={book.base_currency} fillsByTrade={fillsByTrade} />
       )}
     </div>
   );

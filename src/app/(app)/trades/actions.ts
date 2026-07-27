@@ -74,6 +74,52 @@ function readForm(formData: FormData) {
   };
 }
 
+interface ParsedFill {
+  role: "open" | "close";
+  at: string;
+  price: number;
+  amount: number | null;
+  fee: number | null;
+}
+
+/**
+ * 폼이 실어 보낸 체결 JSON을 검증한다.
+ *
+ * 클라이언트에서 온 값이라 형태를 믿지 않고 하나씩 확인한다 — 깨진 항목은 버린다.
+ */
+function parseFills(raw: FormDataEntryValue | null): ParsedFill[] {
+  const text = String(raw ?? "").trim();
+  if (!text) return [];
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    return [];
+  }
+  if (!Array.isArray(parsed)) return [];
+
+  const out: ParsedFill[] = [];
+  for (const item of parsed) {
+    if (typeof item !== "object" || item === null) continue;
+    const f = item as Record<string, unknown>;
+
+    const role = f.role === "open" || f.role === "close" ? f.role : null;
+    const at = typeof f.at === "string" && !Number.isNaN(Date.parse(f.at)) ? f.at : null;
+    const price = typeof f.price === "number" && Number.isFinite(f.price) ? f.price : null;
+    if (!role || !at || price === null) continue;
+
+    out.push({
+      role,
+      at,
+      price,
+      amount: typeof f.amount === "number" && Number.isFinite(f.amount) ? f.amount : null,
+      fee: typeof f.fee === "number" && Number.isFinite(f.fee) ? f.fee : null,
+    });
+  }
+  return out;
+}
+
 /** DB의 trades_closed_complete 제약을 UI에서 먼저 걸러 준다. */
 function validate(values: ReturnType<typeof readForm>): string | null {
   if (!values.symbol) return "종목을 입력해 주세요.";
@@ -120,6 +166,22 @@ export async function createTrade(
   const imageIds = formData.getAll("image_ids").map(String).filter(Boolean);
   if (imageIds.length > 0) {
     await supabase.from("trade_images").update({ trade_id: data.id }).in("id", imageIds);
+  }
+
+  // 캡쳐에서 읽은 낱개 체결 — 차트가 평균가가 아닌 실제 좌표를 찍는 데 쓴다.
+  const fills = parseFills(formData.get("fills"));
+  if (fills.length > 0) {
+    await supabase.from("trade_fills").insert(
+      fills.map((f) => ({
+        trade_id: data.id,
+        user_id: user.id,
+        role: f.role,
+        filled_at: f.at,
+        price: f.price,
+        amount: f.amount,
+        fee: f.fee,
+      })),
+    );
   }
 
   revalidatePath("/", "layout");
