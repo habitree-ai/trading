@@ -1,22 +1,24 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
 import {
-  Bar,
-  BarChart,
-  CartesianGrid,
-  Cell,
-  ReferenceArea,
-  ReferenceDot,
-  ReferenceLine,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from "recharts";
+  CandlestickSeries,
+  ColorType,
+  CrosshairMode,
+  LineStyle,
+  createChart,
+  createSeriesMarkers,
+  type IChartApi,
+  type ISeriesApi,
+  type SeriesMarker,
+  TickMarkType,
+  type Time,
+  type UTCTimestamp,
+} from "lightweight-charts";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import { formatDuration, measure, type MeasurePoint } from "@/components/measure-tool";
 import type { TradeFill } from "@/lib/domain";
-import { num, pct, signed } from "@/lib/format";
+import { num, signed } from "@/lib/format";
 import { BAR_MS, pickBar, windowFor, type Bar as OkxBar, type Candle } from "@/lib/okx";
 
 /** 화면에 노출하는 보기 — 자동은 거래 길이에 맞춰 봉을 고른다. */
@@ -28,12 +30,27 @@ const VIEW_LABEL: Record<View, string> = {
   "1D": "일봉",
 };
 
-interface Row extends Candle {
-  /** 캔들 몸통을 [저, 고] 범위 막대로 그리기 위한 값. */
-  range: [number, number];
-  up: boolean;
-  /** 이 봉이 거래 보유 구간에 걸쳐 있는가. */
-  inTrade: boolean;
+/** 차트 색은 CSS 토큰에서 읽는다 — 라이트/다크 전환을 한 곳에서 관리하기 위해. */
+function readTheme(el: HTMLElement) {
+  const s = getComputedStyle(el);
+  const v = (name: string) => s.getPropertyValue(name).trim();
+  return {
+    text: v("--text-dim") || "#8b95a3",
+    grid: v("--border") || "#2a3039",
+    surface: v("--surface") || "#161a21",
+    up: v("--profit") || "#26c281",
+    down: v("--loss") || "#f0616d",
+    accent: v("--accent") || "#5b8cff",
+    beta: v("--beta") || "#f5b23c",
+  };
+}
+
+interface MeasureState {
+  from: MeasurePoint;
+  to: MeasurePoint;
+  /** 화면 좌표 — 사각형을 그리는 데 쓴다. */
+  box: { x1: number; y1: number; x2: number; y2: number };
+  done: boolean;
 }
 
 export function TradeChart({
@@ -63,23 +80,95 @@ export function TradeChart({
   const entryMs = Date.parse(entryAt);
   const exitMs = exitAt ? Date.parse(exitAt) : null;
 
+  const hostRef = useRef<HTMLDivElement>(null);
+  const overlayRef = useRef<HTMLDivElement>(null);
+  const chartRef = useRef<IChartApi | null>(null);
+  const seriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
+
   const [view, setView] = useState<View>("auto");
   const [candles, setCandles] = useState<Candle[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [measuring, setMeasuring] = useState(false);
+  const [state, setState] = useState<MeasureState | null>(null);
 
   const bar: OkxBar = useMemo(
     () => (view === "auto" ? pickBar(Math.max((exitMs ?? entryMs) - entryMs, BAR_MS["1m"])) : view),
     [view, entryMs, exitMs],
   );
+  const barSeconds = BAR_MS[bar] / 1000;
 
+  /* ---------- 차트 생성 (한 번만) ---------- */
+  useEffect(() => {
+    const host = hostRef.current;
+    if (!host) return;
+
+    const theme = readTheme(host);
+    const chart = createChart(host, {
+      height: 360,
+      layout: {
+        background: { type: ColorType.Solid, color: "transparent" },
+        textColor: theme.text,
+        attributionLogo: false,
+      },
+      grid: {
+        vertLines: { color: theme.grid, style: LineStyle.Dotted },
+        horzLines: { color: theme.grid, style: LineStyle.Dotted },
+      },
+      // 트레이딩뷰 기본값 — 십자선이 봉에 붙지 않고 마우스를 그대로 따라간다.
+      crosshair: {
+        mode: CrosshairMode.Normal,
+        vertLine: { color: theme.text, width: 1, style: LineStyle.Dashed, labelBackgroundColor: theme.accent },
+        horzLine: { color: theme.text, width: 1, style: LineStyle.Dashed, labelBackgroundColor: theme.accent },
+      },
+      rightPriceScale: { borderColor: theme.grid },
+      timeScale: {
+        borderColor: theme.grid,
+        timeVisible: true,
+        secondsVisible: false,
+        // 라이브러리는 시간축을 UTC로 찍는다. 앱 전체가 KST 기준이라 눈금도 맞춘다.
+        tickMarkFormatter: (t: Time, type: TickMarkType) =>
+          formatTick((t as UTCTimestamp) * 1000, type),
+      },
+      localization: {
+        locale: "ko-KR",
+        // 축과 십자선 라벨을 한국 시간으로 찍는다.
+        timeFormatter: (t: Time) => formatKst((t as UTCTimestamp) * 1000, true),
+      },
+    });
+
+    const series = chart.addSeries(CandlestickSeries, {
+      upColor: theme.up,
+      downColor: theme.down,
+      borderUpColor: theme.up,
+      borderDownColor: theme.down,
+      wickUpColor: theme.up,
+      wickDownColor: theme.down,
+    });
+
+    chartRef.current = chart;
+    seriesRef.current = series;
+
+    const observer = new ResizeObserver(() => {
+      chart.applyOptions({ width: host.clientWidth });
+    });
+    observer.observe(host);
+    chart.applyOptions({ width: host.clientWidth });
+
+    return () => {
+      observer.disconnect();
+      chart.remove();
+      chartRef.current = null;
+      seriesRef.current = null;
+    };
+  }, []);
+
+  /* ---------- 캔들 로딩 ---------- */
   useEffect(() => {
     let cancelled = false;
 
     async function load() {
-      // 자동 보기는 거래 구간만, 4시간·일봉은 앞뒤 맥락을 넓게 잡는다.
       const { from, to } = windowFor(entryMs, exitMs, bar, view === "auto" ? 12 : 30);
-
       setLoading(true);
       setError(null);
 
@@ -88,7 +177,6 @@ export function TradeChart({
           `/api/candles?symbol=${encodeURIComponent(symbol)}&bar=${bar}&from=${from}&to=${to}`,
         );
         const json: unknown = await res.json();
-
         if (!res.ok) {
           const message =
             typeof json === "object" && json !== null && "error" in json
@@ -105,103 +193,166 @@ export function TradeChart({
     }
 
     void load();
-
     return () => {
       cancelled = true;
     };
   }, [symbol, bar, entryMs, exitMs, view]);
 
-  // 진입·청산이 속한 봉의 시작 시각 — 표시를 그 봉에 정확히 얹기 위해.
-  const barOf = (ms: number) => Math.floor(ms / BAR_MS[bar]) * BAR_MS[bar];
-  const entryBar = barOf(entryMs);
-  const exitBar = exitMs === null ? null : barOf(exitMs);
+  /* ---------- 데이터·마커·기준선 반영 ---------- */
+  useEffect(() => {
+    const chart = chartRef.current;
+    const series = seriesRef.current;
+    const host = hostRef.current;
+    if (!chart || !series || !host || !candles) return;
 
-  const rows: Row[] = useMemo(
-    () =>
-      (candles ?? []).map((c) => ({
-        ...c,
-        range: [c.l, c.h] as [number, number],
-        up: c.c >= c.o,
-        // 실제 거래가 걸쳐 있던 봉 — 어느 배율에서든 이 봉들이 먼저 눈에 들어와야 한다.
-        inTrade: c.t >= entryBar && c.t <= (exitBar ?? entryBar),
+    const theme = readTheme(host);
+
+    series.setData(
+      candles.map((c) => ({
+        time: (c.t / 1000) as UTCTimestamp,
+        open: c.o,
+        high: c.h,
+        low: c.l,
+        close: c.c,
       })),
-    [candles, entryBar, exitBar],
-  );
+    );
 
-  const priceDomain = useMemo((): [number, number] | undefined => {
-    if (rows.length === 0) return undefined;
-    const lows = rows.map((r) => r.l);
-    const highs = rows.map((r) => r.h);
-    const marks = [entryPrice, exitPrice, stopPrice].filter((v): v is number => v !== null);
-    const min = Math.min(...lows, ...marks);
-    const max = Math.max(...highs, ...marks);
-    const pad = (max - min) * 0.06 || max * 0.001;
-    return [min - pad, max + pad];
-  }, [rows, entryPrice, exitPrice, stopPrice]);
+    // 체결 좌표에 마커를 찍는다. 평균가는 어느 시점의 가격도 아니라 점으로 쓰지 않는다.
+    const points =
+      fills.length > 0
+        ? fills.map((f) => ({
+            role: f.role,
+            ms: Date.parse(f.filled_at),
+            price: f.price,
+          }))
+        : [
+            ...(entryPrice !== null
+              ? [{ role: "open" as const, ms: entryMs, price: entryPrice }]
+              : []),
+            ...(exitPrice !== null && exitMs !== null
+              ? [{ role: "close" as const, ms: exitMs, price: exitPrice }]
+              : []),
+          ];
 
-  /**
-   * 라벨을 점의 어느 쪽에 붙일지 정한다.
-   *
-   * 항상 바깥쪽(진입=왼쪽, 청산=오른쪽)으로 빼면 차트 가장자리에서 글자가 잘린다.
-   * 가장자리에 가까우면 안쪽으로 뒤집는다.
-   */
-  const { entryAlign, exitAlign, entryDy, exitDy, stopSide } = useMemo(() => {
-    const first = rows[0]?.t ?? 0;
-    const last = rows[rows.length - 1]?.t ?? 0;
-    const span = last - first;
-    const frac = (t: number) => (span > 0 ? (t - first) / span : 0.5);
+    const opens = points.filter((p) => p.role === "open");
+    const closes = points.filter((p) => p.role === "close");
 
-    // 일봉처럼 봉이 굵으면 진입·청산이 같거나 인접한 봉에 놓여 라벨이 겹친다.
-    // 그럴 땐 좌우로 못 가르니 같은 쪽에 붙이고 가격이 높은 쪽을 위로 밀어낸다.
-    const crowded =
-      exitBar !== null && Math.abs(frac(exitBar) - frac(entryBar)) < 0.12;
-
-    if (crowded) {
-      const side = frac(entryBar) > 0.5 ? ("left" as const) : ("right" as const);
-      const entryHigher = (entryPrice ?? 0) >= (exitPrice ?? 0);
+    const markers: SeriesMarker<Time>[] = points.map((p) => {
+      const isOpen = p.role === "open";
+      const group = isOpen ? opens : closes;
+      const order = group.indexOf(p) + 1;
       return {
-        entryAlign: side,
-        exitAlign: side,
-        entryDy: entryHigher ? -16 : 16,
-        exitDy: entryHigher ? 16 : -16,
-        // 손절 라벨은 마커가 없는 쪽으로 보낸다.
-        stopSide: frac(entryBar) > 0.5 ? ('left' as const) : ('right' as const),
+        time: (Math.floor(p.ms / BAR_MS[bar]) * BAR_MS[bar] / 1000) as UTCTimestamp,
+        position: isOpen ? "belowBar" : "aboveBar",
+        shape: isOpen ? "arrowUp" : "arrowDown",
+        color: isOpen ? theme.accent : theme.beta,
+        text: `${isOpen ? "진입" : "청산"}${group.length > 1 ? ` ${order}` : ""} ${num(p.price)}`,
       };
-    }
+    });
+    const markerApi = createSeriesMarkers(series, markers);
 
-    return {
-      entryAlign: frac(entryBar) < 0.28 ? ('right' as const) : ('left' as const),
-      exitAlign: exitBar !== null && frac(exitBar) > 0.72 ? ('left' as const) : ('right' as const),
-      entryDy: 0,
-      exitDy: 0,
-      stopSide: frac(entryBar) > 0.5 ? ('left' as const) : ('right' as const),
+    const lines = [
+      stopPrice !== null && { price: stopPrice, color: theme.down, title: "손절" },
+      entryPrice !== null && { price: entryPrice, color: theme.accent, title: fills.length > 2 ? "평균진입" : "진입" },
+      exitPrice !== null && { price: exitPrice, color: theme.beta, title: fills.length > 2 ? "평균청산" : "청산" },
+    ]
+      .filter((l): l is { price: number; color: string; title: string } => Boolean(l))
+      .map((l) =>
+        series.createPriceLine({
+          price: l.price,
+          color: l.color,
+          lineWidth: 1,
+          lineStyle: LineStyle.Dashed,
+          axisLabelVisible: true,
+          title: l.title,
+        }),
+      );
+
+    chart.timeScale().fitContent();
+
+    return () => {
+      markerApi.detach();
+      for (const line of lines) series.removePriceLine(line);
     };
-  }, [rows, entryBar, exitBar, entryPrice, exitPrice]);
+  }, [candles, fills, entryPrice, exitPrice, stopPrice, entryMs, exitMs, bar]);
 
-  /**
-   * 차트에 찍을 점들.
-   *
-   * 체결 내역이 있으면 그것이 정답이다. 없으면(수동 입력) 진입가·청산가가
-   * 곧 그 시점의 가격이므로 한 점씩만 찍는다.
-   */
-  const points = useMemo(() => {
-    if (fills.length > 0) {
-      return fills.map((f) => ({
-        key: f.id,
-        role: f.role,
-        ms: Date.parse(f.filled_at),
-        price: f.price,
-      }));
-    }
-    const single: { key: string; role: "open" | "close"; ms: number; price: number }[] = [];
-    if (entryPrice !== null) single.push({ key: "entry", role: "open", ms: entryMs, price: entryPrice });
-    if (exitPrice !== null && exitMs !== null)
-      single.push({ key: "exit", role: "close", ms: exitMs, price: exitPrice });
-    return single;
-  }, [fills, entryPrice, exitPrice, entryMs, exitMs]);
+  /* ---------- 측정(자) 도구 ---------- */
+  const toPoint = useCallback((x: number, y: number): MeasurePoint | null => {
+    const chart = chartRef.current;
+    const series = seriesRef.current;
+    if (!chart || !series) return null;
 
-  const splitFills = fills.length > 2;
+    const time = chart.timeScale().coordinateToTime(x);
+    const price = series.coordinateToPrice(y);
+    if (time === null || price === null) return null;
+    return { time: time as number, price };
+  }, []);
 
+  useEffect(() => {
+    // 차트 캔버스는 포인터 이벤트를 자기가 붙잡고 위로 올려보내지 않는다.
+    // 측정 중에만 투명한 판을 덮고 거기서 드래그를 받는다.
+    const host = overlayRef.current;
+    if (!host || !measuring) return;
+
+    let start: { point: MeasurePoint; x: number; y: number } | null = null;
+
+    const local = (e: PointerEvent) => {
+      const r = host.getBoundingClientRect();
+      return { x: e.clientX - r.left, y: e.clientY - r.top };
+    };
+
+    const onDown = (e: PointerEvent) => {
+      const { x, y } = local(e);
+      const point = toPoint(x, y);
+      if (!point) return;
+      start = { point, x, y };
+      setState({ from: point, to: point, box: { x1: x, y1: y, x2: x, y2: y }, done: false });
+      host.setPointerCapture(e.pointerId);
+      e.preventDefault();
+    };
+
+    const onMove = (e: PointerEvent) => {
+      if (!start) return;
+      const { x, y } = local(e);
+      const point = toPoint(x, y);
+      if (!point) return;
+      setState({
+        from: start.point,
+        to: point,
+        box: { x1: start.x, y1: start.y, x2: x, y2: y },
+        done: false,
+      });
+    };
+
+    const onUp = () => {
+      if (!start) return;
+      start = null;
+      // 손을 떼면 결과를 남긴다 — 트레이딩뷰처럼 다시 끌면 새로 잰다.
+      setState((s) => (s ? { ...s, done: true } : s));
+    };
+
+    host.addEventListener("pointerdown", onDown);
+    host.addEventListener("pointermove", onMove);
+    host.addEventListener("pointerup", onUp);
+    host.addEventListener("pointercancel", onUp);
+
+    return () => {
+      host.removeEventListener("pointerdown", onDown);
+      host.removeEventListener("pointermove", onMove);
+      host.removeEventListener("pointerup", onUp);
+      host.removeEventListener("pointercancel", onUp);
+    };
+  }, [measuring, toPoint]);
+
+  // 측정 모드에서는 차트의 드래그 이동을 꺼야 사각형을 그릴 수 있다.
+  useEffect(() => {
+    chartRef.current?.applyOptions({
+      handleScroll: !measuring,
+      handleScale: !measuring,
+    });
+  }, [measuring]);
+
+  const result = state ? measure(state.from, state.to, barSeconds) : null;
   const held =
     exitPrice !== null && entryPrice !== null
       ? ((exitPrice - entryPrice) / entryPrice) * (side === "long" ? 1 : -1)
@@ -211,12 +362,24 @@ export function TradeChart({
     <section className="rounded-xl border border-border bg-surface p-4">
       <div className="flex flex-wrap items-center gap-3">
         <h2 className="text-sm font-medium">
-          당시 차트{" "}
-          <span className="font-normal text-dim">
-            — {symbol}-USDT 무기한 · OKX
-          </span>
+          당시 차트 <span className="font-normal text-dim">— {symbol}-USDT 무기한 · OKX</span>
         </h2>
-        <div className="ml-auto flex gap-1">
+
+        <div className="ml-auto flex flex-wrap gap-1">
+          <button
+            type="button"
+            onClick={() => {
+              setMeasuring((m) => !m);
+              setState(null);
+            }}
+            className={`rounded-lg border px-2.5 py-1 text-xs ${
+              measuring ? "border-accent bg-accent text-white" : "border-border text-dim hover:text-text"
+            }`}
+            title="드래그로 두 지점 사이의 가격·비율·기간을 잽니다"
+          >
+            📏 측정
+          </button>
+          <span className="mx-1 w-px bg-border" aria-hidden />
           {(Object.keys(VIEW_LABEL) as View[]).map((v) => (
             <button
               key={v}
@@ -240,293 +403,119 @@ export function TradeChart({
         ) : null}
       </p>
 
-      <div className="mt-3">
+      <div className="relative mt-3">
+        <div ref={hostRef} className="w-full" />
+
+        {/*
+          측정 중에만 덮는 판 — 차트가 드래그를 가로채지 않도록 이벤트를 먼저 받는다.
+          라이브러리가 캔버스를 자체 z-index로 얹으므로 그 위로 올려야 포인터가 닿는다.
+        */}
+        <div
+          ref={overlayRef}
+          className={`absolute inset-0 ${measuring ? "cursor-crosshair" : "pointer-events-none"}`}
+          style={{ touchAction: measuring ? "none" : undefined, zIndex: 5 }}
+        />
+
+        {/* 측정 사각형 — 차트 위에 겹쳐 그린다. 포인터 이벤트는 아래로 통과시킨다. */}
+        {state && result ? (
+          <div
+            className="pointer-events-none absolute rounded-sm border"
+            style={{
+              zIndex: 6,
+              left: Math.min(state.box.x1, state.box.x2),
+              top: Math.min(state.box.y1, state.box.y2),
+              width: Math.abs(state.box.x2 - state.box.x1),
+              height: Math.abs(state.box.y2 - state.box.y1),
+              borderColor: result.up ? "var(--profit)" : "var(--loss)",
+              background: result.up
+                ? "color-mix(in srgb, var(--profit) 14%, transparent)"
+                : "color-mix(in srgb, var(--loss) 14%, transparent)",
+            }}
+          >
+            <div
+              className="tnum absolute left-1/2 -translate-x-1/2 rounded-md px-2 py-1 text-center text-[11px] whitespace-nowrap text-white shadow"
+              style={{
+                top: state.box.y2 >= state.box.y1 ? "calc(100% + 6px)" : undefined,
+                bottom: state.box.y2 < state.box.y1 ? "calc(100% + 6px)" : undefined,
+                background: result.up ? "var(--profit)" : "var(--loss)",
+              }}
+            >
+              <div className="font-semibold">
+                {signed(result.priceDelta)} (
+                {result.pctDelta === null ? "—" : signed(result.pctDelta * 100, 2) + "%"})
+              </div>
+              <div className="opacity-90">
+                {formatDuration(result.durationMs)} · {result.bars}봉
+              </div>
+            </div>
+          </div>
+        ) : null}
+
         {error ? (
-          <p className="rounded-lg border border-loss/40 px-3 py-6 text-center text-xs text-loss">
+          <p className="absolute inset-0 flex items-center justify-center bg-surface/80 text-xs text-loss">
             {error}
           </p>
-        ) : loading && rows.length === 0 ? (
-          <p className="px-3 py-10 text-center text-xs text-dim">캔들 불러오는 중…</p>
-        ) : rows.length === 0 ? (
-          <p className="px-3 py-10 text-center text-xs text-dim">
+        ) : loading && !candles ? (
+          <p className="absolute inset-0 flex items-center justify-center text-xs text-dim">
+            캔들 불러오는 중…
+          </p>
+        ) : candles && candles.length === 0 ? (
+          <p className="absolute inset-0 flex items-center justify-center bg-surface/80 text-center text-xs text-dim">
             이 구간의 캔들이 없습니다. OKX에 해당 기간 데이터가 없거나 종목명이 다를 수 있습니다.
           </p>
-        ) : (
-          <ResponsiveContainer width="100%" height={320}>
-            <BarChart data={rows} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
-              <CartesianGrid stroke="var(--border)" strokeDasharray="3 3" vertical={false} />
-              <XAxis
-                dataKey="t"
-                type="number"
-                scale="time"
-                domain={["dataMin", "dataMax"]}
-                stroke="var(--text-dim)"
-                fontSize={11}
-                tickLine={false}
-                axisLine={{ stroke: "var(--border)" }}
-                minTickGap={40}
-                tickFormatter={(t: number) => formatTick(t, bar)}
-              />
-              <YAxis
-                orientation="right"
-                stroke="var(--text-dim)"
-                fontSize={11}
-                tickLine={false}
-                axisLine={false}
-                width={66}
-                domain={priceDomain}
-                tickFormatter={(v: number) => num(v, 0)}
-              />
-
-              {/*
-                보유 구간 음영. 진입·청산이 같은 봉이면 폭이 0이 되어 사라지므로
-                끝을 한 봉만큼 늘려 항상 최소 한 봉은 덮이게 한다.
-              */}
-              <ReferenceArea
-                x1={entryBar}
-                x2={(exitBar ?? entryBar) + BAR_MS[bar]}
-                fill="var(--accent)"
-                fillOpacity={0.1}
-                stroke="none"
-              />
-
-              {/* 거래 구간의 시작·끝 경계 — 어느 봉부터 어느 봉까지인지 눈으로 세게 한다. */}
-              <ReferenceLine x={entryBar} stroke="var(--accent)" strokeDasharray="3 3" />
-              {exitBar !== null && exitBar !== entryBar ? (
-                <ReferenceLine
-                  x={exitBar + BAR_MS[bar]}
-                  stroke="var(--beta)"
-                  strokeDasharray="3 3"
-                />
-              ) : null}
-
-              {/* 손절가만 가로선으로 남긴다 — 체결이 아니라 '그었던 선'이라서. */}
-              {stopPrice !== null ? (
-                <ReferenceLine
-                  y={stopPrice}
-                  stroke="var(--loss)"
-                  strokeDasharray="2 4"
-                  label={<LineLabel text={`손절 ${num(stopPrice)}`} align={stopSide} />}
-                />
-              ) : null}
-
-              {/*
-                평균가는 어느 한 시점의 가격이 아니라 점으로 찍을 수 없다.
-                분할 체결이면 평균가는 가로 기준선으로만 두고, 점은 실제 체결 좌표에 찍는다.
-              */}
-              {splitFills && entryPrice !== null ? (
-                <ReferenceLine
-                  y={entryPrice}
-                  stroke="var(--accent)"
-                  strokeDasharray="1 5"
-                  label={<LineLabel text={`평균진입 ${num(entryPrice)}`} align={stopSide} color="var(--accent)" />}
-                />
-              ) : null}
-              {splitFills && exitPrice !== null ? (
-                <ReferenceLine
-                  y={exitPrice}
-                  stroke="var(--beta)"
-                  strokeDasharray="1 5"
-                  label={<LineLabel text={`평균청산 ${num(exitPrice)}`} align={stopSide} color="var(--beta)" />}
-                />
-              ) : null}
-
-              {/*
-                체결이 일어난 좌표에 점을 찍는다. 가로선+세로선을 겹치면 어느 쌍이
-                한 거래인지 눈으로 짝지어야 해서 헷갈린다.
-              */}
-              {points.map((p, i) => {
-                const isOpen = p.role === "open";
-                const color = isOpen ? "var(--accent)" : "var(--beta)";
-                const sameRole = points.filter((q) => q.role === p.role);
-                const order = sameRole.indexOf(p) + 1;
-                const label = `${isOpen ? "진입" : "청산"}${
-                  sameRole.length > 1 ? ` ${order}` : ""
-                } ${num(p.price)}`;
-
-                return (
-                  <ReferenceDot
-                    key={p.key}
-                    x={barOf(p.ms)}
-                    y={p.price}
-                    r={5}
-                    fill={color}
-                    stroke="var(--surface)"
-                    strokeWidth={2}
-                    ifOverflow="extendDomain"
-                    label={
-                      <MarkerLabel
-                        title={label}
-                        sub={formatFull(p.ms)}
-                        color={color}
-                        align={isOpen ? entryAlign : exitAlign}
-                        // 같은 역할이 여러 건이면 라벨이 겹치지 않게 층을 나눈다.
-                        dy={(isOpen ? entryDy : exitDy) + (order - 1) * 30 * (i % 2 === 0 ? -1 : 1)}
-                      />
-                    }
-                  />
-                );
-              })}
-
-              <Tooltip
-                cursor={{ fill: "var(--surface-2)", opacity: 0.5 }}
-                content={({ active, payload }) => {
-                  if (!active || !payload?.length) return null;
-                  const r = payload[0].payload as Row;
-                  const change = r.o === 0 ? null : (r.c - r.o) / r.o;
-                  return (
-                    <div className="rounded-lg border border-border bg-surface px-3 py-2 text-xs shadow-lg">
-                      <div className="text-dim">{formatFull(r.t)}</div>
-                      <div className="tnum mt-1 grid grid-cols-2 gap-x-3">
-                        <span className="text-dim">시가</span>
-                        <span className="text-right">{num(r.o)}</span>
-                        <span className="text-dim">고가</span>
-                        <span className="text-right">{num(r.h)}</span>
-                        <span className="text-dim">저가</span>
-                        <span className="text-right">{num(r.l)}</span>
-                        <span className="text-dim">종가</span>
-                        <span className={`text-right ${r.up ? "text-profit" : "text-loss"}`}>
-                          {num(r.c)}
-                        </span>
-                        <span className="text-dim">변동</span>
-                        <span className={`text-right ${r.up ? "text-profit" : "text-loss"}`}>
-                          {pct(change)}
-                        </span>
-                      </div>
-                    </div>
-                  );
-                }}
-              />
-
-              {/* 고-저 범위 막대 = 캔들. 색은 시가 대비 종가 방향. */}
-              {/*
-                거래에 걸친 봉만 또렷하게 두고 나머지는 흐리게 깐다.
-                일봉처럼 배율이 크면 거래가 몇 봉 안 되어 그냥은 찾기 어렵다.
-              */}
-              <Bar dataKey="range" isAnimationActive={false} minPointSize={1}>
-                {rows.map((r) => (
-                  <Cell
-                    key={r.t}
-                    fill={r.up ? "var(--profit)" : "var(--loss)"}
-                    fillOpacity={r.inTrade ? 1 : 0.32}
-                  />
-                ))}
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
-        )}
+        ) : null}
       </div>
 
       <p className="mt-2 text-[11px] text-dim">
-        막대는 각 봉의 고가~저가 범위이고, 색은 시가 대비 종가 방향입니다.{" "}
-        <b className="text-text">거래에 걸친 봉만 진하게</b> 두고 나머지는 흐리게 깔았습니다.{" "}
-        <span className="text-accent">●</span> 진입 · <span className="text-beta">●</span> 청산
-        지점에 가격과 시각을 함께 적었습니다.
+        {measuring ? (
+          <b className="text-accent">
+            측정 중 — 차트를 끌어 두 지점 사이의 가격·비율·기간을 재세요. 다시 누르면 끕니다.
+          </b>
+        ) : (
+          <>
+            휠로 확대·축소, 드래그로 이동, 축을 끌면 배율이 바뀝니다. ▲ 진입 · ▼ 청산 지점에
+            가격을 적었고, 가로 점선은 손절가와 평균 체결가입니다.
+          </>
+        )}
       </p>
     </section>
   );
 }
 
-/**
- * 가로 기준선(손절가)에 붙는 라벨.
- *
- * Recharts의 `insideBottomLeft` 같은 내장 위치는 글자 폭을 고려하지 않아 왼쪽으로 넘쳐
- * 잘린다. 플롯 영역 좌표를 직접 받아 안쪽으로 들여 그린다.
- */
-function LineLabel({
-  viewBox,
-  text,
-  align,
-  color = 'var(--loss)',
-}: {
-  viewBox?: { x?: number; y?: number; width?: number };
-  text: string;
-  align: 'left' | 'right';
-  color?: string;
-}) {
-  const x = viewBox?.x;
-  const y = viewBox?.y;
-  const width = viewBox?.width;
-  if (typeof x !== 'number' || typeof y !== 'number' || typeof width !== 'number') return null;
-
-  // Recharts가 넘겨주는 viewBox.x가 음수로 들어오는 경우가 있어 0으로 잘라낸다.
-  const left = Math.max(x, 0);
-  const inset = 8;
-  return (
-    <text
-      x={align === 'left' ? left + inset : left + width - inset}
-      y={y + 13}
-      textAnchor={align === 'left' ? 'start' : 'end'}
-      fontSize={10}
-      fill={color}
-      stroke="var(--surface)"
-      strokeWidth={3.5}
-      paintOrder="stroke"
-      pointerEvents="none"
-    >
-      {text}
-    </text>
-  );
-}
-
-/**
- * 체결 지점에 붙는 라벨 — 가격과 시각을 함께 적는다.
- *
- * 진입은 항상 청산보다 왼쪽에 있으므로 진입 라벨은 왼쪽, 청산 라벨은 오른쪽으로 빼면
- * 두 라벨이 겹치지 않는다. 캔들 위에 글자가 묻히지 않도록 배경색 테두리로 후광을 준다.
- */
-function MarkerLabel({
-  viewBox,
-  title,
-  sub,
-  color,
-  align,
-  dy = 0,
-}: {
-  viewBox?: { x?: number; y?: number };
-  title: string;
-  sub: string;
-  color: string;
-  align: "left" | "right";
-  /** 같은 봉에 두 라벨이 겹칠 때 세로로 밀어내는 양. */
-  dy?: number;
-}) {
-  const x = viewBox?.x;
-  const rawY = viewBox?.y;
-  if (typeof x !== "number" || typeof rawY !== "number") return null;
-  const y = rawY + dy;
-
-  const gap = 11;
-  const anchor = align === "left" ? "end" : "start";
-  const tx = align === "left" ? x - gap : x + gap;
-  const halo = {
-    stroke: "var(--surface)",
-    strokeWidth: 3.5,
-    paintOrder: "stroke" as const,
-  };
-
-  return (
-    <g pointerEvents="none">
-      <text
-        x={tx}
-        y={y - 5}
-        textAnchor={anchor}
-        fontSize={11}
-        fontWeight={600}
-        fill={color}
-        {...halo}
-      >
-        {title}
-      </text>
-      <text x={tx} y={y + 9} textAnchor={anchor} fontSize={10} fill="var(--text-dim)" {...halo}>
-        {sub}
-      </text>
-    </g>
-  );
-}
-
-const TICK_FMT = new Intl.DateTimeFormat("en-GB", {
+const KST_PARTS = new Intl.DateTimeFormat("en-GB", {
   timeZone: "Asia/Seoul",
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+  hour: "2-digit",
+  minute: "2-digit",
+  second: "2-digit",
+  hour12: false,
+});
+
+/** 시간축 눈금 — 라이브러리가 알려준 눈금 종류에 맞춰 KST로 찍는다. */
+function formatTick(ms: number, type: TickMarkType): string {
+  const p: Record<string, string> = {};
+  for (const part of KST_PARTS.formatToParts(new Date(ms))) p[part.type] = part.value;
+  if (p.hour === "24") p.hour = "00";
+
+  switch (type) {
+    case TickMarkType.Year:
+      return p.year;
+    case TickMarkType.Month:
+      return `${Number(p.month)}월`;
+    case TickMarkType.DayOfMonth:
+      return `${Number(p.day)}일`;
+    case TickMarkType.TimeWithSeconds:
+      return `${p.hour}:${p.minute}:${p.second}`;
+    default:
+      return `${p.hour}:${p.minute}`;
+  }
+}
+
+const KST_FMT = new Intl.DateTimeFormat("en-GB", {
+  timeZone: "Asia/Seoul",
+  year: "2-digit",
   month: "2-digit",
   day: "2-digit",
   hour: "2-digit",
@@ -534,20 +523,11 @@ const TICK_FMT = new Intl.DateTimeFormat("en-GB", {
   hour12: false,
 });
 
-function parts(ms: number): Record<string, string> {
-  const out: Record<string, string> = {};
-  for (const p of TICK_FMT.formatToParts(new Date(ms))) out[p.type] = p.value;
-  if (out.hour === "24") out.hour = "00";
-  return out;
-}
-
-/** 일봉은 날짜만, 그 아래는 시각까지. */
-function formatTick(ms: number, bar: OkxBar): string {
-  const p = parts(ms);
-  return bar === "1D" ? `${p.month}.${p.day}` : `${p.month}.${p.day} ${p.hour}:${p.minute}`;
-}
-
-function formatFull(ms: number): string {
-  const p = parts(ms);
-  return `${p.month}.${p.day} ${p.hour}:${p.minute} KST`;
+/** 축·십자선 라벨은 서버 렌더링과 무관하지만, 표기를 앱 전체와 맞춘다. */
+function formatKst(ms: number, withTime: boolean): string {
+  const p: Record<string, string> = {};
+  for (const part of KST_FMT.formatToParts(new Date(ms))) p[part.type] = part.value;
+  if (p.hour === "24") p.hour = "00";
+  const date = `${p.year}.${p.month}.${p.day}`;
+  return withTime ? `${date} ${p.hour}:${p.minute}` : date;
 }
