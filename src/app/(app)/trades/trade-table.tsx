@@ -1,9 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState, useTransition } from "react";
+import { Fragment, useMemo, useState, useTransition } from "react";
 
 import { deleteTrade } from "@/app/(app)/trades/actions";
+import { TradeChart } from "@/components/trade-chart";
 import { RESULT_LABEL, SIDE_LABEL, type TradeResult } from "@/lib/domain";
 import { dateTime, num, pct, pnlClass, signed, signedPct } from "@/lib/format";
 import type { TradeDerived } from "@/lib/metrics";
@@ -15,6 +16,9 @@ export function TradeTable({ rows, currency }: { rows: TradeDerived[]; currency:
   const [result, setResult] = useState<ResultFilter>("all");
   const [symbol, setSymbol] = useState("all");
   const [newestFirst, setNewestFirst] = useState(true);
+  /** 한 번에 하나만 펼친다 — 여러 개를 열면 OKX 요청이 동시에 쏟아진다. */
+  const [openChart, setOpenChart] = useState<string | null>(null);
+  const selected = rows.find((r) => r.trade.id === openChart)?.trade ?? null;
 
   const symbols = useMemo(
     () => [...new Set(rows.map((r) => r.trade.symbol))].sort(),
@@ -98,7 +102,8 @@ export function TradeTable({ rows, currency }: { rows: TradeDerived[]; currency:
           </thead>
           <tbody>
             {visible.map(({ trade, equityAfter, drawdownPct, pnlPct, net }) => (
-              <tr key={trade.id} className="border-t border-border hover:bg-surface-2/60">
+              <Fragment key={trade.id}>
+                <tr className="border-t border-border hover:bg-surface-2/60">
                 <td className="tnum px-3 py-2 text-dim">{trade.seq}</td>
                 <td className="px-3 py-2">
                   <span className={trade.side === "long" ? "text-profit" : "text-loss"}>
@@ -128,7 +133,15 @@ export function TradeTable({ rows, currency }: { rows: TradeDerived[]; currency:
                   {pct(drawdownPct)}
                 </td>
                 <td className="px-3 py-2 whitespace-nowrap">
-                  <Link href={`/trades/${trade.id}`} className="text-xs text-accent">
+                  <button
+                    type="button"
+                    onClick={() => setOpenChart((id) => (id === trade.id ? null : trade.id))}
+                    className={`text-xs ${openChart === trade.id ? "text-text" : "text-accent"}`}
+                    aria-expanded={openChart === trade.id}
+                  >
+                    {openChart === trade.id ? "차트 닫기" : "차트"}
+                  </button>
+                  <Link href={`/trades/${trade.id}`} className="ml-3 text-xs text-accent">
                     수정
                   </Link>
                   <button
@@ -145,11 +158,29 @@ export function TradeTable({ rows, currency }: { rows: TradeDerived[]; currency:
                     삭제
                   </button>
                 </td>
-              </tr>
+                </tr>
+              </Fragment>
             ))}
           </tbody>
         </table>
       </div>
+
+      {/*
+        차트는 표 바깥에 그린다. 표 안에 넣으면 표의 가로 스크롤에 갇혀
+        차트를 보려고 옆으로 스크롤해야 한다.
+      */}
+      {selected ? (
+        <TradeChart
+          key={selected.id}
+          symbol={selected.symbol}
+          side={selected.side}
+          entryAt={selected.entry_at}
+          exitAt={selected.exit_at}
+          entryPrice={selected.entry_price}
+          exitPrice={selected.exit_price}
+          stopPrice={selected.stop_price}
+        />
+      ) : null}
     </div>
   );
 }

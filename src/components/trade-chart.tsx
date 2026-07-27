@@ -31,6 +31,8 @@ interface Row extends Candle {
   /** 캔들 몸통을 [저, 고] 범위 막대로 그리기 위한 값. */
   range: [number, number];
   up: boolean;
+  /** 이 봉이 거래 보유 구간에 걸쳐 있는가. */
+  inTrade: boolean;
 }
 
 export function TradeChart({
@@ -101,20 +103,22 @@ export function TradeChart({
     };
   }, [symbol, bar, entryMs, exitMs, view]);
 
+  // 진입·청산이 속한 봉의 시작 시각 — 표시를 그 봉에 정확히 얹기 위해.
+  const barOf = (ms: number) => Math.floor(ms / BAR_MS[bar]) * BAR_MS[bar];
+  const entryBar = barOf(entryMs);
+  const exitBar = exitMs === null ? null : barOf(exitMs);
+
   const rows: Row[] = useMemo(
     () =>
       (candles ?? []).map((c) => ({
         ...c,
         range: [c.l, c.h] as [number, number],
         up: c.c >= c.o,
+        // 실제 거래가 걸쳐 있던 봉 — 어느 배율에서든 이 봉들이 먼저 눈에 들어와야 한다.
+        inTrade: c.t >= entryBar && c.t <= (exitBar ?? entryBar),
       })),
-    [candles],
+    [candles, entryBar, exitBar],
   );
-
-  // 진입·청산이 속한 봉의 시작 시각 — 세로 표시를 그 봉에 정확히 얹기 위해.
-  const barOf = (ms: number) => Math.floor(ms / BAR_MS[bar]) * BAR_MS[bar];
-  const entryBar = barOf(entryMs);
-  const exitBar = exitMs === null ? null : barOf(exitMs);
 
   const priceDomain = useMemo((): [number, number] | undefined => {
     if (rows.length === 0) return undefined;
@@ -242,14 +246,25 @@ export function TradeChart({
                 tickFormatter={(v: number) => num(v, 0)}
               />
 
-              {/* 보유 구간 음영 — 언제 들고 있었는지가 한눈에 보여야 한다. */}
-              {exitBar !== null ? (
-                <ReferenceArea
-                  x1={entryBar}
-                  x2={exitBar}
-                  fill="var(--accent)"
-                  fillOpacity={0.07}
-                  stroke="none"
+              {/*
+                보유 구간 음영. 진입·청산이 같은 봉이면 폭이 0이 되어 사라지므로
+                끝을 한 봉만큼 늘려 항상 최소 한 봉은 덮이게 한다.
+              */}
+              <ReferenceArea
+                x1={entryBar}
+                x2={(exitBar ?? entryBar) + BAR_MS[bar]}
+                fill="var(--accent)"
+                fillOpacity={0.1}
+                stroke="none"
+              />
+
+              {/* 거래 구간의 시작·끝 경계 — 어느 봉부터 어느 봉까지인지 눈으로 세게 한다. */}
+              <ReferenceLine x={entryBar} stroke="var(--accent)" strokeDasharray="3 3" />
+              {exitBar !== null && exitBar !== entryBar ? (
+                <ReferenceLine
+                  x={exitBar + BAR_MS[bar]}
+                  stroke="var(--beta)"
+                  strokeDasharray="3 3"
                 />
               ) : null}
 
@@ -339,9 +354,17 @@ export function TradeChart({
               />
 
               {/* 고-저 범위 막대 = 캔들. 색은 시가 대비 종가 방향. */}
+              {/*
+                거래에 걸친 봉만 또렷하게 두고 나머지는 흐리게 깐다.
+                일봉처럼 배율이 크면 거래가 몇 봉 안 되어 그냥은 찾기 어렵다.
+              */}
               <Bar dataKey="range" isAnimationActive={false} minPointSize={1}>
                 {rows.map((r) => (
-                  <Cell key={r.t} fill={r.up ? "var(--profit)" : "var(--loss)"} />
+                  <Cell
+                    key={r.t}
+                    fill={r.up ? "var(--profit)" : "var(--loss)"}
+                    fillOpacity={r.inTrade ? 1 : 0.32}
+                  />
                 ))}
               </Bar>
             </BarChart>
@@ -351,8 +374,9 @@ export function TradeChart({
 
       <p className="mt-2 text-[11px] text-dim">
         막대는 각 봉의 고가~저가 범위이고, 색은 시가 대비 종가 방향입니다.{" "}
+        <b className="text-text">거래에 걸친 봉만 진하게</b> 두고 나머지는 흐리게 깔았습니다.{" "}
         <span className="text-accent">●</span> 진입 · <span className="text-beta">●</span> 청산
-        지점에 가격과 시각을 함께 적었고, 음영이 보유 구간입니다.
+        지점에 가격과 시각을 함께 적었습니다.
       </p>
     </section>
   );
