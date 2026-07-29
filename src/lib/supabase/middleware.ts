@@ -1,8 +1,13 @@
 import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
 
-/** 인증 없이 접근 가능한 경로 접두사. */
-const PUBLIC_PREFIXES = ['/login', '/auth'];
+/**
+ * 세션 검사를 건너뛰는 경로 접두사.
+ *
+ * `/api/cron`은 로그인 세션이 아니라 `Authorization: Bearer $CRON_SECRET`으로
+ * 자기를 증명한다. 여기서 막으면 라우트에 닿지도 못하고 로그인 페이지로 튕긴다.
+ */
+const PUBLIC_PREFIXES = ['/login', '/auth', '/api/cron'];
 
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request });
