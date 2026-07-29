@@ -83,7 +83,7 @@ export interface Trade {
   emotion: string | null;
   /** 시트의 `비고` */
   note: string | null;
-  /** OKX 포지션 번호 — API로 받아 온 거래를 두 번 쌓지 않게 막는 열쇠 */
+  /** OKX 포지션 슬롯 번호 — 종목·방향이 같으면 재사용된다. `exit_at`과 짝이어야 거래 하나를 가리킨다 */
   okx_pos_id: string | null;
   created_at: string;
   updated_at: string;

@@ -4,6 +4,7 @@ import { fillSchema, positionSchema, type OkxFill, type OkxPosition } from "@/li
 import {
   baseSymbol,
   fillRole,
+  positionKey,
   matchPosition,
   notionalOf,
   resultOf,
@@ -131,6 +132,19 @@ describe("toTradeInsert", () => {
 
   it("방향을 못 정하면 넣지 않는다", () => {
     expect(toTradeInsert({ pos: position({ direction: "net", pnl: "0" }), ...base })).toBeNull();
+  });
+});
+
+describe("positionKey", () => {
+  it("posId 가 같아도 청산 시각이 다르면 다른 거래다", () => {
+    // 실계좌 100건에 고유 posId 가 6개뿐이었다 — posId 하나가 60건에 재사용됐다.
+    expect(positionKey("3711868481042571264", 1000)).not.toBe(
+      positionKey("3711868481042571264", 2000),
+    );
+  });
+
+  it("같은 포지션·같은 청산 시각이면 같은 거래", () => {
+    expect(positionKey("A", 1000)).toBe(positionKey("A", 1000));
   });
 });
 

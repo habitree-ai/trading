@@ -16,7 +16,7 @@ import {
   fetchPositionsHistory,
   fetchTotalEquity,
 } from "@/lib/okx/history";
-import { matchPosition, sideOf, toFillInsert, toTradeInsert } from "@/lib/okx/map";
+import { matchPosition, positionKey, sideOf, toFillInsert, toTradeInsert } from "@/lib/okx/map";
 import { MAX_HISTORY_MS, readCredentials, type OkxCredentials } from "@/lib/okx/private";
 import type { Database } from "@/lib/supabase/database.types";
 
@@ -137,18 +137,28 @@ async function runSync(
     return { tradesAdded: 0, fillsAdded: 0, since, until };
   }
 
-  // 이미 들어와 있는 포지션은 건너뛴다 — 같은 구간을 다시 훑어도 손익이 겹치지 않게.
-  const posIds = positions.map((p) => p.posId);
+  // 이미 들어와 있는 거래는 건너뛴다 — 같은 구간을 다시 훑어도 손익이 겹치지 않게.
+  const posIds = [...new Set(positions.map((p) => p.posId))];
   const { data: known } = await supabase
     .from("trades")
-    .select("id, okx_pos_id, side")
+    .select("id, okx_pos_id, exit_at, side")
     .in("okx_pos_id", posIds);
 
-  const knownIds = new Set((known ?? []).map((t) => t.okx_pos_id));
+  const seen = new Set(
+    (known ?? [])
+      .filter((t) => t.okx_pos_id !== null && t.exit_at !== null)
+      .map((t) => positionKey(t.okx_pos_id!, Date.parse(t.exit_at!))),
+  );
+
   // 오래된 것부터 순번을 매긴다 — 시트의 `순번`은 시간순이다.
-  const fresh = positions
-    .filter((p) => !knownIds.has(p.posId))
-    .sort((a, b) => Number(a.cTime) - Number(b.cTime));
+  // 응답 안에서도 같은 거래가 두 번 올 수 있으므로 여기서 함께 걸러 낸다.
+  const fresh: typeof positions = [];
+  for (const pos of [...positions].sort((a, b) => Number(a.cTime) - Number(b.cTime))) {
+    const key = positionKey(pos.posId, Number(pos.uTime));
+    if (seen.has(key)) continue;
+    seen.add(key);
+    fresh.push(pos);
+  }
 
   let seq = await nextSeq(supabase, bookId);
   const rows = fresh
@@ -180,10 +190,14 @@ async function syncFills(
   // 거래를 방금 넣었으므로 여기서 다시 읽어야 id를 알 수 있다.
   const { data: trades } = await supabase
     .from("trades")
-    .select("id, okx_pos_id, side")
-    .in("okx_pos_id", positions.map((p) => p.posId));
+    .select("id, okx_pos_id, exit_at, side")
+    .in("okx_pos_id", [...new Set(positions.map((p) => p.posId))]);
 
-  const tradeByPos = new Map((trades ?? []).map((t) => [t.okx_pos_id, t]));
+  const tradeByPos = new Map(
+    (trades ?? [])
+      .filter((t) => t.okx_pos_id !== null && t.exit_at !== null)
+      .map((t) => [positionKey(t.okx_pos_id!, Date.parse(t.exit_at!)), t]),
+  );
 
   const { data: existing } = await supabase
     .from("trade_fills")
@@ -199,7 +213,7 @@ async function syncFills(
     const pos = matchPosition(fill, positions);
     if (!pos) continue; // 아직 안 닫힌 포지션의 체결 — 닫히는 날 같이 들어온다.
 
-    const trade = tradeByPos.get(pos.posId);
+    const trade = tradeByPos.get(positionKey(pos.posId, Number(pos.uTime)));
     const side = sideOf(pos);
     if (!trade || !side) continue;
 

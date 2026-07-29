@@ -106,6 +106,17 @@ export function toTradeInsert(input: {
   };
 }
 
+/**
+ * 거래 하나를 가리키는 열쇠.
+ *
+ * `posId`만으로는 부족하다 — 종목·방향별 포지션 슬롯 id라서 같은 종목을 다시
+ * 잡으면 그대로 재사용된다(실계좌 100건에 고유 posId 가 6개뿐이었다).
+ * 청산 시각까지 붙여야 거래 하나가 특정된다.
+ */
+export function positionKey(posId: string, closedAtMs: number): string {
+  return `${posId}|${closedAtMs}`;
+}
+
 /** 매수가 진입인지 청산인지는 포지션 방향이 정한다 — 숏은 매도가 진입이다. */
 export function fillRole(fillSide: string, side: Side): "open" | "close" {
   return (fillSide === "buy") === (side === "long") ? "open" : "close";
