@@ -11,6 +11,7 @@
  */
 
 import type { Book, Trade } from '@/lib/domain';
+import { DISPLAY_TZ } from '@/lib/format';
 
 /** 표본이 없어 정의되지 않는 지표는 null로 돌려준다 — 0과 구분하기 위해. */
 type Maybe = number | null;
@@ -310,6 +311,24 @@ export function weekKey(iso: string): string {
   const day = (d.getUTCDay() + 6) % 7;
   d.setUTCDate(d.getUTCDate() - day);
   return d.toISOString().slice(0, 10);
+}
+
+/**
+ * 일별 키 — 표시 타임존 기준.
+ *
+ * UTC로 자르면 한국 아침 9시 이전 거래가 전날 칸으로 밀린다. 하루 단위는 그 차이가
+ * 그대로 드러나므로(월 단위와 달리 경계에 걸리는 거래가 많다) 시간대를 명시한다.
+ * `en-CA` 로케일이 `2026-07-28` 형태를 준다.
+ */
+const DAY_FORMAT = new Intl.DateTimeFormat('en-CA', {
+  timeZone: DISPLAY_TZ,
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+});
+
+export function dayKey(iso: string): string {
+  return DAY_FORMAT.format(new Date(iso));
 }
 
 export function monthKey(iso: string): string {

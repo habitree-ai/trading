@@ -5,6 +5,7 @@ import {
   bucketBy,
   computeMetrics,
   crossCheckPnl,
+  dayKey,
   deriveTrades,
   groupPerformance,
   monthKey,
@@ -327,5 +328,27 @@ describe('집계 헬퍼', () => {
     expect(groups[0].netPnl).toBe(-50);
     expect(groups.at(-1)?.key).toBe('계획대로');
     expect(groups.find((g) => g.key === '(미기재)')?.count).toBe(1);
+  });
+});
+
+describe('dayKey', () => {
+  it('표시 타임존(KST) 기준으로 하루를 가른다', () => {
+    // UTC 22:30 은 한국 시각으로 다음 날 07:30 이다.
+    expect(dayKey('2026-07-28T22:30:00Z')).toBe('2026-07-29');
+    // UTC 14:00 = 한국 23:00 — 아직 같은 날.
+    expect(dayKey('2026-07-28T14:00:00Z')).toBe('2026-07-28');
+  });
+
+  it('bucketBy 와 맞물려 하루씩 묶는다', () => {
+    const trades = [
+      trade({ pnl: 10, result: 'win' }),
+      trade({ pnl: -4, result: 'loss' }),
+    ];
+    trades[0].exit_at = '2026-07-28T22:30:00Z'; // KST 07-29
+    trades[1].exit_at = '2026-07-28T14:00:00Z'; // KST 07-28
+
+    const buckets = bucketBy(deriveTrades(book, trades), dayKey);
+    expect(buckets.map((b) => b.key)).toEqual(['2026-07-28', '2026-07-29']);
+    expect(buckets.find((b) => b.key === '2026-07-29')?.pnl).toBe(10);
   });
 });

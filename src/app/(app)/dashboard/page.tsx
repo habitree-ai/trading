@@ -1,11 +1,13 @@
 import Link from "next/link";
 
-import { DrawdownChart, EquityCurve, PnlBars, type EquityPoint } from "@/components/charts";
+import { PnlPanel } from "@/app/(app)/dashboard/pnl-panel";
+import { DrawdownChart, EquityCurve, type EquityPoint } from "@/components/charts";
+import type { PnlBar } from "@/components/charts";
 import { EmptyBook } from "@/components/empty-book";
 import { StatTile } from "@/components/stat-tile";
 import { RESULT_LABEL } from "@/lib/domain";
 import { date, dateTime, num, pct, pnlClass, signed, signedPct } from "@/lib/format";
-import { bucketBy, computeMetrics, deriveTrades, monthKey } from "@/lib/metrics";
+import { bucketBy, computeMetrics, dayKey, deriveTrades, monthKey } from "@/lib/metrics";
 import { getActiveBook, listTrades } from "@/lib/queries";
 
 export default async function DashboardPage() {
@@ -14,7 +16,12 @@ export default async function DashboardPage() {
 
   const derived = deriveTrades(book, await listTrades(book.id));
   const m = computeMetrics(book, derived);
-  const months = bucketBy(derived, monthKey);
+  // 축이 좁아 키를 그대로 찍으면 겹친다 — 일별은 연도를 떼고 `07-28`로 줄인다.
+  const toBars = (keyFn: (iso: string) => string, short: boolean): PnlBar[] =>
+    bucketBy(derived, keyFn).map((b) => ({ ...b, label: short ? b.key.slice(5) : b.key }));
+
+  const daily = toBars(dayKey, true);
+  const monthly = toBars(monthKey, false);
 
   const curve: EquityPoint[] = [
     { label: `${book.start_date} 시작`, equity: book.initial_capital, drawdown: 0, pnl: null },
@@ -127,17 +134,7 @@ export default async function DashboardPage() {
             </div>
           </section>
 
-          <section className="rounded-xl border border-border bg-surface p-4">
-            <h2 className="text-sm font-medium">
-              월별 손익{" "}
-              <span className="font-normal text-dim">
-                — 0선 위가 이익, 아래가 손실 ({book.base_currency})
-              </span>
-            </h2>
-            <div className="mt-3">
-              <PnlBars data={months} currency={book.base_currency} />
-            </div>
-          </section>
+          <PnlPanel daily={daily} monthly={monthly} currency={book.base_currency} />
 
           <section className="rounded-xl border border-border bg-surface p-4">
             <div className="flex items-center">

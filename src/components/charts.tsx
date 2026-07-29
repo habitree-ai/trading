@@ -155,6 +155,8 @@ export function DrawdownChart({ data }: { data: EquityPoint[] }) {
 
 export interface PnlBar {
   key: string;
+  /** 축에 찍을 짧은 표기 — 일별은 `07-28`, 월별은 `2026-07`. */
+  label: string;
   pnl: number;
   wins: number;
   losses: number;
@@ -167,7 +169,7 @@ export function PnlBars({ data, currency }: { data: PnlBar[]; currency: string }
     <ResponsiveContainer width="100%" height={200}>
       <BarChart data={data} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
         <CartesianGrid stroke={GRID} strokeDasharray="3 3" vertical={false} />
-        <XAxis dataKey="key" {...AXIS} tickLine={false} axisLine={{ stroke: GRID }} minTickGap={12} />
+        <XAxis dataKey="label" {...AXIS} tickLine={false} axisLine={{ stroke: GRID }} minTickGap={12} />
         <YAxis {...AXIS} tickLine={false} axisLine={false} width={56} tickFormatter={(v: number) => num(v, 0)} />
         <ReferenceLine y={0} stroke="var(--text-dim)" />
         <Tooltip
