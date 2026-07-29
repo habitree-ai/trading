@@ -1,9 +1,11 @@
 import Link from "next/link";
 
+import { OkxSyncButton } from "@/app/(app)/trades/okx-sync-button";
 import { TradeTable } from "@/app/(app)/trades/trade-table";
 import { EmptyBook } from "@/components/empty-book";
+import { dateTime } from "@/lib/format";
 import { deriveTrades } from "@/lib/metrics";
-import { getActiveBook, listFillsByTrade, listTrades } from "@/lib/queries";
+import { getActiveBook, getLastSync, listFillsByTrade, listTrades } from "@/lib/queries";
 
 export default async function TradesPage() {
   const book = await getActiveBook();
@@ -11,6 +13,7 @@ export default async function TradesPage() {
 
   const derived = deriveTrades(book, await listTrades(book.id));
   const fillsByTrade = await listFillsByTrade(book.id);
+  const lastSync = book.okx_sync_enabled ? await getLastSync(book.id) : null;
 
   return (
     <div className="space-y-5">
@@ -19,14 +22,20 @@ export default async function TradesPage() {
           <h1 className="text-xl font-semibold tracking-tight">거래 목록</h1>
           <p className="mt-1 text-sm text-dim">
             {book.name} · {derived.length}건
+            {book.okx_sync_enabled ? (
+              <> · 마지막 동기화 {lastSync ? dateTime(lastSync.started_at) : "없음"}</>
+            ) : null}
           </p>
         </div>
-        <Link
-          href="/trades/new"
-          className="ml-auto rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white"
-        >
-          기록 추가
-        </Link>
+        <div className="ml-auto flex flex-wrap items-center gap-3">
+          {book.okx_sync_enabled ? <OkxSyncButton /> : null}
+          <Link
+            href="/trades/new"
+            className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white"
+          >
+            기록 추가
+          </Link>
+        </div>
       </header>
 
       {derived.length === 0 ? (

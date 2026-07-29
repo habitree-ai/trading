@@ -20,6 +20,7 @@ const book: Book = {
   start_date: '2026-01-01',
   status: 'active',
   memo: null,
+  okx_sync_enabled: false,
   created_at: '2026-01-01T00:00:00Z',
 };
 
@@ -43,6 +44,7 @@ function trade(partial: Partial<Trade> & { pnl: number; result: TradeResult }): 
     leverage: null,
     entry_price: null,
     exit_price: null,
+    okx_pos_id: null,
     fee: null,
     funding_fee: null,
     margin_mode: null,

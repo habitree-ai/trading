@@ -23,6 +23,8 @@ export interface Book {
   start_date: string;
   status: BookStatus;
   memo: string | null;
+  /** OKX 자동 동기화 대상 북 — 사용자당 하나만 켤 수 있다 */
+  okx_sync_enabled: boolean;
   created_at: string;
 }
 
@@ -81,6 +83,8 @@ export interface Trade {
   emotion: string | null;
   /** 시트의 `비고` */
   note: string | null;
+  /** OKX 포지션 번호 — API로 받아 온 거래를 두 번 쌓지 않게 막는 열쇠 */
+  okx_pos_id: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -100,8 +104,10 @@ export interface TradeFill {
   price: number;
   amount: number | null;
   fee: number | null;
-  /** 거래소 주문번호 — 같은 거래를 두 번 등록하지 못하게 막는 열쇠 */
+  /** 거래소 주문번호 — 부분체결이면 여러 체결이 같은 값을 갖는다 */
   order_no: string | null;
+  /** OKX 체결번호 — 체결 1건마다 유일하다. API 경로의 중복 방지 열쇠 */
+  okx_bill_id: string | null;
   created_at: string;
 }
 
@@ -118,13 +124,27 @@ export interface TradeImage {
   created_at: string;
 }
 
+/** 거래소 동기화 1회 실행 기록 — 어디까지 훑었는지 남겨 다음 실행이 이어받는다. */
+export interface SyncRun {
+  id: string;
+  user_id: string;
+  book_id: string;
+  source: 'okx';
+  started_at: string;
+  finished_at: string | null;
+  cursor_at: string | null;
+  trades_added: number;
+  fills_added: number;
+  error: string | null;
+}
+
 export interface BalanceSnapshot {
   id: string;
   book_id: string;
   user_id: string;
   at: string;
   equity: number;
-  source: 'capture' | 'manual';
+  source: 'capture' | 'manual' | 'okx';
   image_id: string | null;
 }
 

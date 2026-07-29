@@ -2,7 +2,7 @@
 
 import { useTransition } from "react";
 
-import { closeBook, deleteBook, reopenBook, switchBook } from "@/app/(app)/books/actions";
+import { closeBook, deleteBook, reopenBook, setOkxSync, switchBook } from "@/app/(app)/books/actions";
 import type { Book } from "@/lib/domain";
 import { num, pct, pnlClass, signedPct } from "@/lib/format";
 import type { BookMetrics } from "@/lib/metrics";
@@ -34,6 +34,11 @@ export function BookRow({
         {book.status === "closed" ? (
           <span className="rounded bg-surface-2 px-1.5 py-0.5 text-[10px] text-dim">마감</span>
         ) : null}
+        {book.okx_sync_enabled ? (
+          <span className="rounded border border-accent/40 px-1.5 py-0.5 text-[10px] text-accent">
+            OKX 동기화
+          </span>
+        ) : null}
         <span className="text-xs text-dim">
           {book.exchange ?? "거래소 미지정"} · {book.base_currency} · {book.start_date} 시작
         </span>
@@ -57,6 +62,12 @@ export function BookRow({
             이 북 보기
           </Action>
         ) : null}
+        <Action
+          onClick={() => run(() => setOkxSync(book.id, !book.okx_sync_enabled))}
+          disabled={pending}
+        >
+          {book.okx_sync_enabled ? "OKX 동기화 끄기" : "OKX 동기화 켜기"}
+        </Action>
         {book.status === "active" ? (
           <Action onClick={() => run(() => closeBook(book.id))} disabled={pending}>
             마감

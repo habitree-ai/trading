@@ -1,6 +1,6 @@
 import { cookies } from "next/headers";
 
-import type { Book, Goal, Trade, TradeFill } from "@/lib/domain";
+import type { Book, Goal, SyncRun, Trade, TradeFill } from "@/lib/domain";
 import { createClient } from "@/lib/supabase/server";
 
 /** 어떤 북을 보고 있는지는 쿠키로 기억한다 — URL을 오염시키지 않기 위해. */
@@ -82,6 +82,25 @@ export async function listFills(tradeId: string): Promise<TradeFill[]> {
     .order("filled_at", { ascending: true });
   if (error) throw new Error(error.message);
   return data;
+}
+
+/**
+ * 마지막으로 성공한 동기화.
+ *
+ * OKX는 3개월치만 준다 — 얼마나 밀렸는지 눈에 보여야 유실을 알아챌 수 있다.
+ */
+export async function getLastSync(bookId: string): Promise<SyncRun | null> {
+  const { supabase } = await requireUser();
+  const { data, error } = await supabase
+    .from("sync_runs")
+    .select("*")
+    .eq("book_id", bookId)
+    .is("error", null)
+    .not("finished_at", "is", null)
+    .order("started_at", { ascending: false })
+    .limit(1);
+  if (error) throw new Error(error.message);
+  return (data[0] as SyncRun | undefined) ?? null;
 }
 
 export async function listGoals(bookId: string): Promise<Goal[]> {

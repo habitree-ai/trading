@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 
 import type { Side, TradeResult } from "@/lib/domain";
 import { fromLocalInput } from "@/lib/format";
+import { syncOkx } from "@/lib/okx/sync";
 import { nextSeq, requireUser } from "@/lib/queries";
 
 export interface TradeFormState {
@@ -240,6 +241,42 @@ export async function updateTrade(
 
   revalidatePath("/", "layout");
   redirect("/trades");
+}
+
+export interface SyncState {
+  message?: string;
+  error?: string;
+}
+
+/**
+ * OKX에서 거래를 긁어 온다.
+ *
+ * 실패를 던지지 않고 문자열로 돌려준다 — 키가 없거나 거래소가 흔들리는 건
+ * 화면에서 알려 주면 될 일이지 페이지를 깨뜨릴 일이 아니다.
+ */
+export async function runOkxSync(): Promise<SyncState> {
+  const { supabase, user } = await requireUser();
+
+  const { data: book } = await supabase
+    .from("books")
+    .select("id, start_date")
+    .eq("okx_sync_enabled", true)
+    .maybeSingle();
+
+  if (!book) return { error: "OKX 동기화를 켠 북이 없습니다. 북 관리에서 지정해 주세요." };
+
+  try {
+    const result = await syncOkx({
+      supabase,
+      userId: user.id,
+      bookId: book.id,
+      startDate: book.start_date,
+    });
+    revalidatePath("/", "layout");
+    return { message: `거래 ${result.tradesAdded}건 · 체결 ${result.fillsAdded}건을 받았습니다.` };
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : String(error) };
+  }
 }
 
 export async function deleteTrade(id: string) {

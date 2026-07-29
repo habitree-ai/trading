@@ -77,6 +77,7 @@ export type Database = {
           initial_capital: number
           memo: string | null
           name: string
+          okx_sync_enabled: boolean
           start_date: string
           status: Database["public"]["Enums"]["book_status"]
           user_id: string
@@ -89,6 +90,7 @@ export type Database = {
           initial_capital?: number
           memo?: string | null
           name: string
+          okx_sync_enabled?: boolean
           start_date?: string
           status?: Database["public"]["Enums"]["book_status"]
           user_id: string
@@ -101,6 +103,7 @@ export type Database = {
           initial_capital?: number
           memo?: string | null
           name?: string
+          okx_sync_enabled?: boolean
           start_date?: string
           status?: Database["public"]["Enums"]["book_status"]
           user_id?: string
@@ -145,6 +148,53 @@ export type Database = {
           },
         ]
       }
+      sync_runs: {
+        Row: {
+          book_id: string
+          cursor_at: string | null
+          error: string | null
+          fills_added: number
+          finished_at: string | null
+          id: string
+          source: string
+          started_at: string
+          trades_added: number
+          user_id: string
+        }
+        Insert: {
+          book_id: string
+          cursor_at?: string | null
+          error?: string | null
+          fills_added?: number
+          finished_at?: string | null
+          id?: string
+          source?: string
+          started_at?: string
+          trades_added?: number
+          user_id: string
+        }
+        Update: {
+          book_id?: string
+          cursor_at?: string | null
+          error?: string | null
+          fills_added?: number
+          finished_at?: string | null
+          id?: string
+          source?: string
+          started_at?: string
+          trades_added?: number
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sync_runs_book_id_fkey"
+            columns: ["book_id"]
+            isOneToOne: false
+            referencedRelation: "books"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       trade_fills: {
         Row: {
           amount: number | null
@@ -152,6 +202,7 @@ export type Database = {
           fee: number | null
           filled_at: string
           id: string
+          okx_bill_id: string | null
           order_no: string | null
           price: number
           role: Database["public"]["Enums"]["fill_role"]
@@ -164,6 +215,7 @@ export type Database = {
           fee?: number | null
           filled_at: string
           id?: string
+          okx_bill_id?: string | null
           order_no?: string | null
           price: number
           role: Database["public"]["Enums"]["fill_role"]
@@ -176,6 +228,7 @@ export type Database = {
           fee?: number | null
           filled_at?: string
           id?: string
+          okx_bill_id?: string | null
           order_no?: string | null
           price?: number
           role?: Database["public"]["Enums"]["fill_role"]
@@ -257,6 +310,7 @@ export type Database = {
           margin_mode: Database["public"]["Enums"]["margin_mode"] | null
           note: string | null
           notional: number | null
+          okx_pos_id: string | null
           pnl: number | null
           rationale: string | null
           result: Database["public"]["Enums"]["trade_result"]
@@ -290,6 +344,7 @@ export type Database = {
           margin_mode?: Database["public"]["Enums"]["margin_mode"] | null
           note?: string | null
           notional?: number | null
+          okx_pos_id?: string | null
           pnl?: number | null
           rationale?: string | null
           result?: Database["public"]["Enums"]["trade_result"]
@@ -323,6 +378,7 @@ export type Database = {
           margin_mode?: Database["public"]["Enums"]["margin_mode"] | null
           note?: string | null
           notional?: number | null
+          okx_pos_id?: string | null
           pnl?: number | null
           rationale?: string | null
           result?: Database["public"]["Enums"]["trade_result"]

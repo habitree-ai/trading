@@ -5,11 +5,21 @@ import { Fragment, useMemo, useState, useTransition } from "react";
 
 import { deleteTrade } from "@/app/(app)/trades/actions";
 import { TradeChart } from "@/components/trade-chart";
-import { RESULT_LABEL, SIDE_LABEL, type TradeFill, type TradeResult } from "@/lib/domain";
+import { RESULT_LABEL, SIDE_LABEL, type Trade, type TradeFill, type TradeResult } from "@/lib/domain";
 import { dateTime, num, pct, pnlClass, signed, signedPct } from "@/lib/format";
 import type { TradeDerived } from "@/lib/metrics";
 
 type ResultFilter = TradeResult | "all";
+
+/**
+ * 복기가 비어 있는 청산 거래.
+ *
+ * API로 받아 온 거래는 숫자만 채워져 들어온다 — 손으로 쓸 칸(근거·복기·감정)이
+ * 비어 있는 건을 눈에 띄게 해 두지 않으면 그대로 묻힌다.
+ */
+function needsReview(trade: Trade): boolean {
+  return trade.result !== "open" && (trade.review ?? "").trim() === "";
+}
 
 export function TradeTable({
   rows,
@@ -25,6 +35,7 @@ export function TradeTable({
   const [result, setResult] = useState<ResultFilter>("all");
   const [symbol, setSymbol] = useState("all");
   const [newestFirst, setNewestFirst] = useState(true);
+  const [onlyPending, setOnlyPending] = useState(false);
   /** 한 번에 하나만 펼친다 — 여러 개를 열면 OKX 요청이 동시에 쏟아진다. */
   const [openChart, setOpenChart] = useState<string | null>(null);
   const selected = rows.find((r) => r.trade.id === openChart)?.trade ?? null;
@@ -34,14 +45,20 @@ export function TradeTable({
     [rows],
   );
 
+  const pendingCount = useMemo(
+    () => rows.filter((r) => needsReview(r.trade)).length,
+    [rows],
+  );
+
   const visible = useMemo(() => {
     const filtered = rows.filter(
       (r) =>
         (result === "all" || r.trade.result === result) &&
-        (symbol === "all" || r.trade.symbol === symbol),
+        (symbol === "all" || r.trade.symbol === symbol) &&
+        (!onlyPending || needsReview(r.trade)),
     );
     return newestFirst ? [...filtered].reverse() : filtered;
-  }, [rows, result, symbol, newestFirst]);
+  }, [rows, result, symbol, newestFirst, onlyPending]);
 
   const SELECT =
     "rounded-lg border border-border bg-surface px-2 py-1 text-xs outline-none focus:border-accent";
@@ -80,6 +97,14 @@ export function TradeTable({
           onClick={() => setNewestFirst((v) => !v)}
         >
           {newestFirst ? "최신순 ↓" : "오래된순 ↑"}
+        </button>
+        <button
+          type="button"
+          aria-pressed={onlyPending}
+          className={`${SELECT} ${onlyPending ? "border-accent text-accent" : ""}`}
+          onClick={() => setOnlyPending((v) => !v)}
+        >
+          복기 대기 {pendingCount}
         </button>
         <span className="ml-auto text-xs text-dim">{visible.length}건 표시</span>
       </div>
@@ -122,8 +147,13 @@ export function TradeTable({
                 <td className="px-3 py-2 font-medium">{trade.symbol}</td>
                 <FillCell price={trade.entry_price} at={trade.entry_at} />
                 <FillCell price={trade.exit_price} at={trade.exit_at} />
-                <td className="px-3 py-2">
+                <td className="px-3 py-2 whitespace-nowrap">
                   <ResultBadge result={trade.result} />
+                  {needsReview(trade) ? (
+                    <span className="ml-1 rounded border border-accent/40 px-1 py-0.5 text-[10px] text-accent">
+                      복기
+                    </span>
+                  ) : null}
                 </td>
                 <td className="tnum px-3 py-2 text-dim">{num(trade.notional, 0)}</td>
                 <td className="tnum px-3 py-2 text-dim">{num(trade.leverage, 1)}</td>
