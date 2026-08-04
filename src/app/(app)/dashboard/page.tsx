@@ -155,7 +155,7 @@ export default async function DashboardPage() {
               />
             </div>
             <h3 className="mt-4 text-xs font-medium text-dim">
-              고점 대비 낙폭 (MDD) — 입출금을 걷어낸 매매 곡선 기준
+              고점 대비 낙폭 (MDD) — 이체분은 고점에서 상쇄합니다
             </h3>
             <div className="mt-1">
               <DrawdownChart data={curve} />
