@@ -47,13 +47,11 @@ export interface TradeDerived {
   /** 시트의 `자금` — 이 거래 직후 자금. 입출금(이체)까지 반영한 실제 잔액 기준 */
   equityAfter: number;
   /**
-   * 매매만으로 쌓인 자금 — 초기자금 + 여기까지의 실현손익.
+   * 시트의 `누적 최고치` — 자금 곡선의 최고치.
    *
-   * 성과·낙폭은 이 곡선에서 잰다. 실제 잔액으로 재면 입금이 낙폭을 지우고
-   * 출금이 없던 손실을 만든다.
+   * 이체가 있으면 고점도 그 금액만큼 함께 옮긴다. 그래야 입금이 낙폭을 지우지도,
+   * 출금이 없던 낙폭을 만들지도 않는다.
    */
-  tradingEquity: number;
-  /** 시트의 `누적 최고치` — 매매 곡선의 최고치 */
   peak: number;
   /** 시트의 `MDD하락률` — (자금 − 최고치) / 최고치 */
   drawdownPct: number;
@@ -108,8 +106,9 @@ function sortedTransfers(flows: readonly CashFlow[]): CashFlow[] {
  * `equity_after`가 입력돼 있으면 그 값이 정본(거래소 화면에서 읽은 실측치).
  * 비어 있으면 직전 자금 + 손익 − 출금으로 이어 붙이고, 그 사이에 일어난 이체를 더한다.
  *
- * 곡선을 둘로 나눠 들고 간다. `equityAfter`는 거래소 잔액과 맞아야 하니 이체를 타고,
- * `tradingEquity`는 매매 성과만 재야 하니 타지 않는다.
+ * 낙폭은 이 곡선(=거래소 잔액)에서 재되, 이체가 있으면 고점을 같은 금액만큼 옮긴다.
+ * 매매분만 따로 떼어 낸 곡선에서 재 봤더니, 초기자금이 0인 북에서는 0에 가까운
+ * 고점으로 낙폭을 나누게 돼 −846% 같은 값이 나왔다.
  */
 export function deriveTrades(
   book: Book,
@@ -122,7 +121,6 @@ export function deriveTrades(
   const transfers = sortedTransfers(flows);
 
   let running = book.initial_capital;
-  let trading = book.initial_capital;
   let peak = book.initial_capital;
   let nextTransfer = 0;
 
@@ -131,7 +129,10 @@ export function deriveTrades(
     // '진입 직전 자금'을 흐트러뜨리지 않도록, 그건 다음 거래에서 잡는다.
     const entryMs = Date.parse(trade.entry_at);
     while (nextTransfer < transfers.length && Date.parse(transfers[nextTransfer].at) <= entryMs) {
-      running += transfers[nextTransfer].amount;
+      const { amount } = transfers[nextTransfer];
+      running += amount;
+      // 고점도 같은 금액만큼 옮긴다 — 넣고 뺀 돈은 매매 성과가 아니다.
+      peak = Math.max(peak + amount, 0);
       nextTransfer += 1;
     }
 
@@ -141,8 +142,7 @@ export function deriveTrades(
     const equityAfter = trade.equity_after ?? equityBefore + net - withdrawal;
 
     running = equityAfter;
-    trading += net;
-    peak = Math.max(peak, trading);
+    peak = Math.max(peak, running);
 
     const margin = marginOf(trade);
 
@@ -152,9 +152,8 @@ export function deriveTrades(
       net,
       equityBefore,
       equityAfter,
-      tradingEquity: trading,
       peak,
-      drawdownPct: peak === 0 ? 0 : (trading - peak) / peak,
+      drawdownPct: peak <= 0 ? 0 : (running - peak) / peak,
       margin,
       pnlPct: trade.pnl === null ? null : ratio(net, margin),
       riskPct: riskPct(trade),
@@ -287,7 +286,7 @@ export interface BookMetrics {
   withdrawals: number;
   /** 거래계좌 순이체 — 자금 곡선을 움직인 외부 유입(부호 포함) */
   netTransfer: number;
-  /** 투입원금 = 초기자금 + 거래계좌로 들어온 이체 누계 */
+  /** 투입원금 = 초기자금 + 누적 순이체의 최고치 (왕복 이체는 상쇄된다) */
   investedCapital: number;
   /** 시트의 `차액` — 외부 유입을 걷어낸 자금 증가분 = 매매로 번 돈 */
   netChange: number;
@@ -295,11 +294,11 @@ export interface BookMetrics {
   returnPct: Maybe;
   /** 시트의 `자금비율` = 최종자금 ÷ 투입원금 */
   capitalRatio: Maybe;
-  /** 시트의 `MAX` — 매매 곡선의 최고치 */
+  /** 시트의 `MAX` — 자금 곡선의 최고치 */
   peakEquity: number;
-  /** 시트의 `MIN` — 매매 곡선의 최저치 */
+  /** 시트의 `MIN` — 자금 곡선의 최저치 */
   troughEquity: number;
-  /** 시트의 `MDD` — 매매 곡선의 최대 낙폭(음수) */
+  /** 시트의 `MDD` — 최대 낙폭(음수). 이체분은 고점에서 상쇄한다 */
   maxDrawdownPct: number;
   /** 평균 거래당 리스크 */
   avgRiskPct: Maybe;
@@ -343,7 +342,20 @@ export function computeMetrics(
 
   const transfers = sortedTransfers(flows);
   const netTransfer = transfers.reduce((a, f) => a + f.amount, 0);
-  const inflow = transfers.reduce((a, f) => a + Math.max(f.amount, 0), 0);
+
+  /*
+   * 투입원금 — 가장 많이 넣어 뒀던 시점의 금액.
+   *
+   * 들어온 이체를 모두 더하면 자금계좌를 오간 왕복이 전부 원금으로 잡혀 부풀어 오른다
+   * (실계좌: 왕복 45회에 유입 합계 976, 실제로 넣은 돈은 185). 누적 순이체의 최고치를
+   * 쓰면 왕복이 상쇄되고 "한때 이만큼 넣어 뒀다"만 남는다.
+   */
+  let runningTransfer = 0;
+  let peakTransfer = 0;
+  for (const f of transfers) {
+    runningTransfer += f.amount;
+    peakTransfer = Math.max(peakTransfer, runningTransfer);
+  }
   const deposits = flows
     .filter((f) => f.kind === 'deposit')
     .reduce((a, f) => a + f.amount, 0);
@@ -362,10 +374,11 @@ export function computeMetrics(
   const totalWithdrawal = derived.reduce((a, d) => a + (d.trade.withdrawal ?? 0), 0);
   // 외부에서 드나든 돈을 걷어낸 자금 증가분 — 데이터가 온전하면 누적 실현손익과 같다.
   const netChange = finalEquity - book.initial_capital - netTransfer + totalWithdrawal;
-  const investedCapital = book.initial_capital + inflow;
+  const investedCapital = book.initial_capital + peakTransfer;
 
-  // 성과·낙폭은 매매 곡선에서 잰다 — 실제 잔액으로 재면 입금이 낙폭을 지운다.
-  const equities = [book.initial_capital, ...derived.map((d) => d.tradingEquity)];
+  // 최고치는 낙폭을 재는 그 고점을 쓴다 — 거래 사이에 이체로 올라간 지점까지 담긴다.
+  const peaks = [book.initial_capital, ...derived.map((d) => d.peak)];
+  const balances = [book.initial_capital, ...derived.map((d) => d.equityAfter)];
   const riskPcts = derived.map((d) => d.riskPct).filter((v): v is number => v !== null);
 
   return {
@@ -400,8 +413,8 @@ export function computeMetrics(
     netChange,
     returnPct: ratio(netChange, investedCapital),
     capitalRatio: ratio(finalEquity, investedCapital),
-    peakEquity: Math.max(...equities),
-    troughEquity: Math.min(...equities),
+    peakEquity: Math.max(...peaks),
+    troughEquity: Math.min(...balances),
     maxDrawdownPct: derived.reduce((min, d) => Math.min(min, d.drawdownPct), 0),
     avgRiskPct: mean(riskPcts),
   };

@@ -395,7 +395,9 @@ describe('입출금 — 자금 곡선과 매매 성과를 가른다', () => {
     expect(derived[0].equityAfter).toBe(120); // 100 + 20
     expect(derived[1].equityBefore).toBe(220); // 120 + 이체 100
     expect(derived[1].equityAfter).toBe(230);
-    expect(derived[1].tradingEquity).toBe(130); // 매매만: 100 + 20 + 10
+    // 이체로 자금이 늘어도 낙폭은 생기지 않는다 — 고점도 함께 올라간다.
+    expect(derived[1].peak).toBe(230);
+    expect(derived[1].drawdownPct).toBe(0);
   });
 
   it('마지막 거래 뒤의 이체도 최종 자금에 담는다', () => {
@@ -428,9 +430,11 @@ describe('입출금 — 자금 곡선과 매매 성과를 가른다', () => {
     expect(m.withdrawals).toBe(-200);
   });
 
-  it('MDD는 이체를 걷어낸 매매 곡선에서 잰다 — 입금이 낙폭을 지우면 안 된다', () => {
+  it('입금은 낙폭을 지우지 않는다 — 고점을 같은 금액만큼 올린다', () => {
     seq = 0;
     flowSeq = 0;
+    // 자금 100 → +100(200) → 이체 +1000(1200) → −120(1080).
+    // 1200 중 120을 잃었으니 −10%다. 이체를 무시하고 매매분만 보면 −60%로 부풀었다.
     const flows = [flow('transfer', '2026-01-01T12:00:00Z', 1000)];
     const derived = deriveTrades(
       book,
@@ -439,8 +443,45 @@ describe('입출금 — 자금 곡선과 매매 성과를 가른다', () => {
     );
     const m = computeMetrics(book, derived, flows);
 
-    expect(m.maxDrawdownPct).toBeCloseTo(-0.6, 10); // 200 → 80
-    expect(m.peakEquity).toBe(200);
+    expect(derived[1].peak).toBe(1200);
+    expect(m.maxDrawdownPct).toBeCloseTo(-0.1, 10);
+    expect(m.peakEquity).toBe(1200);
+  });
+
+  it('초기자금 0에서 시작해도 MDD가 폭주하지 않는다', () => {
+    seq = 0;
+    flowSeq = 0;
+    // 실계좌 재현: 초기 0에서 시작하니 고점이 0에 붙어 낙폭이 −846%까지 튀었다.
+    const zeroBase = { ...book, initial_capital: 0 };
+    const flows = [flow('transfer', '2026-01-01T00:00:00Z', 200)];
+    const derived = deriveTrades(
+      zeroBase,
+      [trade({ pnl: 50, result: 'win' }), trade({ pnl: -125, result: 'loss' })],
+      flows,
+    );
+    const m = computeMetrics(zeroBase, derived, flows);
+
+    expect(derived[0].equityAfter).toBe(250); // 0 + 이체 200 + 50
+    expect(m.maxDrawdownPct).toBeCloseTo(-0.5, 10); // 250 → 125
+    expect(m.maxDrawdownPct).toBeGreaterThan(-1);
+  });
+
+  it('왕복 이체는 투입원금을 부풀리지 않는다', () => {
+    seq = 0;
+    flowSeq = 0;
+    // 100을 넣었다 뺐다 세 번 — 유입만 더하면 300이지만 실제로 넣은 건 100이다.
+    const zeroBase = { ...book, initial_capital: 0 };
+    const flows = [
+      flow('transfer', '2026-01-01T00:00:00Z', 100),
+      flow('transfer', '2026-01-01T01:00:00Z', -100),
+      flow('transfer', '2026-01-01T02:00:00Z', 100),
+      flow('transfer', '2026-01-01T03:00:00Z', -100),
+      flow('transfer', '2026-01-01T04:00:00Z', 100),
+    ];
+    const m = computeMetrics(zeroBase, deriveTrades(zeroBase, [], flows), flows);
+
+    expect(m.investedCapital).toBe(100);
+    expect(m.netTransfer).toBe(100);
   });
 
   it('입출금이 없으면 예전과 똑같이 그린다', () => {
