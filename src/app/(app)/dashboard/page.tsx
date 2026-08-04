@@ -1,21 +1,34 @@
 import Link from "next/link";
 
+import { BalanceGap, CashFlowPanel } from "@/app/(app)/dashboard/cash-flow-panel";
 import { PnlPanel } from "@/app/(app)/dashboard/pnl-panel";
+import { RecentTrades } from "@/app/(app)/dashboard/recent-trades";
 import { DrawdownChart, EquityCurve, type EquityPoint } from "@/components/charts";
 import type { PnlBar } from "@/components/charts";
 import { EmptyBook } from "@/components/empty-book";
 import { StatTile } from "@/components/stat-tile";
-import { RESULT_LABEL } from "@/lib/domain";
-import { date, dateTime, num, pct, pnlClass, signed, signedPct } from "@/lib/format";
+import { date, num, pct, pnlClass, signed, signedPct } from "@/lib/format";
 import { bucketBy, computeMetrics, dayKey, deriveTrades, monthKey } from "@/lib/metrics";
-import { getActiveBook, listTrades } from "@/lib/queries";
+import {
+  getActiveBook,
+  getLatestBalance,
+  listCashFlows,
+  listFillsByTrade,
+  listTrades,
+} from "@/lib/queries";
 
 export default async function DashboardPage() {
   const book = await getActiveBook();
   if (!book) return <EmptyBook />;
 
-  const derived = deriveTrades(book, await listTrades(book.id));
-  const m = computeMetrics(book, derived);
+  const [trades, flows, balance] = await Promise.all([
+    listTrades(book.id),
+    listCashFlows(book.id),
+    getLatestBalance(book.id),
+  ]);
+
+  const derived = deriveTrades(book, trades, flows);
+  const m = computeMetrics(book, derived, flows);
   // 축이 좁아 키를 그대로 찍으면 겹친다 — 일별은 연도를 떼고 `07-28`로 줄인다.
   const toBars = (keyFn: (iso: string) => string, short: boolean): PnlBar[] =>
     bucketBy(derived, keyFn).map((b) => ({ ...b, label: short ? b.key.slice(5) : b.key }));
@@ -34,6 +47,11 @@ export default async function DashboardPage() {
   ];
 
   const recent = [...derived].reverse().slice(0, 8);
+  // 차트에 찍을 체결은 펼쳐 볼 수 있는 8건만 넘긴다 — 전량을 보내면 페이로드가 헛되이 커진다.
+  const recentIds = new Set(recent.map((d) => d.trade.id));
+  const recentFills = Object.fromEntries(
+    Object.entries(await listFillsByTrade(book.id)).filter(([id]) => recentIds.has(id)),
+  );
 
   return (
     <div className="space-y-6">
@@ -62,13 +80,13 @@ export default async function DashboardPage() {
         <StatTile
           label="현재자금"
           value={num(m.finalEquity, 2)}
-          sub={`초기 ${num(m.initialCapital, 0)} ${book.base_currency}`}
+          sub={`초기 ${num(m.initialCapital, 0)} · 순이체 ${signed(m.netTransfer, 0)}`}
         />
         <StatTile
           label="수익율"
           value={signedPct(m.returnPct)}
           valueClass={pnlClass(m.returnPct)}
-          sub={`차액 ${signed(m.netChange, 0)}`}
+          sub={`매매 차액 ${signed(m.netChange, 0)} ÷ 원금 ${num(m.investedCapital, 0)}`}
         />
         <StatTile
           label="승률"
@@ -118,9 +136,17 @@ export default async function DashboardPage() {
             <h2 className="text-sm font-medium">
               자금 곡선{" "}
               <span className="font-normal text-dim">
-                — 거래 순서별 계좌 자금 ({book.base_currency})
+                — 거래 순서별 계좌 자금, 이체 반영 ({book.base_currency})
               </span>
             </h2>
+            <div className="mt-1">
+              <BalanceGap
+                computed={m.finalEquity}
+                actual={balance?.equity ?? null}
+                at={balance?.at ?? null}
+                currency={book.base_currency}
+              />
+            </div>
             <div className="mt-3">
               <EquityCurve
                 data={curve}
@@ -128,7 +154,9 @@ export default async function DashboardPage() {
                 initialCapital={book.initial_capital}
               />
             </div>
-            <h3 className="mt-4 text-xs font-medium text-dim">고점 대비 낙폭 (MDD)</h3>
+            <h3 className="mt-4 text-xs font-medium text-dim">
+              고점 대비 낙폭 (MDD) — 입출금을 걷어낸 매매 곡선 기준
+            </h3>
             <div className="mt-1">
               <DrawdownChart data={curve} />
             </div>
@@ -136,34 +164,28 @@ export default async function DashboardPage() {
 
           <PnlPanel daily={daily} monthly={monthly} currency={book.base_currency} />
 
+          <CashFlowPanel
+            flows={flows}
+            currency={book.base_currency}
+            deposits={m.deposits}
+            withdrawals={m.withdrawals}
+            netTransfer={m.netTransfer}
+          />
+
           <section className="rounded-xl border border-border bg-surface p-4">
             <div className="flex items-center">
-              <h2 className="text-sm font-medium">최근 거래</h2>
+              <h2 className="text-sm font-medium">
+                최근 거래 <span className="font-normal text-dim">— 누르면 차트가 열립니다</span>
+              </h2>
               <Link href="/trades" className="ml-auto text-xs text-accent">
                 전체 보기
               </Link>
             </div>
-            <ul className="mt-3 divide-y divide-border">
-              {recent.map(({ trade, pnlPct }) => (
-                <li key={trade.id} className="flex items-center gap-3 py-2 text-sm">
-                  <span className="tnum w-8 text-xs text-dim">#{trade.seq}</span>
-                  <span className={trade.side === "long" ? "text-profit" : "text-loss"}>
-                    {trade.side === "long" ? "롱" : "숏"}
-                  </span>
-                  <span className="font-medium">{trade.symbol}</span>
-                  <span className="text-xs text-dim">{RESULT_LABEL[trade.result]}</span>
-                  <span className="tnum ml-auto text-xs text-dim">
-                    {dateTime(trade.exit_at ?? trade.entry_at)}
-                  </span>
-                  <span className={`tnum w-24 text-right font-medium ${pnlClass(trade.pnl)}`}>
-                    {signed(trade.pnl)}
-                  </span>
-                  <span className={`tnum w-20 text-right text-xs ${pnlClass(pnlPct)}`}>
-                    {signedPct(pnlPct)}
-                  </span>
-                </li>
-              ))}
-            </ul>
+            <RecentTrades
+              rows={recent}
+              currency={book.base_currency}
+              fillsByTrade={recentFills}
+            />
           </section>
         </>
       ) : null}

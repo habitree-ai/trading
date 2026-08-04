@@ -1,7 +1,7 @@
 import { BookForm } from "@/app/(app)/books/book-form";
 import { BookRow } from "@/app/(app)/books/book-row";
 import { computeMetrics, deriveTrades } from "@/lib/metrics";
-import { getActiveBook, listBooks, listTrades } from "@/lib/queries";
+import { getActiveBook, listBooks, listCashFlows, listTrades } from "@/lib/queries";
 
 export default async function BooksPage() {
   const books = await listBooks();
@@ -9,8 +9,8 @@ export default async function BooksPage() {
 
   const summaries = await Promise.all(
     books.map(async (book) => {
-      const trades = await listTrades(book.id);
-      return { book, metrics: computeMetrics(book, deriveTrades(book, trades)) };
+      const [trades, flows] = await Promise.all([listTrades(book.id), listCashFlows(book.id)]);
+      return { book, metrics: computeMetrics(book, deriveTrades(book, trades, flows), flows) };
     }),
   );
 

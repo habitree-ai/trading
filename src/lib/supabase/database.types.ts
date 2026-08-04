@@ -110,6 +110,59 @@ export type Database = {
         }
         Relationships: []
       }
+      cash_flows: {
+        Row: {
+          amount: number
+          at: string
+          book_id: string
+          ccy: string
+          created_at: string
+          fee: number | null
+          id: string
+          kind: string
+          note: string | null
+          okx_ref: string | null
+          source: string
+          user_id: string
+        }
+        Insert: {
+          amount: number
+          at: string
+          book_id: string
+          ccy?: string
+          created_at?: string
+          fee?: number | null
+          id?: string
+          kind: string
+          note?: string | null
+          okx_ref?: string | null
+          source?: string
+          user_id: string
+        }
+        Update: {
+          amount?: number
+          at?: string
+          book_id?: string
+          ccy?: string
+          created_at?: string
+          fee?: number | null
+          id?: string
+          kind?: string
+          note?: string | null
+          okx_ref?: string | null
+          source?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cash_flows_book_id_fkey"
+            columns: ["book_id"]
+            isOneToOne: false
+            referencedRelation: "books"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       goals: {
         Row: {
           book_id: string
@@ -154,6 +207,7 @@ export type Database = {
           cursor_at: string | null
           error: string | null
           fills_added: number
+          flows_added: number
           finished_at: string | null
           id: string
           source: string
@@ -166,6 +220,7 @@ export type Database = {
           cursor_at?: string | null
           error?: string | null
           fills_added?: number
+          flows_added?: number
           finished_at?: string | null
           id?: string
           source?: string
@@ -178,6 +233,7 @@ export type Database = {
           cursor_at?: string | null
           error?: string | null
           fills_added?: number
+          flows_added?: number
           finished_at?: string | null
           id?: string
           source?: string
@@ -313,6 +369,7 @@ export type Database = {
           okx_pos_id: string | null
           pnl: number | null
           rationale: string | null
+          realized_pnl: number | null
           result: Database["public"]["Enums"]["trade_result"]
           review: string | null
           seq: number
@@ -347,6 +404,7 @@ export type Database = {
           okx_pos_id?: string | null
           pnl?: number | null
           rationale?: string | null
+          realized_pnl?: number | null
           result?: Database["public"]["Enums"]["trade_result"]
           review?: string | null
           seq: number
@@ -381,6 +439,7 @@ export type Database = {
           okx_pos_id?: string | null
           pnl?: number | null
           rationale?: string | null
+          realized_pnl?: number | null
           result?: Database["public"]["Enums"]["trade_result"]
           review?: string | null
           seq?: number

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { BARS, fetchCandles, toInstId, type Bar } from "@/lib/okx";
+import { BAR_MS, BARS, fetchCandles, toInstId, type Bar } from "@/lib/okx";
 import { createClient } from "@/lib/supabase/server";
 
 function isBar(value: string): value is Bar {
@@ -34,7 +34,10 @@ export async function GET(request: Request) {
 
   try {
     const instId = toInstId(symbol);
-    const candles = await fetchCandles(instId, bar, from, to);
+    // OKX는 한 번에 100개만 준다. 며칠짜리 거래를 15분봉으로 보면 기본 4페이지로는
+    // 진입 지점까지 닿지 못한다 — 구간에 필요한 만큼 늘리되 상한을 둔다.
+    const pages = Math.ceil((to - from) / BAR_MS[bar] / 100);
+    const candles = await fetchCandles(instId, bar, from, to, Math.min(Math.max(pages, 1), 12));
     return NextResponse.json({ instId, bar, candles });
   } catch (error) {
     const message = error instanceof Error ? error.message : "알 수 없는 오류";

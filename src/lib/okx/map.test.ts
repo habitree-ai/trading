@@ -1,16 +1,31 @@
 import { describe, expect, it } from "vitest";
 
-import { fillSchema, positionSchema, type OkxFill, type OkxPosition } from "@/lib/okx/schema";
+import {
+  accountBillSchema,
+  depositSchema,
+  fillSchema,
+  positionSchema,
+  withdrawalSchema,
+  type OkxAccountBill,
+  type OkxDeposit,
+  type OkxFill,
+  type OkxPosition,
+  type OkxWithdrawal,
+} from "@/lib/okx/schema";
 import {
   baseSymbol,
   fillRole,
   positionKey,
   matchPosition,
   notionalOf,
+  realizedOf,
   resultOf,
   sideOf,
+  toDepositInsert,
   toFillInsert,
   toTradeInsert,
+  toTransferInsert,
+  toWithdrawalInsert,
 } from "@/lib/okx/map";
 
 /** OKX 문서 예시를 본뜬 응답 — 모든 수치가 문자열로 온다. */
@@ -201,5 +216,117 @@ describe("toFillInsert", () => {
 
   it("가격이 없으면 차트에 찍을 수 없어 버린다", () => {
     expect(toFillInsert({ fill: fill({ fillPx: "" }), ...base })).toBeNull();
+  });
+});
+
+/* ============ 입출금 ============ */
+
+/** 실계좌 응답을 그대로 본뜬 것 — 쓰는 필드만 남겼다. */
+function accountBill(over: Record<string, string> = {}): OkxAccountBill {
+  return accountBillSchema.parse({
+    billId: "3803011288393764864",
+    ccy: "USDT",
+    balChg: "0.5714666100000000",
+    notes: "From: Funding",
+    ts: "1785840968460",
+    ...over,
+  });
+}
+
+function deposit(over: Record<string, string> = {}): OkxDeposit {
+  return depositSchema.parse({
+    depId: "419554397",
+    ccy: "USDT",
+    amt: "139.178845",
+    chain: "USDT-TRC20",
+    state: "2",
+    ts: "1785330713000",
+    ...over,
+  });
+}
+
+function withdrawal(over: Record<string, string> = {}): OkxWithdrawal {
+  return withdrawalSchema.parse({
+    wdId: "420079822",
+    ccy: "USDT",
+    amt: "35",
+    fee: "0.0012",
+    chain: "USDT-Aptos",
+    state: "2",
+    ts: "1785773477000",
+    ...over,
+  });
+}
+
+const owner = { bookId: "book-1", userId: "user-1" };
+
+describe("toTransferInsert", () => {
+  it("거래계좌 기준 부호를 그대로 쓴다", () => {
+    expect(toTransferInsert({ bill: accountBill(), ...owner })).toMatchObject({
+      kind: "transfer",
+      amount: 0.57146661,
+      note: "From: Funding",
+      okx_ref: "3803011288393764864",
+    });
+  });
+
+  it("빠져나간 이체는 음수 그대로 둔다", () => {
+    const row = toTransferInsert({
+      bill: accountBill({ balChg: "-33.9455830000000000", notes: "To: Funding" }),
+      ...owner,
+    });
+    expect(row?.amount).toBeCloseTo(-33.945583, 8);
+  });
+
+  it("잔고가 움직이지 않은 줄은 버린다", () => {
+    expect(toTransferInsert({ bill: accountBill({ balChg: "0" }), ...owner })).toBeNull();
+    expect(toTransferInsert({ bill: accountBill({ balChg: "" }), ...owner })).toBeNull();
+  });
+});
+
+describe("toDepositInsert / toWithdrawalInsert", () => {
+  it("입금은 +, 출금은 −로 맞춘다", () => {
+    expect(toDepositInsert({ deposit: deposit(), ...owner })).toMatchObject({
+      kind: "deposit",
+      amount: 139.178845,
+      note: "USDT-TRC20",
+      okx_ref: "419554397",
+    });
+
+    expect(toWithdrawalInsert({ withdrawal: withdrawal(), ...owner })).toMatchObject({
+      kind: "withdrawal",
+      amount: -35,
+      fee: -0.0012,
+      okx_ref: "420079822",
+    });
+  });
+
+  it("완료되지 않은 건은 잔고가 아니라 버린다", () => {
+    expect(toDepositInsert({ deposit: deposit({ state: "0" }), ...owner })).toBeNull();
+    expect(toWithdrawalInsert({ withdrawal: withdrawal({ state: "-2" }), ...owner })).toBeNull();
+  });
+});
+
+describe("realizedOf — 계좌가 실제로 움직인 금액", () => {
+  it("거래소가 준 realizedPnl을 그대로 쓴다", () => {
+    expect(realizedOf(position())).toBeCloseTo(0.0026, 10);
+  });
+
+  it("되짚기로는 못 잡는 비용까지 담는다", () => {
+    // 실계좌 대조: pnl+fee+funding = -125.163 인데 거래소 값은 -130.385 였다.
+    const pos = position({ pnl: "65.385", fee: "-190.205", fundingFee: "-0.343", realizedPnl: "-130.385" });
+    expect(realizedOf(pos)).toBeCloseTo(-130.385, 10);
+    expect(toTradeInsert({ pos, ctVal: 0.01, ...owner, seq: 1 })?.realized_pnl).toBeCloseTo(-130.385, 10);
+  });
+
+  it("realizedPnl이 비면 손익·수수료·펀딩비로 되짚는다", () => {
+    const pos = position({ realizedPnl: "", pnl: "2", fee: "-5" });
+    expect(realizedOf(pos)).toBeCloseTo(-3, 10);
+  });
+
+  it("수수료가 손익을 넘기면 승이 패가 된다", () => {
+    const pos = position({ pnl: "2", fee: "-5", realizedPnl: "-3" });
+    expect(resultOf(realizedOf(pos))).toBe("loss");
+    expect(toTradeInsert({ pos, ctVal: 0.01, ...owner, seq: 1 })?.result).toBe("loss");
   });
 });

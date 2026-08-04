@@ -65,6 +65,13 @@ export interface Trade {
   fee: number | null;
   /** 펀딩비 — 보유 비용. 거래 수수료와 성격이 달라 나눠 둔다 */
   funding_fee: number | null;
+  /**
+   * 거래소가 알려준 실현손익 — 계좌가 실제로 움직인 금액.
+   *
+   * `pnl + fee + funding_fee`로 되짚으면 청산 수수료·ADL처럼 세 항목 어디에도
+   * 실리지 않는 비용이 빠진다. 이 값이 있으면 그쪽이 정본이다.
+   */
+  realized_pnl: number | null;
   /** 교차/격리 — 청산 위험이 달라 복기 축이 된다 */
   margin_mode: 'cross' | 'isolated' | null;
   /** 시트의 `손절가` */
@@ -137,6 +144,39 @@ export interface SyncRun {
   fills_added: number;
   error: string | null;
 }
+
+/**
+ * 계좌를 드나든 돈 — 입금·출금·이체.
+ *
+ * 거래계좌 잔액을 움직이는 건 매매 손익과 `transfer`(자금계좌 ↔ 거래계좌)뿐이다.
+ * 온체인 `deposit`/`withdrawal`은 자금계좌에 먼저 닿으므로 이체 전까지는
+ * 자금 곡선에 반영되지 않는다.
+ */
+export type CashFlowKind = 'deposit' | 'withdrawal' | 'transfer';
+
+export interface CashFlow {
+  id: string;
+  book_id: string;
+  user_id: string;
+  kind: CashFlowKind;
+  at: string;
+  ccy: string;
+  /** 부호 포함 — 들어오면 +, 나가면 − */
+  amount: number;
+  /** 출금 수수료 등 부대비용. 부호 포함(보통 음수) */
+  fee: number | null;
+  note: string | null;
+  /** OKX 원본 식별자(billId / depId / wdId) */
+  okx_ref: string | null;
+  source: 'okx' | 'manual';
+  created_at: string;
+}
+
+export const CASH_FLOW_LABEL: Record<CashFlowKind, string> = {
+  deposit: '입금',
+  withdrawal: '출금',
+  transfer: '이체',
+};
 
 export interface BalanceSnapshot {
   id: string;

@@ -4,8 +4,14 @@
  * OKX 포지션 1건이 일지의 거래 1건, 체결 1건이 `trade_fills` 1행에 대응한다.
  */
 
-import type { Side, TradeResult } from "@/lib/domain";
-import type { OkxFill, OkxPosition } from "@/lib/okx/schema";
+import type { CashFlowKind, Side, TradeResult } from "@/lib/domain";
+import type {
+  OkxAccountBill,
+  OkxDeposit,
+  OkxFill,
+  OkxPosition,
+  OkxWithdrawal,
+} from "@/lib/okx/schema";
 
 /** `BTC-USDT-SWAP` → `BTC`. 일지는 기초자산만 저장하고 계약 이름은 화면에서 다시 편다. */
 export function baseSymbol(instId: string): string {
@@ -26,12 +32,30 @@ export function sideOf(pos: OkxPosition): Side | null {
   return close > open === pnl > 0 ? "long" : "short";
 }
 
-/** 손익 부호로 승패를 정한다 — 수기 입력 경로(`inferResult`)와 같은 기준. */
-export function resultOf(pnl: number | null): TradeResult {
-  if (pnl === null) return "open";
-  if (pnl > 0) return "win";
-  if (pnl < 0) return "loss";
+/**
+ * 손익 부호로 승패를 정한다 — 수기 입력 경로(`inferResult`)와 같은 기준.
+ *
+ * 넣는 값은 수수료·펀딩비까지 뺀 실현손익이다. 계좌가 실제로 줄었는데 '승'으로
+ * 적히면 승률·기대치가 부풀고, 표의 손익률과 배지가 서로 다른 말을 한다.
+ */
+export function resultOf(realizedPnl: number | null): TradeResult {
+  if (realizedPnl === null) return "open";
+  if (realizedPnl > 0) return "win";
+  if (realizedPnl < 0) return "loss";
   return "be";
+}
+
+/**
+ * 계좌가 실제로 움직인 금액.
+ *
+ * 거래소가 준 `realizedPnl`이 정본이다. 손익·수수료·펀딩비를 더해 되짚으면 청산
+ * 수수료나 ADL처럼 세 항목 어디에도 실리지 않는 비용이 빠진다 — 실계좌 46건에서
+ * 5.22 어긋났다. `realizedPnl`이 비어 있을 때만 되짚는다.
+ */
+export function realizedOf(pos: OkxPosition): number | null {
+  if (pos.realizedPnl !== null) return pos.realizedPnl;
+  if (pos.pnl === null) return null;
+  return pos.pnl + (pos.fee ?? 0) + (pos.fundingFee ?? 0);
 }
 
 function marginModeOf(raw: string): "cross" | "isolated" | null {
@@ -70,6 +94,7 @@ export interface TradeInsert {
   pnl: number | null;
   fee: number | null;
   funding_fee: number | null;
+  realized_pnl: number | null;
   margin_mode: "cross" | "isolated" | null;
 }
 
@@ -94,7 +119,7 @@ export function toTradeInsert(input: {
     symbol: baseSymbol(pos.instId),
     entry_at: iso(pos.cTime),
     exit_at: iso(pos.uTime),
-    result: resultOf(pos.pnl),
+    result: resultOf(realizedOf(pos)),
     entry_price: pos.openAvgPx,
     exit_price: pos.closeAvgPx,
     notional: notionalOf(pos, ctVal),
@@ -102,6 +127,7 @@ export function toTradeInsert(input: {
     pnl: pos.pnl,
     fee: pos.fee,
     funding_fee: pos.fundingFee,
+    realized_pnl: pos.realizedPnl,
     margin_mode: marginModeOf(pos.mgnMode),
   };
 }
@@ -155,6 +181,99 @@ export interface FillInsert {
   fee: number | null;
   order_no: string;
   okx_bill_id: string;
+}
+
+/* ============ 입출금 ============ */
+
+/** OKX가 '완료'로 쓰는 상태값. 진행 중·취소 건을 넣으면 곡선이 앞서 나간다. */
+const DONE_STATE = "2";
+
+export interface CashFlowInsert {
+  book_id: string;
+  user_id: string;
+  kind: CashFlowKind;
+  at: string;
+  ccy: string;
+  /** 부호 포함 — 들어오면 +, 나가면 − */
+  amount: number;
+  fee: number | null;
+  note: string | null;
+  okx_ref: string;
+  source: "okx";
+}
+
+/**
+ * 거래계좌 이체 — 잔고 변화(`balChg`)가 곧 부호 포함 금액이다.
+ *
+ * 자금 곡선을 움직이는 건 이 종류뿐이다. 방향을 따로 뒤집지 않는다 —
+ * OKX가 이미 거래계좌 기준으로 부호를 매겨 준다(들어오면 +, 나가면 −).
+ */
+export function toTransferInsert(input: {
+  bill: OkxAccountBill;
+  bookId: string;
+  userId: string;
+}): CashFlowInsert | null {
+  const { bill, bookId, userId } = input;
+  if (bill.balChg === null || bill.balChg === 0) return null;
+
+  return {
+    book_id: bookId,
+    user_id: userId,
+    kind: "transfer",
+    at: iso(bill.ts),
+    ccy: bill.ccy,
+    amount: bill.balChg,
+    fee: null,
+    note: bill.notes || null,
+    okx_ref: bill.billId,
+    source: "okx",
+  };
+}
+
+/** 온체인 입금 — 자금계좌로 들어온 돈이라 항상 +다. */
+export function toDepositInsert(input: {
+  deposit: OkxDeposit;
+  bookId: string;
+  userId: string;
+}): CashFlowInsert | null {
+  const { deposit, bookId, userId } = input;
+  if (deposit.state !== DONE_STATE || deposit.amt === null) return null;
+
+  return {
+    book_id: bookId,
+    user_id: userId,
+    kind: "deposit",
+    at: iso(deposit.ts),
+    ccy: deposit.ccy,
+    amount: Math.abs(deposit.amt),
+    fee: null,
+    note: deposit.chain || null,
+    okx_ref: deposit.depId,
+    source: "okx",
+  };
+}
+
+/** 온체인 출금 — 나간 돈이라 −로 뒤집는다. 망 수수료는 따로 남긴다. */
+export function toWithdrawalInsert(input: {
+  withdrawal: OkxWithdrawal;
+  bookId: string;
+  userId: string;
+}): CashFlowInsert | null {
+  const { withdrawal, bookId, userId } = input;
+  if (withdrawal.state !== DONE_STATE || withdrawal.amt === null) return null;
+
+  return {
+    book_id: bookId,
+    user_id: userId,
+    kind: "withdrawal",
+    at: iso(withdrawal.ts),
+    ccy: withdrawal.ccy,
+    amount: -Math.abs(withdrawal.amt),
+    fee: withdrawal.fee === null ? null : -Math.abs(withdrawal.fee),
+    note: withdrawal.chain || null,
+    okx_ref: withdrawal.wdId,
+    source: "okx",
+  };
 }
 
 /** 가격이 없는 체결은 차트에 찍을 수 없으므로 버린다. */

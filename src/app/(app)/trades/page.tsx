@@ -5,14 +5,25 @@ import { TradeTable } from "@/app/(app)/trades/trade-table";
 import { EmptyBook } from "@/components/empty-book";
 import { dateTime } from "@/lib/format";
 import { deriveTrades } from "@/lib/metrics";
-import { getActiveBook, getLastSync, listFillsByTrade, listTrades } from "@/lib/queries";
+import {
+  getActiveBook,
+  getLastSync,
+  listCashFlows,
+  listFillsByTrade,
+  listTrades,
+} from "@/lib/queries";
 
 export default async function TradesPage() {
   const book = await getActiveBook();
   if (!book) return <EmptyBook />;
 
-  const derived = deriveTrades(book, await listTrades(book.id));
-  const fillsByTrade = await listFillsByTrade(book.id);
+  const [trades, flows, fillsByTrade] = await Promise.all([
+    listTrades(book.id),
+    listCashFlows(book.id),
+    listFillsByTrade(book.id),
+  ]);
+  // 표의 `자금` 칸이 대시보드와 같은 값을 가리키도록 이체를 함께 넘긴다.
+  const derived = deriveTrades(book, trades, flows);
   const lastSync = book.okx_sync_enabled ? await getLastSync(book.id) : null;
 
   return (

@@ -11,12 +11,25 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import {
+  fetchAccountTransfers,
   fetchContractValues,
+  fetchDeposits,
   fetchFillsHistory,
   fetchPositionsHistory,
   fetchTotalEquity,
+  fetchWithdrawals,
 } from "@/lib/okx/history";
-import { matchPosition, positionKey, sideOf, toFillInsert, toTradeInsert } from "@/lib/okx/map";
+import {
+  matchPosition,
+  positionKey,
+  sideOf,
+  toDepositInsert,
+  toFillInsert,
+  toTradeInsert,
+  toTransferInsert,
+  toWithdrawalInsert,
+  type CashFlowInsert,
+} from "@/lib/okx/map";
 import { MAX_HISTORY_MS, readCredentials, type OkxCredentials } from "@/lib/okx/private";
 import type { Database } from "@/lib/supabase/database.types";
 
@@ -25,6 +38,8 @@ type Db = SupabaseClient<Database>;
 export interface SyncResult {
   tradesAdded: number;
   fillsAdded: number;
+  /** 입금·출금·이체 */
+  flowsAdded: number;
   /** 이번에 훑은 구간 */
   since: string;
   until: string;
@@ -59,6 +74,19 @@ async function resolveSince(supabase: Db, bookId: string, startDate: string): Pr
   return Math.max(Number.isFinite(wanted) ? wanted : floor, floor);
 }
 
+/**
+ * 입출금을 훑을 구간 — 커서를 보지 않고 매번 3개월 전체를 다시 본다.
+ *
+ * 거래와 달리 커서를 따라가면 안 된다. 커서는 이 기능이 생기기 전부터 앞으로만
+ * 밀려 왔기 때문에, 그 지점부터 훑으면 과거 입출금이 영영 들어오지 못한다.
+ * 건수가 적고 `okx_ref`로 중복을 걸러 내므로 매번 다시 훑어도 값이 싸다.
+ */
+function flowWindow(startDate: string): number {
+  const floor = Date.now() - MAX_HISTORY_MS;
+  const start = Date.parse(`${startDate}T00:00:00Z`);
+  return Math.max(Number.isFinite(start) ? start : floor, floor);
+}
+
 async function nextSeq(supabase: Db, bookId: string): Promise<number> {
   const { data } = await supabase
     .from("trades")
@@ -90,7 +118,7 @@ export async function syncOkx(input: {
     .single();
 
   try {
-    const result = await runSync(supabase, creds, userId, bookId, sinceMs, startedAt);
+    const result = await runSync(supabase, creds, userId, bookId, sinceMs, startedAt, startDate);
 
     if (run) {
       await supabase
@@ -100,6 +128,7 @@ export async function syncOkx(input: {
           cursor_at: result.until,
           trades_added: result.tradesAdded,
           fills_added: result.fillsAdded,
+          flows_added: result.flowsAdded,
         })
         .eq("id", run.id);
     }
@@ -123,6 +152,7 @@ async function runSync(
   bookId: string,
   sinceMs: number,
   startedAt: number,
+  startDate: string,
 ): Promise<SyncResult> {
   const [ctVals, positions] = await Promise.all([
     fetchContractValues(),
@@ -132,9 +162,12 @@ async function runSync(
   const since = new Date(sinceMs).toISOString();
   const until = new Date(startedAt).toISOString();
 
+  // 입출금은 거래가 없어도 잔고를 움직인다 — 포지션 유무와 무관하게 훑는다.
+  const flowsAdded = await syncCashFlows(supabase, creds, userId, bookId, flowWindow(startDate));
+
   if (positions.length === 0) {
     await snapshotBalance(supabase, creds, userId, bookId);
-    return { tradesAdded: 0, fillsAdded: 0, since, until };
+    return { tradesAdded: 0, fillsAdded: 0, flowsAdded, since, until };
   }
 
   // 이미 들어와 있는 거래는 건너뛴다 — 같은 구간을 다시 훑어도 손익이 겹치지 않게.
@@ -173,7 +206,50 @@ async function runSync(
   const fillsAdded = await syncFills(supabase, creds, userId, positions, ctVals, sinceMs);
   await snapshotBalance(supabase, creds, userId, bookId);
 
-  return { tradesAdded: rows.length, fillsAdded, since, until };
+  return { tradesAdded: rows.length, fillsAdded, flowsAdded, since, until };
+}
+
+/**
+ * 입금·출금·이체를 받아 쌓는다.
+ *
+ * 세 갈래를 한 표에 모으되 종류를 나눠 둔다 — 거래계좌 잔액을 움직이는 건 이체뿐이라
+ * 자금 곡선은 이체만 보고, 입금·출금은 실제 현금이 얼마나 드나들었는지에만 쓴다.
+ */
+async function syncCashFlows(
+  supabase: Db,
+  creds: OkxCredentials,
+  userId: string,
+  bookId: string,
+  sinceMs: number,
+): Promise<number> {
+  const [transfers, deposits, withdrawals] = await Promise.all([
+    fetchAccountTransfers(creds, sinceMs),
+    fetchDeposits(creds, sinceMs),
+    fetchWithdrawals(creds, sinceMs),
+  ]);
+
+  const rows: CashFlowInsert[] = [
+    ...transfers.map((bill) => toTransferInsert({ bill, bookId, userId })),
+    ...deposits.map((deposit) => toDepositInsert({ deposit, bookId, userId })),
+    ...withdrawals.map((withdrawal) => toWithdrawalInsert({ withdrawal, bookId, userId })),
+  ].filter((row): row is CashFlowInsert => row !== null);
+
+  if (rows.length === 0) return 0;
+
+  // 이미 들어와 있는 건은 빼고 넣는다 — 같은 구간을 다시 훑어도 잔고가 겹치지 않게.
+  const { data: existing } = await supabase
+    .from("cash_flows")
+    .select("kind, okx_ref")
+    .eq("book_id", bookId)
+    .in("okx_ref", rows.map((r) => r.okx_ref));
+
+  const seen = new Set((existing ?? []).map((f) => `${f.kind}|${f.okx_ref}`));
+  const fresh = rows.filter((r) => !seen.has(`${r.kind}|${r.okx_ref}`));
+  if (fresh.length === 0) return 0;
+
+  const { error } = await supabase.from("cash_flows").insert(fresh);
+  if (error) throw new Error(`입출금 저장 실패: ${error.message}`);
+  return fresh.length;
 }
 
 async function syncFills(

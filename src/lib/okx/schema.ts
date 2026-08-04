@@ -63,6 +63,51 @@ export const fillSchema = z.object({
 
 export type OkxFill = z.infer<typeof fillSchema>;
 
+/**
+ * `GET /api/v5/account/bills-archive` — 거래계좌 장부 1줄.
+ *
+ * `type=1`(이체)만 읽는다. 매매로 생긴 줄(type=2)은 이미 포지션 내역으로 받고 있어
+ * 여기서 또 세면 손익이 두 번 잡힌다.
+ */
+export const accountBillSchema = z.object({
+  billId: z.string(),
+  ccy: z.string(),
+  /** 부호 포함 잔고 변화 — 거래계좌로 들어오면 +, 나가면 − */
+  balChg: numeric,
+  /** `From: Funding` / `To: Funding` — 어느 쪽으로 옮겼는지 */
+  notes: z.string(),
+  ts: epochMs,
+});
+
+export type OkxAccountBill = z.infer<typeof accountBillSchema>;
+
+/** `GET /api/v5/asset/deposit-history` — 온체인 입금 1건. */
+export const depositSchema = z.object({
+  depId: z.string(),
+  ccy: z.string(),
+  amt: numeric,
+  chain: z.string(),
+  /** `2` = 입금 완료. 그 전 단계는 아직 잔고가 아니다 */
+  state: z.string(),
+  ts: epochMs,
+});
+
+export type OkxDeposit = z.infer<typeof depositSchema>;
+
+/** `GET /api/v5/asset/withdrawal-history` — 온체인 출금 1건. */
+export const withdrawalSchema = z.object({
+  wdId: z.string(),
+  ccy: z.string(),
+  amt: numeric,
+  fee: numeric,
+  chain: z.string(),
+  /** `2` = 출금 성공. 취소·실패 건을 빼야 한다 */
+  state: z.string(),
+  ts: epochMs,
+});
+
+export type OkxWithdrawal = z.infer<typeof withdrawalSchema>;
+
 /** `GET /api/v5/public/instruments` — 계약 1개가 기초자산 몇 개인지(`ctVal`). */
 export const instrumentSchema = z.object({
   instId: z.string(),

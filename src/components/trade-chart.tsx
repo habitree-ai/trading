@@ -22,10 +22,12 @@ import { num, signed } from "@/lib/format";
 import { BAR_MS, pickBar, windowFor, type Bar as OkxBar, type Candle } from "@/lib/okx";
 
 /** 화면에 노출하는 보기 — 자동은 거래 길이에 맞춰 봉을 고른다. */
-type View = "auto" | "4H" | "1D";
+type View = "auto" | "15m" | "1H" | "4H" | "1D";
 
 const VIEW_LABEL: Record<View, string> = {
   auto: "진입~종료",
+  "15m": "15분봉",
+  "1H": "1시간봉",
   "4H": "4시간봉",
   "1D": "일봉",
 };

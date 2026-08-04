@@ -32,30 +32,42 @@ function parseDateTime(value: FormDataEntryValue | null): string | null {
   return raw === "" ? null : fromLocalInput(raw);
 }
 
-/** 손익 부호로 승패를 정한다 — 시트의 `승`/`패` 체크를 자동화. */
-function inferResult(explicit: string, pnl: number | null, exitAt: string | null): TradeResult {
+/**
+ * 손익 부호로 승패를 정한다 — 시트의 `승`/`패` 체크를 자동화.
+ *
+ * 기준은 수수료·펀딩비를 뺀 실현손익이다. 100배 레버리지에서 수수료는 손익에
+ * 육박할 때가 있어, 총액으로 재면 계좌가 줄어든 거래가 '승'으로 적힌다.
+ */
+function inferResult(
+  explicit: string,
+  realized: number | null,
+  exitAt: string | null,
+): TradeResult {
   if (explicit === "win" || explicit === "loss" || explicit === "be" || explicit === "open") {
     return explicit;
   }
-  if (exitAt === null || pnl === null) return "open";
-  if (pnl > 0) return "win";
-  if (pnl < 0) return "loss";
+  if (exitAt === null || realized === null) return "open";
+  if (realized > 0) return "win";
+  if (realized < 0) return "loss";
   return "be";
 }
 
 function readForm(formData: FormData) {
   const exitAt = parseDateTime(formData.get("exit_at"));
   const pnl = parseNumber(formData.get("pnl"));
+  const fee = parseNumber(formData.get("fee"));
+  const fundingFee = parseNumber(formData.get("funding_fee"));
   const side = String(formData.get("side") ?? "long");
+  const realized = pnl === null ? null : pnl + (fee ?? 0) + (fundingFee ?? 0);
 
   return {
     side: (side === "short" ? "short" : "long") satisfies Side as Side,
     symbol: String(formData.get("symbol") ?? "").trim().toUpperCase(),
     entry_at: parseDateTime(formData.get("entry_at")),
     exit_at: exitAt,
-    result: inferResult(String(formData.get("result") ?? "auto"), pnl, exitAt),
+    result: inferResult(String(formData.get("result") ?? "auto"), realized, exitAt),
     margin_mode: parseMarginMode(formData.get("margin_mode")),
-    funding_fee: parseNumber(formData.get("funding_fee")),
+    funding_fee: fundingFee,
     equity_before: parseNumber(formData.get("equity_before")),
     equity_after: parseNumber(formData.get("equity_after")),
     withdrawal: parseNumber(formData.get("withdrawal")),
@@ -64,7 +76,7 @@ function readForm(formData: FormData) {
     pnl,
     entry_price: parseNumber(formData.get("entry_price")),
     exit_price: parseNumber(formData.get("exit_price")),
-    fee: parseNumber(formData.get("fee")),
+    fee,
     stop_price: parseNumber(formData.get("stop_price")),
     tp1_price: parseNumber(formData.get("tp1_price")),
     tp2_price: parseNumber(formData.get("tp2_price")),
@@ -273,7 +285,9 @@ export async function runOkxSync(): Promise<SyncState> {
       startDate: book.start_date,
     });
     revalidatePath("/", "layout");
-    return { message: `거래 ${result.tradesAdded}건 · 체결 ${result.fillsAdded}건을 받았습니다.` };
+    return {
+      message: `거래 ${result.tradesAdded}건 · 체결 ${result.fillsAdded}건 · 입출금 ${result.flowsAdded}건을 받았습니다.`,
+    };
   } catch (error) {
     return { error: error instanceof Error ? error.message : String(error) };
   }

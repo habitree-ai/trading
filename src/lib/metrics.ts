@@ -10,14 +10,14 @@
  *    표준 payoff ratio(평균수익 ÷ 평균손실)로 통일한다.
  */
 
-import type { Book, Trade } from '@/lib/domain';
+import type { Book, CashFlow, Trade, TradeResult } from '@/lib/domain';
 import { DISPLAY_TZ } from '@/lib/format';
 
 /** 표본이 없어 정의되지 않는 지표는 null로 돌려준다 — 0과 구분하기 위해. */
 type Maybe = number | null;
 
-function ratio(numerator: number, denominator: number): Maybe {
-  return denominator === 0 || !Number.isFinite(denominator)
+function ratio(numerator: number, denominator: Maybe): Maybe {
+  return denominator === null || denominator === 0 || !Number.isFinite(denominator)
     ? null
     : numerator / denominator;
 }
@@ -32,20 +32,34 @@ function mean(values: readonly number[]): Maybe {
 export interface TradeDerived {
   trade: Trade;
   /**
-   * 계좌가 실제로 움직인 금액 = 손익 + 거래 수수료 + 펀딩비.
-   * OKX가 `Realized PnL`로 부르는 값이고, `pnl`(Closed PnL)은 비용 이전 총액이다.
+   * 승패 — 저장된 `trade.result`가 아니라 실현손익(`net`) 부호로 정한다.
+   * 저장값은 '보유중'인지를 가리는 데만 쓴다.
+   */
+  result: TradeResult;
+  /**
+   * 계좌가 실제로 움직인 금액 — 거래소의 `realized_pnl`, 없으면 손익+수수료+펀딩비.
+   * `pnl`(Closed PnL)은 비용 이전 총액이다.
    * 100배 레버리지에서 수수료는 손익의 10%에 육박해 무시할 수 없다.
    */
   net: number;
-  /** 시트의 `자금` — 이 거래 직전 자금 */
+  /** 시트의 `자금` — 이 거래 직전 자금. 입출금(이체)까지 반영한 실제 잔액 기준 */
   equityBefore: number;
-  /** 시트의 `자금` — 이 거래 직후 자금 */
+  /** 시트의 `자금` — 이 거래 직후 자금. 입출금(이체)까지 반영한 실제 잔액 기준 */
   equityAfter: number;
-  /** 시트의 `누적 최고치` — 여기까지의 자금 최고치 */
+  /**
+   * 매매만으로 쌓인 자금 — 초기자금 + 여기까지의 실현손익.
+   *
+   * 성과·낙폭은 이 곡선에서 잰다. 실제 잔액으로 재면 입금이 낙폭을 지우고
+   * 출금이 없던 손실을 만든다.
+   */
+  tradingEquity: number;
+  /** 시트의 `누적 최고치` — 매매 곡선의 최고치 */
   peak: number;
   /** 시트의 `MDD하락률` — (자금 − 최고치) / 최고치 */
   drawdownPct: number;
-  /** 시트의 `L pnl`/`W pnl`을 통합 — 손익 / 진입 직전 자금 */
+  /** 증거금 — 투입 ÷ 레버리지. 이 거래에 실제로 묶인 돈이자 손익률의 분모 */
+  margin: Maybe;
+  /** 시트의 `L pnl`/`W pnl`을 통합 — 실현손익 / 증거금 */
   pnlPct: Maybe;
   /** 시트의 `손실율` — |진입가 − 손절가| / 진입가 */
   riskPct: Maybe;
@@ -54,40 +68,115 @@ export interface TradeDerived {
 }
 
 /**
+ * 계좌가 실제로 움직인 금액.
+ *
+ * 거래소가 준 실현손익이 정본이다. 없을 때만(수기 입력 경로) 손익·수수료·펀딩비로
+ * 되짚는데, 그 셋에는 청산 수수료·ADL이 실리지 않아 근사값이다.
+ */
+function netOf(trade: Trade): number {
+  if (trade.realized_pnl !== null) return trade.realized_pnl;
+  return (trade.pnl ?? 0) + (trade.fee ?? 0) + (trade.funding_fee ?? 0);
+}
+
+/**
+ * 승패 — 수수료·펀딩비를 뺀 실현손익으로 정한다.
+ *
+ * 저장된 `result`는 '보유중'인지만 보고, 부호는 여기서 다시 매긴다. 총손익으로 재면
+ * 계좌가 줄어든 거래가 '승'으로 남아 승률·기대치가 부풀고, 같은 줄의 손익률과
+ * 배지가 서로 다른 말을 한다.
+ */
+function resultOf(trade: Trade, net: number): TradeResult {
+  if (trade.result === 'open' || trade.exit_at === null || trade.pnl === null) return 'open';
+  return net > 0 ? 'win' : net < 0 ? 'loss' : 'be';
+}
+
+/**
+ * 거래계좌 잔액을 움직이는 흐름만 시간순으로 추린다.
+ *
+ * 온체인 입금·출금은 자금계좌에 먼저 닿는다 — 거래계좌로 이체되기 전까지는
+ * 자금 곡선과 무관하다. 셋을 한 덩어리로 더하면 곡선이 실제와 어긋난다.
+ */
+function sortedTransfers(flows: readonly CashFlow[]): CashFlow[] {
+  return flows
+    .filter((f) => f.kind === 'transfer')
+    .sort((a, b) => Date.parse(a.at) - Date.parse(b.at));
+}
+
+/**
  * 자금 곡선을 만든다.
  *
  * `equity_after`가 입력돼 있으면 그 값이 정본(거래소 화면에서 읽은 실측치).
- * 비어 있으면 직전 자금 + 손익 − 출금으로 이어 붙인다.
+ * 비어 있으면 직전 자금 + 손익 − 출금으로 이어 붙이고, 그 사이에 일어난 이체를 더한다.
+ *
+ * 곡선을 둘로 나눠 들고 간다. `equityAfter`는 거래소 잔액과 맞아야 하니 이체를 타고,
+ * `tradingEquity`는 매매 성과만 재야 하니 타지 않는다.
  */
-export function deriveTrades(book: Book, trades: readonly Trade[]): TradeDerived[] {
+export function deriveTrades(
+  book: Book,
+  trades: readonly Trade[],
+  flows: readonly CashFlow[] = [],
+): TradeDerived[] {
   const sorted = [...trades].sort(
     (a, b) => Date.parse(a.entry_at) - Date.parse(b.entry_at) || a.seq - b.seq,
   );
+  const transfers = sortedTransfers(flows);
 
   let running = book.initial_capital;
+  let trading = book.initial_capital;
   let peak = book.initial_capital;
+  let nextTransfer = 0;
 
   return sorted.map((trade) => {
+    // 진입 시각을 경계로 이체를 반영한다 — 거래 도중에 들어온 돈이 그 거래의
+    // '진입 직전 자금'을 흐트러뜨리지 않도록, 그건 다음 거래에서 잡는다.
+    const entryMs = Date.parse(trade.entry_at);
+    while (nextTransfer < transfers.length && Date.parse(transfers[nextTransfer].at) <= entryMs) {
+      running += transfers[nextTransfer].amount;
+      nextTransfer += 1;
+    }
+
     const equityBefore = trade.equity_before ?? running;
-    const net = (trade.pnl ?? 0) + (trade.fee ?? 0) + (trade.funding_fee ?? 0);
+    const net = netOf(trade);
     const withdrawal = trade.withdrawal ?? 0;
     const equityAfter = trade.equity_after ?? equityBefore + net - withdrawal;
 
     running = equityAfter;
-    peak = Math.max(peak, equityAfter);
+    trading += net;
+    peak = Math.max(peak, trading);
+
+    const margin = marginOf(trade);
 
     return {
       trade,
+      result: resultOf(trade, net),
       net,
       equityBefore,
       equityAfter,
+      tradingEquity: trading,
       peak,
-      drawdownPct: peak === 0 ? 0 : (equityAfter - peak) / peak,
-      pnlPct: trade.pnl === null ? null : ratio(net, equityBefore),
+      drawdownPct: peak === 0 ? 0 : (trading - peak) / peak,
+      margin,
+      pnlPct: trade.pnl === null ? null : ratio(net, margin),
       riskPct: riskPct(trade),
       rr: [rrFor(trade, trade.tp1_price), rrFor(trade, trade.tp2_price), rrFor(trade, trade.tp3_price)],
     };
   });
+}
+
+/**
+ * 증거금 — 이 거래에 실제로 묶인 돈.
+ *
+ * 손익률의 분모다. 자금(계좌 잔고)을 분모로 쓰면 두 가지가 어긋난다:
+ * 자금은 다른 거래의 손익까지 섞인 값이라 같은 거래도 순서에 따라 비율이 달라지고,
+ * 초기자금보다 큰 손실이 쌓여 자금 곡선이 음수로 내려가면 부호까지 통째로 뒤집힌다.
+ * 증거금은 그 거래만의 값이고 항상 양수라 거래소 화면의 PnL%와도 기준이 같다.
+ */
+export function marginOf(trade: Trade): Maybe {
+  const { notional, leverage } = trade;
+  if (notional === null || notional === 0 || !Number.isFinite(notional)) return null;
+  // 레버리지가 비면 1배로 본다 — 투입 전액이 증거금이다.
+  const lever = leverage === null || leverage === 0 ? 1 : Math.abs(leverage);
+  return Math.abs(notional) / lever;
 }
 
 /** 시트의 `손실율` — 진입가 대비 손절폭. */
@@ -189,32 +278,44 @@ export interface BookMetrics {
   currentStreak: number;
   /** 시트의 `초기자금` */
   initialCapital: number;
-  /** 시트의 `최종자금` */
+  /** 시트의 `최종자금` — 이체까지 반영한 거래계좌 잔액 */
   finalEquity: number;
   totalWithdrawal: number;
-  /** 시트의 `차액` = 최종자금 − 초기자금 + 출금누계 */
+  /** 온체인 입금 누계 — 실제로 넣은 현금(양수) */
+  deposits: number;
+  /** 온체인 출금 누계 — 실제로 뺀 현금(음수) */
+  withdrawals: number;
+  /** 거래계좌 순이체 — 자금 곡선을 움직인 외부 유입(부호 포함) */
+  netTransfer: number;
+  /** 투입원금 = 초기자금 + 거래계좌로 들어온 이체 누계 */
+  investedCapital: number;
+  /** 시트의 `차액` — 외부 유입을 걷어낸 자금 증가분 = 매매로 번 돈 */
   netChange: number;
-  /** 시트의 `수익율` = 차액 ÷ 초기자금 */
+  /** 시트의 `수익율` = 차액 ÷ 투입원금 */
   returnPct: Maybe;
-  /** 시트의 `자금비율` = 최종자금 ÷ 초기자금 */
+  /** 시트의 `자금비율` = 최종자금 ÷ 투입원금 */
   capitalRatio: Maybe;
-  /** 시트의 `MAX` */
+  /** 시트의 `MAX` — 매매 곡선의 최고치 */
   peakEquity: number;
-  /** 시트의 `MIN` */
+  /** 시트의 `MIN` — 매매 곡선의 최저치 */
   troughEquity: number;
-  /** 시트의 `MDD` — 최대 낙폭(음수) */
+  /** 시트의 `MDD` — 매매 곡선의 최대 낙폭(음수) */
   maxDrawdownPct: number;
   /** 평균 거래당 리스크 */
   avgRiskPct: Maybe;
 }
 
-export function computeMetrics(book: Book, derived: readonly TradeDerived[]): BookMetrics {
-  const closed = derived.filter((d) => d.trade.result !== 'open');
+export function computeMetrics(
+  book: Book,
+  derived: readonly TradeDerived[],
+  flows: readonly CashFlow[] = [],
+): BookMetrics {
+  const closed = derived.filter((d) => d.result !== 'open');
   const openCount = derived.length - closed.length;
 
-  const wins = closed.filter((d) => d.trade.result === 'win');
-  const losses = closed.filter((d) => d.trade.result === 'loss');
-  const breakEvens = closed.filter((d) => d.trade.result === 'be');
+  const wins = closed.filter((d) => d.result === 'win');
+  const losses = closed.filter((d) => d.result === 'loss');
+  const breakEvens = closed.filter((d) => d.result === 'be');
 
   // 손익비·기대치도 수수료를 뺀 실제 금액으로 계산한다.
   const winPnls = wins.map((d) => d.net);
@@ -238,13 +339,33 @@ export function computeMetrics(book: Book, derived: readonly TradeDerived[]): Bo
   const grossLoss = lossPnls.reduce((a, b) => a + b, 0);
   const netPnl = derived.reduce((a, d) => a + d.net, 0);
 
-  const streaks = computeStreaks(closed.map((d) => d.trade.result));
+  const streaks = computeStreaks(closed.map((d) => d.result));
 
-  const finalEquity = derived.length > 0 ? derived[derived.length - 1].equityAfter : book.initial_capital;
+  const transfers = sortedTransfers(flows);
+  const netTransfer = transfers.reduce((a, f) => a + f.amount, 0);
+  const inflow = transfers.reduce((a, f) => a + Math.max(f.amount, 0), 0);
+  const deposits = flows
+    .filter((f) => f.kind === 'deposit')
+    .reduce((a, f) => a + f.amount, 0);
+  const withdrawals = flows
+    .filter((f) => f.kind === 'withdrawal')
+    .reduce((a, f) => a + f.amount, 0);
+
+  const last = derived[derived.length - 1];
+  // 마지막 거래 뒤에 일어난 이체는 어느 거래에도 실리지 않는다 — 여기서 마저 더한다.
+  const lastEntryMs = last ? Date.parse(last.trade.entry_at) : -Infinity;
+  const tailTransfer = transfers
+    .filter((f) => Date.parse(f.at) > lastEntryMs)
+    .reduce((a, f) => a + f.amount, 0);
+
+  const finalEquity = (last ? last.equityAfter : book.initial_capital) + tailTransfer;
   const totalWithdrawal = derived.reduce((a, d) => a + (d.trade.withdrawal ?? 0), 0);
-  const netChange = finalEquity - book.initial_capital + totalWithdrawal;
+  // 외부에서 드나든 돈을 걷어낸 자금 증가분 — 데이터가 온전하면 누적 실현손익과 같다.
+  const netChange = finalEquity - book.initial_capital - netTransfer + totalWithdrawal;
+  const investedCapital = book.initial_capital + inflow;
 
-  const equities = [book.initial_capital, ...derived.map((d) => d.equityAfter)];
+  // 성과·낙폭은 매매 곡선에서 잰다 — 실제 잔액으로 재면 입금이 낙폭을 지운다.
+  const equities = [book.initial_capital, ...derived.map((d) => d.tradingEquity)];
   const riskPcts = derived.map((d) => d.riskPct).filter((v): v is number => v !== null);
 
   return {
@@ -272,9 +393,13 @@ export function computeMetrics(book: Book, derived: readonly TradeDerived[]): Bo
     initialCapital: book.initial_capital,
     finalEquity,
     totalWithdrawal,
+    deposits,
+    withdrawals,
+    netTransfer,
+    investedCapital,
     netChange,
-    returnPct: ratio(netChange, book.initial_capital),
-    capitalRatio: ratio(finalEquity, book.initial_capital),
+    returnPct: ratio(netChange, investedCapital),
+    capitalRatio: ratio(finalEquity, investedCapital),
     peakEquity: Math.max(...equities),
     troughEquity: Math.min(...equities),
     maxDrawdownPct: derived.reduce((min, d) => Math.min(min, d.drawdownPct), 0),
@@ -359,8 +484,8 @@ export function bucketBy(
     const bucket = map.get(key) ?? { key, pnl: 0, wins: 0, losses: 0, count: 0 };
     bucket.pnl += d.net;
     bucket.count += 1;
-    if (d.trade.result === 'win') bucket.wins += 1;
-    if (d.trade.result === 'loss') bucket.losses += 1;
+    if (d.result === 'win') bucket.wins += 1;
+    if (d.result === 'loss') bucket.losses += 1;
     map.set(key, bucket);
   }
 
@@ -394,8 +519,8 @@ export function groupPerformance(
 
   return [...map.entries()]
     .map(([key, list]) => {
-      const wins = list.filter((d) => d.trade.result === 'win').length;
-      const losses = list.filter((d) => d.trade.result === 'loss').length;
+      const wins = list.filter((d) => d.result === 'win').length;
+      const losses = list.filter((d) => d.result === 'loss').length;
       const pnls = list.map((d) => d.net);
       const netPnl = pnls.reduce((a, b) => a + b, 0);
       return {

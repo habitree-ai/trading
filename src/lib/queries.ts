@@ -1,6 +1,14 @@
 import { cookies } from "next/headers";
 
-import type { Book, Goal, SyncRun, Trade, TradeFill } from "@/lib/domain";
+import type {
+  BalanceSnapshot,
+  Book,
+  CashFlow,
+  Goal,
+  SyncRun,
+  Trade,
+  TradeFill,
+} from "@/lib/domain";
 import { createClient } from "@/lib/supabase/server";
 
 /** 어떤 북을 보고 있는지는 쿠키로 기억한다 — URL을 오염시키지 않기 위해. */
@@ -82,6 +90,35 @@ export async function listFills(tradeId: string): Promise<TradeFill[]> {
     .order("filled_at", { ascending: true });
   if (error) throw new Error(error.message);
   return data;
+}
+
+/** 북에 잡힌 입금·출금·이체 — 오래된 것부터. 자금 곡선이 시간순으로 이어 붙인다. */
+export async function listCashFlows(bookId: string): Promise<CashFlow[]> {
+  const { supabase } = await requireUser();
+  const { data, error } = await supabase
+    .from("cash_flows")
+    .select("*")
+    .eq("book_id", bookId)
+    .order("at", { ascending: true });
+  if (error) throw new Error(error.message);
+  return data as CashFlow[];
+}
+
+/**
+ * 거래소에서 마지막으로 읽어 온 계좌 잔고.
+ *
+ * 계산 자금과 대조하는 데 쓴다 — 둘이 벌어지면 어딘가 놓친 거래나 입출금이 있다.
+ */
+export async function getLatestBalance(bookId: string): Promise<BalanceSnapshot | null> {
+  const { supabase } = await requireUser();
+  const { data, error } = await supabase
+    .from("balance_snapshots")
+    .select("*")
+    .eq("book_id", bookId)
+    .order("at", { ascending: false })
+    .limit(1);
+  if (error) throw new Error(error.message);
+  return (data[0] as BalanceSnapshot | undefined) ?? null;
 }
 
 /**

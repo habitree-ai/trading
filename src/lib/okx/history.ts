@@ -8,13 +8,19 @@
 
 import { okxPrivateGet, okxPublicGet, type OkxCredentials } from "@/lib/okx/private";
 import {
+  accountBillSchema,
   balanceSchema,
+  depositSchema,
   fillSchema,
   instrumentSchema,
   parseList,
   positionSchema,
+  withdrawalSchema,
+  type OkxAccountBill,
+  type OkxDeposit,
   type OkxFill,
   type OkxPosition,
+  type OkxWithdrawal,
 } from "@/lib/okx/schema";
 
 /** 한 번에 받을 수 있는 최대치. */
@@ -86,6 +92,98 @@ export async function fetchFillsHistory(
   }
 
   return out;
+}
+
+/**
+ * `since` 이후 항목만 페이지를 거슬러 올라가며 모은다.
+ *
+ * 입출금 쪽 세 엔드포인트는 커서 종류만 다르고 나머지가 같아 여기 모은다.
+ * `cursorOf`는 "이 페이지에서 가장 오래된 항목의 커서"를 돌려준다 —
+ * OKX가 최신순으로 주므로 마지막 항목이 그것이다.
+ */
+async function collectSince<T>(input: {
+  path: string;
+  params: Record<string, string | number | undefined>;
+  creds: OkxCredentials;
+  schema: Parameters<typeof parseList<T>>[0];
+  sinceMs: number;
+  tsOf: (row: T) => number;
+  cursorOf: (row: T) => string | number | undefined;
+}): Promise<T[]> {
+  const { path, params, creds, schema, sinceMs, tsOf, cursorOf } = input;
+  const out: T[] = [];
+  let cursor: string | number | undefined;
+
+  for (let page = 0; page < MAX_PAGES; page += 1) {
+    const rows = await okxPrivateGet(path, { ...params, limit: PAGE, after: cursor }, creds);
+    if (rows.length === 0) break;
+
+    const parsed = parseList(schema, rows);
+    const fresh = parsed.filter((r) => tsOf(r) >= sinceMs);
+    out.push(...fresh);
+
+    // 한 페이지라도 `since` 이전으로 넘어갔으면 더 볼 이유가 없다.
+    if (parsed.length === 0 || fresh.length < parsed.length || rows.length < PAGE) break;
+
+    const next = cursorOf(parsed[parsed.length - 1]);
+    if (next === undefined) break;
+    cursor = next;
+  }
+
+  return out;
+}
+
+/** 거래계좌 장부에서 이체만 골라 읽는 코드 — 매매(2)는 포지션 내역으로 이미 받는다. */
+const TRANSFER_BILL_TYPE = 1;
+
+/**
+ * 거래계좌 이체 — 자금 곡선을 움직이는 유일한 외부 유입이다.
+ *
+ * `bills-archive`는 3개월치를 준다(`bills`는 7일치뿐이라 동기화 주기가 밀리면 유실된다).
+ */
+export function fetchAccountTransfers(
+  creds: OkxCredentials,
+  sinceMs: number,
+): Promise<OkxAccountBill[]> {
+  return collectSince({
+    path: "/api/v5/account/bills-archive",
+    params: { type: TRANSFER_BILL_TYPE },
+    creds,
+    schema: accountBillSchema,
+    sinceMs,
+    tsOf: (b) => Number(b.ts),
+    cursorOf: (b) => b.billId,
+  });
+}
+
+/** 온체인 입금 — 자금계좌로 들어온 실제 현금. */
+export function fetchDeposits(creds: OkxCredentials, sinceMs: number): Promise<OkxDeposit[]> {
+  return collectSince({
+    path: "/api/v5/asset/deposit-history",
+    params: {},
+    creds,
+    schema: depositSchema,
+    sinceMs,
+    tsOf: (d) => Number(d.ts),
+    // 이 엔드포인트의 커서는 billId가 아니라 시각(ms)이다.
+    cursorOf: (d) => d.ts,
+  });
+}
+
+/** 온체인 출금 — 자금계좌에서 빠져나간 실제 현금. */
+export function fetchWithdrawals(
+  creds: OkxCredentials,
+  sinceMs: number,
+): Promise<OkxWithdrawal[]> {
+  return collectSince({
+    path: "/api/v5/asset/withdrawal-history",
+    params: {},
+    creds,
+    schema: withdrawalSchema,
+    sinceMs,
+    tsOf: (w) => Number(w.ts),
+    cursorOf: (w) => w.ts,
+  });
 }
 
 /**

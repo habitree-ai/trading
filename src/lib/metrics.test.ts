@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import type { Book, Trade, TradeResult } from '@/lib/domain';
+import type { Book, CashFlow, CashFlowKind, Trade, TradeResult } from '@/lib/domain';
 import {
   bucketBy,
   computeMetrics,
@@ -48,6 +48,7 @@ function trade(partial: Partial<Trade> & { pnl: number; result: TradeResult }): 
     okx_pos_id: null,
     fee: null,
     funding_fee: null,
+    realized_pnl: null,
     margin_mode: null,
     stop_price: null,
     tp1_price: null,
@@ -61,6 +62,26 @@ function trade(partial: Partial<Trade> & { pnl: number; result: TradeResult }): 
     created_at: '2026-01-01T00:00:00Z',
     updated_at: '2026-01-01T00:00:00Z',
     ...partial,
+  };
+}
+
+let flowSeq = 0;
+
+function flow(kind: CashFlowKind, at: string, amount: number): CashFlow {
+  flowSeq += 1;
+  return {
+    id: `f${flowSeq}`,
+    book_id: 'b1',
+    user_id: 'u1',
+    kind,
+    at,
+    ccy: 'USDT',
+    amount,
+    fee: null,
+    note: null,
+    okx_ref: `ref${flowSeq}`,
+    source: 'okx',
+    created_at: '2026-01-01T00:00:00Z',
   };
 }
 
@@ -258,6 +279,178 @@ describe('수수료 반영 — 계좌가 실제로 움직인 금액', () => {
     seq = 0;
     const derived = deriveTrades(book, [trade({ pnl: 12.4, result: 'win' })]);
     expect(derived[0].net).toBeCloseTo(12.4, 10);
+  });
+});
+
+describe('실현손익 — 거래소 값이 정본', () => {
+  it('realized_pnl이 있으면 되짚지 않고 그 값을 쓴다', () => {
+    seq = 0;
+    // 실계좌 대조: pnl+fee+funding 으로 되짚으면 청산 수수료·ADL이 빠진다.
+    const derived = deriveTrades(book, [
+      trade({ pnl: 65.385, fee: -190.205, funding_fee: -0.343, realized_pnl: -130.385, result: 'loss' }),
+    ]);
+
+    expect(derived[0].net).toBeCloseTo(-130.385, 10);
+    // 되짚은 값(-125.163)이었다면 5.22 만큼 자금이 후하게 잡힌다.
+    expect(derived[0].net).not.toBeCloseTo(-125.163, 2);
+    expect(derived[0].equityAfter).toBeCloseTo(100 - 130.385, 10);
+  });
+
+  it('비어 있으면 손익+수수료+펀딩비로 되짚는다 — 수기 입력 경로', () => {
+    seq = 0;
+    const derived = deriveTrades(book, [trade({ pnl: 20, fee: -5, funding_fee: -1, result: 'win' })]);
+    expect(derived[0].net).toBeCloseTo(14, 10);
+  });
+
+  it('0도 값이다 — 되짚기로 새지 않는다', () => {
+    seq = 0;
+    const derived = deriveTrades(book, [trade({ pnl: 20, fee: -5, realized_pnl: 0, result: 'be' })]);
+    expect(derived[0].net).toBe(0);
+    expect(derived[0].result).toBe('be');
+  });
+});
+
+describe('손익률 — 증거금 대비 실현손익', () => {
+  it('투입 ÷ 레버리지를 증거금으로 본다', () => {
+    seq = 0;
+    // 투입 10,000 · 100배 → 증거금 100. 실현손익 +25 → +25%
+    const derived = deriveTrades(book, [
+      trade({ pnl: 30, fee: -5, result: 'win', notional: 10_000, leverage: 100 }),
+    ]);
+
+    expect(derived[0].margin).toBeCloseTo(100, 10);
+    expect(derived[0].pnlPct).toBeCloseTo(0.25, 10);
+  });
+
+  it('자금이 마이너스로 내려가도 승 거래는 +로 나온다', () => {
+    seq = 0;
+    // 초기자금(100)보다 큰 손실이 나면 자금 곡선이 음수 구간에 들어간다.
+    // 분모를 자금으로 쓰면 이 지점부터 손익률 부호가 통째로 뒤집혔다.
+    const derived = deriveTrades(book, [
+      trade({ pnl: -300, result: 'loss', notional: 10_000, leverage: 100 }),
+      trade({ pnl: 50, result: 'win', notional: 5_000, leverage: 50 }),
+    ]);
+
+    expect(derived[0].equityAfter).toBe(-200);
+    expect(derived[1].pnlPct).toBeCloseTo(0.5, 10); // 50 / 100
+    expect(derived[1].pnlPct! > 0).toBe(true);
+  });
+
+  it('레버리지가 비면 1배 — 투입 전액이 증거금이다', () => {
+    seq = 0;
+    const derived = deriveTrades(book, [trade({ pnl: 20, result: 'win', notional: 200 })]);
+    expect(derived[0].margin).toBe(200);
+    expect(derived[0].pnlPct).toBeCloseTo(0.1, 10);
+  });
+
+  it('투입이 없으면 분모를 모르므로 null', () => {
+    seq = 0;
+    const derived = deriveTrades(book, [trade({ pnl: 20, result: 'win' })]);
+    expect(derived[0].margin).toBeNull();
+    expect(derived[0].pnlPct).toBeNull();
+  });
+});
+
+describe('승패 — 수수료 후 실현손익 기준', () => {
+  it('수수료가 손익을 넘기면 저장된 승도 패로 뒤집는다', () => {
+    seq = 0;
+    // 총손익 +2, 수수료 −5 → 실현 −3. DB에 'win'으로 남아 있어도 계좌는 줄었다.
+    const derived = deriveTrades(book, [trade({ pnl: 2, fee: -5, result: 'win' })]);
+
+    expect(derived[0].net).toBeCloseTo(-3, 10);
+    expect(derived[0].result).toBe('loss');
+  });
+
+  it('보유중은 그대로 둔다 — 손익 부호로 정할 수 없다', () => {
+    seq = 0;
+    const derived = deriveTrades(book, [trade({ pnl: 0, result: 'open', exit_at: null })]);
+    expect(derived[0].result).toBe('open');
+  });
+
+  it('승률도 뒤집힌 승패로 다시 센다', () => {
+    seq = 0;
+    const derived = deriveTrades(book, [
+      trade({ pnl: 2, fee: -5, result: 'win' }), // 실현 −3 → 패
+      trade({ pnl: 20, fee: -5, result: 'win' }), // 실현 +15 → 승
+    ]);
+    const m = computeMetrics(book, derived);
+
+    expect(m.wins).toBe(1);
+    expect(m.losses).toBe(1);
+    expect(m.winRate).toBeCloseTo(0.5, 10);
+  });
+});
+
+describe('입출금 — 자금 곡선과 매매 성과를 가른다', () => {
+  it('이체는 자금 곡선을 움직이고 매매 곡선에서는 빠진다', () => {
+    seq = 0;
+    flowSeq = 0;
+    const flows = [flow('transfer', '2026-01-01T12:00:00Z', 100)];
+    const derived = deriveTrades(
+      book,
+      [trade({ pnl: 20, result: 'win' }), trade({ pnl: 10, result: 'win' })],
+      flows,
+    );
+
+    expect(derived[0].equityAfter).toBe(120); // 100 + 20
+    expect(derived[1].equityBefore).toBe(220); // 120 + 이체 100
+    expect(derived[1].equityAfter).toBe(230);
+    expect(derived[1].tradingEquity).toBe(130); // 매매만: 100 + 20 + 10
+  });
+
+  it('마지막 거래 뒤의 이체도 최종 자금에 담는다', () => {
+    seq = 0;
+    flowSeq = 0;
+    const flows = [flow('transfer', '2026-02-01T00:00:00Z', 50)];
+    const derived = deriveTrades(book, [trade({ pnl: 20, result: 'win' })], flows);
+    const m = computeMetrics(book, derived, flows);
+
+    expect(m.finalEquity).toBe(170); // 100 + 20 + 50
+    expect(m.netChange).toBe(20); // 매매로 번 돈만
+    expect(m.netTransfer).toBe(50);
+    expect(m.investedCapital).toBe(150);
+    expect(m.returnPct).toBeCloseTo(20 / 150, 10);
+  });
+
+  it('온체인 입출금은 거래계좌 잔액을 건드리지 않는다 — 자금계좌에 먼저 닿는다', () => {
+    seq = 0;
+    flowSeq = 0;
+    const flows = [
+      flow('deposit', '2026-01-01T12:00:00Z', 500),
+      flow('withdrawal', '2026-01-01T13:00:00Z', -200),
+    ];
+    const derived = deriveTrades(book, [trade({ pnl: 20, result: 'win' })], flows);
+    const m = computeMetrics(book, derived, flows);
+
+    expect(m.finalEquity).toBe(120);
+    expect(m.netTransfer).toBe(0);
+    expect(m.deposits).toBe(500);
+    expect(m.withdrawals).toBe(-200);
+  });
+
+  it('MDD는 이체를 걷어낸 매매 곡선에서 잰다 — 입금이 낙폭을 지우면 안 된다', () => {
+    seq = 0;
+    flowSeq = 0;
+    const flows = [flow('transfer', '2026-01-01T12:00:00Z', 1000)];
+    const derived = deriveTrades(
+      book,
+      [trade({ pnl: 100, result: 'win' }), trade({ pnl: -120, result: 'loss' })],
+      flows,
+    );
+    const m = computeMetrics(book, derived, flows);
+
+    expect(m.maxDrawdownPct).toBeCloseTo(-0.6, 10); // 200 → 80
+    expect(m.peakEquity).toBe(200);
+  });
+
+  it('입출금이 없으면 예전과 똑같이 그린다', () => {
+    seq = 0;
+    const derived = deriveTrades(book, [trade({ pnl: 20, result: 'win' })]);
+    const m = computeMetrics(book, derived);
+
+    expect(m.finalEquity).toBe(120);
+    expect(m.investedCapital).toBe(100);
+    expect(m.returnPct).toBeCloseTo(0.2, 10);
   });
 });
 
