@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-import { OkxSyncButton } from "@/app/(app)/trades/okx-sync-button";
+import { SyncAction } from "@/app/(app)/trades/okx-sync-button";
 import { TradeTable } from "@/app/(app)/trades/trade-table";
 import { EmptyBook } from "@/components/empty-book";
 import { dateTime } from "@/lib/format";
@@ -39,7 +39,7 @@ export default async function TradesPage() {
           </p>
         </div>
         <div className="ml-auto flex flex-wrap items-center gap-3">
-          {book.exchange_account_id ? <OkxSyncButton /> : null}
+          <SyncAction linked={book.exchange_account_id !== null} />
           <Link
             href="/trades/new"
             className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white"
