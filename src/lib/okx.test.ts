@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { BAR_MS, pickBar, toInstId, windowFor } from '@/lib/okx';
+import { BAR_MS, MAX_CANDLE_PAGES, candleCursors, pickBar, toInstId, windowFor } from '@/lib/okx';
 
 describe('toInstId — 시트의 종목명을 OKX 계약으로 편다', () => {
   it('기초자산만 있으면 USDT 무기한으로 만든다', () => {
@@ -56,5 +56,40 @@ describe('windowFor — 거래 전후로 여유를 둔다', () => {
   it('미청산이면 진입 시각을 끝으로 본다', () => {
     const w = windowFor(entry, null, '1H', 5);
     expect(w.to).toBe(entry + 5 * BAR_MS['1H']);
+  });
+});
+
+describe('candleCursors — 페이지를 미리 계산해 한꺼번에 받는다', () => {
+  const to = Date.parse('2026-07-27T00:00:00Z');
+  const page = (bar: Parameters<typeof candleCursors>[0]) => BAR_MS[bar] * 100;
+
+  it('구간이 한 페이지에 담기면 커서도 하나', () => {
+    expect(candleCursors('1H', to - 50 * BAR_MS['1H'], to)).toEqual([to]);
+  });
+
+  it('커서는 100봉씩 과거로 내려간다 — 페이지 사이에 틈이 없다', () => {
+    const from = to - 250 * BAR_MS['15m'];
+    const cursors = candleCursors('15m', from, to);
+
+    expect(cursors).toEqual([to, to - page('15m'), to - 2 * page('15m')]);
+    // 마지막 페이지가 from 보다 앞에서 시작해야 구간 전체가 덮인다.
+    expect(cursors[cursors.length - 1] - page('15m')).toBeLessThanOrEqual(from);
+  });
+
+  it('15분봉으로 2주짜리 거래도 진입까지 닿는다 — 예전 상한 12는 여기서 잘렸다', () => {
+    const from = to - 14 * 24 * 60 * 60_000;
+    const cursors = candleCursors('15m', from, to);
+
+    expect(cursors.length).toBeGreaterThan(12);
+    expect(cursors.length).toBeLessThanOrEqual(MAX_CANDLE_PAGES);
+    expect(cursors[cursors.length - 1] - page('15m')).toBeLessThanOrEqual(from);
+  });
+
+  it('아무리 넓어도 상한을 넘지 않는다', () => {
+    expect(candleCursors('1m', to - 365 * 24 * 60 * 60_000, to)).toHaveLength(MAX_CANDLE_PAGES);
+  });
+
+  it('구간이 0이하로 뒤집혀도 최소 한 장은 받는다', () => {
+    expect(candleCursors('1H', to, to)).toEqual([to]);
   });
 });

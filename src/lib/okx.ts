@@ -65,49 +65,95 @@ interface OkxResponse {
   data: string[][];
 }
 
+/** OKX가 한 번에 돌려주는 최대 개수. */
+const PAGE_SIZE = 100;
+
 /**
- * `[from, to]` 구간의 캔들을 가져온다.
+ * 한 구간에 허용하는 최대 페이지 수 — 4000봉.
  *
- * OKX는 한 번에 100개까지만 주고 최신순으로 돌려주므로, 구간을 채울 때까지
- * `after`를 옮겨 가며 뒤로 훑는다. 무한 루프를 막기 위해 페이지 수를 제한한다.
+ * 15분봉이면 41일치다. 한 달 넘게 들고 있던 거래도 진입 지점까지 닿는다.
+ * 그보다 긴 보유를 15분봉으로 보는 건 어차피 픽셀당 봉이 여러 개라 읽히지 않는다.
  */
+export const MAX_CANDLE_PAGES = 40;
+
+/**
+ * 한꺼번에 띄우는 요청 수.
+ *
+ * OKX 공개 시세는 IP당 20회/2초다. 그 절반으로 잡아 같은 화면의 다른 호출과
+ * 부딪히지 않을 여유를 남긴다.
+ */
+const BATCH = 8;
+
+/**
+ * 받아야 할 페이지들의 `after` 커서를 미리 계산한다.
+ *
+ * 예전에는 응답을 보고 다음 커서를 정했다. 그러면 페이지 수만큼 왕복이 순서대로 쌓여,
+ * 15분봉으로 2주짜리 거래를 보려면 15번을 차례로 기다려야 했다 — 그래서 상한을 12로
+ * 묶어 뒀고, 긴 거래는 진입 지점에 닿지 못한 채 잘렸다.
+ *
+ * 봉 간격이 고정이라 커서는 계산으로 나온다. 미리 알면 한꺼번에 띄울 수 있다.
+ * 거래가 없어 봉이 빠진 구간에서는 페이지가 겹치거나 덜 오는데, 받은 캔들을 시각으로
+ * 묶어 담으므로 겹침은 저절로 지워지고 빈 곳은 그냥 비어 온다.
+ */
+export function candleCursors(
+  bar: Bar,
+  from: number,
+  to: number,
+  maxPages = MAX_CANDLE_PAGES,
+): number[] {
+  const span = BAR_MS[bar] * PAGE_SIZE;
+  const needed = Math.ceil((to - from) / span);
+  const pages = Math.min(Math.max(needed, 1), Math.max(maxPages, 1));
+  return Array.from({ length: pages }, (_, i) => to - i * span);
+}
+
+async function fetchPage(instId: string, bar: Bar, after: number): Promise<string[][]> {
+  const url = `${BASE}/market/history-candles?instId=${encodeURIComponent(
+    instId,
+  )}&bar=${bar}&after=${after}&limit=${PAGE_SIZE}`;
+
+  const res = await fetch(url, {
+    // 지나간 캔들은 변하지 않는다 — 하루 캐시.
+    next: { revalidate: 86_400 },
+    headers: { accept: "application/json" },
+  });
+  if (!res.ok) throw new Error(`OKX 응답 오류 ${res.status}`);
+
+  const json = (await res.json()) as OkxResponse;
+  if (json.code !== "0") throw new Error(`OKX 오류: ${json.msg || json.code}`);
+  return json.data;
+}
+
+/** `[from, to]` 구간의 캔들을 가져온다. 페이지는 묶어서 동시에 받는다. */
 export async function fetchCandles(
   instId: string,
   bar: Bar,
   from: number,
   to: number,
-  maxPages = 4,
+  maxPages = MAX_CANDLE_PAGES,
 ): Promise<Candle[]> {
+  const cursors = candleCursors(bar, from, to, maxPages);
   const out = new Map<number, Candle>();
-  let cursor = to;
 
-  for (let page = 0; page < maxPages; page += 1) {
-    const url = `${BASE}/market/history-candles?instId=${encodeURIComponent(
-      instId,
-    )}&bar=${bar}&after=${cursor}&limit=100`;
+  for (let i = 0; i < cursors.length; i += BATCH) {
+    const batch = await Promise.all(
+      cursors.slice(i, i + BATCH).map((after) => fetchPage(instId, bar, after)),
+    );
 
-    const res = await fetch(url, {
-      // 지나간 캔들은 변하지 않는다 — 하루 캐시.
-      next: { revalidate: 86_400 },
-      headers: { accept: "application/json" },
-    });
-    if (!res.ok) throw new Error(`OKX 응답 오류 ${res.status}`);
-
-    const json = (await res.json()) as OkxResponse;
-    if (json.code !== "0") throw new Error(`OKX 오류: ${json.msg || json.code}`);
-    if (json.data.length === 0) break;
-
-    let oldest = cursor;
-    for (const row of json.data) {
-      const t = Number(row[0]);
-      oldest = Math.min(oldest, t);
-      if (t >= from && t <= to) {
-        out.set(t, { t, o: Number(row[1]), h: Number(row[2]), l: Number(row[3]), c: Number(row[4]) });
+    for (const rows of batch) {
+      for (const row of rows) {
+        const t = Number(row[0]);
+        if (t >= from && t <= to) {
+          out.set(t, {
+            t,
+            o: Number(row[1]),
+            h: Number(row[2]),
+            l: Number(row[3]),
+            c: Number(row[4]),
+          });
+        }
       }
     }
-
-    if (oldest <= from) break;
-    cursor = oldest;
   }
 
   return [...out.values()].sort((a, b) => a.t - b.t);

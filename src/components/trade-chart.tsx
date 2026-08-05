@@ -32,6 +32,9 @@ const VIEW_LABEL: Record<View, string> = {
   "1D": "일봉",
 };
 
+/** 거래 구간 앞뒤로 붙이는 여유 봉 수 — 차트 분석이 되려면 맥락이 있어야 한다. */
+const PAD_BARS = 60;
+
 /** 차트 색은 CSS 토큰에서 읽는다 — 라이트/다크 전환을 한 곳에서 관리하기 위해. */
 function readTheme(el: HTMLElement) {
   const s = getComputedStyle(el);
@@ -170,7 +173,9 @@ export function TradeChart({
     let cancelled = false;
 
     async function load() {
-      const { from, to } = windowFor(entryMs, exitMs, bar, view === "auto" ? 12 : 30);
+      // 앞뒤 60봉 — 거래 구간이 화면 가운데 1/3에 놓인다. 직전 추세와 청산 뒤 움직임까지
+      // 들어와야 "그때 시장이 어땠는지"를 읽을 수 있다.
+      const { from, to } = windowFor(entryMs, exitMs, bar, PAD_BARS);
       setLoading(true);
       setError(null);
 
@@ -198,7 +203,7 @@ export function TradeChart({
     return () => {
       cancelled = true;
     };
-  }, [symbol, bar, entryMs, exitMs, view]);
+  }, [symbol, bar, entryMs, exitMs]);
 
   /* ---------- 데이터·마커·기준선 반영 ---------- */
   useEffect(() => {
@@ -399,6 +404,7 @@ export function TradeChart({
 
       <p className="mt-1 text-xs text-dim">
         {view === "auto" ? `${bar} 봉 자동 선택 · ` : ""}
+        앞뒤 {PAD_BARS}봉 ·{" "}
         진입 {num(entryPrice)} → 청산 {exitPrice === null ? "—" : num(exitPrice)}
         {held !== null ? (
           <span className={held >= 0 ? "text-profit" : "text-loss"}> ({signed(held * 100, 2)}%)</span>
