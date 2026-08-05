@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { BalanceGap, CashFlowPanel } from "@/app/(app)/dashboard/cash-flow-panel";
+import { PerformanceSummary } from "@/app/(app)/dashboard/performance-summary";
 import { PnlPanel } from "@/app/(app)/dashboard/pnl-panel";
 import { RecentTrades } from "@/app/(app)/dashboard/recent-trades";
 import { OkxSyncButton } from "@/app/(app)/trades/okx-sync-button";
@@ -13,8 +14,16 @@ import {
 import type { PnlBar } from "@/components/charts";
 import { EmptyBook } from "@/components/empty-book";
 import { StatTile } from "@/components/stat-tile";
+import { loadBenchmark } from "@/lib/benchmark";
 import { date, dateTime, num, pct, pnlClass, signed, signedPct } from "@/lib/format";
-import { bucketBy, computeMetrics, dayKey, deriveTrades, monthKey } from "@/lib/metrics";
+import {
+  bucketBy,
+  computeMetrics,
+  dayKey,
+  deriveTrades,
+  monthKey,
+  summarizePerformance,
+} from "@/lib/metrics";
 import {
   getActiveBook,
   getLastSync,
@@ -37,12 +46,21 @@ export default async function DashboardPage() {
 
   const derived = deriveTrades(book, trades, flows);
   const m = computeMetrics(book, derived, flows);
+  const summary = summarizePerformance(book, derived, flows);
   // 축이 좁아 키를 그대로 찍으면 겹친다 — 일별은 연도를 떼고 `07-28`로 줄인다.
   const toBars = (keyFn: (iso: string) => string, short: boolean): PnlBar[] =>
     bucketBy(derived, keyFn).map((b) => ({ ...b, label: short ? b.key.slice(5) : b.key }));
 
   const daily = toBars(dayKey, true);
   const monthly = toBars(monthKey, false);
+
+  // 같은 기간 시장이 어땠는지 — 못 받아 오면 null이고 그 선만 빠진다.
+  const startedAt = `${book.start_date}T00:00:00Z`;
+  const last = derived[derived.length - 1];
+  const benchmark = last
+    ? await loadBenchmark(startedAt, last.trade.exit_at ?? last.trade.entry_at)
+    : null;
+  const priceAt = (iso: string) => benchmark?.at(iso) ?? null;
 
   const curve: EquityPoint[] = [
     {
@@ -53,6 +71,7 @@ export default async function DashboardPage() {
       withdrawnStep: 0,
       drawdown: 0,
       pnl: null,
+      benchmark: priceAt(startedAt),
     },
     ...derived.map((d, i) => ({
       label: `#${d.trade.seq} ${date(d.trade.exit_at ?? d.trade.entry_at)}`,
@@ -63,6 +82,7 @@ export default async function DashboardPage() {
       withdrawnStep: d.withdrawnTotal - (i === 0 ? 0 : derived[i - 1].withdrawnTotal),
       drawdown: d.drawdownPct,
       pnl: d.trade.pnl,
+      benchmark: priceAt(d.trade.exit_at ?? d.trade.entry_at),
     })),
   ];
   const hasWithdrawal = curve.some((p) => p.withdrawnStep > 0);
@@ -164,6 +184,7 @@ export default async function DashboardPage() {
               자금 곡선{" "}
               <span className="font-normal text-dim">
                 — 거래 순서별 실제 잔액과 매매 성과 ({book.base_currency})
+                {benchmark ? `, ${benchmark.symbol} 시세 대조` : ""}
               </span>
             </h2>
             <div className="mt-1">
@@ -179,6 +200,7 @@ export default async function DashboardPage() {
                 data={curve}
                 currency={book.base_currency}
                 initialCapital={book.initial_capital}
+                benchmarkLabel={benchmark?.symbol ?? null}
               />
             </div>
             {hasWithdrawal ? (
@@ -199,6 +221,8 @@ export default async function DashboardPage() {
               <DrawdownChart data={curve} />
             </div>
           </section>
+
+          <PerformanceSummary summary={summary} currency={book.base_currency} />
 
           <PnlPanel daily={daily} monthly={monthly} currency={book.base_currency} />
 

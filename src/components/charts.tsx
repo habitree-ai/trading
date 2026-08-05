@@ -52,6 +52,8 @@ export interface EquityPoint {
   withdrawnStep: number;
   drawdown: number;
   pnl: number | null;
+  /** 같은 시점의 벤치마크 시세 — 축이 달라 우측 눈금에 붙는다. 못 받았으면 null */
+  benchmark?: number | null;
 }
 
 /** 색 단독에 기대지 않도록 선 모양(실선/점선)까지 다르게 쓰고 범례에 그대로 옮긴다. */
@@ -92,12 +94,18 @@ export function EquityCurve({
   data,
   currency,
   initialCapital,
+  benchmarkLabel = null,
 }: {
   data: EquityPoint[];
   currency: string;
   initialCapital: number;
+  /** 벤치마크 종목명. null이면 그 선과 우축을 그리지 않는다 */
+  benchmarkLabel?: string | null;
 }) {
   const hasWithdrawal = data.some((d) => d.withdrawnStep > 0);
+  // 못 받아 온 벤치마크로 빈 축을 세우지 않는다.
+  const hasBenchmark =
+    benchmarkLabel !== null && data.some((d) => typeof d.benchmark === "number");
 
   return (
     <div className="space-y-2">
@@ -105,6 +113,13 @@ export function EquityCurve({
         items={[
           ["실제 잔액", "var(--accent)", false],
           ["매매 성과 (입출금 제외)", "var(--alpha)", true],
+          ...(hasBenchmark
+            ? ([[`${benchmarkLabel} 시세 (우축)`, "var(--text-dim)", false]] as [
+                string,
+                string,
+                boolean,
+              ][])
+            : []),
         ]}
       />
       <ResponsiveContainer width="100%" height={220}>
@@ -112,6 +127,7 @@ export function EquityCurve({
           <CartesianGrid stroke={GRID} strokeDasharray="3 3" vertical={false} />
           <XAxis dataKey="label" {...AXIS} tickLine={false} axisLine={{ stroke: GRID }} minTickGap={24} />
           <YAxis
+            yAxisId="left"
             {...AXIS}
             tickLine={false}
             axisLine={false}
@@ -119,7 +135,20 @@ export function EquityCurve({
             domain={["auto", "auto"]}
             tickFormatter={(v: number) => num(v, 0)}
           />
+          {hasBenchmark ? (
+            <YAxis
+              yAxisId="right"
+              orientation="right"
+              {...AXIS}
+              tickLine={false}
+              axisLine={false}
+              width={56}
+              domain={["auto", "auto"]}
+              tickFormatter={(v: number) => num(v, 0)}
+            />
+          ) : null}
           <ReferenceLine
+            yAxisId="left"
             y={initialCapital}
             stroke="var(--text-dim)"
             strokeDasharray="4 4"
@@ -136,6 +165,13 @@ export function EquityCurve({
                     [p.label, ""],
                     [`실제 잔액 (${currency})`, num(p.equity, 2)],
                     ["매매 성과", num(p.performance, 2), pnlClass(p.performance - initialCapital)],
+                    ...(hasBenchmark
+                      ? ([[`${benchmarkLabel} 시세`, num(p.benchmark ?? null, 0)]] as [
+                          string,
+                          string,
+                          string?,
+                        ][])
+                      : []),
                     ["손익", signed(p.pnl), pnlClass(p.pnl)],
                     ...(hasWithdrawal
                       ? ([
@@ -150,7 +186,22 @@ export function EquityCurve({
               );
             }}
           />
+          {/* 벤치마크를 맨 아래 깔아 자금 곡선이 가려지지 않게 한다. */}
+          {hasBenchmark ? (
+            <Line
+              yAxisId="right"
+              type="monotone"
+              dataKey="benchmark"
+              stroke="var(--text-dim)"
+              strokeWidth={1.5}
+              strokeOpacity={0.55}
+              dot={false}
+              activeDot={false}
+              connectNulls
+            />
+          ) : null}
           <Line
+            yAxisId="left"
             type="monotone"
             dataKey="performance"
             stroke="var(--alpha)"
@@ -160,6 +211,7 @@ export function EquityCurve({
             activeDot={false}
           />
           <Line
+            yAxisId="left"
             type="monotone"
             dataKey="equity"
             stroke="var(--accent)"
