@@ -16,12 +16,14 @@ export function CashFlowPanel({
   deposits,
   withdrawals,
   netTransfer,
+  withdrawnFromAccount,
 }: {
   flows: CashFlow[];
   currency: string;
   deposits: number;
   withdrawals: number;
   netTransfer: number;
+  withdrawnFromAccount: number;
 }) {
   // 최근 것부터 12건 — 그보다 오래된 건 합계로 충분하다.
   const recent = [...flows].reverse().slice(0, 12);
@@ -35,10 +37,19 @@ export function CashFlowPanel({
         </span>
       </h2>
 
-      <dl className="mt-3 grid grid-cols-3 gap-3">
+      <dl className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
         <Total label="총 입금" value={deposits} hint="온체인으로 들어온 현금" />
         <Total label="총 출금" value={withdrawals} hint="온체인으로 빠져나간 현금" />
         <Total label="거래계좌 순이체" value={netTransfer} hint="자금 곡선을 움직인 금액" />
+        {/*
+          순이체와 다른 값이다. 100을 넣고 100을 뺐으면 순이체는 0이지만 뽑아 간 돈은
+          100이다 — 자금 곡선이 얼마나 깎였는지는 이쪽으로만 읽힌다.
+        */}
+        <Total
+          label="거래계좌 출금 누계"
+          value={-withdrawnFromAccount}
+          hint="자금 곡선을 내린 금액 누계"
+        />
       </dl>
 
       {recent.length === 0 ? (

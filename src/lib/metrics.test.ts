@@ -495,6 +495,108 @@ describe('입출금 — 자금 곡선과 매매 성과를 가른다', () => {
   });
 });
 
+describe('출금 — 자금이 줄어든 게 아니다', () => {
+  it('나간 이체만 출금으로 세고 들어온 이체는 세지 않는다', () => {
+    seq = 0;
+    flowSeq = 0;
+    // 첫 거래 진입(2026-01-01T00:00:00Z) 전에 둘 다 일어나야 그 거래에 반영된다.
+    const flows = [
+      flow('transfer', '2025-12-31T00:00:00Z', 200),
+      flow('transfer', '2025-12-31T01:00:00Z', -50),
+    ];
+    const derived = deriveTrades(book, [trade({ pnl: 20, result: 'win' })], flows);
+
+    // 순이체는 +150이지만 뽑아 간 돈은 50이다.
+    expect(derived[0].withdrawnTotal).toBe(50);
+    expect(computeMetrics(book, derived, flows).netTransfer).toBe(150);
+  });
+
+  it('출금 누계는 거래를 거치며 쌓인다', () => {
+    seq = 0;
+    flowSeq = 0;
+    const flows = [
+      flow('transfer', '2026-01-01T12:00:00Z', -30),
+      flow('transfer', '2026-01-02T12:00:00Z', -20),
+    ];
+    const derived = deriveTrades(
+      book,
+      [
+        trade({ pnl: 10, result: 'win' }),
+        trade({ pnl: 10, result: 'win' }),
+        trade({ pnl: 10, result: 'win' }),
+      ],
+      flows,
+    );
+
+    expect(derived.map((d) => d.withdrawnTotal)).toEqual([0, 30, 50]);
+  });
+
+  it('시트의 `출금` 컬럼도 출금 누계에 들어간다', () => {
+    seq = 0;
+    const derived = deriveTrades(book, [
+      trade({ pnl: 50, result: 'win', withdrawal: 20 }),
+      trade({ pnl: 10, result: 'win' }),
+    ]);
+
+    expect(derived.map((d) => d.withdrawnTotal)).toEqual([20, 20]);
+    expect(derived[0].equityAfter).toBe(130); // 100 + 50 − 20
+  });
+
+  it('성과 곡선은 출금에 꺾이지 않는다 — 뽑아 간 돈은 잃은 돈이 아니다', () => {
+    seq = 0;
+    flowSeq = 0;
+    // 100 → +50(150) → 이체 −100(50) → +10(60).
+    // 실제 잔액은 150에서 60으로 내려앉지만 매매로는 60을 벌었다.
+    const flows = [flow('transfer', '2026-01-01T12:00:00Z', -100)];
+    const derived = deriveTrades(
+      book,
+      [trade({ pnl: 50, result: 'win' }), trade({ pnl: 10, result: 'win' })],
+      flows,
+    );
+
+    expect(derived.map((d) => d.equityAfter)).toEqual([150, 60]);
+    expect(derived.map((d) => d.netTotal)).toEqual([50, 60]);
+    // 성과 곡선 = 초기자금 + 누적 실현손익 — 계속 오른다.
+    expect(derived.map((d) => book.initial_capital + d.netTotal)).toEqual([150, 160]);
+  });
+
+  it('출금 누계는 왕복 이체에 상쇄되지 않는다', () => {
+    seq = 0;
+    flowSeq = 0;
+    // 100을 넣었다 뺐다 두 번 — 순이체는 0이지만 뽑아 간 돈은 200이다.
+    const flows = [
+      flow('transfer', '2026-01-01T00:00:00Z', 100),
+      flow('transfer', '2026-01-01T01:00:00Z', -100),
+      flow('transfer', '2026-01-01T02:00:00Z', 100),
+      flow('transfer', '2026-01-01T03:00:00Z', -100),
+    ];
+    const m = computeMetrics(book, deriveTrades(book, [], flows), flows);
+
+    expect(m.netTransfer).toBe(0);
+    expect(m.withdrawnFromAccount).toBe(200);
+  });
+
+  it('마지막 거래 뒤의 출금도 합계에 담는다', () => {
+    seq = 0;
+    flowSeq = 0;
+    const flows = [flow('transfer', '2026-02-01T00:00:00Z', -40)];
+    const derived = deriveTrades(book, [trade({ pnl: 20, result: 'win' })], flows);
+    const m = computeMetrics(book, derived, flows);
+
+    // 곡선은 거래 시점까지만 찍으므로 0이지만, 합계는 전부여야 한다.
+    expect(derived[0].withdrawnTotal).toBe(0);
+    expect(m.withdrawnFromAccount).toBe(40);
+  });
+
+  it('출금이 없으면 누계도 0이다', () => {
+    seq = 0;
+    const derived = deriveTrades(book, [trade({ pnl: 20, result: 'win' })]);
+
+    expect(derived[0].withdrawnTotal).toBe(0);
+    expect(computeMetrics(book, derived).withdrawnFromAccount).toBe(0);
+  });
+});
+
 describe('crossCheckPnl — OCR 오독을 잡는 안전망', () => {
   const base = {
     side: 'long' as const,

@@ -55,6 +55,21 @@ export interface TradeDerived {
   peak: number;
   /** 시트의 `MDD하락률` — (자금 − 최고치) / 최고치 */
   drawdownPct: number;
+  /**
+   * 이 거래까지 거래계좌에서 빠져나간 돈의 누계 — 항상 양수.
+   *
+   * 자금 곡선을 실제로 내리는 건 거래계좌 이체(음수 `transfer`)와 시트의 `출금`뿐이다.
+   * 온체인 출금은 자금계좌에서 나가므로 여기 세지 않는다 — 곡선과 시점이 어긋난다.
+   */
+  withdrawnTotal: number;
+  /**
+   * 이 거래까지의 누적 실현손익 — 넣고 뺀 돈을 걷어낸 매매 성과.
+   *
+   * 자금 곡선은 입금이 들어오면 올라가고 출금하면 내려간다. 그 곡선만 보면 잘 벌어서
+   * 오른 건지 돈을 더 넣어서 오른 건지 구분되지 않는다. 이 값으로 그린 곡선이
+   * 수익율·MDD 지표와 기준이 같은 성과 곡선이다.
+   */
+  netTotal: number;
   /** 증거금 — 투입 ÷ 레버리지. 이 거래에 실제로 묶인 돈이자 손익률의 분모 */
   margin: Maybe;
   /** 시트의 `L pnl`/`W pnl`을 통합 — 실현손익 / 증거금 */
@@ -123,6 +138,8 @@ export function deriveTrades(
   let running = book.initial_capital;
   let peak = book.initial_capital;
   let nextTransfer = 0;
+  let withdrawnTotal = 0;
+  let netTotal = 0;
 
   return sorted.map((trade) => {
     // 진입 시각을 경계로 이체를 반영한다 — 거래 도중에 들어온 돈이 그 거래의
@@ -131,6 +148,8 @@ export function deriveTrades(
     while (nextTransfer < transfers.length && Date.parse(transfers[nextTransfer].at) <= entryMs) {
       const { amount } = transfers[nextTransfer];
       running += amount;
+      // 나간 이체만 출금으로 센다 — 들어온 이체까지 더하면 왕복이 출금으로 잡힌다.
+      if (amount < 0) withdrawnTotal -= amount;
       // 고점도 같은 금액만큼 옮긴다 — 넣고 뺀 돈은 매매 성과가 아니다.
       peak = Math.max(peak + amount, 0);
       nextTransfer += 1;
@@ -143,6 +162,8 @@ export function deriveTrades(
 
     running = equityAfter;
     peak = Math.max(peak, running);
+    withdrawnTotal += withdrawal;
+    netTotal += net;
 
     const margin = marginOf(trade);
 
@@ -154,6 +175,8 @@ export function deriveTrades(
       equityAfter,
       peak,
       drawdownPct: peak <= 0 ? 0 : (running - peak) / peak,
+      withdrawnTotal,
+      netTotal,
       margin,
       pnlPct: trade.pnl === null ? null : ratio(net, margin),
       riskPct: riskPct(trade),
@@ -280,6 +303,13 @@ export interface BookMetrics {
   /** 시트의 `최종자금` — 이체까지 반영한 거래계좌 잔액 */
   finalEquity: number;
   totalWithdrawal: number;
+  /**
+   * 거래계좌에서 빠져나간 돈의 누계(양수) — 자금 곡선을 실제로 내린 금액 전체.
+   *
+   * 나간 이체만 센다. 순이체(`netTransfer`)는 들어온 것과 상계돼 "얼마나 뽑아 갔는지"를
+   * 지운다 — 100을 넣고 100을 뺐으면 순이체는 0이지만 뽑아 간 돈은 100이다.
+   */
+  withdrawnFromAccount: number;
   /** 온체인 입금 누계 — 실제로 넣은 현금(양수) */
   deposits: number;
   /** 온체인 출금 누계 — 실제로 뺀 현금(음수) */
@@ -406,6 +436,9 @@ export function computeMetrics(
     initialCapital: book.initial_capital,
     finalEquity,
     totalWithdrawal,
+    // 마지막 거래 뒤의 이체까지 담는다 — 곡선은 거래 시점까지만 찍지만 합계는 전부여야 한다.
+    withdrawnFromAccount:
+      transfers.filter((f) => f.amount < 0).reduce((a, f) => a - f.amount, 0) + totalWithdrawal,
     deposits,
     withdrawals,
     netTransfer,

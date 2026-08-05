@@ -3,14 +3,21 @@ import Link from "next/link";
 import { BalanceGap, CashFlowPanel } from "@/app/(app)/dashboard/cash-flow-panel";
 import { PnlPanel } from "@/app/(app)/dashboard/pnl-panel";
 import { RecentTrades } from "@/app/(app)/dashboard/recent-trades";
-import { DrawdownChart, EquityCurve, type EquityPoint } from "@/components/charts";
+import { OkxSyncButton } from "@/app/(app)/trades/okx-sync-button";
+import {
+  DrawdownChart,
+  EquityCurve,
+  WithdrawalChart,
+  type EquityPoint,
+} from "@/components/charts";
 import type { PnlBar } from "@/components/charts";
 import { EmptyBook } from "@/components/empty-book";
 import { StatTile } from "@/components/stat-tile";
-import { date, num, pct, pnlClass, signed, signedPct } from "@/lib/format";
+import { date, dateTime, num, pct, pnlClass, signed, signedPct } from "@/lib/format";
 import { bucketBy, computeMetrics, dayKey, deriveTrades, monthKey } from "@/lib/metrics";
 import {
   getActiveBook,
+  getLastSync,
   getLatestBalance,
   listCashFlows,
   listFillsByTrade,
@@ -21,10 +28,11 @@ export default async function DashboardPage() {
   const book = await getActiveBook();
   if (!book) return <EmptyBook />;
 
-  const [trades, flows, balance] = await Promise.all([
+  const [trades, flows, balance, lastSync] = await Promise.all([
     listTrades(book.id),
     listCashFlows(book.id),
     getLatestBalance(book.id),
+    book.exchange_account_id ? getLastSync(book.id) : null,
   ]);
 
   const derived = deriveTrades(book, trades, flows);
@@ -37,14 +45,27 @@ export default async function DashboardPage() {
   const monthly = toBars(monthKey, false);
 
   const curve: EquityPoint[] = [
-    { label: `${book.start_date} 시작`, equity: book.initial_capital, drawdown: 0, pnl: null },
-    ...derived.map((d) => ({
+    {
+      label: `${book.start_date} 시작`,
+      equity: book.initial_capital,
+      performance: book.initial_capital,
+      withdrawn: 0,
+      withdrawnStep: 0,
+      drawdown: 0,
+      pnl: null,
+    },
+    ...derived.map((d, i) => ({
       label: `#${d.trade.seq} ${date(d.trade.exit_at ?? d.trade.entry_at)}`,
       equity: d.equityAfter,
+      // 넣고 뺀 돈을 걷어낸 곡선 — 출금으로 꺾인 자리가 여기서는 이어진다.
+      performance: book.initial_capital + d.netTotal,
+      withdrawn: d.withdrawnTotal,
+      withdrawnStep: d.withdrawnTotal - (i === 0 ? 0 : derived[i - 1].withdrawnTotal),
       drawdown: d.drawdownPct,
       pnl: d.trade.pnl,
     })),
   ];
+  const hasWithdrawal = curve.some((p) => p.withdrawnStep > 0);
 
   const recent = [...derived].reverse().slice(0, 8);
   // 차트에 찍을 체결은 펼쳐 볼 수 있는 8건만 넘긴다 — 전량을 보내면 페이로드가 헛되이 커진다.
@@ -60,14 +81,20 @@ export default async function DashboardPage() {
           <h1 className="text-xl font-semibold tracking-tight">대시보드</h1>
           <p className="mt-1 text-sm text-dim">
             {book.name} · {book.exchange ?? "거래소 미지정"} · {book.base_currency}
+            {book.exchange_account_id ? (
+              <> · 마지막 동기화 {lastSync ? dateTime(lastSync.started_at) : "없음"}</>
+            ) : null}
           </p>
         </div>
-        <Link
-          href="/trades/new"
-          className="ml-auto rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white"
-        >
-          기록 추가
-        </Link>
+        <div className="ml-auto flex flex-wrap items-center gap-3">
+          {book.exchange_account_id ? <OkxSyncButton /> : null}
+          <Link
+            href="/trades/new"
+            className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white"
+          >
+            기록 추가
+          </Link>
+        </div>
       </header>
 
       {derived.length === 0 ? (
@@ -136,7 +163,7 @@ export default async function DashboardPage() {
             <h2 className="text-sm font-medium">
               자금 곡선{" "}
               <span className="font-normal text-dim">
-                — 거래 순서별 계좌 자금, 이체 반영 ({book.base_currency})
+                — 거래 순서별 실제 잔액과 매매 성과 ({book.base_currency})
               </span>
             </h2>
             <div className="mt-1">
@@ -154,6 +181,17 @@ export default async function DashboardPage() {
                 initialCapital={book.initial_capital}
               />
             </div>
+            {hasWithdrawal ? (
+              <>
+                <h3 className="mt-4 text-xs font-medium text-dim">
+                  누적 출금 — 계좌에서 뽑아 간 돈. 매매 성과에서는 빠지지 않습니다
+                </h3>
+                <div className="mt-1">
+                  <WithdrawalChart data={curve} currency={book.base_currency} />
+                </div>
+              </>
+            ) : null}
+
             <h3 className="mt-4 text-xs font-medium text-dim">
               고점 대비 낙폭 (MDD) — 이체분은 고점에서 상쇄합니다
             </h3>
@@ -163,14 +201,6 @@ export default async function DashboardPage() {
           </section>
 
           <PnlPanel daily={daily} monthly={monthly} currency={book.base_currency} />
-
-          <CashFlowPanel
-            flows={flows}
-            currency={book.base_currency}
-            deposits={m.deposits}
-            withdrawals={m.withdrawals}
-            netTransfer={m.netTransfer}
-          />
 
           <section className="rounded-xl border border-border bg-surface p-4">
             <div className="flex items-center">
@@ -187,6 +217,15 @@ export default async function DashboardPage() {
               fillsByTrade={recentFills}
             />
           </section>
+
+          <CashFlowPanel
+            flows={flows}
+            currency={book.base_currency}
+            deposits={m.deposits}
+            withdrawals={m.withdrawals}
+            netTransfer={m.netTransfer}
+            withdrawnFromAccount={m.withdrawnFromAccount}
+          />
         </>
       ) : null}
     </div>
