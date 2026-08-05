@@ -9,6 +9,7 @@ import {
   deriveTrades,
   groupPerformance,
   monthKey,
+  summarizePerformance,
 } from '@/lib/metrics';
 
 const book: Book = {
@@ -594,6 +595,157 @@ describe('출금 — 자금이 줄어든 게 아니다', () => {
 
     expect(derived[0].withdrawnTotal).toBe(0);
     expect(computeMetrics(book, derived).withdrawnFromAccount).toBe(0);
+  });
+});
+
+describe('summarizePerformance — 값마다 언제인지가 붙는다', () => {
+  /** 날짜와 손익을 지정해 거래를 만든다. 시각은 KST 정오라 날짜 경계에 걸리지 않는다. */
+  function onDay(day: string, pnl: number, result: TradeResult = pnl >= 0 ? 'win' : 'loss') {
+    return trade({
+      pnl,
+      result,
+      entry_at: `${day}T03:00:00Z`, // KST 정오
+      exit_at: `${day}T04:00:00Z`,
+    });
+  }
+
+  it('하루에 여러 건이면 그날 합계로 판단한다', () => {
+    seq = 0;
+    // 같은 날 +5, −2, +1 → 그날은 +4 이익일 하나다. 건별로 세면 2승 1패가 된다.
+    const derived = deriveTrades(book, [
+      onDay('2026-03-02', 5),
+      onDay('2026-03-02', -2),
+      onDay('2026-03-02', 1),
+    ]);
+    const s = summarizePerformance(book, derived);
+
+    expect(s.tradingDays).toBe(1);
+    expect(s.bestDay).toEqual({ pnl: 4, day: '2026-03-02' });
+    expect(s.dailyWinRate).toBe(1); // 이익일 1 / (1+0)
+  });
+
+  it('하루 최대 수익·손실은 날별 합계에서 고르고 날짜를 남긴다', () => {
+    seq = 0;
+    const derived = deriveTrades(book, [
+      onDay('2026-03-02', 3),
+      onDay('2026-03-03', -7),
+      onDay('2026-03-04', 9),
+    ]);
+    const s = summarizePerformance(book, derived);
+
+    expect(s.bestDay).toEqual({ pnl: 9, day: '2026-03-04' });
+    expect(s.worstDay).toEqual({ pnl: -7, day: '2026-03-03' });
+    expect(s.period).toEqual({ from: '2026-03-02', to: '2026-03-04' });
+    expect(s.tradingDays).toBe(3);
+  });
+
+  it('연속 이익일은 거래가 없는 날을 건너뛴다 — 12거래일이 달력으로는 더 길 수 있다', () => {
+    seq = 0;
+    // 3/02, 3/05, 3/09 이익 → 3거래일 연속. 달력으로는 8일에 걸친다.
+    const derived = deriveTrades(book, [
+      onDay('2026-03-02', 1),
+      onDay('2026-03-05', 2),
+      onDay('2026-03-09', 3),
+      onDay('2026-03-10', -1),
+    ]);
+    const s = summarizePerformance(book, derived);
+
+    expect(s.winStreak).toEqual({ days: 3, from: '2026-03-02', to: '2026-03-09' });
+    expect(s.lossStreak).toEqual({ days: 1, from: '2026-03-10', to: '2026-03-10' });
+  });
+
+  it('마지막 날까지 이어지는 연속도 닫아 준다', () => {
+    seq = 0;
+    const derived = deriveTrades(book, [
+      onDay('2026-03-02', -1),
+      onDay('2026-03-03', 2),
+      onDay('2026-03-04', 3),
+    ]);
+
+    expect(summarizePerformance(book, derived).winStreak).toEqual({
+      days: 2,
+      from: '2026-03-03',
+      to: '2026-03-04',
+    });
+  });
+
+  it('MDD는 금액·비율과 함께 고점일~저점일을 남긴다', () => {
+    seq = 0;
+    // 100 → +50(150, 고점) → −30(120) → −20(100, 최저)
+    const derived = deriveTrades(book, [
+      onDay('2026-03-02', 50),
+      onDay('2026-03-03', -30),
+      onDay('2026-03-04', -20),
+    ]);
+    const s = summarizePerformance(book, derived);
+
+    expect(s.maxDrawdown).toEqual({
+      amount: -50, // 150 → 100
+      pct: -50 / 150,
+      from: '2026-03-02', // 고점을 찍은 날
+      to: '2026-03-04', // 바닥을 친 날
+    });
+  });
+
+  it('ROA는 총손익을 최대 낙폭 금액으로 나눈다 — 이미지의 2546%를 재현한다', () => {
+    seq = 0;
+    // 이미지의 관계: 총손익 245.94 ÷ MDD 9.66 = 25.46배 = 2546%.
+    // +255.60(고점 355.60) → −9.66(345.94) 이면 그 둘이 정확히 나온다.
+    const derived = deriveTrades(book, [
+      onDay('2026-03-02', 255.6),
+      onDay('2026-03-03', -9.66),
+    ]);
+    const s = summarizePerformance(book, derived);
+
+    expect(s.netPnl).toBeCloseTo(245.94, 2);
+    expect(s.maxDrawdown?.amount).toBeCloseTo(-9.66, 2);
+    expect(s.roa).toBeCloseTo(245.94 / 9.66, 4); // 25.4596… → 2546%
+  });
+
+  it('손익 P/F 는 총이익 ÷ |총손실| — 이미지의 2.06을 재현한다', () => {
+    seq = 0;
+    const derived = deriveTrades(book, [
+      onDay('2026-03-02', 478.59),
+      onDay('2026-03-03', -232.65),
+    ]);
+    const s = summarizePerformance(book, derived);
+
+    expect(s.grossProfit).toBeCloseTo(478.59, 2);
+    expect(s.grossLoss).toBeCloseTo(-232.65, 2);
+    expect(s.netPnl).toBeCloseTo(245.94, 2);
+    expect(s.profitFactor).toBeCloseTo(2.06, 2);
+  });
+
+  it('보유 중인 거래는 거래일에 세지 않는다 — 아직 성적이 없다', () => {
+    seq = 0;
+    const derived = deriveTrades(book, [
+      onDay('2026-03-02', 10),
+      trade({ pnl: 0, result: 'open', exit_at: null, entry_at: '2026-03-03T03:00:00Z' }),
+    ]);
+
+    expect(summarizePerformance(book, derived).tradingDays).toBe(1);
+  });
+
+  it('거래가 없으면 전부 비어 있다 — 0으로 채워 없는 성적을 만들지 않는다', () => {
+    const s = summarizePerformance(book, []);
+
+    expect(s.period).toBeNull();
+    expect(s.tradingDays).toBe(0);
+    expect(s.bestDay).toBeNull();
+    expect(s.worstDay).toBeNull();
+    expect(s.maxDrawdown).toBeNull();
+    expect(s.roa).toBeNull();
+    expect(s.winStreak).toBeNull();
+    expect(s.dailyWinRate).toBeNull();
+  });
+
+  it('낙폭이 없으면 ROA도 없다 — 0으로 나눌 수 없다', () => {
+    seq = 0;
+    const derived = deriveTrades(book, [onDay('2026-03-02', 10), onDay('2026-03-03', 20)]);
+    const s = summarizePerformance(book, derived);
+
+    expect(s.maxDrawdown).toBeNull();
+    expect(s.roa).toBeNull();
   });
 });
 

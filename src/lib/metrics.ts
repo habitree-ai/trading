@@ -538,6 +538,160 @@ export function bucketBy(
   return [...map.values()].sort((a, b) => a.key.localeCompare(b.key));
 }
 
+/* ============ 성과 요약 ============ */
+
+/**
+ * 성과 요약 — 값마다 "언제"가 붙는다.
+ *
+ * 기존 KPI 타일은 지금 상태가 어떤지를 한눈에 보여 준다. 이 요약은 거기 없던 걸 채운다 —
+ * 최대 손실이 **언제** 났는지, 낙폭이 **어느 구간**이었는지. 시점을 모르면 그때 무슨
+ * 일이 있었는지 되짚을 수 없다.
+ *
+ * 기준 단위가 거래 건이 아니라 **거래일**이다. 하루에 다섯 번 들어갔다 나온 날의 성적은
+ * 그날 합계로 판단해야 한다 — 건별로 세면 스캘핑이 잦은 날이 통계를 통째로 끌고 간다.
+ */
+export interface PerformanceSummary {
+  /** 첫 거래일 ~ 마지막 거래일 */
+  period: { from: string; to: string } | null;
+  /** 시트의 `총손익` */
+  netPnl: number;
+  /** 시트의 `총수익` */
+  grossProfit: number;
+  /** 시트의 `총손실` — 음수 */
+  grossLoss: number;
+  /** 거래가 있었던 날의 수 */
+  tradingDays: number;
+  /** 일 기준 승률 — 이익일 ÷ (이익일 + 손실일). 건 기준 승률과는 다른 값이다 */
+  dailyWinRate: Maybe;
+  /** 총이익 ÷ |총손실| */
+  profitFactor: Maybe;
+  /**
+   * 보상 비율(ROA) — 총손익 ÷ |최대 낙폭 금액|.
+   *
+   * "한 번 견뎌야 했던 최악의 낙폭에 견줘 얼마를 벌었나". 수익률만 보면 낙폭을 얼마나
+   * 크게 물고 갔는지가 지워진다.
+   */
+  roa: Maybe;
+  bestDay: { pnl: number; day: string } | null;
+  worstDay: { pnl: number; day: string } | null;
+  /** 최대 낙폭 — 금액·비율과 그 구간(고점일 ~ 저점일) */
+  maxDrawdown: { amount: number; pct: number; from: string; to: string } | null;
+  /** 이익일이 연달한 최대 구간 */
+  winStreak: DayRun | null;
+  /** 손실일이 연달한 최대 구간 */
+  lossStreak: DayRun | null;
+}
+
+export interface DayRun {
+  days: number;
+  from: string;
+  to: string;
+}
+
+/**
+ * 조건을 만족하는 날이 가장 길게 이어진 구간.
+ *
+ * 거래가 없는 날은 배열에 아예 없으므로 건너뛴다 — 그래서 12거래일 연속이어도
+ * 달력으로는 26일에 걸칠 수 있다. 시트의 `최대 연속 이익 거래일`도 같은 방식이다.
+ */
+function longestRun(
+  days: readonly PeriodBucket[],
+  hit: (bucket: PeriodBucket) => boolean,
+): DayRun | null {
+  let best: DayRun | null = null;
+  let start = -1;
+
+  // 마지막 칸을 한 번 더 돌아 열려 있는 구간을 닫는다.
+  for (let i = 0; i <= days.length; i += 1) {
+    if (i < days.length && hit(days[i])) {
+      if (start < 0) start = i;
+      continue;
+    }
+    if (start >= 0) {
+      const length = i - start;
+      if (best === null || length > best.days) {
+        best = { days: length, from: days[start].key, to: days[i - 1].key };
+      }
+      start = -1;
+    }
+  }
+  return best;
+}
+
+/**
+ * 최대 낙폭이 언제 시작해 언제 바닥을 쳤는지.
+ *
+ * 낙폭 자체는 `deriveTrades`가 거래 단위로 이미 재 뒀다 — 여기서 다시 재면 KPI 타일의
+ * MDD와 값이 갈린다. 그 곡선을 그대로 훑으며 고점이 갱신된 시점만 따로 기억한다.
+ */
+function findMaxDrawdown(
+  book: Book,
+  derived: readonly TradeDerived[],
+): PerformanceSummary['maxDrawdown'] {
+  let peak = book.initial_capital;
+  let peakAt = book.start_date;
+  let deepest = 0;
+  let found: PerformanceSummary['maxDrawdown'] = null;
+
+  for (const d of derived) {
+    const at = dayKey(d.trade.exit_at ?? d.trade.entry_at);
+    if (d.peak > peak) {
+      peak = d.peak;
+      peakAt = at;
+    }
+
+    const drop = d.peak - d.equityAfter;
+    if (drop > deepest) {
+      deepest = drop;
+      found = { amount: -drop, pct: d.drawdownPct, from: peakAt, to: at };
+    }
+  }
+  return found;
+}
+
+export function summarizePerformance(
+  book: Book,
+  derived: readonly TradeDerived[],
+  flows: readonly CashFlow[] = [],
+): PerformanceSummary {
+  const m = computeMetrics(book, derived, flows);
+  // 청산된 거래만 날짜 칸에 들어간다 — 보유 중인 건 아직 성적이 없다.
+  const days = bucketBy(
+    derived.filter((d) => d.result !== 'open'),
+    dayKey,
+  );
+
+  const best = days.reduce<PeriodBucket | null>(
+    (top, d) => (top === null || d.pnl > top.pnl ? d : top),
+    null,
+  );
+  const worst = days.reduce<PeriodBucket | null>(
+    (low, d) => (low === null || d.pnl < low.pnl ? d : low),
+    null,
+  );
+
+  const winDays = days.filter((d) => d.pnl > 0).length;
+  const lossDays = days.filter((d) => d.pnl < 0).length;
+  const maxDrawdown = findMaxDrawdown(book, derived);
+
+  return {
+    period: days.length === 0 ? null : { from: days[0].key, to: days[days.length - 1].key },
+    netPnl: m.netPnl,
+    grossProfit: m.grossProfit,
+    grossLoss: m.grossLoss,
+    tradingDays: days.length,
+    dailyWinRate: ratio(winDays, winDays + lossDays),
+    profitFactor: m.profitFactor,
+    roa: maxDrawdown === null ? null : ratio(m.netPnl, Math.abs(maxDrawdown.amount)),
+    bestDay: best === null ? null : { pnl: best.pnl, day: best.key },
+    worstDay: worst === null ? null : { pnl: worst.pnl, day: worst.key },
+    maxDrawdown,
+    // 합계가 정확히 0인 날은 연속을 끊는다 — 하루치 손익이 딱 0으로 떨어지는 일은 없다시피 하다.
+    winStreak: longestRun(days, (d) => d.pnl > 0),
+    lossStreak: longestRun(days, (d) => d.pnl < 0),
+  };
+}
+
 /** 복기 분석용 — 감정·근거·셋업 등 임의 필드로 성과를 쪼갠다. */
 export interface GroupPerformance {
   key: string;
