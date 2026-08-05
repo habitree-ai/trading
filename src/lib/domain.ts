@@ -23,10 +23,31 @@ export interface Book {
   start_date: string;
   status: BookStatus;
   memo: string | null;
-  /** OKX 자동 동기화 대상 북 — 사용자당 하나만 켤 수 있다 */
-  okx_sync_enabled: boolean;
+  /** 이 북이 내려받는 거래소 계정 — 비어 있으면 수동 기록 전용 북이다 */
+  exchange_account_id: string | null;
   created_at: string;
 }
+
+/**
+ * 거래소 API 계정 — 사람마다 자기 키를 등록한다.
+ *
+ * 키 원문은 여기 없다. Supabase Vault 가 암호화해 보관하고 이 표에는 비밀의 uuid만
+ * 남으며, 복호화는 서버(service_role)에서만 가능하다. 그래서 앱이 다루는 이 타입에는
+ * 아예 키 필드가 없다 — 화면으로 흘러갈 경로 자체를 만들지 않는다.
+ */
+export interface ExchangeAccount {
+  id: string;
+  user_id: string;
+  exchange: 'okx';
+  /** 화면에 뜨는 이름 — 거래소가 주는 값이 아니라 사람이 붙이는 꼬리표 */
+  label: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export const EXCHANGE_LABEL: Record<ExchangeAccount['exchange'], string> = {
+  okx: 'OKX',
+};
 
 /** 거래 1건 — 시트 거래 로그의 한 행. */
 export interface Trade {
@@ -136,6 +157,8 @@ export interface SyncRun {
   id: string;
   user_id: string;
   book_id: string;
+  /** 어느 거래소 계정으로 받아 온 실행인지 — 계정을 바꾼 뒤 이력을 되짚을 때 필요하다 */
+  exchange_account_id: string | null;
   source: 'okx';
   started_at: string;
   finished_at: string | null;

@@ -73,11 +73,11 @@ export type Database = {
           base_currency: string
           created_at: string
           exchange: string | null
+          exchange_account_id: string | null
           id: string
           initial_capital: number
           memo: string | null
           name: string
-          okx_sync_enabled: boolean
           start_date: string
           status: Database["public"]["Enums"]["book_status"]
           user_id: string
@@ -86,11 +86,11 @@ export type Database = {
           base_currency?: string
           created_at?: string
           exchange?: string | null
+          exchange_account_id?: string | null
           id?: string
           initial_capital?: number
           memo?: string | null
           name: string
-          okx_sync_enabled?: boolean
           start_date?: string
           status?: Database["public"]["Enums"]["book_status"]
           user_id: string
@@ -99,13 +99,57 @@ export type Database = {
           base_currency?: string
           created_at?: string
           exchange?: string | null
+          exchange_account_id?: string | null
           id?: string
           initial_capital?: number
           memo?: string | null
           name?: string
-          okx_sync_enabled?: boolean
           start_date?: string
           status?: Database["public"]["Enums"]["book_status"]
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "books_exchange_account_fkey"
+            columns: ["exchange_account_id", "user_id"]
+            isOneToOne: false
+            referencedRelation: "exchange_accounts"
+            referencedColumns: ["id", "user_id"]
+          },
+        ]
+      }
+      exchange_accounts: {
+        Row: {
+          api_key_secret_id: string
+          api_secret_secret_id: string
+          created_at: string
+          exchange: string
+          id: string
+          label: string
+          passphrase_secret_id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          api_key_secret_id: string
+          api_secret_secret_id: string
+          created_at?: string
+          exchange?: string
+          id?: string
+          label: string
+          passphrase_secret_id: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          api_key_secret_id?: string
+          api_secret_secret_id?: string
+          created_at?: string
+          exchange?: string
+          id?: string
+          label?: string
+          passphrase_secret_id?: string
+          updated_at?: string
           user_id?: string
         }
         Relationships: []
@@ -206,6 +250,7 @@ export type Database = {
           book_id: string
           cursor_at: string | null
           error: string | null
+          exchange_account_id: string | null
           fills_added: number
           flows_added: number
           finished_at: string | null
@@ -219,6 +264,7 @@ export type Database = {
           book_id: string
           cursor_at?: string | null
           error?: string | null
+          exchange_account_id?: string | null
           fills_added?: number
           flows_added?: number
           finished_at?: string | null
@@ -232,6 +278,7 @@ export type Database = {
           book_id?: string
           cursor_at?: string | null
           error?: string | null
+          exchange_account_id?: string | null
           fills_added?: number
           flows_added?: number
           finished_at?: string | null
@@ -247,6 +294,13 @@ export type Database = {
             columns: ["book_id"]
             isOneToOne: false
             referencedRelation: "books"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sync_runs_exchange_account_id_fkey"
+            columns: ["exchange_account_id"]
+            isOneToOne: false
+            referencedRelation: "exchange_accounts"
             referencedColumns: ["id"]
           },
         ]
@@ -469,7 +523,33 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      okx_credentials: {
+        Args: { p_account_id: string }
+        Returns: {
+          api_key: string
+          api_secret: string
+          passphrase: string
+        }[]
+      }
+      save_okx_account: {
+        Args: {
+          p_label: string
+          p_api_key: string
+          p_api_secret: string
+          p_passphrase: string
+        }
+        Returns: string
+      }
+      save_okx_account_for: {
+        Args: {
+          p_user_id: string
+          p_label: string
+          p_api_key: string
+          p_api_secret: string
+          p_passphrase: string
+        }
+        Returns: string
+      }
     }
     Enums: {
       book_status: "active" | "closed"

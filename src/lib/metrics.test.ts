@@ -21,7 +21,7 @@ const book: Book = {
   start_date: '2026-01-01',
   status: 'active',
   memo: null,
-  okx_sync_enabled: false,
+  exchange_account_id: null,
   created_at: '2026-01-01T00:00:00Z',
 };
 

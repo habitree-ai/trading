@@ -3,6 +3,7 @@ import { OAuthErrorRelay } from "@/app/login/oauth-error";
 
 const REASON: Record<string, string> = {
   oauth: "구글 로그인이 완료되지 않았습니다.",
+  forbidden: "이 앱을 쓸 수 있는 계정이 아닙니다. 등록된 계정으로 로그인해 주세요.",
 };
 
 export default async function LoginPage({

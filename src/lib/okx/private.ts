@@ -20,15 +20,6 @@ export interface OkxCredentials {
   passphrase: string;
 }
 
-/** 환경변수에서 키를 읽는다 — 셋 중 하나라도 비면 미설정으로 본다. */
-export function readCredentials(): OkxCredentials | null {
-  const apiKey = process.env.OKX_API_KEY ?? "";
-  const secretKey = process.env.OKX_API_SECRET ?? "";
-  const passphrase = process.env.OKX_API_PASSPHRASE ?? "";
-  if (!apiKey || !secretKey || !passphrase) return null;
-  return { apiKey, secretKey, passphrase };
-}
-
 /** 값이 있는 항목만 실어 `?a=1&b=2`를 만든다. 서명은 이 문자열까지 포함해야 맞는다. */
 export function buildQuery(params: Record<string, string | number | undefined>): string {
   const pairs = Object.entries(params)

@@ -1,6 +1,8 @@
 import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
 
+import { isAllowedEmail } from '@/lib/auth/allowlist';
+
 /**
  * 세션 검사를 건너뛰는 경로 접두사.
  *
@@ -50,7 +52,20 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  if (user && pathname === '/login') {
+  // 세션은 있지만 허용 목록에 없는 계정. 세션 정리는 `/auth/callback`이 하고,
+  // 여기서는 모든 페이지를 막기만 한다 — 미들웨어에서 로그아웃하면 갱신된 쿠키를
+  // 리다이렉트 응답으로 옮겨 실어야 해서 실패 지점이 늘어난다.
+  const allowed = isAllowedEmail(user?.email);
+
+  if (user && !allowed && !isPublic) {
+    const url = request.nextUrl.clone();
+    url.pathname = '/login';
+    url.search = '';
+    url.searchParams.set('error', 'forbidden');
+    return NextResponse.redirect(url);
+  }
+
+  if (user && allowed && pathname === '/login') {
     const url = request.nextUrl.clone();
     url.pathname = '/dashboard';
     url.search = '';

@@ -30,7 +30,7 @@ import {
   toWithdrawalInsert,
   type CashFlowInsert,
 } from "@/lib/okx/map";
-import { MAX_HISTORY_MS, readCredentials, type OkxCredentials } from "@/lib/okx/private";
+import { MAX_HISTORY_MS, type OkxCredentials } from "@/lib/okx/private";
 import type { Database } from "@/lib/supabase/database.types";
 
 type Db = SupabaseClient<Database>;
@@ -43,13 +43,6 @@ export interface SyncResult {
   /** 이번에 훑은 구간 */
   since: string;
   until: string;
-}
-
-export class OkxNotConfiguredError extends Error {
-  constructor() {
-    super("OKX API 키가 설정되지 않았습니다. OKX_API_KEY/SECRET/PASSPHRASE를 확인해 주세요.");
-    this.name = "OkxNotConfiguredError";
-  }
 }
 
 /**
@@ -102,18 +95,18 @@ export async function syncOkx(input: {
   userId: string;
   bookId: string;
   startDate: string;
+  /** 어느 거래소 계정으로 받는지 — 키는 호출부가 Vault 에서 꺼내 넘긴다. */
+  exchangeAccountId: string;
+  creds: OkxCredentials;
 }): Promise<SyncResult> {
-  const { supabase, userId, bookId, startDate } = input;
-
-  const creds = readCredentials();
-  if (!creds) throw new OkxNotConfiguredError();
+  const { supabase, userId, bookId, startDate, exchangeAccountId, creds } = input;
 
   const sinceMs = await resolveSince(supabase, bookId, startDate);
   const startedAt = Date.now();
 
   const { data: run } = await supabase
     .from("sync_runs")
-    .insert({ user_id: userId, book_id: bookId })
+    .insert({ user_id: userId, book_id: bookId, exchange_account_id: exchangeAccountId })
     .select("id")
     .single();
 

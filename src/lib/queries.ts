@@ -1,9 +1,11 @@
 import { cookies } from "next/headers";
 
+import { isAllowedEmail } from "@/lib/auth/allowlist";
 import type {
   BalanceSnapshot,
   Book,
   CashFlow,
+  ExchangeAccount,
   Goal,
   SyncRun,
   Trade,
@@ -20,7 +22,27 @@ export async function requireUser() {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) throw new Error("인증이 필요합니다.");
+  // 미들웨어가 이미 막지만 여기서도 확인한다 — 서버 액션은 미들웨어를 거치지 않는
+  // 경로로도 불릴 수 있고, 데이터에 닿기 직전이 마지막 방어선이다.
+  if (!isAllowedEmail(user.email)) throw new Error("이 앱을 쓸 수 있는 계정이 아닙니다.");
   return { supabase, user };
+}
+
+/**
+ * 내 거래소 계정 — 사용자당 거래소별 하나다.
+ *
+ * 키 원문은 이 경로로 절대 나오지 않는다. Vault 가 들고 있고 복호화는
+ * 서버(service_role) 전용 함수뿐이다.
+ */
+export async function getExchangeAccount(): Promise<ExchangeAccount | null> {
+  const { supabase } = await requireUser();
+  const { data, error } = await supabase
+    .from("exchange_accounts")
+    .select("id, user_id, exchange, label, created_at, updated_at")
+    .eq("exchange", "okx")
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  return (data as ExchangeAccount | null) ?? null;
 }
 
 export async function listBooks(): Promise<Book[]> {

@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 
 import type { Side, TradeResult } from "@/lib/domain";
 import { fromLocalInput } from "@/lib/format";
+import { loadOkxCredentials } from "@/lib/okx/credentials";
 import { syncOkx } from "@/lib/okx/sync";
 import { nextSeq, requireUser } from "@/lib/queries";
 
@@ -271,11 +272,13 @@ export async function runOkxSync(): Promise<SyncState> {
 
   const { data: book } = await supabase
     .from("books")
-    .select("id, start_date")
-    .eq("okx_sync_enabled", true)
+    .select("id, start_date, exchange_account_id")
+    .not("exchange_account_id", "is", null)
     .maybeSingle();
 
-  if (!book) return { error: "OKX 동기화를 켠 북이 없습니다. 북 관리에서 지정해 주세요." };
+  if (!book?.exchange_account_id) {
+    return { error: "거래소 계정이 연결된 북이 없습니다. 설정에서 연결해 주세요." };
+  }
 
   try {
     const result = await syncOkx({
@@ -283,6 +286,8 @@ export async function runOkxSync(): Promise<SyncState> {
       userId: user.id,
       bookId: book.id,
       startDate: book.start_date,
+      exchangeAccountId: book.exchange_account_id,
+      creds: await loadOkxCredentials(book.exchange_account_id),
     });
     revalidatePath("/", "layout");
     return {

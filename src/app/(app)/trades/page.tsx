@@ -24,7 +24,7 @@ export default async function TradesPage() {
   ]);
   // 표의 `자금` 칸이 대시보드와 같은 값을 가리키도록 이체를 함께 넘긴다.
   const derived = deriveTrades(book, trades, flows);
-  const lastSync = book.okx_sync_enabled ? await getLastSync(book.id) : null;
+  const lastSync = book.exchange_account_id ? await getLastSync(book.id) : null;
 
   return (
     <div className="space-y-5">
@@ -33,13 +33,13 @@ export default async function TradesPage() {
           <h1 className="text-xl font-semibold tracking-tight">거래 목록</h1>
           <p className="mt-1 text-sm text-dim">
             {book.name} · {derived.length}건
-            {book.okx_sync_enabled ? (
+            {book.exchange_account_id ? (
               <> · 마지막 동기화 {lastSync ? dateTime(lastSync.started_at) : "없음"}</>
             ) : null}
           </p>
         </div>
         <div className="ml-auto flex flex-wrap items-center gap-3">
-          {book.okx_sync_enabled ? <OkxSyncButton /> : null}
+          {book.exchange_account_id ? <OkxSyncButton /> : null}
           <Link
             href="/trades/new"
             className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white"
