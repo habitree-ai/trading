@@ -7,7 +7,8 @@ import type { Side, TradeResult } from "@/lib/domain";
 import { fromLocalInput } from "@/lib/format";
 import { loadOkxCredentials } from "@/lib/okx/credentials";
 import { syncOkx } from "@/lib/okx/sync";
-import { nextSeq, requireUser } from "@/lib/queries";
+import { resolveSyncTarget } from "@/lib/okx/sync-target";
+import { getActiveBook, nextSeq, requireUser } from "@/lib/queries";
 
 export interface TradeFormState {
   error?: string;
@@ -264,30 +265,27 @@ export interface SyncState {
 /**
  * OKX에서 거래를 긁어 온다.
  *
+ * 받는 대상은 **화면에 띄운 북**이다 — 대시보드·거래 목록이 그리는 북과 같아야, 버튼을
+ * 누른 자리에서 숫자가 채워진다. 고르는 규칙은 `resolveSyncTarget`에 있다.
+ *
  * 실패를 던지지 않고 문자열로 돌려준다 — 키가 없거나 거래소가 흔들리는 건
  * 화면에서 알려 주면 될 일이지 페이지를 깨뜨릴 일이 아니다.
  */
 export async function runOkxSync(): Promise<SyncState> {
   const { supabase, user } = await requireUser();
 
-  const { data: book } = await supabase
-    .from("books")
-    .select("id, start_date, exchange_account_id")
-    .not("exchange_account_id", "is", null)
-    .maybeSingle();
-
-  if (!book?.exchange_account_id) {
-    return { error: "거래소 계정이 연결된 북이 없습니다. 설정에서 연결해 주세요." };
-  }
+  const resolved = resolveSyncTarget(await getActiveBook());
+  if ("error" in resolved) return { error: resolved.error };
+  const { bookId, startDate, exchangeAccountId } = resolved.target;
 
   try {
     const result = await syncOkx({
       supabase,
       userId: user.id,
-      bookId: book.id,
-      startDate: book.start_date,
-      exchangeAccountId: book.exchange_account_id,
-      creds: await loadOkxCredentials(book.exchange_account_id),
+      bookId,
+      startDate,
+      exchangeAccountId,
+      creds: await loadOkxCredentials(exchangeAccountId),
     });
     revalidatePath("/", "layout");
     return {
