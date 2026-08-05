@@ -108,7 +108,20 @@ export default async function DashboardPage() {
           </p>
         </div>
         <div className="ml-auto flex flex-wrap items-center gap-3">
-          {book.exchange_account_id ? <OkxSyncButton /> : null}
+          {/*
+            계정이 안 붙은 북에서는 버튼이 통째로 사라져, 동기화라는 게 있다는 것도
+            드러나지 않았다. 자리를 비우는 대신 연결하러 갈 곳을 놓는다.
+          */}
+          {book.exchange_account_id ? (
+            <OkxSyncButton />
+          ) : (
+            <Link
+              href="/settings"
+              className="rounded-lg border border-border px-3 py-2 text-sm text-dim hover:text-text"
+            >
+              거래소 연결
+            </Link>
+          )}
           <Link
             href="/trades/new"
             className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white"
