@@ -510,6 +510,31 @@ export function yearKey(iso: string): string {
   return iso.slice(0, 4);
 }
 
+/**
+ * 마지막으로 움직인 시각 — 벤치마크 구간의 끝.
+ *
+ * 목록은 진입순이라(`deriveTrades`) 마지막 칸이 가장 늦게 **청산된** 거래는 아니다. 먼저
+ * 들어가 나중에 나온 포지션이 있으면 그 청산이 목록 끝보다 뒤에 온다. 목록 끝으로 시세를
+ * 잘라 오면 그 뒤 거래들이 구간 밖으로 밀려, 마지막 종가가 그대로 이어진 채 찍힌다 —
+ * 동기화로 겹치는 포지션이 한꺼번에 들어올 때 특히 잘 어긋난다.
+ *
+ * 아직 들고 있는 거래는 청산이 없으니 진입 시각으로 센다.
+ */
+export function lastActivityAt(derived: readonly TradeDerived[]): string | null {
+  let latest: string | null = null;
+  let latestMs = -Infinity;
+
+  for (const d of derived) {
+    const at = d.trade.exit_at ?? d.trade.entry_at;
+    const ms = Date.parse(at);
+    if (Number.isFinite(ms) && ms > latestMs) {
+      latestMs = ms;
+      latest = at;
+    }
+  }
+  return latest;
+}
+
 export interface PeriodBucket {
   key: string;
   pnl: number;

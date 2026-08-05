@@ -8,6 +8,7 @@ import {
   dayKey,
   deriveTrades,
   groupPerformance,
+  lastActivityAt,
   monthKey,
   summarizePerformance,
 } from '@/lib/metrics';
@@ -838,5 +839,44 @@ describe('dayKey', () => {
     const buckets = bucketBy(deriveTrades(book, trades), dayKey);
     expect(buckets.map((b) => b.key)).toEqual(['2026-07-28', '2026-07-29']);
     expect(buckets.find((b) => b.key === '2026-07-29')?.pnl).toBe(10);
+  });
+});
+
+describe('lastActivityAt — 벤치마크 구간의 끝', () => {
+  it('거래가 없으면 끝이 없다', () => {
+    expect(lastActivityAt([])).toBeNull();
+  });
+
+  /**
+   * 목록은 진입순이라 마지막 칸이 가장 늦게 청산된 거래가 아니다. 먼저 들어가 나중에
+   * 나온 포지션이 있으면 그 청산이 목록 끝보다 뒤에 온다 — 목록 끝으로 구간을 자르면
+   * 그 뒤 거래들이 시세 구간 밖으로 밀린다.
+   */
+  it('목록 끝이 아니라 가장 늦은 청산을 고른다', () => {
+    seq = 0;
+    const long = trade({ pnl: 10, result: 'win' });
+    long.entry_at = '2026-07-01T00:00:00Z';
+    long.exit_at = '2026-07-20T00:00:00Z';
+
+    const short = trade({ pnl: -4, result: 'loss' });
+    short.entry_at = '2026-07-02T00:00:00Z';
+    short.exit_at = '2026-07-03T00:00:00Z';
+
+    const derived = deriveTrades(book, [long, short]);
+    expect(derived[derived.length - 1].trade.exit_at).toBe('2026-07-03T00:00:00Z');
+    expect(lastActivityAt(derived)).toBe('2026-07-20T00:00:00Z');
+  });
+
+  it('아직 들고 있는 거래는 진입 시각으로 센다', () => {
+    seq = 0;
+    const closed = trade({ pnl: 10, result: 'win' });
+    closed.entry_at = '2026-07-01T00:00:00Z';
+    closed.exit_at = '2026-07-02T00:00:00Z';
+
+    const open = trade({ pnl: 0, result: 'open' });
+    open.entry_at = '2026-07-05T00:00:00Z';
+    open.exit_at = null;
+
+    expect(lastActivityAt(deriveTrades(book, [closed, open]))).toBe('2026-07-05T00:00:00Z');
   });
 });

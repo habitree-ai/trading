@@ -21,6 +21,7 @@ import {
   computeMetrics,
   dayKey,
   deriveTrades,
+  lastActivityAt,
   monthKey,
   summarizePerformance,
 } from "@/lib/metrics";
@@ -55,11 +56,11 @@ export default async function DashboardPage() {
   const monthly = toBars(monthKey, false);
 
   // 같은 기간 시장이 어땠는지 — 못 받아 오면 null이고 그 선만 빠진다.
+  // 구간 끝은 목록의 마지막이 아니라 가장 늦은 청산이다 — 겹치는 포지션이 들어와도
+  // 마지막 거래가 시세 구간 밖으로 밀리지 않는다.
   const startedAt = `${book.start_date}T00:00:00Z`;
-  const last = derived[derived.length - 1];
-  const benchmark = last
-    ? await loadBenchmark(startedAt, last.trade.exit_at ?? last.trade.entry_at)
-    : null;
+  const lastAt = lastActivityAt(derived);
+  const benchmark = lastAt ? await loadBenchmark(startedAt, lastAt) : null;
   const priceAt = (iso: string) => benchmark?.at(iso) ?? null;
 
   const curve: EquityPoint[] = [
