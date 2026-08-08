@@ -31,6 +31,7 @@ export type Database = {
           id: string
           image_id: string | null
           source: string
+          unrealized_pnl: number | null
           user_id: string
         }
         Insert: {
@@ -40,6 +41,7 @@ export type Database = {
           id?: string
           image_id?: string | null
           source?: string
+          unrealized_pnl?: number | null
           user_id: string
         }
         Update: {
@@ -49,6 +51,7 @@ export type Database = {
           id?: string
           image_id?: string | null
           source?: string
+          unrealized_pnl?: number | null
           user_id?: string
         }
         Relationships: [
@@ -245,6 +248,53 @@ export type Database = {
           },
         ]
       }
+      principles: {
+        Row: {
+          active: boolean
+          book_id: string
+          category: Database["public"]["Enums"]["principle_category"]
+          created_at: string
+          detail: string | null
+          id: string
+          sort_order: number
+          title: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          active?: boolean
+          book_id: string
+          category?: Database["public"]["Enums"]["principle_category"]
+          created_at?: string
+          detail?: string | null
+          id?: string
+          sort_order?: number
+          title: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          active?: boolean
+          book_id?: string
+          category?: Database["public"]["Enums"]["principle_category"]
+          created_at?: string
+          detail?: string | null
+          id?: string
+          sort_order?: number
+          title?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "principles_book_id_fkey"
+            columns: ["book_id"]
+            isOneToOne: false
+            referencedRelation: "books"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       sync_runs: {
         Row: {
           book_id: string
@@ -395,6 +445,48 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "trade_images_trade_id_fkey"
+            columns: ["trade_id"]
+            isOneToOne: false
+            referencedRelation: "trades"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      trade_principle_checks: {
+        Row: {
+          created_at: string
+          kept: boolean
+          note: string | null
+          principle_id: string
+          trade_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          kept: boolean
+          note?: string | null
+          principle_id: string
+          trade_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          kept?: boolean
+          note?: string | null
+          principle_id?: string
+          trade_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "trade_principle_checks_principle_id_fkey"
+            columns: ["principle_id"]
+            isOneToOne: false
+            referencedRelation: "principles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "trade_principle_checks_trade_id_fkey"
             columns: ["trade_id"]
             isOneToOne: false
             referencedRelation: "trades"
@@ -557,6 +649,7 @@ export type Database = {
       extract_engine: "ocr" | "ai" | "manual"
       fill_role: "open" | "close"
       margin_mode: "cross" | "isolated"
+      principle_category: "entry" | "exit" | "risk" | "mental" | "routine"
       goal_metric:
         | "return_pct"
         | "max_drawdown_pct"
@@ -708,6 +801,7 @@ export const Constants = {
         "trade_count",
       ],
       margin_mode: ["cross", "isolated"],
+      principle_category: ["entry", "exit", "risk", "mental", "routine"],
       goal_period: ["week", "month", "year"],
       goal_tier: ["beta", "alpha"],
       trade_result: ["win", "loss", "be", "open"],

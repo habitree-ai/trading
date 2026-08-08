@@ -288,6 +288,19 @@ export interface BookMetrics {
   grossLoss: number;
   /** 시트의 `누적 PNL` */
   netPnl: number;
+  /**
+   * 비용 이전 총손익 — 거래소의 `Closed PnL` 합계.
+   *
+   * 가격만 놓고 본 성적이다. `netPnl`과의 차이가 그대로 비용이라, 둘을 나란히 두면
+   * 자금이 줄어든 게 방향을 틀려서인지 회전이 잦아서인지 갈린다.
+   */
+  pnlBeforeCost: number;
+  /** 수수료 합계 — 음수 */
+  fees: number;
+  /** 펀딩비 합계 — 받은 구간이 있으면 양수도 섞인다 */
+  fundingFees: number;
+  /** 가격으로는 이겼는데 비용까지 넣으면 진 거래 수 */
+  costFlippedCount: number;
   /** 시트의 `최대수익` */
   maxWin: Maybe;
   /** 시트의 `최대손실` */
@@ -368,6 +381,12 @@ export function computeMetrics(
   const grossLoss = lossPnls.reduce((a, b) => a + b, 0);
   const netPnl = derived.reduce((a, d) => a + d.net, 0);
 
+  // 비용 — 가격으로 번 돈과 계좌에 남은 돈의 차이.
+  const pnlBeforeCost = derived.reduce((a, d) => a + (d.trade.pnl ?? 0), 0);
+  const fees = derived.reduce((a, d) => a + (d.trade.fee ?? 0), 0);
+  const fundingFees = derived.reduce((a, d) => a + (d.trade.funding_fee ?? 0), 0);
+  const costFlippedCount = derived.filter((d) => (d.trade.pnl ?? 0) > 0 && d.net < 0).length;
+
   const streaks = computeStreaks(closed.map((d) => d.result));
 
   const transfers = sortedTransfers(flows);
@@ -428,6 +447,10 @@ export function computeMetrics(
     grossProfit,
     grossLoss,
     netPnl,
+    pnlBeforeCost,
+    fees,
+    fundingFees,
+    costFlippedCount,
     maxWin: winPnls.length > 0 ? Math.max(...winPnls) : null,
     maxLoss: lossPnls.length > 0 ? Math.min(...lossPnls) : null,
     maxWinStreak: streaks.maxWin,
@@ -716,6 +739,75 @@ export function summarizePerformance(
     lossStreak: longestRun(days, (d) => d.pnl < 0),
   };
 }
+
+/* ============ 원칙 준수 ============ */
+
+/**
+ * 원칙 1개의 성적표.
+ *
+ * 분모는 전체 거래가 아니라 **판단이 남은 거래**다. 체크하지 않은 거래까지 분모에
+ * 넣으면, 원칙을 새로 추가한 그날부터 준수율이 0%에서 시작해 몇 달을 기어오른다 —
+ * 지키고 있는데도 못 지키는 것처럼 보인다.
+ */
+export interface PrincipleOutcome {
+  judged: number;
+  broken: number;
+  /** 어긴 거래들의 실현손익 합계. 어긴 거래가 없으면 null */
+  brokenPnl: number | null;
+  /** 지킨 거래들의 실현손익 합계. 지킨 거래가 없으면 null */
+  keptPnl: number | null;
+}
+
+export interface PrincipleCheckLike {
+  trade_id: string;
+  principle_id: string;
+  kept: boolean;
+}
+
+/**
+ * 원칙별로 지킨 횟수와 그때의 손익을 모은다.
+ *
+ * 어겼을 때의 손익 합계가 이 표의 핵심이다. "이 원칙을 어긴 날 얼마를 잃었나"가
+ * 숫자로 나와야, 지킬 이유가 각오가 아니라 근거가 된다.
+ */
+export function summarizePrinciples(
+  derived: readonly TradeDerived[],
+  checks: readonly PrincipleCheckLike[],
+): Map<string, PrincipleOutcome> {
+  const netByTrade = new Map(derived.map((d) => [d.trade.id, d.net]));
+  const out = new Map<string, PrincipleOutcome>();
+
+  for (const check of checks) {
+    // 다른 북의 거래이거나 이미 지워진 거래 — 손익을 알 수 없으니 세지 않는다.
+    const net = netByTrade.get(check.trade_id);
+    if (net === undefined) continue;
+
+    const row = out.get(check.principle_id) ?? {
+      judged: 0,
+      broken: 0,
+      brokenPnl: null,
+      keptPnl: null,
+    };
+    row.judged += 1;
+
+    if (check.kept) {
+      row.keptPnl = (row.keptPnl ?? 0) + net;
+    } else {
+      row.broken += 1;
+      row.brokenPnl = (row.brokenPnl ?? 0) + net;
+    }
+    out.set(check.principle_id, row);
+  }
+
+  return out;
+}
+
+export const NO_OUTCOME: PrincipleOutcome = {
+  judged: 0,
+  broken: 0,
+  brokenPnl: null,
+  keptPnl: null,
+};
 
 /** 복기 분석용 — 감정·근거·셋업 등 임의 필드로 성과를 쪼갠다. */
 export interface GroupPerformance {

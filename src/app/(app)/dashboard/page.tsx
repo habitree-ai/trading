@@ -1,6 +1,8 @@
 import Link from "next/link";
 
 import { BalanceGap, CashFlowPanel } from "@/app/(app)/dashboard/cash-flow-panel";
+import { CostPanel } from "@/app/(app)/dashboard/cost-panel";
+import { Layer, Note, worstTone } from "@/app/(app)/dashboard/layer";
 import { PerformanceSummary } from "@/app/(app)/dashboard/performance-summary";
 import { PnlPanel } from "@/app/(app)/dashboard/pnl-panel";
 import { RecentTrades } from "@/app/(app)/dashboard/recent-trades";
@@ -15,7 +17,7 @@ import type { PnlBar } from "@/components/charts";
 import { EmptyBook } from "@/components/empty-book";
 import { StatTile } from "@/components/stat-tile";
 import { loadBenchmark } from "@/lib/benchmark";
-import { date, dateTime, num, pct, pnlClass, signed, signedPct } from "@/lib/format";
+import { date, dateTime, num, pct, pnlClass, signed, signedPct, DASH } from "@/lib/format";
 import {
   bucketBy,
   computeMetrics,
@@ -33,6 +35,18 @@ import {
   listFillsByTrade,
   listTrades,
 } from "@/lib/queries";
+import {
+  readBalanceGap,
+  readCost,
+  readDrawdown,
+  readExpectancy,
+  readLossStreak,
+  readPayoff,
+  readRisk,
+  readSample,
+  readWinRate,
+  recoveryNeeded,
+} from "@/lib/verdict";
 
 export default async function DashboardPage() {
   const book = await getActiveBook();
@@ -63,8 +77,29 @@ export default async function DashboardPage() {
   const benchmark = lastAt ? await loadBenchmark(startedAt, lastAt) : null;
   const priceAt = (iso: string) => benchmark?.at(iso) ?? null;
 
+  /*
+   * 자금 곡선의 점 — 손익이 실현된 시각에 찍는다.
+   *
+   * `deriveTrades`는 진입 순서로 잔액을 이어 붙이지만, 먼저 들어가 나중에 나온
+   * 포지션이 있으면 그 순서가 청산 순서와 어긋난다. 가로축이 시각인 이상 점은
+   * 시각순으로 이어야 하므로 여기서 다시 세운다.
+   */
+  const points = derived.map((d) => ({
+    t: Date.parse(d.trade.exit_at ?? d.trade.entry_at),
+    label: `#${d.trade.seq} ${date(d.trade.exit_at ?? d.trade.entry_at)}`,
+    equity: d.equityAfter,
+    // 넣고 뺀 돈을 걷어낸 곡선 — 출금으로 꺾인 자리가 여기서는 이어진다.
+    performance: book.initial_capital + d.netTotal,
+    withdrawn: d.withdrawnTotal,
+    drawdown: d.drawdownPct,
+    pnl: d.trade.pnl,
+    benchmark: priceAt(d.trade.exit_at ?? d.trade.entry_at),
+  }));
+  points.sort((a, b) => a.t - b.t);
+
   const curve: EquityPoint[] = [
     {
+      t: Date.parse(startedAt),
       label: `${book.start_date} 시작`,
       equity: book.initial_capital,
       performance: book.initial_capital,
@@ -74,16 +109,11 @@ export default async function DashboardPage() {
       pnl: null,
       benchmark: priceAt(startedAt),
     },
-    ...derived.map((d, i) => ({
-      label: `#${d.trade.seq} ${date(d.trade.exit_at ?? d.trade.entry_at)}`,
-      equity: d.equityAfter,
-      // 넣고 뺀 돈을 걷어낸 곡선 — 출금으로 꺾인 자리가 여기서는 이어진다.
-      performance: book.initial_capital + d.netTotal,
-      withdrawn: d.withdrawnTotal,
-      withdrawnStep: d.withdrawnTotal - (i === 0 ? 0 : derived[i - 1].withdrawnTotal),
-      drawdown: d.drawdownPct,
-      pnl: d.trade.pnl,
-      benchmark: priceAt(d.trade.exit_at ?? d.trade.entry_at),
+    // 이번 구간에 빠져나간 금액 — 시각순으로 정렬한 뒤에 계산해야 화면의 순서와 맞는다.
+    // 순서를 다시 세운 탓에 누계가 잠깐 뒤로 갈 수 있어 음수는 0으로 눌러 둔다.
+    ...points.map((p, i) => ({
+      ...p,
+      withdrawnStep: Math.max(0, p.withdrawn - (i === 0 ? 0 : points[i - 1].withdrawn)),
     })),
   ];
   const hasWithdrawal = curve.some((p) => p.withdrawnStep > 0);
@@ -95,8 +125,30 @@ export default async function DashboardPage() {
     Object.entries(await listFillsByTrade(book.id)).filter(([id]) => recentIds.has(id)),
   );
 
+  /* ============ 해석 ============ */
+
+  const gap = readBalanceGap(
+    m.finalEquity,
+    balance?.equity ?? null,
+    balance?.unrealized_pnl ?? null,
+  );
+  const cost = readCost({
+    pnlBeforeCost: m.pnlBeforeCost,
+    cost: m.fees + m.fundingFees,
+    netPnl: m.netPnl,
+    flipped: m.costFlippedCount,
+  });
+  const winRate = readWinRate(m.winRate, m.payoffRatio);
+  const payoff = readPayoff(m.payoffRatio);
+  const expectancy = readExpectancy(m.expectancy);
+  const sample = readSample(m.closedCount);
+  const drawdown = readDrawdown(m.maxDrawdownPct);
+  const risk = readRisk(m.avgRiskPct);
+  const streak = readLossStreak(m.maxLossStreak, m.avgRiskPct);
+  const recovery = recoveryNeeded(m.maxDrawdownPct);
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       <header className="flex flex-wrap items-center gap-3">
         <div>
           <h1 className="text-xl font-semibold tracking-tight">대시보드</h1>
@@ -124,78 +176,53 @@ export default async function DashboardPage() {
         </p>
       ) : null}
 
-      <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <StatTile
-          label="현재자금"
-          value={num(m.finalEquity, 2)}
-          sub={`초기 ${num(m.initialCapital, 0)} · 순이체 ${signed(m.netTransfer, 0)}`}
-        />
-        <StatTile
-          label="수익율"
-          value={signedPct(m.returnPct)}
-          valueClass={pnlClass(m.returnPct)}
-          sub={`매매 차액 ${signed(m.netChange, 0)} ÷ 원금 ${num(m.investedCapital, 0)}`}
-        />
-        <StatTile
-          label="승률"
-          value={pct(m.winRate)}
-          sub={`${m.wins}승 ${m.losses}패${m.breakEvens ? ` ${m.breakEvens}본전` : ""}`}
-        />
-        <StatTile
-          label="기대치값"
-          value={m.expectancy === null ? "—" : `${signed(m.expectancy, 2)} R`}
-          valueClass={pnlClass(m.expectancy)}
-          sub="승률 × 손익비 − 패률"
-        />
-        <StatTile
-          label="MDD"
-          value={pct(m.maxDrawdownPct)}
-          valueClass={m.maxDrawdownPct < 0 ? "text-loss" : ""}
-          sub={`최고 ${num(m.peakEquity, 0)} · 최저 ${num(m.troughEquity, 0)}`}
-        />
-        <StatTile
-          label="손익비"
-          value={num(m.payoffRatio, 2)}
-          sub={`평균수익 ${num(m.avgWin, 1)} / 평균손실 ${num(m.avgLoss, 1)}`}
-        />
-        <StatTile
-          label="누적 PNL"
-          value={signed(m.netPnl, 2)}
-          valueClass={pnlClass(m.netPnl)}
-          sub={`수익 ${num(m.grossProfit, 0)} · 손실 ${num(m.grossLoss, 0)}`}
-        />
-        <StatTile
-          label="연속"
-          value={
-            m.currentStreak === 0
-              ? "—"
-              : m.currentStreak > 0
-                ? `${m.currentStreak}연승`
-                : `${-m.currentStreak}연패`
-          }
-          valueClass={m.currentStreak > 0 ? "text-profit" : m.currentStreak < 0 ? "text-loss" : ""}
-          sub={`최다 ${m.maxWinStreak}연승 · ${m.maxLossStreak}연패`}
-        />
-      </section>
+      <Layer
+        index={1}
+        title="지금 상태"
+        question="계좌에 지금 얼마가 있고, 그 값이 맞는가"
+        tone={gap.tone}
+      >
+        <div className="rounded-xl border border-border bg-surface p-4">
+          <div className="flex flex-wrap items-end gap-x-8 gap-y-3">
+            <div>
+              <div className="text-[11px] text-dim">현재자금 ({book.base_currency})</div>
+              <div className="tnum mt-0.5 text-3xl font-semibold">{num(m.finalEquity, 2)}</div>
+            </div>
+            <div>
+              <div className="text-[11px] text-dim">수익율</div>
+              <div className={`tnum mt-0.5 text-2xl font-semibold ${pnlClass(m.returnPct)}`}>
+                {signedPct(m.returnPct)}
+              </div>
+            </div>
+            <div className="tnum text-[11px] leading-relaxed text-dim">
+              투입원금 {num(m.investedCapital, 0)} · 초기 {num(m.initialCapital, 0)} · 순이체{" "}
+              {signed(m.netTransfer, 0)}
+              <br />
+              매매로 번 돈 {signed(m.netChange, 0)} · 뽑아 간 돈{" "}
+              {num(m.withdrawnFromAccount, 0)}
+            </div>
+          </div>
 
-      {derived.length > 0 ? (
-        <>
+          <div className="mt-3 border-t border-border pt-3">
+            <BalanceGap
+              computed={m.finalEquity}
+              actual={balance?.equity ?? null}
+              unrealizedPnl={balance?.unrealized_pnl ?? null}
+              at={balance?.at ?? null}
+              currency={book.base_currency}
+            />
+          </div>
+        </div>
+
+        {derived.length > 0 ? (
           <section className="rounded-xl border border-border bg-surface p-4">
-            <h2 className="text-sm font-medium">
+            <h3 className="text-sm font-medium">
               자금 곡선{" "}
               <span className="font-normal text-dim">
-                — 거래 순서별 실제 잔액과 매매 성과 ({book.base_currency})
+                — 날짜순 실제 잔액과 매매 성과 ({book.base_currency})
                 {benchmark ? `, ${benchmark.symbol} 시세 대조` : ""}
               </span>
-            </h2>
-            <div className="mt-1">
-              <BalanceGap
-                computed={m.finalEquity}
-                actual={balance?.equity ?? null}
-                at={balance?.at ?? null}
-                currency={book.base_currency}
-              />
-            </div>
+            </h3>
             <div className="mt-3">
               <EquityCurve
                 data={curve}
@@ -204,28 +231,146 @@ export default async function DashboardPage() {
                 benchmarkLabel={benchmark?.symbol ?? null}
               />
             </div>
+            <Note>
+              가로축은 거래 순번이 아니라 날짜입니다 — 몰아서 거래한 날은 붙어서, 쉰 구간은
+              넓게 찍힙니다.
+            </Note>
+          </section>
+        ) : null}
+      </Layer>
+
+      {derived.length > 0 ? (
+        <>
+          <Layer
+            index={2}
+            title="매매 성과"
+            question="반복해도 남는 방식인가"
+            tone={worstTone([winRate.tone, payoff.tone, expectancy.tone, sample.tone, cost.tone])}
+          >
+            <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+              <StatTile
+                label="누적 PNL"
+                value={signed(m.netPnl, 2)}
+                valueClass={pnlClass(m.netPnl)}
+                sub={`수익 ${num(m.grossProfit, 0)} · 손실 ${num(m.grossLoss, 0)}`}
+                verdict={sample}
+              />
+              <StatTile
+                label="승률"
+                value={pct(m.winRate)}
+                sub={`${m.wins}승 ${m.losses}패${m.breakEvens ? ` ${m.breakEvens}본전` : ""}`}
+                verdict={winRate}
+              />
+              <StatTile
+                label="손익비"
+                value={num(m.payoffRatio, 2)}
+                sub={`평균수익 ${num(m.avgWin, 1)} / 평균손실 ${num(m.avgLoss, 1)}`}
+                verdict={payoff}
+              />
+              <StatTile
+                label="기대치값"
+                value={m.expectancy === null ? DASH : `${signed(m.expectancy, 2)} R`}
+                valueClass={pnlClass(m.expectancy)}
+                sub="승률 × 손익비 − 패률"
+                verdict={expectancy}
+              />
+            </div>
+
+            <CostPanel m={m} currency={book.base_currency} />
+
+            <PerformanceSummary summary={summary} currency={book.base_currency} />
+
+            <PnlPanel daily={daily} monthly={monthly} currency={book.base_currency} />
+          </Layer>
+
+          <Layer
+            index={3}
+            title="리스크"
+            question="얼마나 깎였고, 얼마를 걸고 있는가"
+            tone={worstTone([drawdown.tone, risk.tone, streak.tone])}
+          >
+            <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+              <StatTile
+                label="MDD"
+                value={pct(m.maxDrawdownPct)}
+                valueClass={m.maxDrawdownPct < 0 ? "text-loss" : ""}
+                sub={`최고 ${num(m.peakEquity, 0)} · 최저 ${num(m.troughEquity, 0)}`}
+                verdict={drawdown}
+              />
+              <StatTile
+                label="회복 필요 수익률"
+                value={recovery === null ? DASH : `+${pct(recovery)}`}
+                sub="최대 낙폭 지점에서 원금까지"
+              />
+              <StatTile
+                label="연속"
+                value={
+                  m.currentStreak === 0
+                    ? DASH
+                    : m.currentStreak > 0
+                      ? `${m.currentStreak}연승`
+                      : `${-m.currentStreak}연패`
+                }
+                valueClass={
+                  m.currentStreak > 0 ? "text-profit" : m.currentStreak < 0 ? "text-loss" : ""
+                }
+                sub={`최다 ${m.maxWinStreak}연승 · ${m.maxLossStreak}연패`}
+                verdict={streak}
+              />
+              <StatTile
+                label="거래당 리스크"
+                value={pct(m.avgRiskPct, 2)}
+                sub="|진입가 − 손절가| ÷ 진입가 평균"
+                verdict={risk}
+              />
+            </div>
+
+            <section className="rounded-xl border border-border bg-surface p-4">
+              <h3 className="text-sm font-medium">
+                고점 대비 낙폭{" "}
+                <span className="font-normal text-dim">— 이체분은 고점에서 상쇄합니다</span>
+              </h3>
+              <div className="mt-3">
+                <DrawdownChart data={curve} />
+              </div>
+              {summary.maxDrawdown ? (
+                <Note tone={drawdown.tone}>
+                  가장 깊었던 구간은 {summary.maxDrawdown.from} ~ {summary.maxDrawdown.to},{" "}
+                  {signed(summary.maxDrawdown.amount)} ({pct(summary.maxDrawdown.pct)})입니다.
+                </Note>
+              ) : null}
+            </section>
+          </Layer>
+
+          <Layer
+            index={4}
+            title="자금 흐름"
+            question="번 돈인가, 넣은 돈인가"
+            tone="neutral"
+          >
+            <CashFlowPanel
+              flows={flows}
+              currency={book.base_currency}
+              deposits={m.deposits}
+              withdrawals={m.withdrawals}
+              netTransfer={m.netTransfer}
+              withdrawnFromAccount={m.withdrawnFromAccount}
+            />
+
             {hasWithdrawal ? (
-              <>
-                <h3 className="mt-4 text-xs font-medium text-dim">
-                  누적 출금 — 계좌에서 뽑아 간 돈. 매매 성과에서는 빠지지 않습니다
+              <section className="rounded-xl border border-border bg-surface p-4">
+                <h3 className="text-sm font-medium">
+                  누적 출금{" "}
+                  <span className="font-normal text-dim">
+                    — 계좌에서 뽑아 간 돈. 매매 성과에서는 빠지지 않습니다
+                  </span>
                 </h3>
-                <div className="mt-1">
+                <div className="mt-3">
                   <WithdrawalChart data={curve} currency={book.base_currency} />
                 </div>
-              </>
+              </section>
             ) : null}
-
-            <h3 className="mt-4 text-xs font-medium text-dim">
-              고점 대비 낙폭 (MDD) — 이체분은 고점에서 상쇄합니다
-            </h3>
-            <div className="mt-1">
-              <DrawdownChart data={curve} />
-            </div>
-          </section>
-
-          <PerformanceSummary summary={summary} currency={book.base_currency} />
-
-          <PnlPanel daily={daily} monthly={monthly} currency={book.base_currency} />
+          </Layer>
 
           <section className="rounded-xl border border-border bg-surface p-4">
             <div className="flex items-center">
@@ -242,15 +387,6 @@ export default async function DashboardPage() {
               fillsByTrade={recentFills}
             />
           </section>
-
-          <CashFlowPanel
-            flows={flows}
-            currency={book.base_currency}
-            deposits={m.deposits}
-            withdrawals={m.withdrawals}
-            netTransfer={m.netTransfer}
-            withdrawnFromAccount={m.withdrawnFromAccount}
-          />
         </>
       ) : null}
     </div>

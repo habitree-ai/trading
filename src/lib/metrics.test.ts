@@ -11,6 +11,7 @@ import {
   lastActivityAt,
   monthKey,
   summarizePerformance,
+  summarizePrinciples,
 } from '@/lib/metrics';
 
 const book: Book = {
@@ -66,6 +67,54 @@ function trade(partial: Partial<Trade> & { pnl: number; result: TradeResult }): 
     ...partial,
   };
 }
+
+describe('summarizePrinciples', () => {
+  it('판단을 남긴 거래만 분모에 넣는다 — 안 본 거래는 위반이 아니다', () => {
+    seq = 0;
+    const a = trade({ pnl: -30, result: 'loss' });
+    const b = trade({ pnl: 12, result: 'win' });
+    // 판단을 남기지 않은 거래. 분모에도 분자에도 들어가면 안 된다.
+    const c = trade({ pnl: 5, result: 'win' });
+
+    const derived = deriveTrades(book, [a, b, c]);
+    const out = summarizePrinciples(derived, [
+      { trade_id: a.id, principle_id: 'p1', kept: false },
+      { trade_id: b.id, principle_id: 'p1', kept: true },
+    ]);
+
+    expect(out.get('p1')).toEqual({
+      judged: 2,
+      broken: 1,
+      brokenPnl: -30,
+      keptPnl: 12,
+    });
+  });
+
+  it('없는 거래를 가리키는 판단은 세지 않는다 — 손익을 알 수 없다', () => {
+    seq = 0;
+    const a = trade({ pnl: -8, result: 'loss' });
+
+    const out = summarizePrinciples(deriveTrades(book, [a]), [
+      { trade_id: a.id, principle_id: 'p1', kept: false },
+      { trade_id: '다른-북-거래', principle_id: 'p1', kept: false },
+    ]);
+
+    expect(out.get('p1')?.judged).toBe(1);
+    expect(out.get('p1')?.brokenPnl).toBe(-8);
+  });
+
+  it('한쪽만 있으면 반대쪽은 null로 남는다 — 0과 구분한다', () => {
+    seq = 0;
+    const a = trade({ pnl: 7, result: 'win' });
+
+    const out = summarizePrinciples(deriveTrades(book, [a]), [
+      { trade_id: a.id, principle_id: 'p1', kept: true },
+    ]);
+
+    expect(out.get('p1')?.keptPnl).toBe(7);
+    expect(out.get('p1')?.brokenPnl).toBeNull();
+  });
+});
 
 let flowSeq = 0;
 
@@ -281,6 +330,38 @@ describe('수수료 반영 — 계좌가 실제로 움직인 금액', () => {
     seq = 0;
     const derived = deriveTrades(book, [trade({ pnl: 12.4, result: 'win' })]);
     expect(derived[0].net).toBeCloseTo(12.4, 10);
+  });
+});
+
+describe('비용 분해 — 가격으로 번 돈과 계좌에 남은 돈', () => {
+  it('가격 손익·수수료·펀딩비를 따로 센다', () => {
+    seq = 0;
+    const derived = deriveTrades(book, [
+      trade({ pnl: 20, fee: -12, funding_fee: -1, realized_pnl: 7, result: 'win' }),
+      trade({ pnl: -5, fee: -8, funding_fee: 0.5, realized_pnl: -12.5, result: 'loss' }),
+    ]);
+    const m = computeMetrics(book, derived);
+
+    expect(m.pnlBeforeCost).toBeCloseTo(15, 10);
+    expect(m.fees).toBeCloseTo(-20, 10);
+    expect(m.fundingFees).toBeCloseTo(-0.5, 10);
+    // 실현손익은 거래소 값이 정본이라 셋의 합과 꼭 같지는 않다.
+    expect(m.netPnl).toBeCloseTo(-5.5, 10);
+  });
+
+  /*
+   * 100배로 회전하면 수수료가 손익보다 커진다 — 가격으로는 이겼는데 계좌는 줄어든
+   * 거래가 그렇게 생긴다. 이 건수가 안 보이면 승률이 왜 낮은지가 설명되지 않는다.
+   */
+  it('가격으로는 이겼는데 비용에 밀려 진 거래를 센다', () => {
+    seq = 0;
+    const derived = deriveTrades(book, [
+      trade({ pnl: 3, fee: -4, realized_pnl: -1, result: 'win' }), // 뒤집힘
+      trade({ pnl: 20, fee: -4, realized_pnl: 16, result: 'win' }), // 그대로 승
+      trade({ pnl: -6, fee: -4, realized_pnl: -10, result: 'loss' }), // 원래 패
+    ]);
+
+    expect(computeMetrics(book, derived).costFlippedCount).toBe(1);
   });
 });
 

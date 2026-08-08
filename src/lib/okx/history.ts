@@ -13,6 +13,7 @@ import {
   depositSchema,
   fillSchema,
   instrumentSchema,
+  openPositionSchema,
   parseList,
   positionSchema,
   withdrawalSchema,
@@ -205,4 +206,23 @@ export async function fetchTotalEquity(
   const first = parsed[0];
   if (!first || first.totalEq === null) return null;
   return { equity: first.totalEq, at: new Date(Number(first.uTime)).toISOString() };
+}
+
+/**
+ * 아직 안 닫힌 포지션이 잔고에 남긴 순손익 — 미실현 가격손익 + 이미 확정된 비용.
+ *
+ * 계좌 잔고에는 이 금액이 이미 들어 있지만 거래 목록에는 아직 없다. 그대로 두고 대조하면
+ * 포지션을 들고 있는 내내 자금이 어긋나 보인다. 청산되는 날 이 값이 그 거래의
+ * `realizedPnl`이 되어 들어오므로, 그때 자연히 상쇄된다.
+ */
+export async function fetchOpenPositionPnl(
+  creds: OkxCredentials,
+): Promise<{ pnl: number; count: number }> {
+  const rows = await okxPrivateGet("/api/v5/account/positions", { instType: INST_TYPE }, creds);
+  const parsed = parseList(openPositionSchema, rows);
+
+  return {
+    pnl: parsed.reduce((a, p) => a + (p.upl ?? 0) + (p.realizedPnl ?? 0), 0),
+    count: parsed.length,
+  };
 }

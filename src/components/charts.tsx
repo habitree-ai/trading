@@ -16,7 +16,7 @@ import {
   YAxis,
 } from "recharts";
 
-import { num, pct, pnlClass, signed } from "@/lib/format";
+import { date, num, pct, pnlClass, signed } from "@/lib/format";
 
 /*
   색 규칙
@@ -26,6 +26,30 @@ import { num, pct, pnlClass, signed } from "@/lib/format";
 */
 const AXIS = { stroke: "var(--text-dim)", fontSize: 11 };
 const GRID = "var(--border)";
+
+/**
+ * 가로축은 거래 순번이 아니라 시각이다.
+ *
+ * 순번축에서는 하루에 세 번 들어갔다 나온 날과 아무것도 없던 2주가 같은 폭으로
+ * 그려진다 — 곡선의 기울기가 "얼마나 빨리 벌었나"를 뜻하지 못하고, 벤치마크 시세와
+ * 시점도 어긋난다. 시각에 비례한 축으로 두면 몰린 구간은 몰린 채로, 빈 구간은
+ * 빈 채로 읽힌다.
+ *
+ * 세 차트가 같은 설정을 쓴다. 위아래로 겹쳐 읽는 그림이라 눈금이 어긋나면
+ * 같은 시점을 다른 자리에서 찾게 된다.
+ */
+const TIME_AXIS = {
+  dataKey: "t",
+  type: "number" as const,
+  scale: "time" as const,
+  domain: ["dataMin", "dataMax"] as [string, string],
+  // 축이 좁아 연도를 떼고 `07.25`로 줄인다.
+  tickFormatter: (v: number) => date(new Date(v).toISOString()).slice(3),
+  tickLine: false,
+  axisLine: { stroke: GRID },
+  minTickGap: 28,
+  ...AXIS,
+};
 
 function TooltipBox({ rows }: { rows: [string, string, string?][] }) {
   return (
@@ -41,6 +65,8 @@ function TooltipBox({ rows }: { rows: [string, string, string?][] }) {
 }
 
 export interface EquityPoint {
+  /** 가로축 좌표 — 이 점이 찍힌 시각(epoch ms). */
+  t: number;
   label: string;
   /** 거래소에 실제로 있는 돈 — 입금이면 오르고 출금이면 내려간다. */
   equity: number;
@@ -125,7 +151,7 @@ export function EquityCurve({
       <ResponsiveContainer width="100%" height={220}>
         <LineChart data={data} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
           <CartesianGrid stroke={GRID} strokeDasharray="3 3" vertical={false} />
-          <XAxis dataKey="label" {...AXIS} tickLine={false} axisLine={{ stroke: GRID }} minTickGap={24} />
+          <XAxis {...TIME_AXIS} />
           <YAxis
             yAxisId="left"
             {...AXIS}
@@ -264,7 +290,7 @@ export function WithdrawalChart({ data, currency }: { data: EquityPoint[]; curre
     <ResponsiveContainer width="100%" height={120}>
       <AreaChart data={data} margin={{ top: 4, right: 8, bottom: 0, left: 0 }}>
         <CartesianGrid stroke={GRID} strokeDasharray="3 3" vertical={false} />
-        <XAxis dataKey="label" {...AXIS} tickLine={false} axisLine={{ stroke: GRID }} minTickGap={24} />
+        <XAxis {...TIME_AXIS} />
         <YAxis
           {...AXIS}
           tickLine={false}
@@ -308,7 +334,7 @@ export function DrawdownChart({ data }: { data: EquityPoint[] }) {
     <ResponsiveContainer width="100%" height={120}>
       <AreaChart data={data} margin={{ top: 4, right: 8, bottom: 0, left: 0 }}>
         <CartesianGrid stroke={GRID} strokeDasharray="3 3" vertical={false} />
-        <XAxis dataKey="label" {...AXIS} tickLine={false} axisLine={{ stroke: GRID }} minTickGap={24} />
+        <XAxis {...TIME_AXIS} />
         <YAxis
           {...AXIS}
           tickLine={false}

@@ -15,6 +15,7 @@ import {
   fetchContractValues,
   fetchDeposits,
   fetchFillsHistory,
+  fetchOpenPositionPnl,
   fetchPositionsHistory,
   fetchTotalEquity,
   fetchWithdrawals,
@@ -303,14 +304,22 @@ async function syncFills(
   return rows.length;
 }
 
-/** 계좌 자산을 찍어 둔다 — 같은 시각의 스냅샷이 이미 있으면 넘어간다. */
+/**
+ * 계좌 자산을 찍어 둔다 — 같은 시각의 스냅샷이 이미 있으면 넘어간다.
+ *
+ * 미청산 포지션의 손익을 함께 남긴다. 잔고에는 들어 있고 거래 목록에는 아직 없는
+ * 금액이라, 이걸 모르면 포지션을 들고 있는 내내 계산 자금이 어긋나 보인다.
+ */
 async function snapshotBalance(
   supabase: Db,
   creds: OkxCredentials,
   userId: string,
   bookId: string,
 ): Promise<void> {
-  const balance = await fetchTotalEquity(creds);
+  const [balance, open] = await Promise.all([
+    fetchTotalEquity(creds),
+    fetchOpenPositionPnl(creds),
+  ]);
   if (!balance) return;
 
   const { data: dup } = await supabase
@@ -327,6 +336,7 @@ async function snapshotBalance(
     user_id: userId,
     at: balance.at,
     equity: balance.equity,
+    unrealized_pnl: open.pnl,
     source: "okx",
   });
 }

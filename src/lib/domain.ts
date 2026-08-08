@@ -201,12 +201,75 @@ export const CASH_FLOW_LABEL: Record<CashFlowKind, string> = {
   transfer: '이체',
 };
 
+/**
+ * 매매 원칙 — 지키기로 정한 규칙 1개.
+ *
+ * 북 단위다. 북은 계좌/기간 단위라 그 안에서 쓰는 전략도 같이 갈린다.
+ */
+export type PrincipleCategory = 'entry' | 'exit' | 'risk' | 'mental' | 'routine';
+
+export interface Principle {
+  id: string;
+  book_id: string;
+  user_id: string;
+  category: PrincipleCategory;
+  title: string;
+  /** 왜 이 원칙인지 — 어겼을 때 무슨 일이 있었는지 */
+  detail: string | null;
+  /** 묶음 안에서의 표시 순서 */
+  sort_order: number;
+  /** 지금 지키는 원칙인지. false는 접어 둔 것으로, 과거 거래의 체크는 그대로 남는다 */
+  active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+/**
+ * 거래 × 원칙 — 지켰는지(true) 어겼는지(false).
+ *
+ * 행이 없는 건 '어겼음'이 아니라 '아직 판단하지 않음'이다. 셋을 구분해야 체크를
+ * 안 한 거래가 위반으로 잡혀 복기 통계를 끌고 가는 일이 없다.
+ */
+export interface TradePrincipleCheck {
+  trade_id: string;
+  principle_id: string;
+  user_id: string;
+  kept: boolean;
+  note: string | null;
+  created_at: string;
+}
+
+export const PRINCIPLE_CATEGORY_LABEL: Record<PrincipleCategory, string> = {
+  risk: '리스크',
+  entry: '진입',
+  exit: '청산',
+  mental: '멘탈',
+  routine: '루틴',
+};
+
+/** 화면에 뜨는 묶음 순서 — 계좌를 먼저 지키는 것부터 위에 둔다. */
+export const PRINCIPLE_CATEGORIES: PrincipleCategory[] = [
+  'risk',
+  'entry',
+  'exit',
+  'mental',
+  'routine',
+];
+
 export interface BalanceSnapshot {
   id: string;
   book_id: string;
   user_id: string;
   at: string;
   equity: number;
+  /**
+   * 이 시점 미청산 포지션이 잔고에 남긴 순손익 — `equity`에 이미 포함돼 있다.
+   *
+   * 미실현 가격손익에 그 포지션이 이미 낸 수수료·펀딩비까지 더한 값이다. 계산 자금은
+   * 청산된 거래만 더하므로, 둘을 견줄 때는 이만큼을 걷어내야 같은 기준이 된다.
+   * 예전에 찍은 스냅샷이면 null.
+   */
+  unrealized_pnl: number | null;
   source: 'capture' | 'manual' | 'okx';
   image_id: string | null;
 }

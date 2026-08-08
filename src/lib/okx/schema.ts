@@ -121,6 +121,20 @@ export const balanceSchema = z.object({
 });
 
 /**
+ * `GET /api/v5/account/positions` — 아직 안 닫힌 포지션 1건.
+ *
+ * 잔고에는 이미 반영됐지만 거래로는 아직 안 잡히는 두 값을 읽는다.
+ * `upl`은 미실현 가격손익, `realizedPnl`은 그 포지션이 지금까지 확정한 금액
+ * (수수료·펀딩비, 부분청산 손익)이다. 둘을 더하면 이 포지션이 잔고에 남긴 순영향이고,
+ * 포지션이 닫히는 날 `positions-history`의 `realizedPnl`로 한꺼번에 들어온다.
+ */
+export const openPositionSchema = z.object({
+  instId: z.string(),
+  upl: numeric,
+  realizedPnl: numeric,
+});
+
+/**
  * 배열을 항목별로 검증하고, 형태가 깨진 항목만 버린다.
  *
  * 한 건이 이상하다고 동기화 전체를 멈추면 그날 거래가 통째로 안 들어온다.

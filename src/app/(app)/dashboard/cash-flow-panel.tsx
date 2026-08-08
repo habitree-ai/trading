@@ -1,5 +1,6 @@
 import { CASH_FLOW_LABEL, type CashFlow } from "@/lib/domain";
 import { dateTime, num, pnlClass, signed } from "@/lib/format";
+import { readBalanceGap, TONE_CLASS } from "@/lib/verdict";
 
 /**
  * 입출금 · 이체 — 계좌를 드나든 돈.
@@ -100,15 +101,22 @@ function Total({ label, value, hint }: { label: string; value: number; hint: str
   );
 }
 
-/** 계산 자금과 거래소 실제 잔액의 차이 — 벌어지면 놓친 거래나 입출금이 있다는 뜻. */
+/**
+ * 계산 자금과 거래소 실제 잔액의 차이 — 벌어지면 놓친 거래나 입출금이 있다는 뜻.
+ *
+ * 어느 정도를 '어긋났다'로 볼지는 `readBalanceGap`이 정한다. 여기서 따로 기준을 두면
+ * 같은 화면의 판정 배지와 이 줄이 다른 말을 하게 된다.
+ */
 export function BalanceGap({
   computed,
   actual,
+  unrealizedPnl,
   at,
   currency,
 }: {
   computed: number;
   actual: number | null;
+  unrealizedPnl: number | null;
   at: string | null;
   currency: string;
 }) {
@@ -120,21 +128,13 @@ export function BalanceGap({
     );
   }
 
-  const gap = actual - computed;
-  // 소수 반올림 정도의 차이는 어긋난 게 아니다.
-  const aligned = Math.abs(gap) < 0.01;
+  const verdict = readBalanceGap(computed, actual, unrealizedPnl);
 
   return (
     <p className="text-[11px] text-dim">
       거래소 잔액 <span className="tnum text-text">{num(actual)}</span> {currency}
       {at ? ` · ${dateTime(at)}` : ""} ·{" "}
-      {aligned ? (
-        <span className="text-profit">계산 자금과 일치</span>
-      ) : (
-        <span className={pnlClass(gap)}>
-          계산 자금과 {signed(gap)} 차이 — 놓친 거래나 입출금이 있을 수 있습니다
-        </span>
-      )}
+      <span className={TONE_CLASS[verdict.tone]}>{verdict.text}</span>
     </p>
   );
 }

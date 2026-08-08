@@ -7,9 +7,11 @@ import type {
   CashFlow,
   ExchangeAccount,
   Goal,
+  Principle,
   SyncRun,
   Trade,
   TradeFill,
+  TradePrincipleCheck,
 } from "@/lib/domain";
 import { createClient } from "@/lib/supabase/server";
 
@@ -167,6 +169,62 @@ export async function listGoals(bookId: string): Promise<Goal[]> {
   const { data, error } = await supabase.from("goals").select("*").eq("book_id", bookId);
   if (error) throw new Error(error.message);
   return data;
+}
+
+/**
+ * 북의 매매 원칙 — 묶음·순서대로.
+ *
+ * `activeOnly`는 거래 화면용이다. 접어 둔 원칙까지 체크 목록에 내밀면 지금 지키지도
+ * 않는 규칙을 매번 판단하게 된다. 원칙 탭은 접힌 것도 보여야 하므로 전부 받는다.
+ */
+export async function listPrinciples(
+  bookId: string,
+  activeOnly = false,
+): Promise<Principle[]> {
+  const { supabase } = await requireUser();
+  let query = supabase.from("principles").select("*").eq("book_id", bookId);
+  if (activeOnly) query = query.eq("active", true);
+
+  const { data, error } = await query
+    .order("sort_order", { ascending: true })
+    .order("created_at", { ascending: true });
+  if (error) throw new Error(error.message);
+  return data as Principle[];
+}
+
+/** 거래 1건에 남은 원칙 판단. */
+export async function listPrincipleChecks(tradeId: string): Promise<TradePrincipleCheck[]> {
+  const { supabase } = await requireUser();
+  const { data, error } = await supabase
+    .from("trade_principle_checks")
+    .select("*")
+    .eq("trade_id", tradeId);
+  if (error) throw new Error(error.message);
+  return data as TradePrincipleCheck[];
+}
+
+/**
+ * 북 전체의 원칙 판단 — 복기에서 "어떤 원칙을 어겼을 때 얼마를 잃었나"를 집계한다.
+ *
+ * 원칙을 거쳐 북을 좁힌다. 거래로 좁히면 거래 목록을 먼저 받아 id를 넘겨야 하는데,
+ * 그 목록이 길어지면 쿼리스트링이 통째로 커진다.
+ */
+export async function listPrincipleChecksByBook(
+  bookId: string,
+): Promise<TradePrincipleCheck[]> {
+  const { supabase } = await requireUser();
+  const { data, error } = await supabase
+    .from("trade_principle_checks")
+    .select("*, principles!inner(book_id)")
+    .eq("principles.book_id", bookId);
+  if (error) throw new Error(error.message);
+
+  return (data as (TradePrincipleCheck & { principles?: unknown })[]).map((row) => {
+    // 조인용으로 딸려 온 `principles` 키는 버리고 판단 행만 남긴다.
+    const check = { ...row };
+    delete check.principles;
+    return check as TradePrincipleCheck;
+  });
 }
 
 /** 북 내 다음 순번 — 시트의 `순번`을 이어받는다. */

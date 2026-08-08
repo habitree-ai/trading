@@ -8,6 +8,7 @@ const LINKS = [
   { href: "/trades/new", label: "기록 추가", icon: "➕" },
   { href: "/trades", label: "거래 목록", icon: "📒" },
   { href: "/review", label: "복기 분석", icon: "🔍" },
+  { href: "/principles", label: "원칙", icon: "📐" },
   { href: "/goals", label: "목표", icon: "🎯" },
   { href: "/books", label: "북 관리", icon: "📚" },
   { href: "/settings", label: "설정", icon: "⚙️" },
