@@ -2,11 +2,53 @@
 
 import { revalidatePath } from "next/cache";
 
+import { loadOkxCredentials } from "@/lib/okx/credentials";
+import { okxPrivateGet } from "@/lib/okx/private";
 import { getExchangeAccount, requireUser } from "@/lib/queries";
 
 export interface ExchangeAccountState {
   error?: string;
   message?: string;
+}
+
+/**
+ * 키가 실제로 통하는지 확인한다 — 동기화를 통째로 돌려 보지 않고.
+ *
+ * 두 갈래를 따로 부르는 이유: 거래계좌만 열리고 자금계좌가 막히는 키가 있다.
+ * 그때 동기화 하나만 돌리면 "401"만 남아, 키가 틀린 건지 권한이 좁은 건지 갈리지 않는다.
+ */
+const PROBES = [
+  { label: "거래계좌", path: "/api/v5/account/balance", params: {} },
+  { label: "자금계좌(입출금)", path: "/api/v5/asset/deposit-history", params: { limit: 1 } },
+] as const;
+
+export async function testOkxConnection(): Promise<ExchangeAccountState> {
+  await requireUser();
+
+  const account = await getExchangeAccount();
+  if (!account) return { error: "먼저 OKX 계정을 등록해 주세요." };
+
+  let creds;
+  try {
+    creds = await loadOkxCredentials(account.id);
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : String(error) };
+  }
+
+  const failures: string[] = [];
+  const passed: string[] = [];
+
+  for (const probe of PROBES) {
+    try {
+      await okxPrivateGet(probe.path, probe.params, creds);
+      passed.push(probe.label);
+    } catch (error) {
+      failures.push(`${probe.label}: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+
+  if (failures.length === 0) return { message: `연결 정상 — ${passed.join(" · ")} 조회됨.` };
+  return { error: failures.join("\n") };
 }
 
 /**

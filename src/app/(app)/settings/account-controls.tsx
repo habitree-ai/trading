@@ -1,8 +1,13 @@
 "use client";
 
-import { useTransition } from "react";
+import { useState, useTransition } from "react";
 
-import { deleteOkxAccount, linkBook } from "@/app/(app)/settings/actions";
+import {
+  deleteOkxAccount,
+  linkBook,
+  testOkxConnection,
+  type ExchangeAccountState,
+} from "@/app/(app)/settings/actions";
 import type { Book } from "@/lib/domain";
 
 /** 거래소 계정이 들어올 북을 고른다. 안 고르면(빈 값) 어느 북에도 들어오지 않는다. */
@@ -34,6 +39,39 @@ export function BookLinkSelect({
         </option>
       ))}
     </select>
+  );
+}
+
+/**
+ * 연결 확인 — 키가 통하는지 그 자리에서 묻는다.
+ *
+ * 동기화가 401로 막혔을 때 원인을 좁히는 자리다. 거래계좌·자금계좌를 따로 짚어 주므로
+ * 키가 틀린 것과 권한이 좁은 것이 갈린다.
+ */
+export function ConnectionTestButton() {
+  const [pending, startTransition] = useTransition();
+  const [state, setState] = useState<ExchangeAccountState>({});
+
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <button
+        type="button"
+        disabled={pending}
+        onClick={() =>
+          startTransition(async () => {
+            setState({});
+            setState(await testOkxConnection());
+          })
+        }
+        className="rounded-lg border border-border px-2.5 py-1 text-xs text-dim hover:text-text disabled:opacity-50"
+      >
+        {pending ? "확인 중…" : "연결 확인"}
+      </button>
+      {state.message ? <span className="text-xs text-profit">{state.message}</span> : null}
+      {state.error ? (
+        <span className="w-full text-xs whitespace-pre-line text-loss">{state.error}</span>
+      ) : null}
+    </div>
   );
 }
 

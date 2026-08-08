@@ -1,5 +1,6 @@
 import {
   BookLinkSelect,
+  ConnectionTestButton,
   DeleteAccountButton,
 } from "@/app/(app)/settings/account-controls";
 import { ExchangeAccountForm } from "@/app/(app)/settings/exchange-account-form";
@@ -46,6 +47,12 @@ export default async function SettingsPage() {
           OKX에서 반드시 <strong className="text-text">읽기 전용(Read)</strong> 권한으로
           발급하세요. 출금·거래 권한을 주면 안 됩니다.
         </p>
+
+        {account ? (
+          <div className="mt-3">
+            <ConnectionTestButton />
+          </div>
+        ) : null}
 
         <ExchangeAccountForm replacing={account !== null} />
       </section>
