@@ -244,6 +244,7 @@ export function TradeTable({
                           entryPrice={trade.entry_price}
                           exitPrice={trade.exit_price}
                           stopPrice={trade.stop_price}
+                          notional={trade.notional}
                           fills={fillsByTrade[trade.id] ?? []}
                           annotations={annotationsByTrade[trade.id] ?? []}
                         />

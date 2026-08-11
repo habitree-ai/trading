@@ -23,12 +23,15 @@ import type {
   Time,
 } from "lightweight-charts";
 
-import type {
-  AnnotationColor,
-  AnnotationKind,
-  ChartPoint,
-  TradeAnnotation,
+import {
+  isPositionKind,
+  type AnnotationColor,
+  type AnnotationKind,
+  type ChartPoint,
+  type TradeAnnotation,
 } from "@/lib/domain";
+import { num, signed, signedPct } from "@/lib/format";
+import { positionMetrics } from "@/lib/position-tool";
 
 /** 라이브러리가 렌더러에 넘기는 캔버스 대상 — 타입만 빌려 온다. */
 type RenderTarget = Parameters<IPrimitivePaneRenderer["draw"]>[0];
@@ -51,11 +54,23 @@ interface Shape {
   xy: { x: number; y: number }[];
   /** 저장 전인가 — 점선으로 그려 확정된 것과 구분한다 */
   draft: boolean;
+  /** 손익 툴 전용 — [진입, 손절, 목표, 요약] 순서의 라벨. 점이 덜 찍혔으면 짧다 */
+  labels?: string[];
+  /** 손익 툴 전용 — 이익·손실 구간의 색. 팔레트가 아니라 손익 색을 쓴다 */
+  zone?: { profit: string; loss: string };
 }
 
 const FONT = "12px system-ui, -apple-system, 'Segoe UI', sans-serif";
 const LABEL_PAD = 4;
 const HANDLE_R = 3;
+
+/**
+ * 손익 툴 상자의 최소 가로폭(px).
+ *
+ * 세 점을 같은 봉 위에 찍으면 폭이 0이 돼 아무것도 안 보인다. 가격만 보고 찍는 일이
+ * 흔하므로 최소 폭을 준다.
+ */
+const MIN_BOX_W = 160;
 
 function roundRect(
   ctx: CanvasRenderingContext2D,
@@ -93,6 +108,102 @@ function drawLabel(
   ctx.fillStyle = "#ffffff";
   ctx.textBaseline = "middle";
   ctx.fillText(text, x + LABEL_PAD, y);
+}
+
+/**
+ * 손익 툴이 상자 위에 적는 글 — [진입, 손절, 목표, 요약].
+ *
+ * 점이 셋 다 찍히기 전에는 가격만 적는다. 폭도 비율도 아직 정해지지 않았는데 숫자를
+ * 내밀면 다음 점을 찍는 순간 값이 통째로 바뀐다.
+ */
+function positionLabels(
+  kind: "long" | "short",
+  points: readonly ChartPoint[],
+  notional: number | null,
+): string[] {
+  const [entry, stop, target] = points;
+  const out = [`진입 ${num(entry.p)}`];
+  if (!stop) return out;
+
+  if (!target) return [...out, `손절 ${num(stop.p)}`];
+
+  const m = positionMetrics({
+    side: kind,
+    entry: entry.p,
+    stop: stop.p,
+    target: target.p,
+    notional,
+  });
+  if (!m) return [...out, `손절 ${num(stop.p)}`, `목표 ${num(target.p)}`];
+
+  const money = (amount: number | null) => (amount === null ? "" : ` · ${signed(amount)}`);
+  const label = kind === "long" ? "롱" : "숏";
+
+  return [
+    ...out,
+    `손절 ${num(m.stop)} · ${signedPct(-m.riskPct, 2)}${money(m.lossAmount)}`,
+    `목표 ${num(m.target)} · ${signedPct(m.rewardPct, 2)}${money(m.rewardAmount)}`,
+    m.problem !== null
+      ? `${label} · ${m.problem}`
+      : `${label} · 손익비 ${m.rr === null ? "—" : num(m.rr, 2)}`,
+  ];
+}
+
+/**
+ * 손익 툴 — 진입선을 가운데 두고 목표 쪽은 초록, 손절 쪽은 빨강으로 칠한다.
+ *
+ * 트레이딩뷰의 Long/Short Position 도구와 같은 배치다. 두 구간의 세로 길이 비가 곧
+ * 손익비라, 숫자를 읽기 전에 눈으로 먼저 판단이 된다 — 그게 이 도구의 값이다.
+ *
+ * 점이 덜 찍힌 동안(진입만, 진입+손절)에도 그린다. 다음 점을 어디에 찍을지는
+ * 지금까지 그려진 모양을 보고 정하게 된다.
+ */
+function drawPosition(
+  ctx: CanvasRenderingContext2D,
+  shape: Shape,
+  zone: { profit: string; loss: string },
+): void {
+  const [entry, stop, target] = shape.xy;
+  const labels = shape.labels ?? [];
+
+  const xs = shape.xy.map((p) => p.x);
+  const left = Math.min(...xs);
+  const right = Math.max(Math.max(...xs), left + MIN_BOX_W);
+
+  const band = (y: number, color: string) => {
+    const top = Math.min(entry.y, y);
+    const height = Math.abs(y - entry.y);
+    ctx.fillStyle = color;
+    ctx.globalAlpha = 0.14;
+    ctx.fillRect(left, top, right - left, height);
+    ctx.globalAlpha = 1;
+    ctx.strokeStyle = color;
+    ctx.strokeRect(left, top, right - left, height);
+  };
+
+  if (target) band(target.y, zone.profit);
+  if (stop) band(stop.y, zone.loss);
+
+  // 진입선은 두 구간의 경계다 — 실선으로 두어 어디가 기준인지 헷갈리지 않게.
+  ctx.setLineDash([]);
+  ctx.strokeStyle = shape.color;
+  ctx.beginPath();
+  ctx.moveTo(left, entry.y);
+  ctx.lineTo(right, entry.y);
+  ctx.stroke();
+
+  if (labels[0]) drawLabel(ctx, labels[0], left + 4, entry.y - 11, shape.color);
+  if (stop && labels[1]) {
+    drawLabel(ctx, labels[1], left + 4, (entry.y + stop.y) / 2, zone.loss);
+  }
+  if (target && labels[2]) {
+    drawLabel(ctx, labels[2], left + 4, (entry.y + target.y) / 2, zone.profit);
+  }
+  if (labels[3]) {
+    // 요약은 상자 아래 — 구간 안에 넣으면 좁은 쪽에서 두 라벨이 겹친다.
+    const bottom = Math.max(entry.y, stop?.y ?? entry.y, target?.y ?? entry.y);
+    drawLabel(ctx, labels[3], left + 4, bottom + 14, shape.color);
+  }
 }
 
 class AnnotationPaneView implements IPrimitivePaneView {
@@ -156,6 +267,8 @@ class AnnotationPaneView implements IPrimitivePaneView {
               ctx.arc(a.x, a.y, HANDLE_R, 0, Math.PI * 2);
               ctx.fill();
               if (shape.text) drawLabel(ctx, shape.text, a.x + 8, a.y - 10, shape.color);
+            } else if (isPositionKind(shape.kind) && shape.zone) {
+              drawPosition(ctx, shape, shape.zone);
             }
 
             ctx.restore();
@@ -174,6 +287,8 @@ export class AnnotationPrimitive implements ISeriesPrimitive<Time> {
   private items: readonly TradeAnnotation[] = [];
   private draft: AnnotationDraft | null = null;
   private colors: AnnotationColorMap;
+  /** 손익 툴이 금액을 낼 때 쓰는 크기 — 이 거래의 명목가 */
+  private notional: number | null = null;
 
   // 라이브러리가 배열 참조로 캐시를 판단한다 — 뷰 배열은 한 번만 만든다.
   private readonly view = new AnnotationPaneView();
@@ -205,15 +320,21 @@ export class AnnotationPrimitive implements ISeriesPrimitive<Time> {
    * 부모가 다시 그려질 때마다 새 배열이 온다(`annotations[id] ?? []`). 내용이 같으면
    * 다시 그리지 않는다 — 목록 필터를 건드릴 때마다 차트가 깜빡이지 않게.
    */
-  setData(items: readonly TradeAnnotation[], draft: AnnotationDraft | null): void {
+  setData(
+    items: readonly TradeAnnotation[],
+    draft: AnnotationDraft | null,
+    notional: number | null,
+  ): void {
     const same =
       this.draft === draft &&
+      this.notional === notional &&
       this.items.length === items.length &&
       this.items.every((item, i) => item === items[i]);
     if (same) return;
 
     this.items = items;
     this.draft = draft;
+    this.notional = notional;
     this.requestUpdate?.();
   }
 
@@ -230,32 +351,37 @@ export class AnnotationPrimitive implements ISeriesPrimitive<Time> {
     const out: Shape[] = [];
 
     for (const item of this.items) {
-      const xy = this.toScreen(item.points);
-      if (xy) {
-        out.push({
-          kind: item.kind,
-          color: this.colors[item.color],
-          text: item.text,
-          xy,
-          draft: false,
-        });
-      }
+      const shape = this.toShape(item.kind, item.points, item.color, item.text, false);
+      if (shape) out.push(shape);
     }
 
     if (this.draft) {
-      const xy = this.toScreen(this.draft.points);
-      if (xy) {
-        out.push({
-          kind: this.draft.kind,
-          color: this.colors[this.draft.color],
-          text: this.draft.text,
-          xy,
-          draft: true,
-        });
-      }
+      const { kind, points, color, text } = this.draft;
+      const shape = this.toShape(kind, points, color, text, true);
+      if (shape) out.push(shape);
     }
 
     return out;
+  }
+
+  private toShape(
+    kind: AnnotationKind,
+    points: readonly ChartPoint[],
+    color: AnnotationColor,
+    text: string | null,
+    draft: boolean,
+  ): Shape | null {
+    const xy = this.toScreen(points);
+    if (!xy) return null;
+
+    const shape: Shape = { kind, color: this.colors[color], text, xy, draft };
+    if (isPositionKind(kind)) {
+      // 손익 툴의 구간 색은 팔레트가 아니라 손익 색이다 — 초록이 이익, 빨강이 손실이라는
+      // 약속이 화면 전체에서 같아야 한다.
+      shape.zone = { profit: this.colors.profit, loss: this.colors.loss };
+      shape.labels = positionLabels(kind, points, this.notional);
+    }
+    return shape;
   }
 
   private toScreen(points: readonly ChartPoint[]): { x: number; y: number }[] | null {

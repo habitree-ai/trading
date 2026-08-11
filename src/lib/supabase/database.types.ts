@@ -688,7 +688,7 @@ export type Database = {
       }
     }
     Enums: {
-      annotation_kind: "text" | "line" | "hline" | "rect"
+      annotation_kind: "text" | "line" | "hline" | "rect" | "long" | "short"
       book_status: "active" | "closed"
       capture_kind: "position" | "chart" | "balance"
       extract_engine: "ocr" | "ai" | "manual"
@@ -833,7 +833,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
-      annotation_kind: ["text", "line", "hline", "rect"],
+      annotation_kind: ["text", "line", "hline", "rect", "long", "short"],
       book_status: ["active", "closed"],
       capture_kind: ["position", "chart", "balance"],
       extract_engine: ["ocr", "ai", "manual"],

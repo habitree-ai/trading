@@ -24,10 +24,11 @@ import {
   type AnnotationDraft,
 } from "@/components/chart-annotations";
 import { formatDuration, measure, type MeasurePoint } from "@/components/measure-tool";
-import { ANNOTATION_DOT_CLASS } from "@/lib/annotations";
+import { ANNOTATION_DOT_CLASS, pointCount } from "@/lib/annotations";
 import {
   ANNOTATION_COLORS,
   ANNOTATION_COLOR_LABEL,
+  isPositionKind,
   type AnnotationColor,
   type AnnotationKind,
   type ChartPoint,
@@ -35,6 +36,7 @@ import {
   type TradeFill,
 } from "@/lib/domain";
 import { num, signed } from "@/lib/format";
+import { positionMetrics } from "@/lib/position-tool";
 import { BAR_MS, pickBar, windowFor, type Bar as OkxBar, type Candle } from "@/lib/okx";
 
 /** 화면에 노출하는 보기 — 자동은 거래 길이에 맞춰 봉을 고른다. */
@@ -62,13 +64,40 @@ const DRAW_TOOLS: { tool: AnnotationKind; label: string; hint: string }[] = [
   { tool: "hline", label: "— 수평선", hint: "차트를 눌러 그 가격에 가로선을 긋습니다" },
   { tool: "line", label: "／ 추세선", hint: "두 지점을 끌어 선을 긋습니다" },
   { tool: "rect", label: "□ 박스", hint: "끌어서 구간을 감쌉니다" },
+  { tool: "long", label: "▲ 롱 손익", hint: "진입 → 손절 → 목표를 차례로 누릅니다" },
+  { tool: "short", label: "▼ 숏 손익", hint: "진입 → 손절 → 목표를 차례로 누릅니다" },
 ];
+
+/** 손익 툴에서 지금 무엇을 찍을 차례인지 — 찍은 점의 수로 정해진다. */
+const POSITION_STEPS = ["진입가를 누르세요", "손절가를 누르세요", "목표가를 누르세요"];
 
 /** 이보다 짧게 끌면 그릴 뜻이 없었던 것으로 본다 — 클릭 한 번에 길이 0짜리 선이 남지 않게. */
 const MIN_DRAG_PX = 4;
 
 function toChartPoint(point: MeasurePoint): ChartPoint {
   return { t: point.time, p: point.price };
+}
+
+/**
+ * 손익 툴의 배치가 방향과 맞는지 — 어긋나면 그 이유.
+ *
+ * 롱인데 손절을 진입 위에 찍으면 이익 구간과 손실 구간이 뒤집힌 채 저장된다.
+ * 그림은 그럴싸하게 나오지만 손익비가 거짓말을 하므로 저장 전에 막는다.
+ */
+function positionProblem(
+  kind: "long" | "short",
+  points: readonly ChartPoint[],
+): string | null {
+  const [entry, stop, target] = points;
+  if (!entry || !stop || !target) return "진입·손절·목표 세 지점을 모두 눌러 주세요.";
+
+  const metrics = positionMetrics({
+    side: kind,
+    entry: entry.p,
+    stop: stop.p,
+    target: target.p,
+  });
+  return metrics === null ? "가격을 읽지 못했습니다. 다시 눌러 주세요." : metrics.problem;
 }
 
 /** 차트 색은 CSS 토큰에서 읽는다 — 라이트/다크 전환을 한 곳에서 관리하기 위해. */
@@ -108,6 +137,7 @@ export function TradeChart({
   entryPrice,
   exitPrice,
   stopPrice,
+  notional = null,
   fills = [],
   annotations = [],
 }: {
@@ -120,6 +150,8 @@ export function TradeChart({
   entryPrice: number | null;
   exitPrice: number | null;
   stopPrice: number | null;
+  /** 시트의 `투입` — 손익 툴이 비율을 금액으로 옮기는 데 쓴다. 없으면 비율만 나온다 */
+  notional?: number | null;
   /**
    * 낱개 체결. 분할 체결이면 `entryPrice`/`exitPrice`는 가중평균가라
    * 어느 한 시점의 가격이 아니다 — 그대로 찍으면 캔들 밖으로 떠오른다.
@@ -147,6 +179,13 @@ export function TradeChart({
 
   /** 그리는 중이거나 라벨을 기다리는 메모 — 점선으로 미리 그려진다. */
   const [pending, setPending] = useState<AnnotationDraft | null>(null);
+  /**
+   * 손익 툴처럼 여러 번 눌러 완성하는 도형의 중간 좌표.
+   *
+   * `pending`을 보고 이어 붙이면 될 것 같지만, 포인터 처리기는 도구가 바뀔 때만 다시
+   * 붙는다 — 그 안에서 읽는 `pending`은 첫 점에서 멈춰 있는 값이다.
+   */
+  const stepsRef = useRef<ChartPoint[]>([]);
   /** 라벨 입력창을 열어 둔 상태인가 */
   const [asking, setAsking] = useState(false);
   const [label, setLabel] = useState("");
@@ -233,8 +272,8 @@ export function TradeChart({
 
   /* ---------- 메모 반영 ---------- */
   useEffect(() => {
-    layerRef.current?.setData(annotations, pending);
-  }, [annotations, pending]);
+    layerRef.current?.setData(annotations, pending, notional);
+  }, [annotations, pending, notional]);
 
   /* ---------- 캔들 로딩 ---------- */
   useEffect(() => {
@@ -372,7 +411,9 @@ export function TradeChart({
 
     // 측정은 결과를 화면에만 남기고, 나머지는 메모로 저장한다.
     const kind = tool === "measure" ? null : tool;
-    const dragging = kind === null || kind === "line" || kind === "rect";
+    // 두 점짜리(추세선·박스)만 끌어서 그린다. 한 점은 한 번, 세 점은 세 번 누른다.
+    const needed = kind === null ? 2 : pointCount(kind);
+    const dragging = needed === 2;
 
     let start: { point: MeasurePoint; x: number; y: number } | null = null;
 
@@ -381,9 +422,9 @@ export function TradeChart({
       return { x: e.clientX - r.left, y: e.clientY - r.top };
     };
 
-    const ask = () => {
+    const ask = (problem: string | null) => {
       setLabel("");
-      setNoteError(null);
+      setNoteError(problem);
       setAsking(true);
     };
 
@@ -393,10 +434,14 @@ export function TradeChart({
       if (!point) return;
       e.preventDefault();
 
-      // 한 점짜리 메모 — 누른 자리에서 바로 라벨을 묻는다.
+      // 눌러서 완성하는 도형 — 필요한 점이 다 모이면 라벨을 묻는다.
       if (kind !== null && !dragging) {
-        setPending({ kind, points: [toChartPoint(point)], text: null, color });
-        ask();
+        const placed = [...stepsRef.current, toChartPoint(point)];
+        stepsRef.current = placed;
+        setPending({ kind, points: placed, text: null, color });
+        if (placed.length >= needed) {
+          ask(isPositionKind(kind) ? positionProblem(kind, placed) : null);
+        }
         return;
       }
 
@@ -450,7 +495,7 @@ export function TradeChart({
         setPending(null);
         return;
       }
-      ask();
+      ask(null);
     };
 
     host.addEventListener("pointerdown", onDown);
@@ -474,19 +519,18 @@ export function TradeChart({
     });
   }, [tool]);
 
-  /** 도구를 갈아 끼운다 — 같은 것을 다시 누르면 끈다. 그리던 것은 버린다. */
-  const pickTool = (next: Tool) => {
-    setTool((current) => (current === next ? "none" : next));
-    setState(null);
+  const cancelDraft = () => {
+    stepsRef.current = [];
     setPending(null);
     setAsking(false);
     setNoteError(null);
   };
 
-  const cancelDraft = () => {
-    setPending(null);
-    setAsking(false);
-    setNoteError(null);
+  /** 도구를 갈아 끼운다 — 같은 것을 다시 누르면 끈다. 그리던 것은 버린다. */
+  const pickTool = (next: Tool) => {
+    setTool((current) => (current === next ? "none" : next));
+    setState(null);
+    cancelDraft();
   };
 
   const saveDraft = () => {
@@ -495,6 +539,13 @@ export function TradeChart({
     if (pending.kind === "text" && text === "") {
       setNoteError("메모 내용을 입력해 주세요.");
       return;
+    }
+    if (isPositionKind(pending.kind)) {
+      const problem = positionProblem(pending.kind, pending.points);
+      if (problem !== null) {
+        setNoteError(problem);
+        return;
+      }
     }
 
     startSaving(async () => {
@@ -514,6 +565,17 @@ export function TradeChart({
   };
 
   const result = state ? measure(state.from, state.to, barSeconds) : null;
+  /** 켜져 있는 도구가 메모를 남기는 것이면 그 종류, 아니면 null(꺼짐·측정). */
+  const drawKind = tool === "none" || tool === "measure" ? null : tool;
+  /**
+   * 손익 툴에서 지금 무엇을 찍을 차례인지.
+   *
+   * 찍힌 점의 수는 `pending`으로 읽는다 — 포인터 처리기가 쓰는 ref 는 다시 그리지 않는다.
+   */
+  const positionStep =
+    drawKind !== null && isPositionKind(drawKind) && !asking
+      ? POSITION_STEPS[pending?.points.length ?? 0] ?? null
+      : null;
   const held =
     exitPrice !== null && entryPrice !== null
       ? ((exitPrice - entryPrice) / entryPrice) * (side === "long" ? 1 : -1)
@@ -555,8 +617,11 @@ export function TradeChart({
               {t.label}
             </button>
           ))}
-          {/* 색은 메모 도구를 켰을 때만 고른다 — 측정에는 쓰이지 않는다. */}
-          {tool !== "none" && tool !== "measure" ? (
+          {/*
+            색은 메모 도구를 켰을 때만 고른다. 측정에는 쓰이지 않고, 손익 툴은 이익=초록
+            손실=빨강이 뜻 그 자체라 고를 여지가 없다.
+          */}
+          {drawKind !== null && !isPositionKind(drawKind) ? (
             <span className="ml-1 flex items-center gap-1">
               {ANNOTATION_COLORS.map((c) => (
                 <button
@@ -706,6 +771,11 @@ export function TradeChart({
         {tool === "measure" ? (
           <b className="text-accent">
             측정 중 — 차트를 끌어 두 지점 사이의 가격·비율·기간을 재세요. 다시 누르면 끕니다.
+          </b>
+        ) : positionStep ? (
+          <b className="text-accent">
+            {tool === "long" ? "롱" : "숏"} 손익 — {positionStep} (진입 → 손절 → 목표).
+            초록 구간이 목표까지, 빨강 구간이 손절까지고 두 세로 길이의 비가 손익비입니다.
           </b>
         ) : tool !== "none" ? (
           <b className="text-accent">

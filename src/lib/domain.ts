@@ -145,7 +145,7 @@ export interface TradeFill {
  * 복기는 "그때 무엇을 봤는지"를 되짚는 일이다. 지지선을 어디로 봤는지, 어느 봉에서
  * 손이 먼저 나갔는지는 차트 위 좌표에 붙어 있어야 뜻이 산다.
  */
-export type AnnotationKind = 'text' | 'line' | 'hline' | 'rect';
+export type AnnotationKind = 'text' | 'line' | 'hline' | 'rect' | 'long' | 'short';
 
 /** 색은 CSS 토큰 이름으로 둔다 — 라이트/다크가 바뀌어도 같은 뜻의 색을 쓴다. */
 export type AnnotationColor = 'accent' | 'profit' | 'loss' | 'beta';
@@ -162,7 +162,11 @@ export interface TradeAnnotation {
   trade_id: string;
   user_id: string;
   kind: AnnotationKind;
-  /** `text`·`hline`은 1점, `line`·`rect`는 2점 */
+  /**
+   * `text`·`hline`은 1점, `line`·`rect`는 2점, `long`·`short`는 3점.
+   *
+   * 손익 툴(`long`·`short`)만 순서가 곧 역할이다 — `[진입, 손절, 목표]`.
+   */
   points: ChartPoint[];
   /** 도형에 붙는 라벨. `text`에서는 이것이 내용 전부다 */
   text: string | null;
@@ -171,14 +175,28 @@ export interface TradeAnnotation {
   updated_at: string;
 }
 
-export const ANNOTATION_KINDS: AnnotationKind[] = ['text', 'hline', 'line', 'rect'];
+export const ANNOTATION_KINDS: AnnotationKind[] = [
+  'text',
+  'hline',
+  'line',
+  'rect',
+  'long',
+  'short',
+];
 
 export const ANNOTATION_KIND_LABEL: Record<AnnotationKind, string> = {
   text: '텍스트',
   hline: '수평선',
   line: '추세선',
   rect: '박스',
+  long: '롱 손익',
+  short: '숏 손익',
 };
+
+/** 진입·손절·목표를 한 덩어리로 잡는 종류 — 좌표 순서가 역할이라 따로 다룬다. */
+export function isPositionKind(kind: AnnotationKind): kind is 'long' | 'short' {
+  return kind === 'long' || kind === 'short';
+}
 
 export const ANNOTATION_COLORS: AnnotationColor[] = ['accent', 'profit', 'loss', 'beta'];
 

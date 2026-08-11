@@ -8,6 +8,8 @@ import {
   normalizePoints,
   parsePoints,
 } from "@/lib/annotations";
+import { isPositionKind } from "@/lib/domain";
+import { positionMetrics } from "@/lib/position-tool";
 import { requireUser } from "@/lib/queries";
 
 export interface AnnotationResult {
@@ -46,9 +48,22 @@ export async function createAnnotation(input: {
   const text = parseText(input.text);
   if (kind === "text" && text === null) return { error: "메모 내용을 입력해 주세요." };
 
+  // 손익 툴은 배치가 방향과 맞아야 한다 — 뒤집힌 채로 저장되면 손익비가 거짓말을 한다.
+  if (isPositionKind(kind)) {
+    const [entry, stop, target] = points;
+    const metrics = positionMetrics({
+      side: kind,
+      entry: entry.p,
+      stop: stop.p,
+      target: target.p,
+    });
+    if (metrics === null) return { error: "가격을 읽지 못했습니다. 다시 찍어 주세요." };
+    if (metrics.problem !== null) return { error: metrics.problem };
+  }
+
   const { supabase, user } = await requireUser();
   // jsonb 칸은 인덱스 시그니처가 있는 타입만 받는다 — 이름 붙은 인터페이스는 못 넣는다.
-  const stored = normalizePoints(points).map((point) => ({ t: point.t, p: point.p }));
+  const stored = normalizePoints(kind, points).map((point) => ({ t: point.t, p: point.p }));
 
   const { error } = await supabase.from("trade_annotations").insert({
     trade_id: tradeId,

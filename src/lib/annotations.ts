@@ -9,11 +9,12 @@
  */
 
 import type { AnnotationColor, AnnotationKind, ChartPoint, TradeAnnotation } from '@/lib/domain';
-import { ANNOTATION_COLORS, ANNOTATION_KINDS } from '@/lib/domain';
+import { ANNOTATION_COLORS, ANNOTATION_KINDS, isPositionKind } from '@/lib/domain';
 
 /** 종류마다 필요한 점의 수 — 저장할 때와 읽을 때가 같은 기준을 봐야 한다. */
-export function pointCount(kind: AnnotationKind): 1 | 2 {
-  return kind === 'text' || kind === 'hline' ? 1 : 2;
+export function pointCount(kind: AnnotationKind): 1 | 2 | 3 {
+  if (kind === 'text' || kind === 'hline') return 1;
+  return isPositionKind(kind) ? 3 : 2;
 }
 
 export function isAnnotationKind(value: unknown): value is AnnotationKind {
@@ -77,8 +78,14 @@ export function toAnnotation(row: AnnotationRow): TradeAnnotation | null {
  *
  * 박스와 추세선은 어느 방향으로 끌든 같은 도형이다. 시각이 이른 점을 앞에 두면
  * 목록에 찍히는 "언제"가 끄는 방향에 따라 달라지지 않는다.
+ *
+ * 손익 툴만 예외다 — `[진입, 손절, 목표]`라는 순서 자체가 뜻이라 세우면 역할이 뒤바뀐다.
  */
-export function normalizePoints(points: readonly ChartPoint[]): ChartPoint[] {
+export function normalizePoints(
+  kind: AnnotationKind,
+  points: readonly ChartPoint[],
+): ChartPoint[] {
+  if (isPositionKind(kind)) return [...points];
   return [...points].sort((a, b) => a.t - b.t);
 }
 

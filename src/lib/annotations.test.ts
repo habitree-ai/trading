@@ -25,11 +25,13 @@ function row(partial: Partial<AnnotationRow> = {}): AnnotationRow {
 }
 
 describe('pointCount', () => {
-  it('텍스트·수평선은 1점, 추세선·박스는 2점', () => {
+  it('텍스트·수평선은 1점, 추세선·박스는 2점, 손익 툴은 3점', () => {
     expect(pointCount('text')).toBe(1);
     expect(pointCount('hline')).toBe(1);
     expect(pointCount('line')).toBe(2);
     expect(pointCount('rect')).toBe(2);
+    expect(pointCount('long')).toBe(3);
+    expect(pointCount('short')).toBe(3);
   });
 });
 
@@ -66,10 +68,19 @@ describe('toAnnotation', () => {
 
 describe('normalizePoints', () => {
   it('끄는 방향과 무관하게 이른 시각을 앞에 둔다', () => {
-    expect(normalizePoints([{ t: 20, p: 1 }, { t: 10, p: 2 }])).toEqual([
+    expect(normalizePoints('line', [{ t: 20, p: 1 }, { t: 10, p: 2 }])).toEqual([
       { t: 10, p: 2 },
       { t: 20, p: 1 },
     ]);
+  });
+
+  it('손익 툴은 순서를 건드리지 않는다 — 세우면 진입·손절·목표가 뒤바뀐다', () => {
+    const placed = [
+      { t: 30, p: 100 },
+      { t: 10, p: 99 },
+      { t: 20, p: 102 },
+    ];
+    expect(normalizePoints('long', placed)).toEqual(placed);
   });
 });
 

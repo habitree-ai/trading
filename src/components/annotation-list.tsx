@@ -4,16 +4,33 @@ import { useState, useTransition } from "react";
 
 import { deleteAnnotation, updateAnnotationText } from "@/app/(app)/trades/annotation-actions";
 import { ANNOTATION_DOT_CLASS } from "@/lib/annotations";
-import { ANNOTATION_KIND_LABEL, type TradeAnnotation } from "@/lib/domain";
-import { dateTime, num } from "@/lib/format";
+import { ANNOTATION_KIND_LABEL, isPositionKind, type TradeAnnotation } from "@/lib/domain";
+import { DASH, dateTime, num } from "@/lib/format";
+import { positionMetrics } from "@/lib/position-tool";
 
 function isoOf(seconds: number): string {
   return new Date(seconds * 1000).toISOString();
 }
 
-/** 가리키는 가격 — 두 점짜리는 어디서 어디까지인지 함께 보인다. */
+/**
+ * 가리키는 가격 — 두 점짜리는 어디서 어디까지인지 함께 보인다.
+ *
+ * 손익 툴은 세 점이 각각 진입·손절·목표라 범위로 읽으면 뜻이 어긋난다. 목록에서
+ * 훑을 때 알고 싶은 건 어느 자리에 걸었고 몇 대 일이었나이므로 그것만 적는다.
+ */
 function priceRange(annotation: TradeAnnotation): string {
-  const [first, second] = annotation.points;
+  const [first, second, third] = annotation.points;
+
+  if (isPositionKind(annotation.kind) && second && third) {
+    const m = positionMetrics({
+      side: annotation.kind,
+      entry: first.p,
+      stop: second.p,
+      target: third.p,
+    });
+    return `진입 ${num(first.p)} · 손익비 ${m?.rr === undefined || m?.rr === null ? DASH : num(m.rr, 2)}`;
+  }
+
   return second ? `${num(first.p)} → ${num(second.p)}` : num(first.p);
 }
 
