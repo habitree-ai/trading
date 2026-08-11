@@ -3,7 +3,7 @@
 import { useState, type ReactNode } from "react";
 
 import { TradeChart } from "@/components/trade-chart";
-import { RESULT_LABEL, SIDE_LABEL, type TradeFill } from "@/lib/domain";
+import { RESULT_LABEL, SIDE_LABEL, type TradeAnnotation, type TradeFill } from "@/lib/domain";
 import { dateTime, num, pnlClass, signed, signedPct } from "@/lib/format";
 import type { TradeDerived } from "@/lib/metrics";
 
@@ -18,11 +18,14 @@ export function RecentTrades({
   rows,
   currency,
   fillsByTrade,
+  annotationsByTrade,
 }: {
   rows: TradeDerived[];
   currency: string;
   /** 거래 id → 낱개 체결. 차트가 평균가 대신 실제 좌표를 찍는 데 쓴다. */
   fillsByTrade: Record<string, TradeFill[]>;
+  /** 거래 id → 차트 메모. 펼친 차트에 그대로 그려진다. */
+  annotationsByTrade: Record<string, TradeAnnotation[]>;
 }) {
   /** 한 번에 하나만 펼친다 — 여러 개를 열면 OKX 요청이 동시에 쏟아진다. */
   const [openChart, setOpenChart] = useState<string | null>(null);
@@ -109,6 +112,7 @@ export function RecentTrades({
 
                 <div className="mt-3">
                   <TradeChart
+                    tradeId={trade.id}
                     symbol={trade.symbol}
                     side={trade.side}
                     entryAt={trade.entry_at}
@@ -117,6 +121,7 @@ export function RecentTrades({
                     exitPrice={trade.exit_price}
                     stopPrice={trade.stop_price}
                     fills={fillsByTrade[trade.id] ?? []}
+                    annotations={annotationsByTrade[trade.id] ?? []}
                   />
                 </div>
               </div>

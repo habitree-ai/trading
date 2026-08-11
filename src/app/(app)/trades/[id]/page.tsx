@@ -3,17 +3,24 @@ import { notFound } from "next/navigation";
 import { PrincipleChecklist } from "@/app/(app)/trades/[id]/principle-checklist";
 import { TradeForm } from "@/app/(app)/trades/trade-form";
 import { TradeChart } from "@/components/trade-chart";
-import { getTrade, listFills, listPrincipleChecks, listPrinciples } from "@/lib/queries";
+import {
+  getTrade,
+  listAnnotations,
+  listFills,
+  listPrincipleChecks,
+  listPrinciples,
+} from "@/lib/queries";
 
 export default async function EditTradePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const trade = await getTrade(id);
   if (!trade) notFound();
 
-  const [fills, principles, checks] = await Promise.all([
+  const [fills, principles, checks, annotations] = await Promise.all([
     listFills(trade.id),
     listPrinciples(trade.book_id),
     listPrincipleChecks(trade.id),
+    listAnnotations(trade.id),
   ]);
 
   // 접어 둔 원칙도 이미 판단이 남아 있으면 계속 보여 준다 — 그 기록을 지우거나 고칠
@@ -31,6 +38,7 @@ export default async function EditTradePage({ params }: { params: Promise<{ id: 
       </header>
 
       <TradeChart
+        tradeId={trade.id}
         symbol={trade.symbol}
         side={trade.side}
         entryAt={trade.entry_at}
@@ -39,6 +47,7 @@ export default async function EditTradePage({ params }: { params: Promise<{ id: 
         exitPrice={trade.exit_price}
         stopPrice={trade.stop_price}
         fills={fills}
+        annotations={annotations}
       />
 
       <section className="rounded-xl border border-border bg-surface p-4">

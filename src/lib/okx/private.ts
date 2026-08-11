@@ -14,6 +14,11 @@ const BASE = "https://www.okx.com";
 /** OKX가 3개월치만 돌려준다 — 그보다 오래된 구간은 요청해도 빈 배열이다. */
 export const MAX_HISTORY_MS = 90 * 24 * 60 * 60 * 1000;
 
+/** 지금 기준으로 내역을 받아 올 수 있는 가장 이른 시각(ms). */
+export function historyFloorMs(): number {
+  return Date.now() - MAX_HISTORY_MS;
+}
+
 export interface OkxCredentials {
   apiKey: string;
   secretKey: string;

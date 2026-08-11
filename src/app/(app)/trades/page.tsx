@@ -8,6 +8,7 @@ import { deriveTrades } from "@/lib/metrics";
 import {
   getActiveBook,
   getLastSync,
+  listAnnotationsByTrade,
   listCashFlows,
   listFillsByTrade,
   listTrades,
@@ -17,10 +18,11 @@ export default async function TradesPage() {
   const book = await getActiveBook();
   if (!book) return <EmptyBook />;
 
-  const [trades, flows, fillsByTrade] = await Promise.all([
+  const [trades, flows, fillsByTrade, annotationsByTrade] = await Promise.all([
     listTrades(book.id),
     listCashFlows(book.id),
     listFillsByTrade(book.id),
+    listAnnotationsByTrade(book.id),
   ]);
   // 표의 `자금` 칸이 대시보드와 같은 값을 가리키도록 이체를 함께 넘긴다.
   const derived = deriveTrades(book, trades, flows);
@@ -54,7 +56,12 @@ export default async function TradesPage() {
           아직 거래가 없습니다. 첫 기록을 추가해 주세요.
         </p>
       ) : (
-        <TradeTable rows={derived} currency={book.base_currency} fillsByTrade={fillsByTrade} />
+        <TradeTable
+          rows={derived}
+          currency={book.base_currency}
+          fillsByTrade={fillsByTrade}
+          annotationsByTrade={annotationsByTrade}
+        />
       )}
     </div>
   );

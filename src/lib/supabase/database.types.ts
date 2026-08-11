@@ -355,6 +355,50 @@ export type Database = {
           },
         ]
       }
+      trade_annotations: {
+        Row: {
+          color: string
+          created_at: string
+          id: string
+          kind: Database["public"]["Enums"]["annotation_kind"]
+          points: Json
+          text: string | null
+          trade_id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          color?: string
+          created_at?: string
+          id?: string
+          kind: Database["public"]["Enums"]["annotation_kind"]
+          points: Json
+          text?: string | null
+          trade_id: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          color?: string
+          created_at?: string
+          id?: string
+          kind?: Database["public"]["Enums"]["annotation_kind"]
+          points?: Json
+          text?: string | null
+          trade_id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "trade_annotations_trade_id_fkey"
+            columns: ["trade_id"]
+            isOneToOne: false
+            referencedRelation: "trades"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       trade_fills: {
         Row: {
           amount: number | null
@@ -644,6 +688,7 @@ export type Database = {
       }
     }
     Enums: {
+      annotation_kind: "text" | "line" | "hline" | "rect"
       book_status: "active" | "closed"
       capture_kind: "position" | "chart" | "balance"
       extract_engine: "ocr" | "ai" | "manual"
@@ -788,6 +833,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
+      annotation_kind: ["text", "line", "hline", "rect"],
       book_status: ["active", "closed"],
       capture_kind: ["position", "chart", "balance"],
       extract_engine: ["ocr", "ai", "manual"],

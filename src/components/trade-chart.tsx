@@ -14,10 +14,26 @@ import {
   type Time,
   type UTCTimestamp,
 } from "lightweight-charts";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 
+import { createAnnotation } from "@/app/(app)/trades/annotation-actions";
+import { AnnotationList } from "@/components/annotation-list";
+import {
+  AnnotationPrimitive,
+  type AnnotationColorMap,
+  type AnnotationDraft,
+} from "@/components/chart-annotations";
 import { formatDuration, measure, type MeasurePoint } from "@/components/measure-tool";
-import type { TradeFill } from "@/lib/domain";
+import { ANNOTATION_DOT_CLASS } from "@/lib/annotations";
+import {
+  ANNOTATION_COLORS,
+  ANNOTATION_COLOR_LABEL,
+  type AnnotationColor,
+  type AnnotationKind,
+  type ChartPoint,
+  type TradeAnnotation,
+  type TradeFill,
+} from "@/lib/domain";
 import { num, signed } from "@/lib/format";
 import { BAR_MS, pickBar, windowFor, type Bar as OkxBar, type Candle } from "@/lib/okx";
 
@@ -35,6 +51,26 @@ const VIEW_LABEL: Record<View, string> = {
 /** 거래 구간 앞뒤로 붙이는 여유 봉 수 — 차트 분석이 되려면 맥락이 있어야 한다. */
 const PAD_BARS = 60;
 
+/**
+ * 지금 켜 둔 도구. 한 번에 하나만 켠다 — 도구가 켜져 있으면 차트의 드래그 이동을 끄기
+ * 때문에, 둘이 동시에 켜지면 어느 쪽이 포인터를 받는지 화면에서 알 수 없다.
+ */
+type Tool = "none" | "measure" | AnnotationKind;
+
+const DRAW_TOOLS: { tool: AnnotationKind; label: string; hint: string }[] = [
+  { tool: "text", label: "T 텍스트", hint: "차트를 눌러 그 자리에 메모를 답니다" },
+  { tool: "hline", label: "— 수평선", hint: "차트를 눌러 그 가격에 가로선을 긋습니다" },
+  { tool: "line", label: "／ 추세선", hint: "두 지점을 끌어 선을 긋습니다" },
+  { tool: "rect", label: "□ 박스", hint: "끌어서 구간을 감쌉니다" },
+];
+
+/** 이보다 짧게 끌면 그릴 뜻이 없었던 것으로 본다 — 클릭 한 번에 길이 0짜리 선이 남지 않게. */
+const MIN_DRAG_PX = 4;
+
+function toChartPoint(point: MeasurePoint): ChartPoint {
+  return { t: point.time, p: point.price };
+}
+
 /** 차트 색은 CSS 토큰에서 읽는다 — 라이트/다크 전환을 한 곳에서 관리하기 위해. */
 function readTheme(el: HTMLElement) {
   const s = getComputedStyle(el);
@@ -50,6 +86,11 @@ function readTheme(el: HTMLElement) {
   };
 }
 
+/** 메모 색 토큰을 실제 색으로 푼다 — 캔버스는 CSS 변수를 읽지 못한다. */
+function annotationColors(theme: ReturnType<typeof readTheme>): AnnotationColorMap {
+  return { accent: theme.accent, profit: theme.up, loss: theme.down, beta: theme.beta };
+}
+
 interface MeasureState {
   from: MeasurePoint;
   to: MeasurePoint;
@@ -59,6 +100,7 @@ interface MeasureState {
 }
 
 export function TradeChart({
+  tradeId,
   symbol,
   side,
   entryAt,
@@ -67,7 +109,10 @@ export function TradeChart({
   exitPrice,
   stopPrice,
   fills = [],
+  annotations = [],
 }: {
+  /** 메모를 어느 거래에 붙일지 — 차트에서 바로 저장한다 */
+  tradeId: string;
   symbol: string;
   side: "long" | "short";
   entryAt: string;
@@ -81,6 +126,8 @@ export function TradeChart({
    * 체결이 있으면 실제 좌표에 찍고, 평균가는 가로 기준선으로만 표시한다.
    */
   fills?: TradeFill[];
+  /** 이 거래에 남긴 차트 메모 — 복기에서 그때 무엇을 봤는지 되짚는 자리다 */
+  annotations?: TradeAnnotation[];
 }) {
   const entryMs = Date.parse(entryAt);
   const exitMs = exitAt ? Date.parse(exitAt) : null;
@@ -89,13 +136,23 @@ export function TradeChart({
   const overlayRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const seriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
+  const layerRef = useRef<AnnotationPrimitive | null>(null);
 
   const [view, setView] = useState<View>("auto");
   const [candles, setCandles] = useState<Candle[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [measuring, setMeasuring] = useState(false);
+  const [tool, setTool] = useState<Tool>("none");
   const [state, setState] = useState<MeasureState | null>(null);
+
+  /** 그리는 중이거나 라벨을 기다리는 메모 — 점선으로 미리 그려진다. */
+  const [pending, setPending] = useState<AnnotationDraft | null>(null);
+  /** 라벨 입력창을 열어 둔 상태인가 */
+  const [asking, setAsking] = useState(false);
+  const [label, setLabel] = useState("");
+  const [color, setColor] = useState<AnnotationColor>("accent");
+  const [noteError, setNoteError] = useState<string | null>(null);
+  const [saving, startSaving] = useTransition();
 
   const bar: OkxBar = useMemo(
     () => (view === "auto" ? pickBar(Math.max((exitMs ?? entryMs) - entryMs, BAR_MS["1m"])) : view),
@@ -151,8 +208,13 @@ export function TradeChart({
       wickDownColor: theme.down,
     });
 
+    // 메모는 시리즈 플러그인으로 붙인다 — 차트가 다시 그려질 때마다 좌표가 함께 따라온다.
+    const layer = new AnnotationPrimitive(annotationColors(theme));
+    series.attachPrimitive(layer);
+
     chartRef.current = chart;
     seriesRef.current = series;
+    layerRef.current = layer;
 
     const observer = new ResizeObserver(() => {
       chart.applyOptions({ width: host.clientWidth });
@@ -165,8 +227,14 @@ export function TradeChart({
       chart.remove();
       chartRef.current = null;
       seriesRef.current = null;
+      layerRef.current = null;
     };
   }, []);
+
+  /* ---------- 메모 반영 ---------- */
+  useEffect(() => {
+    layerRef.current?.setData(annotations, pending);
+  }, [annotations, pending]);
 
   /* ---------- 캔들 로딩 ---------- */
   useEffect(() => {
@@ -283,7 +351,7 @@ export function TradeChart({
     };
   }, [candles, fills, entryPrice, exitPrice, stopPrice, entryMs, exitMs, bar]);
 
-  /* ---------- 측정(자) 도구 ---------- */
+  /* ---------- 측정(자)·메모 도구 ---------- */
   const toPoint = useCallback((x: number, y: number): MeasurePoint | null => {
     const chart = chartRef.current;
     const series = seriesRef.current;
@@ -297,9 +365,14 @@ export function TradeChart({
 
   useEffect(() => {
     // 차트 캔버스는 포인터 이벤트를 자기가 붙잡고 위로 올려보내지 않는다.
-    // 측정 중에만 투명한 판을 덮고 거기서 드래그를 받는다.
+    // 도구를 켠 동안에만 투명한 판을 덮고 거기서 드래그를 받는다.
     const host = overlayRef.current;
-    if (!host || !measuring) return;
+    // 라벨을 적는 중에는 새 도형을 시작하지 않는다 — 적던 것이 지워져 버린다.
+    if (!host || tool === "none" || asking) return;
+
+    // 측정은 결과를 화면에만 남기고, 나머지는 메모로 저장한다.
+    const kind = tool === "measure" ? null : tool;
+    const dragging = kind === null || kind === "line" || kind === "rect";
 
     let start: { point: MeasurePoint; x: number; y: number } | null = null;
 
@@ -308,14 +381,34 @@ export function TradeChart({
       return { x: e.clientX - r.left, y: e.clientY - r.top };
     };
 
+    const ask = () => {
+      setLabel("");
+      setNoteError(null);
+      setAsking(true);
+    };
+
     const onDown = (e: PointerEvent) => {
       const { x, y } = local(e);
       const point = toPoint(x, y);
       if (!point) return;
-      start = { point, x, y };
-      setState({ from: point, to: point, box: { x1: x, y1: y, x2: x, y2: y }, done: false });
-      host.setPointerCapture(e.pointerId);
       e.preventDefault();
+
+      // 한 점짜리 메모 — 누른 자리에서 바로 라벨을 묻는다.
+      if (kind !== null && !dragging) {
+        setPending({ kind, points: [toChartPoint(point)], text: null, color });
+        ask();
+        return;
+      }
+
+      start = { point, x, y };
+      host.setPointerCapture(e.pointerId);
+
+      if (kind === null) {
+        setState({ from: point, to: point, box: { x1: x, y1: y, x2: x, y2: y }, done: false });
+      } else {
+        const at = toChartPoint(point);
+        setPending({ kind, points: [at, at], text: null, color });
+      }
     };
 
     const onMove = (e: PointerEvent) => {
@@ -323,19 +416,41 @@ export function TradeChart({
       const { x, y } = local(e);
       const point = toPoint(x, y);
       if (!point) return;
-      setState({
-        from: start.point,
-        to: point,
-        box: { x1: start.x, y1: start.y, x2: x, y2: y },
-        done: false,
-      });
+
+      if (kind === null) {
+        setState({
+          from: start.point,
+          to: point,
+          box: { x1: start.x, y1: start.y, x2: x, y2: y },
+          done: false,
+        });
+      } else {
+        setPending({
+          kind,
+          points: [toChartPoint(start.point), toChartPoint(point)],
+          text: null,
+          color,
+        });
+      }
     };
 
-    const onUp = () => {
+    const onUp = (e: PointerEvent) => {
       if (!start) return;
+      const { x, y } = local(e);
+      const moved = Math.abs(x - start.x) + Math.abs(y - start.y);
       start = null;
-      // 손을 떼면 결과를 남긴다 — 트레이딩뷰처럼 다시 끌면 새로 잰다.
-      setState((s) => (s ? { ...s, done: true } : s));
+
+      if (kind === null) {
+        // 손을 떼면 결과를 남긴다 — 트레이딩뷰처럼 다시 끌면 새로 잰다.
+        setState((s) => (s ? { ...s, done: true } : s));
+        return;
+      }
+      // 끌지 않고 눌렀다 뗀 것 — 길이 0짜리 도형을 남기지 않는다.
+      if (moved < MIN_DRAG_PX) {
+        setPending(null);
+        return;
+      }
+      ask();
     };
 
     host.addEventListener("pointerdown", onDown);
@@ -349,15 +464,54 @@ export function TradeChart({
       host.removeEventListener("pointerup", onUp);
       host.removeEventListener("pointercancel", onUp);
     };
-  }, [measuring, toPoint]);
+  }, [tool, asking, color, toPoint]);
 
-  // 측정 모드에서는 차트의 드래그 이동을 꺼야 사각형을 그릴 수 있다.
+  // 도구를 켠 동안에는 차트의 드래그 이동을 꺼야 도형을 그릴 수 있다.
   useEffect(() => {
     chartRef.current?.applyOptions({
-      handleScroll: !measuring,
-      handleScale: !measuring,
+      handleScroll: tool === "none",
+      handleScale: tool === "none",
     });
-  }, [measuring]);
+  }, [tool]);
+
+  /** 도구를 갈아 끼운다 — 같은 것을 다시 누르면 끈다. 그리던 것은 버린다. */
+  const pickTool = (next: Tool) => {
+    setTool((current) => (current === next ? "none" : next));
+    setState(null);
+    setPending(null);
+    setAsking(false);
+    setNoteError(null);
+  };
+
+  const cancelDraft = () => {
+    setPending(null);
+    setAsking(false);
+    setNoteError(null);
+  };
+
+  const saveDraft = () => {
+    if (!pending) return;
+    const text = label.trim();
+    if (pending.kind === "text" && text === "") {
+      setNoteError("메모 내용을 입력해 주세요.");
+      return;
+    }
+
+    startSaving(async () => {
+      const result = await createAnnotation({
+        tradeId,
+        kind: pending.kind,
+        points: pending.points,
+        text: text === "" ? null : text,
+        color: pending.color,
+      });
+      if (result.error) {
+        setNoteError(result.error);
+        return;
+      }
+      cancelDraft();
+    });
+  };
 
   const result = state ? measure(state.from, state.to, barSeconds) : null;
   const held =
@@ -372,21 +526,54 @@ export function TradeChart({
           당시 차트 <span className="font-normal text-dim">— {symbol}-USDT 무기한 · OKX</span>
         </h2>
 
-        <div className="ml-auto flex flex-wrap gap-1">
+        <div className="ml-auto flex flex-wrap items-center gap-1">
           <button
             type="button"
-            onClick={() => {
-              setMeasuring((m) => !m);
-              setState(null);
-            }}
+            onClick={() => pickTool("measure")}
             className={`rounded-lg border px-2.5 py-1 text-xs ${
-              measuring ? "border-accent bg-accent text-white" : "border-border text-dim hover:text-text"
+              tool === "measure"
+                ? "border-accent bg-accent text-white"
+                : "border-border text-dim hover:text-text"
             }`}
             title="드래그로 두 지점 사이의 가격·비율·기간을 잽니다"
           >
             📏 측정
           </button>
-          <span className="mx-1 w-px bg-border" aria-hidden />
+          <span className="mx-1 w-px self-stretch bg-border" aria-hidden />
+          {DRAW_TOOLS.map((t) => (
+            <button
+              key={t.tool}
+              type="button"
+              onClick={() => pickTool(t.tool)}
+              className={`rounded-lg border px-2.5 py-1 text-xs ${
+                tool === t.tool
+                  ? "border-accent bg-accent text-white"
+                  : "border-border text-dim hover:text-text"
+              }`}
+              title={t.hint}
+            >
+              {t.label}
+            </button>
+          ))}
+          {/* 색은 메모 도구를 켰을 때만 고른다 — 측정에는 쓰이지 않는다. */}
+          {tool !== "none" && tool !== "measure" ? (
+            <span className="ml-1 flex items-center gap-1">
+              {ANNOTATION_COLORS.map((c) => (
+                <button
+                  key={c}
+                  type="button"
+                  aria-label={ANNOTATION_COLOR_LABEL[c]}
+                  aria-pressed={color === c}
+                  title={ANNOTATION_COLOR_LABEL[c]}
+                  onClick={() => setColor(c)}
+                  className={`size-4 rounded-full ${ANNOTATION_DOT_CLASS[c]} ${
+                    color === c ? "ring-2 ring-text ring-offset-1 ring-offset-surface" : ""
+                  }`}
+                />
+              ))}
+            </span>
+          ) : null}
+          <span className="mx-1 w-px self-stretch bg-border" aria-hidden />
           {(Object.keys(VIEW_LABEL) as View[]).map((v) => (
             <button
               key={v}
@@ -420,9 +607,50 @@ export function TradeChart({
         */}
         <div
           ref={overlayRef}
-          className={`absolute inset-0 ${measuring ? "cursor-crosshair" : "pointer-events-none"}`}
-          style={{ touchAction: measuring ? "none" : undefined, zIndex: 5 }}
+          className={`absolute inset-0 ${tool === "none" ? "pointer-events-none" : "cursor-crosshair"}`}
+          style={{ touchAction: tool === "none" ? undefined : "none", zIndex: 5 }}
         />
+
+        {/* 라벨 입력 — 차트 아래쪽에 고정한다. 누른 자리에 띄우면 가장자리에서 잘린다. */}
+        {asking && pending ? (
+          <div
+            className="absolute inset-x-2 bottom-2 rounded-lg border border-border bg-surface p-2 shadow-lg"
+            style={{ zIndex: 7 }}
+          >
+            <div className="flex flex-wrap items-center gap-2">
+              <input
+                autoFocus
+                value={label}
+                onChange={(e) => setLabel(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") saveDraft();
+                  if (e.key === "Escape") cancelDraft();
+                }}
+                placeholder={
+                  pending.kind === "text" ? "메모 내용" : "라벨 — 없어도 됩니다"
+                }
+                className="min-w-40 flex-1 rounded-lg border border-border bg-bg px-3 py-1.5 text-sm outline-none focus:border-accent"
+              />
+              <button
+                type="button"
+                disabled={saving}
+                onClick={saveDraft}
+                className="rounded-lg bg-accent px-3 py-1.5 text-xs font-medium text-white disabled:opacity-50"
+              >
+                {saving ? "저장 중…" : "저장"}
+              </button>
+              <button
+                type="button"
+                disabled={saving}
+                onClick={cancelDraft}
+                className="rounded-lg border border-border px-3 py-1.5 text-xs text-dim disabled:opacity-50"
+              >
+                취소
+              </button>
+            </div>
+            {noteError ? <p className="mt-1 text-[11px] text-loss">{noteError}</p> : null}
+          </div>
+        ) : null}
 
         {/* 측정 사각형 — 차트 위에 겹쳐 그린다. 포인터 이벤트는 아래로 통과시킨다. */}
         {state && result ? (
@@ -475,9 +703,14 @@ export function TradeChart({
       </div>
 
       <p className="mt-2 text-[11px] text-dim">
-        {measuring ? (
+        {tool === "measure" ? (
           <b className="text-accent">
             측정 중 — 차트를 끌어 두 지점 사이의 가격·비율·기간을 재세요. 다시 누르면 끕니다.
+          </b>
+        ) : tool !== "none" ? (
+          <b className="text-accent">
+            {DRAW_TOOLS.find((t) => t.tool === tool)?.hint} — 메모는 (시각, 가격)에 붙어 봉을
+            바꿔도 같은 자리를 가리킵니다. 다시 누르면 끕니다.
           </b>
         ) : (
           <>
@@ -486,6 +719,8 @@ export function TradeChart({
           </>
         )}
       </p>
+
+      <AnnotationList annotations={annotations} />
     </section>
   );
 }

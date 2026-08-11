@@ -139,6 +139,56 @@ export interface TradeFill {
   created_at: string;
 }
 
+/**
+ * 차트 메모 1개 — 거래 차트 위에 남긴 텍스트나 도형.
+ *
+ * 복기는 "그때 무엇을 봤는지"를 되짚는 일이다. 지지선을 어디로 봤는지, 어느 봉에서
+ * 손이 먼저 나갔는지는 차트 위 좌표에 붙어 있어야 뜻이 산다.
+ */
+export type AnnotationKind = 'text' | 'line' | 'hline' | 'rect';
+
+/** 색은 CSS 토큰 이름으로 둔다 — 라이트/다크가 바뀌어도 같은 뜻의 색을 쓴다. */
+export type AnnotationColor = 'accent' | 'profit' | 'loss' | 'beta';
+
+/** 메모가 가리키는 자리 — 화면 픽셀이 아니라 (시각, 가격)이라 봉을 바꿔도 같은 곳이다. */
+export interface ChartPoint {
+  /** 초 단위 epoch — lightweight-charts의 UTCTimestamp와 같은 단위 */
+  t: number;
+  p: number;
+}
+
+export interface TradeAnnotation {
+  id: string;
+  trade_id: string;
+  user_id: string;
+  kind: AnnotationKind;
+  /** `text`·`hline`은 1점, `line`·`rect`는 2점 */
+  points: ChartPoint[];
+  /** 도형에 붙는 라벨. `text`에서는 이것이 내용 전부다 */
+  text: string | null;
+  color: AnnotationColor;
+  created_at: string;
+  updated_at: string;
+}
+
+export const ANNOTATION_KINDS: AnnotationKind[] = ['text', 'hline', 'line', 'rect'];
+
+export const ANNOTATION_KIND_LABEL: Record<AnnotationKind, string> = {
+  text: '텍스트',
+  hline: '수평선',
+  line: '추세선',
+  rect: '박스',
+};
+
+export const ANNOTATION_COLORS: AnnotationColor[] = ['accent', 'profit', 'loss', 'beta'];
+
+export const ANNOTATION_COLOR_LABEL: Record<AnnotationColor, string> = {
+  accent: '파랑',
+  profit: '초록',
+  loss: '빨강',
+  beta: '노랑',
+};
+
 export interface TradeImage {
   id: string;
   trade_id: string | null;

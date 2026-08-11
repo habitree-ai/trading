@@ -5,7 +5,13 @@ import { Fragment, useEffect, useMemo, useRef, useState, useTransition } from "r
 
 import { deleteTrade } from "@/app/(app)/trades/actions";
 import { TradeChart } from "@/components/trade-chart";
-import { RESULT_LABEL, SIDE_LABEL, type TradeFill, type TradeResult } from "@/lib/domain";
+import {
+  RESULT_LABEL,
+  SIDE_LABEL,
+  type TradeAnnotation,
+  type TradeFill,
+  type TradeResult,
+} from "@/lib/domain";
 import { dateTime, num, pct, pnlClass, signed, signedPct } from "@/lib/format";
 import type { TradeDerived } from "@/lib/metrics";
 
@@ -25,11 +31,14 @@ export function TradeTable({
   rows,
   currency,
   fillsByTrade = {},
+  annotationsByTrade = {},
 }: {
   rows: TradeDerived[];
   currency: string;
   /** 거래 id → 낱개 체결. 차트가 평균가 대신 실제 좌표를 찍는 데 쓴다. */
   fillsByTrade?: Record<string, TradeFill[]>;
+  /** 거래 id → 차트 메모. 펼친 차트에 그대로 그려진다. */
+  annotationsByTrade?: Record<string, TradeAnnotation[]>;
 }) {
   const [pending, startTransition] = useTransition();
   const [result, setResult] = useState<ResultFilter>("all");
@@ -227,6 +236,7 @@ export function TradeTable({
                         style={{ width: viewWidth || undefined }}
                       >
                         <TradeChart
+                          tradeId={trade.id}
                           symbol={trade.symbol}
                           side={trade.side}
                           entryAt={trade.entry_at}
@@ -235,6 +245,7 @@ export function TradeTable({
                           exitPrice={trade.exit_price}
                           stopPrice={trade.stop_price}
                           fills={fillsByTrade[trade.id] ?? []}
+                          annotations={annotationsByTrade[trade.id] ?? []}
                         />
                       </div>
                     </td>

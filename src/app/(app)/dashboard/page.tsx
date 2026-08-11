@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { CapitalAudit } from "@/app/(app)/dashboard/capital-audit";
 import { BalanceGap, CashFlowPanel } from "@/app/(app)/dashboard/cash-flow-panel";
 import { CostPanel } from "@/app/(app)/dashboard/cost-panel";
 import { Layer, Note, worstTone } from "@/app/(app)/dashboard/layer";
@@ -27,14 +28,17 @@ import {
   monthKey,
   summarizePerformance,
 } from "@/lib/metrics";
+import { historyFloorMs } from "@/lib/okx/private";
 import {
   getActiveBook,
   getLastSync,
   getLatestBalance,
+  listAnnotationsByTrade,
   listCashFlows,
   listFillsByTrade,
   listTrades,
 } from "@/lib/queries";
+import { reconcileEquity } from "@/lib/reconcile";
 import {
   readBalanceGap,
   readCost,
@@ -119,10 +123,17 @@ export default async function DashboardPage() {
   const hasWithdrawal = curve.some((p) => p.withdrawnStep > 0);
 
   const recent = [...derived].reverse().slice(0, 8);
-  // 차트에 찍을 체결은 펼쳐 볼 수 있는 8건만 넘긴다 — 전량을 보내면 페이로드가 헛되이 커진다.
+  // 차트에 찍을 체결·메모는 펼쳐 볼 수 있는 8건만 넘긴다 — 전량을 보내면 페이로드가 헛되이 커진다.
   const recentIds = new Set(recent.map((d) => d.trade.id));
+  const [allFills, allAnnotations] = await Promise.all([
+    listFillsByTrade(book.id),
+    listAnnotationsByTrade(book.id),
+  ]);
   const recentFills = Object.fromEntries(
-    Object.entries(await listFillsByTrade(book.id)).filter(([id]) => recentIds.has(id)),
+    Object.entries(allFills).filter(([id]) => recentIds.has(id)),
+  );
+  const recentAnnotations = Object.fromEntries(
+    Object.entries(allAnnotations).filter(([id]) => recentIds.has(id)),
   );
 
   /* ============ 해석 ============ */
@@ -132,6 +143,22 @@ export default async function DashboardPage() {
     balance?.equity ?? null,
     balance?.unrealized_pnl ?? null,
   );
+  // 어긋났을 때 어느 항이 틀렸는지까지 가른다 — 경고만으로는 손댈 곳을 못 찾는다.
+  const audit = reconcileEquity({
+    initialCapital: m.initialCapital,
+    netPnl: m.netPnl,
+    netTransfer: m.netTransfer,
+    tradeWithdrawal: m.totalWithdrawal,
+    computedEquity: m.finalEquity,
+    actual: balance?.equity ?? null,
+    unrealizedPnl: balance?.unrealized_pnl ?? null,
+    foreignFlowCount: flows.filter((f) => f.ccy !== book.base_currency).length,
+    baseCurrency: book.base_currency,
+    startDate: book.start_date,
+    historyFloorMs: historyFloorMs(),
+    lastSyncAt: lastSync?.started_at ?? null,
+    linked: Boolean(book.exchange_account_id),
+  });
   const cost = readCost({
     pnlBeforeCost: m.pnlBeforeCost,
     cost: m.fees + m.fundingFees,
@@ -180,7 +207,7 @@ export default async function DashboardPage() {
         index={1}
         title="지금 상태"
         question="계좌에 지금 얼마가 있고, 그 값이 맞는가"
-        tone={gap.tone}
+        tone={worstTone([gap.tone, audit.tone])}
       >
         <div className="rounded-xl border border-border bg-surface p-4">
           <div className="flex flex-wrap items-end gap-x-8 gap-y-3">
@@ -213,6 +240,13 @@ export default async function DashboardPage() {
             />
           </div>
         </div>
+
+        <CapitalAudit
+          bookId={book.id}
+          startDate={book.start_date}
+          currency={book.base_currency}
+          report={audit}
+        />
 
         {derived.length > 0 ? (
           <section className="rounded-xl border border-border bg-surface p-4">
@@ -385,6 +419,7 @@ export default async function DashboardPage() {
               rows={recent}
               currency={book.base_currency}
               fillsByTrade={recentFills}
+              annotationsByTrade={recentAnnotations}
             />
           </section>
         </>

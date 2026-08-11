@@ -254,8 +254,8 @@ export function readCost(input: {
  *
  * 수수료 반올림 정도는 늘 남는다. 2%를 넘으면 놓친 거래나 입출금이 있다고 본다.
  */
-const GAP_OK = 0.005;
-const GAP_LIMIT = 0.02;
+export const GAP_OK = 0.005;
+export const GAP_LIMIT = 0.02;
 
 /**
  * 계산 자금과 거래소 잔고를 견준다 — 미청산 포지션의 손익은 걷어내고.

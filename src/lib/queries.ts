@@ -1,5 +1,6 @@
 import { cookies } from "next/headers";
 
+import { toAnnotation, type AnnotationRow } from "@/lib/annotations";
 import { isAllowedEmail } from "@/lib/auth/allowlist";
 import type {
   BalanceSnapshot,
@@ -10,6 +11,7 @@ import type {
   Principle,
   SyncRun,
   Trade,
+  TradeAnnotation,
   TradeFill,
   TradePrincipleCheck,
 } from "@/lib/domain";
@@ -114,6 +116,47 @@ export async function listFills(tradeId: string): Promise<TradeFill[]> {
     .order("filled_at", { ascending: true });
   if (error) throw new Error(error.message);
   return data;
+}
+
+/**
+ * 거래 1건에 남긴 차트 메모 — 오래된 것부터.
+ *
+ * 형태가 깨진 행은 그 건만 버린다. 좌표 하나 때문에 차트에서 메모가 통째로 사라지면
+ * 무엇을 잃었는지조차 알 수 없다.
+ */
+export async function listAnnotations(tradeId: string): Promise<TradeAnnotation[]> {
+  const { supabase } = await requireUser();
+  const { data, error } = await supabase
+    .from("trade_annotations")
+    .select("*")
+    .eq("trade_id", tradeId)
+    .order("created_at", { ascending: true });
+  if (error) throw new Error(error.message);
+
+  return (data as AnnotationRow[])
+    .map(toAnnotation)
+    .filter((a): a is TradeAnnotation => a !== null);
+}
+
+/** 북 안의 모든 차트 메모 — 거래 id로 묶어 돌려준다(목록에서 거래마다 다시 묻지 않도록). */
+export async function listAnnotationsByTrade(
+  bookId: string,
+): Promise<Record<string, TradeAnnotation[]>> {
+  const { supabase } = await requireUser();
+  const { data, error } = await supabase
+    .from("trade_annotations")
+    .select("*, trades!inner(book_id)")
+    .eq("trades.book_id", bookId)
+    .order("created_at", { ascending: true });
+  if (error) throw new Error(error.message);
+
+  const grouped: Record<string, TradeAnnotation[]> = {};
+  for (const row of data as AnnotationRow[]) {
+    const annotation = toAnnotation(row);
+    if (annotation === null) continue;
+    (grouped[annotation.trade_id] ??= []).push(annotation);
+  }
+  return grouped;
 }
 
 /** 북에 잡힌 입금·출금·이체 — 오래된 것부터. 자금 곡선이 시간순으로 이어 붙인다. */
