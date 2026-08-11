@@ -9,7 +9,7 @@ import {
   parsePoints,
 } from "@/lib/annotations";
 import { isPositionKind } from "@/lib/domain";
-import { positionMetrics } from "@/lib/position-tool";
+import { positionProblemOf } from "@/lib/position-tool";
 import { requireUser } from "@/lib/queries";
 
 export interface AnnotationResult {
@@ -50,15 +50,8 @@ export async function createAnnotation(input: {
 
   // 손익 툴은 배치가 방향과 맞아야 한다 — 뒤집힌 채로 저장되면 손익비가 거짓말을 한다.
   if (isPositionKind(kind)) {
-    const [entry, stop, target] = points;
-    const metrics = positionMetrics({
-      side: kind,
-      entry: entry.p,
-      stop: stop.p,
-      target: target.p,
-    });
-    if (metrics === null) return { error: "가격을 읽지 못했습니다. 다시 찍어 주세요." };
-    if (metrics.problem !== null) return { error: metrics.problem };
+    const problem = positionProblemOf(kind, points);
+    if (problem !== null) return { error: problem };
   }
 
   const { supabase, user } = await requireUser();
@@ -102,6 +95,47 @@ export async function updateAnnotationText(
   const { error } = await supabase
     .from("trade_annotations")
     .update({ text: next })
+    .eq("id", id);
+  if (error) return { error: error.message };
+
+  revalidatePath("/", "layout");
+  return {};
+}
+
+/**
+ * 끌어서 옮긴 자리를 저장한다.
+ *
+ * 종류는 클라이언트가 보낸 값을 믿지 않고 DB에서 다시 읽는다 — 점의 수와 배치 규칙이
+ * 종류마다 다른데, 그 값이 바뀌어 들어오면 다른 종류의 검증을 통과해 버린다.
+ */
+export async function updateAnnotationPoints(
+  id: string,
+  points: unknown,
+): Promise<AnnotationResult> {
+  if (!id) return { error: "메모를 찾을 수 없습니다." };
+
+  const { supabase } = await requireUser();
+  const { data: found, error: findError } = await supabase
+    .from("trade_annotations")
+    .select("kind")
+    .eq("id", id)
+    .maybeSingle();
+  if (findError) return { error: findError.message };
+  if (!found) return { error: "메모를 찾을 수 없습니다." };
+
+  const { kind } = found;
+  const parsed = parsePoints(points, kind);
+  if (parsed === null) return { error: "옮긴 자리를 읽지 못했습니다." };
+
+  if (isPositionKind(kind)) {
+    const problem = positionProblemOf(kind, parsed);
+    if (problem !== null) return { error: problem };
+  }
+
+  const stored = normalizePoints(kind, parsed).map((point) => ({ t: point.t, p: point.p }));
+  const { error } = await supabase
+    .from("trade_annotations")
+    .update({ points: stored })
     .eq("id", id);
   if (error) return { error: error.message };
 

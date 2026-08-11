@@ -16,7 +16,12 @@ import {
 } from "lightweight-charts";
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 
-import { createAnnotation } from "@/app/(app)/trades/annotation-actions";
+import {
+  createAnnotation,
+  deleteAnnotation,
+  updateAnnotationPoints,
+  updateAnnotationText,
+} from "@/app/(app)/trades/annotation-actions";
 import { AnnotationList } from "@/components/annotation-list";
 import {
   AnnotationPrimitive,
@@ -28,6 +33,7 @@ import { ANNOTATION_DOT_CLASS, pointCount } from "@/lib/annotations";
 import {
   ANNOTATION_COLORS,
   ANNOTATION_COLOR_LABEL,
+  ANNOTATION_KIND_LABEL,
   isPositionKind,
   type AnnotationColor,
   type AnnotationKind,
@@ -36,7 +42,8 @@ import {
   type TradeFill,
 } from "@/lib/domain";
 import { num, signed } from "@/lib/format";
-import { positionMetrics } from "@/lib/position-tool";
+import { handleMovesTime, type AnnotationHit } from "@/lib/hit-test";
+import { positionProblemOf } from "@/lib/position-tool";
 import { BAR_MS, pickBar, windowFor, type Bar as OkxBar, type Candle } from "@/lib/okx";
 
 /** 화면에 노출하는 보기 — 자동은 거래 길이에 맞춰 봉을 고른다. */
@@ -78,27 +85,21 @@ function toChartPoint(point: MeasurePoint): ChartPoint {
   return { t: point.time, p: point.price };
 }
 
-/**
- * 손익 툴의 배치가 방향과 맞는지 — 어긋나면 그 이유.
- *
- * 롱인데 손절을 진입 위에 찍으면 이익 구간과 손실 구간이 뒤집힌 채 저장된다.
- * 그림은 그럴싸하게 나오지만 손익비가 거짓말을 하므로 저장 전에 막는다.
- */
-function positionProblem(
-  kind: "long" | "short",
-  points: readonly ChartPoint[],
-): string | null {
-  const [entry, stop, target] = points;
-  if (!entry || !stop || !target) return "진입·손절·목표 세 지점을 모두 눌러 주세요.";
-
-  const metrics = positionMetrics({
-    side: kind,
-    entry: entry.p,
-    stop: stop.p,
-    target: target.p,
-  });
-  return metrics === null ? "가격을 읽지 못했습니다. 다시 눌러 주세요." : metrics.problem;
+/** 끌고 있는 메모 — 놓는 순간 저장한다. */
+interface DragState {
+  hit: AnnotationHit;
+  kind: AnnotationKind;
+  /** 끌기 시작한 자리의 차트 좌표 — 여기서부터의 차이를 좌표에 얹는다 */
+  from: ChartPoint;
+  /** 끌기 전 좌표 — 어긋난 자리에서 놓으면 여기로 되돌린다 */
+  origin: ChartPoint[];
+  /** 누른 자리의 화면 좌표 — 끌었는지 눌렀는지를 픽셀로 가른다 */
+  at: { x: number; y: number };
+  moved: number;
 }
+
+/** 끈 것으로 볼 최소 거리(px) — 손이 조금 떨렸다고 자리가 바뀌면 곤란하다. */
+const MIN_MOVE_PX = 3;
 
 /** 차트 색은 CSS 토큰에서 읽는다 — 라이트/다크 전환을 한 곳에서 관리하기 위해. */
 function readTheme(el: HTMLElement) {
@@ -193,6 +194,25 @@ export function TradeChart({
   const [noteError, setNoteError] = useState<string | null>(null);
   const [saving, startSaving] = useTransition();
 
+  /** 끌어서 옮기는 중인 메모의 새 좌표 — 놓을 때까지 화면에만 반영한다. */
+  const [moving, setMoving] = useState<{ id: string; points: ChartPoint[] } | null>(null);
+  /** 눌러서 고르는 중인 메모 — 라벨을 고치거나 지울 수 있다. */
+  const [editing, setEditing] = useState<TradeAnnotation | null>(null);
+
+  /**
+   * 화면에 그릴 메모 — 끌고 있는 것만 새 좌표로 갈아 끼운다.
+   *
+   * 저장은 손을 뗄 때 한 번만 한다. 끌 때마다 서버에 보내면 한 번 옮기는 데 수십 번의
+   * 왕복이 생기고, 그때마다 페이지가 다시 그려져 끌던 손이 끊긴다.
+   */
+  const shown = useMemo(
+    () =>
+      moving === null
+        ? annotations
+        : annotations.map((a) => (a.id === moving.id ? { ...a, points: moving.points } : a)),
+    [annotations, moving],
+  );
+
   const bar: OkxBar = useMemo(
     () => (view === "auto" ? pickBar(Math.max((exitMs ?? entryMs) - entryMs, BAR_MS["1m"])) : view),
     [view, entryMs, exitMs],
@@ -272,8 +292,8 @@ export function TradeChart({
 
   /* ---------- 메모 반영 ---------- */
   useEffect(() => {
-    layerRef.current?.setData(annotations, pending, notional);
-  }, [annotations, pending, notional]);
+    layerRef.current?.setData(shown, pending, notional);
+  }, [shown, pending, notional]);
 
   /* ---------- 캔들 로딩 ---------- */
   useEffect(() => {
@@ -440,7 +460,7 @@ export function TradeChart({
         stepsRef.current = placed;
         setPending({ kind, points: placed, text: null, color });
         if (placed.length >= needed) {
-          ask(isPositionKind(kind) ? positionProblem(kind, placed) : null);
+          ask(isPositionKind(kind) ? positionProblemOf(kind, placed) : null);
         }
         return;
       }
@@ -511,6 +531,135 @@ export function TradeChart({
     };
   }, [tool, asking, color, toPoint]);
 
+  /* ---------- 이미 그린 메모 집어 옮기기 ---------- */
+  useEffect(() => {
+    const host = hostRef.current;
+    // 도구를 켠 동안에는 위를 덮은 판이 포인터를 받는다 — 여기서 또 잡으면 서로 다툰다.
+    if (!host || tool !== "none") return;
+
+    let drag: DragState | null = null;
+    let current: ChartPoint[] = [];
+
+    const local = (e: PointerEvent) => {
+      const r = host.getBoundingClientRect();
+      return { x: e.clientX - r.left, y: e.clientY - r.top };
+    };
+
+    const onDown = (e: PointerEvent) => {
+      const { x, y } = local(e);
+      const hit = layerRef.current?.findHit(x, y);
+      if (!hit) {
+        // 빈 곳을 누르면 고르던 것을 놓는다.
+        setEditing(null);
+        setNoteError(null);
+        return;
+      }
+
+      const target = annotations.find((a) => a.id === hit.id);
+      const from = toPoint(x, y);
+      if (!target || !from) return;
+
+      drag = {
+        hit,
+        kind: target.kind,
+        from: toChartPoint(from),
+        origin: target.points,
+        at: { x, y },
+        moved: 0,
+      };
+      current = target.points;
+
+      /*
+       * 차트가 이 누름을 '팬 시작'으로 받지 않게 캡처 단계에서 끊는다.
+       *
+       * 라이브러리는 캔버스에서 `mousedown`을 듣는다. 캔버스보다 위(컨테이너)에서
+       * 캡처로 받으면 우리가 먼저 보고, 메모를 집은 경우에만 그 아래로 내려보내지
+       * 않는다 — 메모가 없는 자리에서는 그대로 통과해 밀기·확대가 살아 있다.
+       */
+      e.stopPropagation();
+      e.preventDefault();
+    };
+
+    // 포인터 이벤트를 막아도 브라우저에 따라 호환용 마우스 이벤트가 따라온다.
+    const swallow = (e: Event) => {
+      if (!drag) return;
+      e.stopPropagation();
+      e.preventDefault();
+    };
+
+    const onMove = (e: PointerEvent) => {
+      const d = drag;
+      if (!d) return;
+
+      const { x, y } = local(e);
+      const at = toPoint(x, y);
+      if (!at) return;
+
+      const dt = at.time - d.from.t;
+      const dp = at.price - d.from.p;
+      const withTime = handleMovesTime(d.kind);
+
+      current = d.origin.map((point, i) => {
+        if (d.hit.target === "body") return { t: point.t + dt, p: point.p + dp };
+        if (i !== d.hit.target) return point;
+        return withTime ? { t: point.t + dt, p: point.p + dp } : { t: point.t, p: point.p + dp };
+      });
+
+      d.moved = Math.max(d.moved, Math.abs(x - d.at.x) + Math.abs(y - d.at.y));
+      setMoving({ id: d.hit.id, points: current });
+    };
+
+    const onUp = () => {
+      const d = drag;
+      if (!d) return;
+      drag = null;
+
+      // 거의 안 움직였으면 옮긴 게 아니라 고른 것이다 — 고칠 자리를 연다.
+      if (d.moved < MIN_MOVE_PX) {
+        setMoving(null);
+        const target = annotations.find((a) => a.id === d.hit.id);
+        if (!target) return;
+        setEditing(target);
+        setLabel(target.text ?? "");
+        setNoteError(null);
+        return;
+      }
+
+      // 옮긴 자리가 방향과 어긋나면 되돌린다 — 뒤집힌 손익비를 남기지 않는다.
+      if (isPositionKind(d.kind)) {
+        const problem = positionProblemOf(d.kind, current);
+        if (problem !== null) {
+          setMoving(null);
+          setNoteError(problem);
+          return;
+        }
+      }
+
+      const points = current;
+      startSaving(async () => {
+        const result = await updateAnnotationPoints(d.hit.id, points);
+        if (result.error) setNoteError(result.error);
+        setMoving(null);
+      });
+    };
+
+    host.addEventListener("pointerdown", onDown, true);
+    host.addEventListener("mousedown", swallow, true);
+    host.addEventListener("touchstart", swallow, true);
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+    window.addEventListener("pointercancel", onUp);
+
+    return () => {
+      host.removeEventListener("pointerdown", onDown, true);
+      host.removeEventListener("mousedown", swallow, true);
+      host.removeEventListener("touchstart", swallow, true);
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      window.removeEventListener("pointercancel", onUp);
+    };
+  }, [tool, annotations, toPoint]);
+
   // 도구를 켠 동안에는 차트의 드래그 이동을 꺼야 도형을 그릴 수 있다.
   useEffect(() => {
     chartRef.current?.applyOptions({
@@ -523,6 +672,7 @@ export function TradeChart({
     stepsRef.current = [];
     setPending(null);
     setAsking(false);
+    setEditing(null);
     setNoteError(null);
   };
 
@@ -533,6 +683,37 @@ export function TradeChart({
     cancelDraft();
   };
 
+  /** 골라 둔 메모의 라벨을 고친다. */
+  const saveEdit = () => {
+    if (!editing) return;
+    const text = label.trim();
+    if (editing.kind === "text" && text === "") {
+      setNoteError("메모 내용을 입력해 주세요.");
+      return;
+    }
+
+    startSaving(async () => {
+      const result = await updateAnnotationText(editing.id, text);
+      if (result.error) {
+        setNoteError(result.error);
+        return;
+      }
+      setEditing(null);
+    });
+  };
+
+  const removeEdit = () => {
+    if (!editing) return;
+    startSaving(async () => {
+      const result = await deleteAnnotation(editing.id);
+      if (result.error) {
+        setNoteError(result.error);
+        return;
+      }
+      setEditing(null);
+    });
+  };
+
   const saveDraft = () => {
     if (!pending) return;
     const text = label.trim();
@@ -541,7 +722,7 @@ export function TradeChart({
       return;
     }
     if (isPositionKind(pending.kind)) {
-      const problem = positionProblem(pending.kind, pending.points);
+      const problem = positionProblemOf(pending.kind, pending.points);
       if (problem !== null) {
         setNoteError(problem);
         return;
@@ -717,6 +898,56 @@ export function TradeChart({
           </div>
         ) : null}
 
+        {/* 골라 둔 메모 — 누른 자리에서 바로 라벨을 고치거나 지운다. */}
+        {editing ? (
+          <div
+            className="absolute inset-x-2 bottom-2 rounded-lg border border-border bg-surface p-2 shadow-lg"
+            style={{ zIndex: 7 }}
+          >
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="rounded border border-border px-1.5 py-0.5 text-[10px] text-dim">
+                {ANNOTATION_KIND_LABEL[editing.kind]}
+              </span>
+              <input
+                autoFocus
+                value={label}
+                onChange={(e) => setLabel(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") saveEdit();
+                  if (e.key === "Escape") setEditing(null);
+                }}
+                placeholder={editing.kind === "text" ? "메모 내용" : "라벨 — 없어도 됩니다"}
+                className="min-w-40 flex-1 rounded-lg border border-border bg-bg px-3 py-1.5 text-sm outline-none focus:border-accent"
+              />
+              <button
+                type="button"
+                disabled={saving}
+                onClick={saveEdit}
+                className="rounded-lg bg-accent px-3 py-1.5 text-xs font-medium text-white disabled:opacity-50"
+              >
+                {saving ? "저장 중…" : "저장"}
+              </button>
+              <button
+                type="button"
+                disabled={saving}
+                onClick={removeEdit}
+                className="rounded-lg border border-loss/40 px-3 py-1.5 text-xs text-loss disabled:opacity-50"
+              >
+                삭제
+              </button>
+              <button
+                type="button"
+                disabled={saving}
+                onClick={() => setEditing(null)}
+                className="rounded-lg border border-border px-3 py-1.5 text-xs text-dim disabled:opacity-50"
+              >
+                닫기
+              </button>
+            </div>
+            {noteError ? <p className="mt-1 text-[11px] text-loss">{noteError}</p> : null}
+          </div>
+        ) : null}
+
         {/* 측정 사각형 — 차트 위에 겹쳐 그린다. 포인터 이벤트는 아래로 통과시킨다. */}
         {state && result ? (
           <div
@@ -784,11 +1015,17 @@ export function TradeChart({
           </b>
         ) : (
           <>
-            휠로 확대·축소, 드래그로 이동, 축을 끌면 배율이 바뀝니다. ▲ 진입 · ▼ 청산 지점에
-            가격을 적었고, 가로 점선은 손절가와 평균 체결가입니다.
+            휠로 확대·축소, 드래그로 이동, 축을 끌면 배율이 바뀝니다. 남긴 메모는 그대로
+            끌어서 옮기고(끝점을 집으면 그 점만, 몸통을 집으면 통째로), 한 번 누르면 라벨을
+            고치거나 지울 수 있습니다.
           </>
         )}
       </p>
+
+      {/* 도구도 팝오버도 닫혀 있을 때는 알릴 자리가 여기뿐이다. */}
+      {noteError && !asking && !editing ? (
+        <p className="mt-1 text-[11px] text-loss">{noteError}</p>
+      ) : null}
 
       <AnnotationList annotations={annotations} />
     </section>

@@ -9,7 +9,7 @@
  * 이 거래에 실제로 실린 크기로 재야 "그때 얼마였나"가 나온다.
  */
 
-import type { Side } from '@/lib/domain';
+import type { ChartPoint, Side } from '@/lib/domain';
 
 export interface PositionInput {
   side: Side;
@@ -71,4 +71,26 @@ export function positionMetrics(input: PositionInput): PositionMetrics | null {
     rr: riskPct === 0 ? null : rewardPct / riskPct,
     problem: ordered ? null : PROBLEM[side],
   };
+}
+
+/**
+ * 찍어 둔 세 점이 이 방향과 맞는지 — 어긋나면 그 이유.
+ *
+ * 그리는 화면, 저장하는 서버, 끌어서 옮긴 뒤까지 같은 기준으로 봐야 한다. 한 군데라도
+ * 느슨하면 뒤집힌 배치가 저장되고, 그림은 그럴싸한데 손익비가 거짓말을 한다.
+ */
+export function positionProblemOf(
+  side: Side,
+  points: readonly ChartPoint[],
+): string | null {
+  const [entry, stop, target] = points;
+  if (!entry || !stop || !target) return '진입·손절·목표 세 지점이 모두 있어야 합니다.';
+
+  const metrics = positionMetrics({
+    side,
+    entry: entry.p,
+    stop: stop.p,
+    target: target.p,
+  });
+  return metrics === null ? '가격을 읽지 못했습니다.' : metrics.problem;
 }

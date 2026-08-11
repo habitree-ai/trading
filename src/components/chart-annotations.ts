@@ -17,11 +17,14 @@ import type {
   ISeriesApi,
   ISeriesPrimitive,
   Logical,
+  PrimitiveHoveredItem,
   PrimitivePaneViewZOrder,
   SeriesAttachedParameter,
   SeriesType,
   Time,
 } from "lightweight-charts";
+
+import { resolveHit, type AnnotationHit, type HitShape } from "@/lib/hit-test";
 
 import {
   isPositionKind,
@@ -48,6 +51,8 @@ export interface AnnotationDraft {
 }
 
 interface Shape {
+  /** 저장된 메모의 id. 아직 저장 전(초안)이면 null이라 집을 수 없다 */
+  id: string | null;
   kind: AnnotationKind;
   color: string;
   text: string | null;
@@ -71,6 +76,13 @@ const HANDLE_R = 3;
  * 흔하므로 최소 폭을 준다.
  */
 const MIN_BOX_W = 160;
+
+/** 손익 툴 상자가 가로로 차지하는 범위 — 그리는 쪽과 집는 쪽이 같은 값을 봐야 한다. */
+function positionSpan(xy: readonly { x: number }[]): { left: number; right: number } {
+  const xs = xy.map((p) => p.x);
+  const left = Math.min(...xs);
+  return { left, right: Math.max(Math.max(...xs), left + MIN_BOX_W) };
+}
 
 function roundRect(
   ctx: CanvasRenderingContext2D,
@@ -166,9 +178,7 @@ function drawPosition(
   const [entry, stop, target] = shape.xy;
   const labels = shape.labels ?? [];
 
-  const xs = shape.xy.map((p) => p.x);
-  const left = Math.min(...xs);
-  const right = Math.max(Math.max(...xs), left + MIN_BOX_W);
+  const { left, right } = positionSpan(shape.xy);
 
   const band = (y: number, color: string) => {
     const top = Math.min(entry.y, y);
@@ -346,18 +356,52 @@ export class AnnotationPrimitive implements ISeriesPrimitive<Time> {
     this.view.update(this.project());
   }
 
+  /**
+   * 커서가 짚은 메모 — 끌어서 옮기려는 쪽이 부른다.
+   *
+   * 그때그때 다시 투영한다. 마지막으로 그린 좌표를 들고 있어도 되지만, 차트를 밀거나
+   * 배율을 바꾼 직후에는 그 값이 화면과 어긋난다.
+   */
+  findHit(x: number, y: number): AnnotationHit | null {
+    const shapes: HitShape[] = [];
+    for (const shape of this.project()) {
+      // 초안은 아직 저장된 것이 아니라 집을 대상이 없다.
+      if (shape.id === null) continue;
+      shapes.push({
+        id: shape.id,
+        kind: shape.kind,
+        xy: shape.xy,
+        span: isPositionKind(shape.kind) ? positionSpan(shape.xy) : undefined,
+      });
+    }
+    return resolveHit(shapes, x, y);
+  }
+
+  /** 라이브러리가 커서 모양을 정하는 데 쓴다 — 집을 수 있는 자리에 오면 손 모양이 된다. */
+  hitTest(x: number, y: number): PrimitiveHoveredItem | null {
+    const hit = this.findHit(x, y);
+    if (hit === null) return null;
+
+    return {
+      externalId: hit.id,
+      zOrder: "top",
+      cursorStyle: hit.target === "body" ? "move" : "grab",
+      hitTestPriority: hit.target === "body" ? 1 : 2,
+    };
+  }
+
   /** 아직 캔들이 안 붙었거나 화면 밖이면 그 메모만 빠진다. */
   private project(): Shape[] {
     const out: Shape[] = [];
 
     for (const item of this.items) {
-      const shape = this.toShape(item.kind, item.points, item.color, item.text, false);
+      const shape = this.toShape(item.id, item.kind, item.points, item.color, item.text, false);
       if (shape) out.push(shape);
     }
 
     if (this.draft) {
       const { kind, points, color, text } = this.draft;
-      const shape = this.toShape(kind, points, color, text, true);
+      const shape = this.toShape(null, kind, points, color, text, true);
       if (shape) out.push(shape);
     }
 
@@ -365,6 +409,7 @@ export class AnnotationPrimitive implements ISeriesPrimitive<Time> {
   }
 
   private toShape(
+    id: string | null,
     kind: AnnotationKind,
     points: readonly ChartPoint[],
     color: AnnotationColor,
@@ -374,7 +419,7 @@ export class AnnotationPrimitive implements ISeriesPrimitive<Time> {
     const xy = this.toScreen(points);
     if (!xy) return null;
 
-    const shape: Shape = { kind, color: this.colors[color], text, xy, draft };
+    const shape: Shape = { id, kind, color: this.colors[color], text, xy, draft };
     if (isPositionKind(kind)) {
       // 손익 툴의 구간 색은 팔레트가 아니라 손익 색이다 — 초록이 이익, 빨강이 손실이라는
       // 약속이 화면 전체에서 같아야 한다.
