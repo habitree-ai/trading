@@ -8,12 +8,17 @@ import {
   normalizePoints,
   parsePoints,
 } from "@/lib/annotations";
-import { isPositionKind } from "@/lib/domain";
+import { isPositionKind, type TradeAnnotation } from "@/lib/domain";
 import { positionProblemOf } from "@/lib/position-tool";
 import { requireUser } from "@/lib/queries";
 
 export interface AnnotationResult {
   error?: string;
+}
+
+export interface CreateResult extends AnnotationResult {
+  /** 방금 만든 메모의 id — 되돌리기가 이걸로 되짚는다 */
+  id?: string;
 }
 
 /** 라벨은 없어도 된다(도형 자체가 메모다) — 빈 문자열은 null로 눕힌다. */
@@ -36,7 +41,7 @@ export async function createAnnotation(input: {
   points: unknown;
   text: string | null;
   color: string;
-}): Promise<AnnotationResult> {
+}): Promise<CreateResult> {
   const { tradeId, kind, color } = input;
   if (!tradeId) return { error: "거래를 찾을 수 없습니다." };
   if (!isAnnotationKind(kind)) return { error: "알 수 없는 메모 종류입니다." };
@@ -58,13 +63,48 @@ export async function createAnnotation(input: {
   // jsonb 칸은 인덱스 시그니처가 있는 타입만 받는다 — 이름 붙은 인터페이스는 못 넣는다.
   const stored = normalizePoints(kind, points).map((point) => ({ t: point.t, p: point.p }));
 
+  const { data, error } = await supabase
+    .from("trade_annotations")
+    .insert({
+      trade_id: tradeId,
+      user_id: user.id,
+      kind,
+      points: stored,
+      text,
+      color,
+    })
+    .select("id")
+    .single();
+
+  if (error) return { error: error.message };
+
+  revalidatePath("/", "layout");
+  return { id: data.id };
+}
+
+/**
+ * 지웠던 메모를 되살린다 — 되돌리기 전용.
+ *
+ * **id를 그대로 넣는다.** 새 id로 만들면 그 메모를 가리키던 다른 되돌리기 기록(옮김·
+ * 라벨 고침)이 통째로 허공을 짚는다. 지워진 뒤라 id가 비어 있으니 되쓸 수 있다.
+ */
+export async function restoreAnnotation(
+  annotation: TradeAnnotation,
+): Promise<AnnotationResult> {
+  const { id, trade_id: tradeId, kind, points, text, color, locked } = annotation;
+  if (!id || !tradeId) return { error: "되살릴 메모를 읽지 못했습니다." };
+  if (parsePoints(points, kind) === null) return { error: "좌표를 읽지 못했습니다." };
+
+  const { supabase, user } = await requireUser();
   const { error } = await supabase.from("trade_annotations").insert({
+    id,
     trade_id: tradeId,
     user_id: user.id,
     kind,
-    points: stored,
+    points: points.map((point) => ({ t: point.t, p: point.p })),
     text,
     color,
+    locked,
   });
 
   if (error) return { error: error.message };

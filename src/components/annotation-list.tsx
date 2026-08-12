@@ -7,6 +7,7 @@ import {
   setAnnotationLocked,
   updateAnnotationText,
 } from "@/app/(app)/trades/annotation-actions";
+import type { AnnotationChange } from "@/lib/annotation-history";
 import { ANNOTATION_DOT_CLASS } from "@/lib/annotations";
 import { ANNOTATION_KIND_LABEL, isPositionKind, type TradeAnnotation } from "@/lib/domain";
 import { DASH, dateTime, num } from "@/lib/format";
@@ -47,7 +48,19 @@ function priceRange(annotation: TradeAnnotation): string {
  * 잠금은 여기에만 둔다. 잠근 메모는 차트에서 집히지 않으니(그래야 그 위에서도 차트가
  * 밀린다) 차트 쪽에는 풀 자리가 없다.
  */
-export function AnnotationList({ annotations }: { annotations: TradeAnnotation[] }) {
+export function AnnotationList({
+  annotations,
+  onChange,
+}: {
+  annotations: TradeAnnotation[];
+  /**
+   * 여기서 한 손질도 되돌리기 기록에 남긴다.
+   *
+   * 차트에서 한 것만 무를 수 있으면, 같은 메모를 어디서 고쳤느냐에 따라 Ctrl+Z 가
+   * 먹기도 하고 안 먹기도 한다 — 그 규칙은 화면에 드러나지 않는다.
+   */
+  onChange?: (change: AnnotationChange) => void;
+}) {
   const [pending, startTransition] = useTransition();
   const [editing, setEditing] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
@@ -56,7 +69,15 @@ export function AnnotationList({ annotations }: { annotations: TradeAnnotation[]
 
   const save = (annotation: TradeAnnotation) => {
     startTransition(async () => {
-      await updateAnnotationText(annotation.id, draft);
+      const result = await updateAnnotationText(annotation.id, draft);
+      if (!result.error) {
+        onChange?.({
+          type: "text",
+          id: annotation.id,
+          kind: annotation.kind,
+          before: annotation.text,
+        });
+      }
       setEditing(null);
     });
   };
@@ -129,7 +150,12 @@ export function AnnotationList({ annotations }: { annotations: TradeAnnotation[]
                 : "잠그면 차트를 만져도 밀리지 않습니다"
             }
             onClick={() =>
-              startTransition(async () => void (await setAnnotationLocked(a.id, !a.locked)))
+              startTransition(async () => {
+                const result = await setAnnotationLocked(a.id, !a.locked);
+                if (!result.error) {
+                  onChange?.({ type: "lock", id: a.id, kind: a.kind, before: a.locked });
+                }
+              })
             }
             className="text-dim hover:text-text disabled:opacity-50"
           >
@@ -138,7 +164,12 @@ export function AnnotationList({ annotations }: { annotations: TradeAnnotation[]
           <button
             type="button"
             disabled={pending}
-            onClick={() => startTransition(async () => void (await deleteAnnotation(a.id)))}
+            onClick={() =>
+              startTransition(async () => {
+                const result = await deleteAnnotation(a.id);
+                if (!result.error) onChange?.({ type: "delete", before: a });
+              })
+            }
             className="text-loss disabled:opacity-50"
           >
             삭제

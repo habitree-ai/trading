@@ -19,6 +19,8 @@ import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from
 import {
   createAnnotation,
   deleteAnnotation,
+  restoreAnnotation,
+  setAnnotationLocked,
   updateAnnotationPoints,
   updateAnnotationText,
 } from "@/app/(app)/trades/annotation-actions";
@@ -29,6 +31,11 @@ import {
   type AnnotationDraft,
 } from "@/components/chart-annotations";
 import { formatDuration, measure, type MeasurePoint } from "@/components/measure-tool";
+import {
+  describeUndo,
+  pushChange,
+  type AnnotationChange,
+} from "@/lib/annotation-history";
 import { ANNOTATION_DOT_CLASS, pointCount } from "@/lib/annotations";
 import {
   ANNOTATION_COLORS,
@@ -223,6 +230,20 @@ export function TradeChart({
    * 끌어서 옮긴 뒤에는 팝오버 없이 고른 표시만 남아야 한다.
    */
   const [selected, setSelected] = useState<string | null>(null);
+
+  /**
+   * 되돌리기 기록 — 화면에만 산다.
+   *
+   * 새로고침하면 사라진다. 그리다 만 선을 무르는 데 서버 이력표까지 둘 이유가 없고,
+   * 트레이딩뷰의 되돌리기도 같은 범위다.
+   */
+  const [history, setHistory] = useState<AnnotationChange[]>([]);
+  const record = (change: AnnotationChange) => {
+    setHistory((stack) => pushChange(stack, change));
+    setNotice(null);
+  };
+  /** 되돌린 뒤 남기는 한 줄 — 눌렀는데 아무 말이 없으면 먹었는지 알 수 없다. */
+  const [notice, setNotice] = useState<string | null>(null);
 
   /**
    * 화면에 그릴 메모 — 끌고 있는 것만 새 좌표로 갈아 끼운다.
@@ -683,7 +704,11 @@ export function TradeChart({
       const points = current;
       startSaving(async () => {
         const result = await updateAnnotationPoints(d.hit.id, points);
-        if (result.error) setNoteError(result.error);
+        if (result.error) {
+          setNoteError(result.error);
+        } else {
+          record({ type: "move", id: d.hit.id, kind: d.kind, before: d.origin });
+        }
         setMoving(null);
       });
     };
@@ -704,6 +729,70 @@ export function TradeChart({
       window.removeEventListener("pointercancel", onUp);
     };
   }, [tool, annotations, toPoint]);
+
+  /**
+   * 마지막 손질을 무른다.
+   *
+   * 되돌리기는 "그 전 값으로 되돌리는" 서버 호출 한 번이다. 지운 메모만 예외로,
+   * 지워진 id를 그대로 되쓴다 — 새 id로 되살리면 그 메모를 가리키던 앞선 기록들이
+   * 통째로 허공을 짚는다.
+   */
+  const undo = (): boolean => {
+    const last = history[history.length - 1];
+    if (last === undefined || saving) return false;
+
+    setHistory((stack) => stack.slice(0, -1));
+    setNoteError(null);
+
+    startSaving(async () => {
+      const result = await (last.type === "create"
+        ? deleteAnnotation(last.id)
+        : last.type === "delete"
+          ? restoreAnnotation(last.before)
+          : last.type === "move"
+            ? updateAnnotationPoints(last.id, last.before)
+            : last.type === "text"
+              ? updateAnnotationText(last.id, last.before ?? "")
+              : setAnnotationLocked(last.id, last.before));
+
+      if (result.error) {
+        setNoteError(result.error);
+        return;
+      }
+      setNotice(describeUndo(last));
+      setEditing(null);
+      if (last.type === "create") setSelected(null);
+    });
+    return true;
+  };
+
+  /*
+   * 최신 `undo`를 ref 에 담아 두고 처리기는 한 번만 붙인다.
+   *
+   * 기록이 바뀔 때마다 처리기를 다시 붙여도 되지만, 끄는 동안에는 프레임마다 다시
+   * 그려지므로 그때마다 window 처리기를 떼었다 붙이게 된다.
+   */
+  const undoRef = useRef(undo);
+  useEffect(() => {
+    undoRef.current = undo;
+  });
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key.toLowerCase() !== "z") return;
+      if (!e.ctrlKey && !e.metaKey) return;
+      // 입력칸 안의 Ctrl+Z 는 글자를 무르는 것이지 도형이 아니다.
+      const target = e.target as HTMLElement | null;
+      if (target?.isContentEditable) return;
+      if (target && /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName)) return;
+
+      // 무를 게 없으면 브라우저 기본 동작을 가로채지 않는다.
+      if (undoRef.current()) e.preventDefault();
+    };
+
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
 
   /* ---------- 키보드 ---------- */
   useEffect(() => {
@@ -732,12 +821,14 @@ export function TradeChart({
       // Backspace 는 브라우저에서 뒤로 가기로 잡히는 경우가 있다.
       e.preventDefault();
 
+      const before = annotations.find((a) => a.id === selected);
       startSaving(async () => {
         const result = await deleteAnnotation(selected);
         if (result.error) {
           setNoteError(result.error);
           return;
         }
+        if (before) record({ type: "delete", before });
         setSelected(null);
         setEditing(null);
       });
@@ -745,7 +836,7 @@ export function TradeChart({
 
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [selected, tool]);
+  }, [selected, tool, annotations]);
 
   // 도구를 켠 동안에는 차트의 드래그 이동을 꺼야 도형을 그릴 수 있다.
   useEffect(() => {
@@ -780,24 +871,29 @@ export function TradeChart({
       return;
     }
 
+    const before = editing;
     startSaving(async () => {
-      const result = await updateAnnotationText(editing.id, text);
+      const result = await updateAnnotationText(before.id, text);
       if (result.error) {
         setNoteError(result.error);
         return;
       }
+      record({ type: "text", id: before.id, kind: before.kind, before: before.text });
       setEditing(null);
     });
   };
 
   const removeEdit = () => {
     if (!editing) return;
+    const before = editing;
     startSaving(async () => {
-      const result = await deleteAnnotation(editing.id);
+      const result = await deleteAnnotation(before.id);
       if (result.error) {
         setNoteError(result.error);
         return;
       }
+      record({ type: "delete", before });
+      setSelected(null);
       setEditing(null);
     });
   };
@@ -817,10 +913,11 @@ export function TradeChart({
       }
     }
 
+    const kind = pending.kind;
     startSaving(async () => {
       const result = await createAnnotation({
         tradeId,
-        kind: pending.kind,
+        kind,
         points: pending.points,
         text: text === "" ? null : text,
         color: pending.color,
@@ -829,6 +926,7 @@ export function TradeChart({
         setNoteError(result.error);
         return;
       }
+      if (result.id) record({ type: "create", id: result.id, kind });
       cancelDraft();
       /*
        * 하나 그리면 커서로 돌아간다 — 트레이딩뷰와 같다.
@@ -1124,8 +1222,9 @@ export function TradeChart({
             휠로 확대·축소, 드래그로 이동, 축을 끌면 배율이 바뀝니다. 남긴 메모는 눌러서
             고르고(집는 자리가 네모로 뜹니다) 그대로 끌어 옮깁니다 — 끝점을 집으면 그 점만,
             몸통을 집으면 통째로. <b className="text-text">Del</b> 로 지우고{" "}
-            <b className="text-text">Esc</b> 로 놓습니다. 자리를 다 잡았으면 아래 목록에서
-            잠가 두세요 — 잠근 메모는 끌리지 않고 그 위에서도 차트가 밀립니다.
+            <b className="text-text">Esc</b> 로 놓고 <b className="text-text">Ctrl+Z</b> 로
+            무릅니다. 자리를 다 잡았으면 아래 목록에서 잠가 두세요 — 잠근 메모는 끌리지 않고
+            그 위에서도 차트가 밀립니다.
           </>
         )}
       </p>
@@ -1133,9 +1232,11 @@ export function TradeChart({
       {/* 도구도 팝오버도 닫혀 있을 때는 알릴 자리가 여기뿐이다. */}
       {noteError && !asking && !editing ? (
         <p className="mt-1 text-[11px] text-loss">{noteError}</p>
+      ) : notice ? (
+        <p className="mt-1 text-[11px] text-dim">{notice}</p>
       ) : null}
 
-      <AnnotationList annotations={annotations} />
+      <AnnotationList annotations={annotations} onChange={record} />
     </section>
   );
 }
