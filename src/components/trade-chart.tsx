@@ -216,6 +216,13 @@ export function TradeChart({
   const [moving, setMoving] = useState<{ id: string; points: ChartPoint[] } | null>(null);
   /** 눌러서 고르는 중인 메모 — 라벨을 고치거나 지울 수 있다. */
   const [editing, setEditing] = useState<TradeAnnotation | null>(null);
+  /**
+   * 골라 둔 메모의 id.
+   *
+   * `editing`과 나눠 둔 이유: 팝오버를 닫아도 고른 상태는 남아야 Del 로 지울 수 있고,
+   * 끌어서 옮긴 뒤에는 팝오버 없이 고른 표시만 남아야 한다.
+   */
+  const [selected, setSelected] = useState<string | null>(null);
 
   /**
    * 화면에 그릴 메모 — 끌고 있는 것만 새 좌표로 갈아 끼운다.
@@ -315,6 +322,10 @@ export function TradeChart({
   useEffect(() => {
     layerRef.current?.setData(shown, pending, notional);
   }, [shown, pending, notional]);
+
+  useEffect(() => {
+    layerRef.current?.setSelected(selected);
+  }, [selected]);
 
   /* ---------- 캔들 로딩 ---------- */
   useEffect(() => {
@@ -581,6 +592,7 @@ export function TradeChart({
       const hit = layerRef.current?.findHit(x, y);
       if (!hit) {
         // 빈 곳을 누르면 고르던 것을 놓는다.
+        setSelected(null);
         setEditing(null);
         setNoteError(null);
         return;
@@ -599,6 +611,8 @@ export function TradeChart({
         moved: 0,
       };
       current = target.points;
+      // 집는 순간 고른 것으로 본다 — 끌든 안 끌든 무엇을 잡았는지 화면에 드러난다.
+      setSelected(hit.id);
 
       /*
        * 차트가 이 누름을 '팬 시작'으로 받지 않게 캡처 단계에서 끊는다.
@@ -691,6 +705,48 @@ export function TradeChart({
     };
   }, [tool, annotations, toPoint]);
 
+  /* ---------- 키보드 ---------- */
+  useEffect(() => {
+    if (selected === null && tool === "none") return;
+
+    const onKey = (e: KeyboardEvent) => {
+      // 입력칸에서 누른 Del·Esc 는 글자를 지우거나 입력을 접는 것이지 도형이 아니다.
+      const target = e.target as HTMLElement | null;
+      if (target?.isContentEditable) return;
+      if (target && /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName)) return;
+
+      if (e.key === "Escape") {
+        // 그리다 만 것을 버리고, 골라 둔 것도 놓는다.
+        stepsRef.current = [];
+        setPending(null);
+        setAsking(false);
+        setEditing(null);
+        setNoteError(null);
+        setSelected(null);
+        setTool("none");
+        return;
+      }
+
+      if (selected === null) return;
+      if (e.key !== "Delete" && e.key !== "Backspace") return;
+      // Backspace 는 브라우저에서 뒤로 가기로 잡히는 경우가 있다.
+      e.preventDefault();
+
+      startSaving(async () => {
+        const result = await deleteAnnotation(selected);
+        if (result.error) {
+          setNoteError(result.error);
+          return;
+        }
+        setSelected(null);
+        setEditing(null);
+      });
+    };
+
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [selected, tool]);
+
   // 도구를 켠 동안에는 차트의 드래그 이동을 꺼야 도형을 그릴 수 있다.
   useEffect(() => {
     chartRef.current?.applyOptions({
@@ -704,6 +760,7 @@ export function TradeChart({
     setPending(null);
     setAsking(false);
     setEditing(null);
+    setSelected(null);
     setNoteError(null);
   };
 
@@ -773,6 +830,14 @@ export function TradeChart({
         return;
       }
       cancelDraft();
+      /*
+       * 하나 그리면 커서로 돌아간다 — 트레이딩뷰와 같다.
+       *
+       * 도구가 켜진 채로 두면 방금 그린 것을 끌어 옮기려다 그 위에 또 하나를 그리게
+       * 된다. 도구가 켜져 있는 동안에는 판이 포인터를 가로채 기존 도형이 집히지 않기
+       * 때문인데, 화면에는 그 사실이 드러나지 않아 "드래그가 안 된다"로 보인다.
+       */
+      setTool("none");
     });
   };
 
@@ -1056,10 +1121,11 @@ export function TradeChart({
           </b>
         ) : (
           <>
-            휠로 확대·축소, 드래그로 이동, 축을 끌면 배율이 바뀝니다. 남긴 메모는 그대로
-            끌어서 옮기고(끝점을 집으면 그 점만, 몸통을 집으면 통째로), 한 번 누르면 라벨을
-            고치거나 지울 수 있습니다. 자리를 다 잡았으면 아래 목록에서 잠가 두세요 — 잠근
-            메모는 끌리지 않고 그 위에서도 차트가 밀립니다.
+            휠로 확대·축소, 드래그로 이동, 축을 끌면 배율이 바뀝니다. 남긴 메모는 눌러서
+            고르고(집는 자리가 네모로 뜹니다) 그대로 끌어 옮깁니다 — 끝점을 집으면 그 점만,
+            몸통을 집으면 통째로. <b className="text-text">Del</b> 로 지우고{" "}
+            <b className="text-text">Esc</b> 로 놓습니다. 자리를 다 잡았으면 아래 목록에서
+            잠가 두세요 — 잠근 메모는 끌리지 않고 그 위에서도 차트가 밀립니다.
           </>
         )}
       </p>

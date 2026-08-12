@@ -59,6 +59,8 @@ interface Shape {
   xy: { x: number; y: number }[];
   /** 저장 전인가 — 점선으로 그려 확정된 것과 구분한다 */
   draft: boolean;
+  /** 골라 둔 것인가 — 굵게 긋고 집을 자리를 네모로 드러낸다 */
+  selected: boolean;
   /** 손익 툴 전용 — [진입, 손절, 목표, 요약] 순서의 라벨. 점이 덜 찍혔으면 짧다 */
   labels?: string[];
   /** 손익 툴 전용 — 이익·손실 구간의 색. 팔레트가 아니라 손익 색을 쓴다 */
@@ -68,6 +70,33 @@ interface Shape {
 const FONT = "12px system-ui, -apple-system, 'Segoe UI', sans-serif";
 const LABEL_PAD = 4;
 const HANDLE_R = 3;
+/** 고른 도형의 집는 자리 — 반지름이 아니라 한 변의 절반이다. */
+const GRIP = 4;
+
+/**
+ * 집을 자리를 네모로 드러낸다 — 고른 도형에만 그린다.
+ *
+ * 평소에도 그려 두면 선이 여럿일 때 화면이 점으로 뒤덮인다. 트레이딩뷰와 같이
+ * 고른 것에만 띄워, 지금 무엇이 잡혀 있는지가 한눈에 보이게 한다.
+ */
+function drawGrips(
+  ctx: CanvasRenderingContext2D,
+  points: readonly { x: number; y: number }[],
+  color: string,
+): void {
+  ctx.save();
+  ctx.setLineDash([]);
+  ctx.lineWidth = 1.5;
+  ctx.strokeStyle = color;
+  ctx.fillStyle = "#ffffff";
+  for (const p of points) {
+    ctx.beginPath();
+    ctx.rect(p.x - GRIP, p.y - GRIP, GRIP * 2, GRIP * 2);
+    ctx.fill();
+    ctx.stroke();
+  }
+  ctx.restore();
+}
 
 /**
  * 손익 툴 상자의 최소 가로폭(px).
@@ -238,7 +267,7 @@ class AnnotationPaneView implements IPrimitivePaneView {
             ctx.save();
             ctx.strokeStyle = shape.color;
             ctx.fillStyle = shape.color;
-            ctx.lineWidth = shape.draft ? 1 : 1.5;
+            ctx.lineWidth = shape.draft ? 1 : shape.selected ? 2.5 : 1.5;
             ctx.setLineDash(shape.draft ? [4, 3] : []);
 
             const [a, b] = shape.xy;
@@ -250,15 +279,11 @@ class AnnotationPaneView implements IPrimitivePaneView {
               ctx.stroke();
               if (shape.text) drawLabel(ctx, shape.text, 8, a.y - 12, shape.color);
             } else if (shape.kind === "line" && b) {
+              // 끝점 표시는 고른 도형에만 띄운다 — 선이 여럿이면 점이 화면을 덮는다.
               ctx.beginPath();
               ctx.moveTo(a.x, a.y);
               ctx.lineTo(b.x, b.y);
               ctx.stroke();
-              for (const p of shape.xy) {
-                ctx.beginPath();
-                ctx.arc(p.x, p.y, HANDLE_R, 0, Math.PI * 2);
-                ctx.fill();
-              }
               if (shape.text) {
                 drawLabel(ctx, shape.text, (a.x + b.x) / 2, (a.y + b.y) / 2 - 12, shape.color);
               }
@@ -281,6 +306,9 @@ class AnnotationPaneView implements IPrimitivePaneView {
               drawPosition(ctx, shape, shape.zone);
             }
 
+            // 고른 도형에만 집는 자리를 띄운다 — 무엇이 잡혀 있는지 눈에 보여야 한다.
+            if (shape.selected) drawGrips(ctx, shape.xy, shape.color);
+
             ctx.restore();
           }
         });
@@ -299,6 +327,8 @@ export class AnnotationPrimitive implements ISeriesPrimitive<Time> {
   private colors: AnnotationColorMap;
   /** 손익 툴이 금액을 낼 때 쓰는 크기 — 이 거래의 명목가 */
   private notional: number | null = null;
+  /** 지금 골라 둔 메모 */
+  private selected: string | null = null;
 
   // 라이브러리가 배열 참조로 캐시를 판단한다 — 뷰 배열은 한 번만 만든다.
   private readonly view = new AnnotationPaneView();
@@ -323,6 +353,12 @@ export class AnnotationPrimitive implements ISeriesPrimitive<Time> {
 
   setColors(colors: AnnotationColorMap): void {
     this.colors = colors;
+    this.requestUpdate?.();
+  }
+
+  setSelected(id: string | null): void {
+    if (this.selected === id) return;
+    this.selected = id;
     this.requestUpdate?.();
   }
 
@@ -423,7 +459,15 @@ export class AnnotationPrimitive implements ISeriesPrimitive<Time> {
     const xy = this.toScreen(points);
     if (!xy) return null;
 
-    const shape: Shape = { id, kind, color: this.colors[color], text, xy, draft };
+    const shape: Shape = {
+      id,
+      kind,
+      color: this.colors[color],
+      text,
+      xy,
+      draft,
+      selected: id !== null && id === this.selected,
+    };
     if (isPositionKind(kind)) {
       // 손익 툴의 구간 색은 팔레트가 아니라 손익 색이다 — 초록이 이익, 빨강이 손실이라는
       // 약속이 화면 전체에서 같아야 한다.
