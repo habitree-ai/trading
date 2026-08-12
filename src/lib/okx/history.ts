@@ -20,6 +20,7 @@ import {
   type OkxAccountBill,
   type OkxDeposit,
   type OkxFill,
+  type OkxOpenPosition,
   type OkxPosition,
   type OkxWithdrawal,
 } from "@/lib/okx/schema";
@@ -209,20 +210,29 @@ export async function fetchTotalEquity(
 }
 
 /**
- * 아직 안 닫힌 포지션이 잔고에 남긴 순손익 — 미실현 가격손익 + 이미 확정된 비용.
+ * 아직 안 닫힌 포지션들.
+ *
+ * 두 군데서 쓴다. 잔고 대조는 이 포지션들이 잔고에 남긴 금액(`openPositionPnl`)을
+ * 걷어내야 계산 자금과 기준이 같아지고, 거래 목록은 이걸로 "보유중" 줄을 만든다.
+ * 한 번만 불러 둘에 나눠 쓴다 — 같은 엔드포인트를 두 번 칠 이유가 없다.
+ */
+export async function fetchOpenPositions(creds: OkxCredentials): Promise<OkxOpenPosition[]> {
+  const rows = await okxPrivateGet("/api/v5/account/positions", { instType: INST_TYPE }, creds);
+  return parseList(openPositionSchema, rows);
+}
+
+/**
+ * 미청산 포지션이 잔고에 남긴 순손익 — 미실현 가격손익 + 이미 확정된 비용.
  *
  * 계좌 잔고에는 이 금액이 이미 들어 있지만 거래 목록에는 아직 없다. 그대로 두고 대조하면
  * 포지션을 들고 있는 내내 자금이 어긋나 보인다. 청산되는 날 이 값이 그 거래의
  * `realizedPnl`이 되어 들어오므로, 그때 자연히 상쇄된다.
  */
-export async function fetchOpenPositionPnl(
-  creds: OkxCredentials,
-): Promise<{ pnl: number; count: number }> {
-  const rows = await okxPrivateGet("/api/v5/account/positions", { instType: INST_TYPE }, creds);
-  const parsed = parseList(openPositionSchema, rows);
-
+export function openPositionPnl(
+  positions: readonly OkxOpenPosition[],
+): { pnl: number; count: number } {
   return {
-    pnl: parsed.reduce((a, p) => a + (p.upl ?? 0) + (p.realizedPnl ?? 0), 0),
-    count: parsed.length,
+    pnl: positions.reduce((a, p) => a + (p.upl ?? 0) + (p.realizedPnl ?? 0), 0),
+    count: positions.length,
   };
 }

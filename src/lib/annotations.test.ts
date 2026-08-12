@@ -18,6 +18,7 @@ function row(partial: Partial<AnnotationRow> = {}): AnnotationRow {
     points: [{ t: 1_770_000_000, p: 64_200 }],
     text: '전고점',
     color: 'accent',
+    locked: false,
     created_at: '2026-08-11T00:00:00Z',
     updated_at: '2026-08-11T00:00:00Z',
     ...partial,

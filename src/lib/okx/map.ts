@@ -9,6 +9,7 @@ import type {
   OkxAccountBill,
   OkxDeposit,
   OkxFill,
+  OkxOpenPosition,
   OkxPosition,
   OkxWithdrawal,
 } from "@/lib/okx/schema";
@@ -129,6 +130,123 @@ export function toTradeInsert(input: {
     funding_fee: pos.fundingFee,
     realized_pnl: pos.realizedPnl,
     margin_mode: marginModeOf(pos.mgnMode),
+  };
+}
+
+/* ============ 미청산 포지션 ============ */
+
+/**
+ * 아직 들고 있는 포지션의 방향.
+ *
+ * 넷 모드 계좌는 `posSide`가 `net`으로 온다. 그때는 보유 계약 수의 부호가 방향이다 —
+ * 닫힌 포지션(`sideOf`)처럼 손익으로 되짚을 필요가 없다.
+ */
+export function openSideOf(pos: OkxOpenPosition): Side | null {
+  if (pos.posSide === "long" || pos.posSide === "short") return pos.posSide;
+  if (pos.pos === null || pos.pos === 0) return null;
+  return pos.pos > 0 ? "long" : "short";
+}
+
+/** 미청산 포지션이 지금까지 계좌에 남긴 순손익 — 미실현 + 이미 확정된 비용. */
+export function openNetOf(pos: OkxOpenPosition): number {
+  return (pos.upl ?? 0) + (pos.realizedPnl ?? 0);
+}
+
+export interface OpenTradeInsert {
+  book_id: string;
+  user_id: string;
+  seq: number;
+  okx_pos_id: string;
+  side: Side;
+  symbol: string;
+  entry_at: string;
+  result: TradeResult;
+  entry_price: number | null;
+  notional: number | null;
+  leverage: number | null;
+  margin_mode: "cross" | "isolated" | null;
+  unrealized_pnl: number;
+}
+
+/**
+ * 아직 들고 있는 포지션을 목록의 한 줄로.
+ *
+ * 손익 칸(`pnl`·`fee`·`realized_pnl`)은 비워 둔다. 아직 확정된 게 없어서다 —
+ * 채워 두면 누적 손익과 승률이 시세를 따라 흔들린다. 평가손익은 따로 둔 칸에 담고,
+ * 청산되는 순간 `toCloseUpdate`가 그 칸을 지우고 확정값을 넣는다.
+ */
+export function toOpenTradeInsert(input: {
+  pos: OkxOpenPosition;
+  ctVal: number | null;
+  bookId: string;
+  userId: string;
+  seq: number;
+}): OpenTradeInsert | null {
+  const { pos, ctVal, bookId, userId, seq } = input;
+  const side = openSideOf(pos);
+  if (side === null) return null;
+
+  const notional =
+    pos.avgPx === null || pos.pos === null || ctVal === null
+      ? null
+      : pos.avgPx * Math.abs(pos.pos) * ctVal;
+
+  return {
+    book_id: bookId,
+    user_id: userId,
+    seq,
+    okx_pos_id: pos.posId,
+    side,
+    symbol: baseSymbol(pos.instId),
+    entry_at: iso(pos.cTime),
+    result: "open",
+    entry_price: pos.avgPx,
+    notional,
+    leverage: pos.lever,
+    margin_mode: marginModeOf(pos.mgnMode),
+    unrealized_pnl: openNetOf(pos),
+  };
+}
+
+/** 이미 있는 미청산 행에 덮어쓸 칸만 — 북·사용자·순번과 손으로 적은 칸은 건드리지 않는다. */
+export function toOpenUpdate(row: OpenTradeInsert) {
+  return {
+    side: row.side,
+    symbol: row.symbol,
+    entry_at: row.entry_at,
+    entry_price: row.entry_price,
+    notional: row.notional,
+    leverage: row.leverage,
+    margin_mode: row.margin_mode,
+    unrealized_pnl: row.unrealized_pnl,
+  };
+}
+
+/**
+ * 열려 있던 행을 닫을 때 덮어쓸 칸만.
+ *
+ * 새 행을 넣지 않고 이 행을 고치는 게 핵심이다 — 들고 있는 동안 적어 둔 근거·복기·
+ * 원칙 판단·차트 메모가 모두 이 행의 id에 매달려 있다. 새로 넣으면 그 기록이
+ * 열린 채로 남은 행에 붙어 끊긴다.
+ */
+export function toCloseUpdate(row: TradeInsert) {
+  return {
+    side: row.side,
+    symbol: row.symbol,
+    entry_at: row.entry_at,
+    exit_at: row.exit_at,
+    result: row.result,
+    entry_price: row.entry_price,
+    exit_price: row.exit_price,
+    notional: row.notional,
+    leverage: row.leverage,
+    pnl: row.pnl,
+    fee: row.fee,
+    funding_fee: row.funding_fee,
+    realized_pnl: row.realized_pnl,
+    margin_mode: row.margin_mode,
+    // 확정됐으니 평가손익은 지운다 — 남겨 두면 같은 금액이 두 칸에서 잡힌다.
+    unrealized_pnl: null,
   };
 }
 

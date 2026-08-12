@@ -363,10 +363,14 @@ export class AnnotationPrimitive implements ISeriesPrimitive<Time> {
    * 배율을 바꾼 직후에는 그 값이 화면과 어긋난다.
    */
   findHit(x: number, y: number): AnnotationHit | null {
+    const locked = new Set(this.items.filter((a) => a.locked).map((a) => a.id));
+
     const shapes: HitShape[] = [];
     for (const shape of this.project()) {
       // 초안은 아직 저장된 것이 아니라 집을 대상이 없다.
       if (shape.id === null) continue;
+      // 잠근 메모는 아예 없는 것처럼 둔다 — 그래야 그 위에서도 차트가 밀린다.
+      if (locked.has(shape.id)) continue;
       shapes.push({
         id: shape.id,
         kind: shape.kind,

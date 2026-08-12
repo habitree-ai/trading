@@ -93,6 +93,14 @@ export interface Trade {
    * 실리지 않는 비용이 빠진다. 이 값이 있으면 그쪽이 정본이다.
    */
   realized_pnl: number | null;
+  /**
+   * 아직 안 닫힌 포지션이 지금까지 계좌에 남긴 순손익 — 미실현 가격손익 + 이미 낸 비용.
+   *
+   * 확정된 값이 아니라 시세를 따라 움직인다. 그래서 손익 칸과 나눠 둔다 — 같은 칸에
+   * 담으면 누적 손익·승률·기대치가 시세에 흔들리고, 잔고 대조에서는 스냅샷의
+   * 미청산분과 이중으로 잡힌다. 청산되는 순간 null이 되고 `realized_pnl`로 옮겨간다.
+   */
+  unrealized_pnl: number | null;
   /** 교차/격리 — 청산 위험이 달라 복기 축이 된다 */
   margin_mode: 'cross' | 'isolated' | null;
   /** 시트의 `손절가` */
@@ -171,6 +179,12 @@ export interface TradeAnnotation {
   /** 도형에 붙는 라벨. `text`에서는 이것이 내용 전부다 */
   text: string | null;
   color: AnnotationColor;
+  /**
+   * 잠긴 메모는 차트에서 집히지 않는다 — 그 위에서도 차트를 그대로 밀고 확대할 수 있다.
+   *
+   * 자리를 다 잡은 메모가 차트를 만지다 밀리는 걸 막는 게 전부다. 푸는 자리는 목록이다.
+   */
+  locked: boolean;
   created_at: string;
   updated_at: string;
 }

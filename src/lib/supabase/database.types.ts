@@ -361,6 +361,7 @@ export type Database = {
           created_at: string
           id: string
           kind: Database["public"]["Enums"]["annotation_kind"]
+          locked: boolean
           points: Json
           text: string | null
           trade_id: string
@@ -372,6 +373,7 @@ export type Database = {
           created_at?: string
           id?: string
           kind: Database["public"]["Enums"]["annotation_kind"]
+          locked?: boolean
           points: Json
           text?: string | null
           trade_id: string
@@ -383,6 +385,7 @@ export type Database = {
           created_at?: string
           id?: string
           kind?: Database["public"]["Enums"]["annotation_kind"]
+          locked?: boolean
           points?: Json
           text?: string | null
           trade_id?: string
@@ -570,6 +573,7 @@ export type Database = {
           tp1_price: number | null
           tp2_price: number | null
           tp3_price: number | null
+          unrealized_pnl: number | null
           updated_at: string
           user_id: string
           withdrawal: number | null
@@ -605,6 +609,7 @@ export type Database = {
           tp1_price?: number | null
           tp2_price?: number | null
           tp3_price?: number | null
+          unrealized_pnl?: number | null
           updated_at?: string
           user_id: string
           withdrawal?: number | null
@@ -640,6 +645,7 @@ export type Database = {
           tp1_price?: number | null
           tp2_price?: number | null
           tp3_price?: number | null
+          unrealized_pnl?: number | null
           updated_at?: string
           user_id?: string
           withdrawal?: number | null

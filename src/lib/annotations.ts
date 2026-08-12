@@ -49,6 +49,7 @@ export interface AnnotationRow {
   points: unknown;
   text: string | null;
   color: string;
+  locked: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -68,6 +69,7 @@ export function toAnnotation(row: AnnotationRow): TradeAnnotation | null {
     text: row.text,
     // 모르는 색은 기본값으로 떨어뜨린다 — 색 하나 때문에 메모를 버릴 이유는 없다.
     color: isAnnotationColor(row.color) ? row.color : 'accent',
+    locked: row.locked,
     created_at: row.created_at,
     updated_at: row.updated_at,
   };

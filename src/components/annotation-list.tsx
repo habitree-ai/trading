@@ -2,7 +2,11 @@
 
 import { useState, useTransition } from "react";
 
-import { deleteAnnotation, updateAnnotationText } from "@/app/(app)/trades/annotation-actions";
+import {
+  deleteAnnotation,
+  setAnnotationLocked,
+  updateAnnotationText,
+} from "@/app/(app)/trades/annotation-actions";
 import { ANNOTATION_DOT_CLASS } from "@/lib/annotations";
 import { ANNOTATION_KIND_LABEL, isPositionKind, type TradeAnnotation } from "@/lib/domain";
 import { DASH, dateTime, num } from "@/lib/format";
@@ -39,6 +43,9 @@ function priceRange(annotation: TradeAnnotation): string {
  *
  * 차트 위 도형만으로는 무엇을 적어 뒀는지 훑을 수가 없다 — 확대해 가며 찾아야 한다.
  * 복기는 목록으로 읽고, 자리는 차트에서 본다.
+ *
+ * 잠금은 여기에만 둔다. 잠근 메모는 차트에서 집히지 않으니(그래야 그 위에서도 차트가
+ * 밀린다) 차트 쪽에는 풀 자리가 없다.
  */
 export function AnnotationList({ annotations }: { annotations: TradeAnnotation[] }) {
   const [pending, startTransition] = useTransition();
@@ -65,6 +72,14 @@ export function AnnotationList({ annotations }: { annotations: TradeAnnotation[]
           <span className="rounded border border-border px-1.5 py-0.5 text-[10px] text-dim">
             {ANNOTATION_KIND_LABEL[a.kind]}
           </span>
+          {a.locked ? (
+            <span
+              className="rounded border border-beta/40 px-1.5 py-0.5 text-[10px] text-beta"
+              title="잠겨 있어 차트에서 끌리지 않습니다"
+            >
+              잠김
+            </span>
+          ) : null}
 
           {editing === a.id ? (
             <input
@@ -105,6 +120,21 @@ export function AnnotationList({ annotations }: { annotations: TradeAnnotation[]
               고치기
             </button>
           )}
+          <button
+            type="button"
+            disabled={pending}
+            title={
+              a.locked
+                ? "풀면 차트에서 다시 끌어 옮길 수 있습니다"
+                : "잠그면 차트를 만져도 밀리지 않습니다"
+            }
+            onClick={() =>
+              startTransition(async () => void (await setAnnotationLocked(a.id, !a.locked)))
+            }
+            className="text-dim hover:text-text disabled:opacity-50"
+          >
+            {a.locked ? "잠금 해제" : "잠금"}
+          </button>
           <button
             type="button"
             disabled={pending}

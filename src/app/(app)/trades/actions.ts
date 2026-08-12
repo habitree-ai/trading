@@ -288,8 +288,11 @@ export async function runOkxSync(): Promise<SyncState> {
       creds: await loadOkxCredentials(exchangeAccountId),
     });
     revalidatePath("/", "layout");
+    // 청산으로 덮어쓴 건과 보유 중인 건은 '받은 건수'와 뜻이 달라 따로 적는다.
+    const closed = result.tradesClosed > 0 ? ` · 청산 반영 ${result.tradesClosed}건` : "";
+    const holding = result.openCount > 0 ? ` · 보유 ${result.openCount}건` : "";
     return {
-      message: `거래 ${result.tradesAdded}건 · 체결 ${result.fillsAdded}건 · 입출금 ${result.flowsAdded}건을 받았습니다.`,
+      message: `거래 ${result.tradesAdded}건 · 체결 ${result.fillsAdded}건 · 입출금 ${result.flowsAdded}건을 받았습니다${closed}${holding}.`,
     };
   } catch (error) {
     return { error: error instanceof Error ? error.message : String(error) };

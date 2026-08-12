@@ -184,14 +184,32 @@ export function TradeTable({
                 </td>
                 <td className="tnum px-3 py-2 text-dim">{num(trade.notional, 0)}</td>
                 <td className="tnum px-3 py-2 text-dim">{num(trade.leverage, 1)}</td>
-                {/* 계좌가 실제로 움직인 값(=손익+수수료)을 앞세우고, 내역은 아래 작게. */}
-                <td className={`px-3 py-2 whitespace-nowrap ${pnlClass(net)}`}>
-                  <div className="tnum font-medium">{signed(net)}</div>
-                  {trade.fee ? (
-                    <div className="tnum text-[11px] text-dim">
-                      {signed(trade.pnl)} · 수수료 {signed(trade.fee)}
-                    </div>
-                  ) : null}
+                {/*
+                  계좌가 실제로 움직인 값(=손익+수수료)을 앞세우고, 내역은 아래 작게.
+                  아직 들고 있는 거래는 확정된 게 없어 평가손익을 대신 세운다 — 시세를
+                  따라 움직이는 값이라 확정 손익과 같은 자리에 같은 모양으로 두면
+                  둘을 구분할 수가 없다.
+                */}
+                <td
+                  className={`px-3 py-2 whitespace-nowrap ${
+                    outcome === "open" ? pnlClass(trade.unrealized_pnl) : pnlClass(net)
+                  }`}
+                >
+                  {outcome === "open" ? (
+                    <>
+                      <div className="tnum font-medium">{signed(trade.unrealized_pnl)}</div>
+                      <div className="text-[11px] text-dim">평가손익</div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="tnum font-medium">{signed(net)}</div>
+                      {trade.fee ? (
+                        <div className="tnum text-[11px] text-dim">
+                          {signed(trade.pnl)} · 수수료 {signed(trade.fee)}
+                        </div>
+                      ) : null}
+                    </>
+                  )}
                 </td>
                 <td className={`tnum px-3 py-2 ${pnlClass(pnlPct)}`}>{signedPct(pnlPct)}</td>
                 <td className="tnum px-3 py-2">{num(equityAfter, 0)}</td>

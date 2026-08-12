@@ -4,25 +4,32 @@ import {
   accountBillSchema,
   depositSchema,
   fillSchema,
+  openPositionSchema,
   positionSchema,
   withdrawalSchema,
   type OkxAccountBill,
   type OkxDeposit,
   type OkxFill,
+  type OkxOpenPosition,
   type OkxPosition,
   type OkxWithdrawal,
 } from "@/lib/okx/schema";
 import {
   baseSymbol,
   fillRole,
+  openNetOf,
+  openSideOf,
   positionKey,
   matchPosition,
   notionalOf,
   realizedOf,
   resultOf,
   sideOf,
+  toCloseUpdate,
   toDepositInsert,
   toFillInsert,
+  toOpenTradeInsert,
+  toOpenUpdate,
   toTradeInsert,
   toTransferInsert,
   toWithdrawalInsert,
@@ -45,6 +52,23 @@ function position(over: Record<string, string> = {}): OkxPosition {
     closeTotalPos: "100",
     cTime: "1695359700000",
     uTime: "1695360000000",
+    ...over,
+  });
+}
+
+/** `GET /api/v5/account/positions` 응답을 본뜬 미청산 포지션. */
+function openPosition(over: Record<string, string> = {}): OkxOpenPosition {
+  return openPositionSchema.parse({
+    posId: "1752922805906812928",
+    instId: "BTC-USDT-SWAP",
+    mgnMode: "cross",
+    posSide: "long",
+    pos: "100",
+    avgPx: "29783.9",
+    lever: "10",
+    upl: "1.5",
+    realizedPnl: "-0.2",
+    cTime: "1695359700000",
     ...over,
   });
 }
@@ -328,5 +352,75 @@ describe("realizedOf — 계좌가 실제로 움직인 금액", () => {
     const pos = position({ pnl: "2", fee: "-5", realizedPnl: "-3" });
     expect(resultOf(realizedOf(pos))).toBe("loss");
     expect(toTradeInsert({ pos, ctVal: 0.01, ...owner, seq: 1 })?.result).toBe("loss");
+  });
+});
+
+describe("미청산 포지션", () => {
+  it("방향은 posSide를 그대로 쓴다", () => {
+    expect(openSideOf(openPosition({ posSide: "short" }))).toBe("short");
+  });
+
+  it("넷 모드는 계약 수의 부호가 방향이다", () => {
+    expect(openSideOf(openPosition({ posSide: "net", pos: "-100" }))).toBe("short");
+    expect(openSideOf(openPosition({ posSide: "net", pos: "100" }))).toBe("long");
+  });
+
+  it("계약 수가 0이면 방향을 정할 수 없다", () => {
+    expect(openSideOf(openPosition({ posSide: "net", pos: "0" }))).toBeNull();
+  });
+
+  it("평가손익은 미실현에 이미 낸 비용까지 더한다", () => {
+    expect(openNetOf(openPosition())).toBeCloseTo(1.3, 10);
+  });
+
+  it("손익 칸은 비우고 평가손익만 채운다 — 확정된 게 없다", () => {
+    const row = toOpenTradeInsert({ pos: openPosition(), ctVal: 0.01, ...owner, seq: 7 });
+
+    expect(row?.result).toBe("open");
+    expect(row?.entry_price).toBe(29783.9);
+    expect(row?.notional).toBeCloseTo(29783.9, 10); // 29783.9 × 100 × 0.01
+    expect(row?.unrealized_pnl).toBeCloseTo(1.3, 10);
+    expect(row).not.toHaveProperty("pnl");
+    expect(row).not.toHaveProperty("exit_at");
+  });
+
+  it("방향을 못 정하면 줄을 만들지 않는다", () => {
+    const pos = openPosition({ posSide: "net", pos: "0" });
+    expect(toOpenTradeInsert({ pos, ctVal: 0.01, ...owner, seq: 1 })).toBeNull();
+  });
+
+  it("갱신에는 북·사용자·순번이 없다 — 있던 줄의 자리를 흔들지 않는다", () => {
+    const row = toOpenTradeInsert({ pos: openPosition(), ctVal: 0.01, ...owner, seq: 7 })!;
+    const update = toOpenUpdate(row);
+
+    expect(update).not.toHaveProperty("book_id");
+    expect(update).not.toHaveProperty("user_id");
+    expect(update).not.toHaveProperty("seq");
+    expect(update).not.toHaveProperty("okx_pos_id");
+    expect(update.unrealized_pnl).toBeCloseTo(1.3, 10);
+  });
+
+  /*
+   * 청산은 새 줄이 아니라 있던 줄을 덮어쓴다.
+   *
+   * 들고 있는 동안 적어 둔 근거·복기·원칙 판단·차트 메모가 모두 그 줄의 id에 매달려
+   * 있어서다. 그래서 덮어쓰는 칸에 그 기록들이 끼어 있으면 안 된다.
+   */
+  it("청산 갱신은 손으로 적은 칸을 건드리지 않는다", () => {
+    const row = toTradeInsert({ pos: position(), ctVal: 0.01, ...owner, seq: 3 })!;
+    const update = toCloseUpdate(row);
+
+    for (const field of ["rationale", "review", "emotion", "note", "setup", "stop_price"]) {
+      expect(update).not.toHaveProperty(field);
+    }
+    expect(update).not.toHaveProperty("book_id");
+    expect(update).not.toHaveProperty("seq");
+  });
+
+  it("청산되면 평가손익을 지운다 — 안 지우면 같은 금액이 두 칸에 남는다", () => {
+    const row = toTradeInsert({ pos: position(), ctVal: 0.01, ...owner, seq: 3 })!;
+    expect(toCloseUpdate(row).unrealized_pnl).toBeNull();
+    expect(toCloseUpdate(row).exit_at).toBe(row.exit_at);
+    expect(toCloseUpdate(row).realized_pnl).toBe(row.realized_pnl);
   });
 });

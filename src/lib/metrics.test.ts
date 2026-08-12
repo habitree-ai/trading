@@ -52,6 +52,7 @@ function trade(partial: Partial<Trade> & { pnl: number; result: TradeResult }): 
     fee: null,
     funding_fee: null,
     realized_pnl: null,
+    unrealized_pnl: null,
     margin_mode: null,
     stop_price: null,
     tp1_price: null,

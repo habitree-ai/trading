@@ -143,6 +143,26 @@ export async function updateAnnotationPoints(
   return {};
 }
 
+/**
+ * 잠그거나 푼다.
+ *
+ * 잠긴 메모는 차트에서 집히지 않아 그 위에서도 밀기·확대가 그대로 된다. 자리를 다 잡은
+ * 뒤 차트를 만지다 밀리는 걸 막는 게 전부라, 지우거나 라벨을 고치는 건 그대로 된다.
+ */
+export async function setAnnotationLocked(
+  id: string,
+  locked: boolean,
+): Promise<AnnotationResult> {
+  if (!id) return { error: "메모를 찾을 수 없습니다." };
+
+  const { supabase } = await requireUser();
+  const { error } = await supabase.from("trade_annotations").update({ locked }).eq("id", id);
+  if (error) return { error: error.message };
+
+  revalidatePath("/", "layout");
+  return {};
+}
+
 export async function deleteAnnotation(id: string): Promise<AnnotationResult> {
   if (!id) return { error: "메모를 찾을 수 없습니다." };
 

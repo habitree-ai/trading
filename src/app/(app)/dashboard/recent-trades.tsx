@@ -52,8 +52,13 @@ export function RecentTrades({
               <span className="tnum ml-auto text-xs text-dim">
                 {dateTime(trade.exit_at ?? trade.entry_at)}
               </span>
-              <span className={`tnum w-24 text-right font-medium ${pnlClass(net)}`}>
-                {signed(net)}
+              {/* 보유 중인 건 확정된 손익이 없다 — 평가손익을 대신 세운다. */}
+              <span
+                className={`tnum w-24 text-right font-medium ${
+                  result === "open" ? pnlClass(trade.unrealized_pnl) : pnlClass(net)
+                }`}
+              >
+                {result === "open" ? signed(trade.unrealized_pnl) : signed(net)}
               </span>
               <span className={`tnum w-20 text-right text-xs ${pnlClass(pnlPct)}`}>
                 {signedPct(pnlPct)}
@@ -87,13 +92,21 @@ export function RecentTrades({
                   <Item label="손절가">
                     <span className="tnum">{num(trade.stop_price)}</span>
                   </Item>
-                  <Item label={`실현손익 (${currency})`}>
-                    <span className={`tnum ${pnlClass(net)}`}>{signed(net)}</span>
-                    {trade.fee ? (
-                      <span className="tnum block text-[11px] text-dim">
-                        {signed(trade.pnl)} · 수수료 {signed(trade.fee)}
+                  <Item label={result === "open" ? `평가손익 (${currency})` : `실현손익 (${currency})`}>
+                    {result === "open" ? (
+                      <span className={`tnum ${pnlClass(trade.unrealized_pnl)}`}>
+                        {signed(trade.unrealized_pnl)}
                       </span>
-                    ) : null}
+                    ) : (
+                      <>
+                        <span className={`tnum ${pnlClass(net)}`}>{signed(net)}</span>
+                        {trade.fee ? (
+                          <span className="tnum block text-[11px] text-dim">
+                            {signed(trade.pnl)} · 수수료 {signed(trade.fee)}
+                          </span>
+                        ) : null}
+                      </>
+                    )}
                   </Item>
                   <Item label="손익률">
                     <span className={`tnum ${pnlClass(pnlPct)}`}>{signedPct(pnlPct)}</span>

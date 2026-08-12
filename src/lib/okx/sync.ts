@@ -15,29 +15,38 @@ import {
   fetchContractValues,
   fetchDeposits,
   fetchFillsHistory,
-  fetchOpenPositionPnl,
+  fetchOpenPositions,
   fetchPositionsHistory,
   fetchTotalEquity,
   fetchWithdrawals,
+  openPositionPnl,
 } from "@/lib/okx/history";
 import {
   matchPosition,
   positionKey,
   sideOf,
+  toCloseUpdate,
   toDepositInsert,
   toFillInsert,
+  toOpenTradeInsert,
+  toOpenUpdate,
   toTradeInsert,
   toTransferInsert,
   toWithdrawalInsert,
   type CashFlowInsert,
 } from "@/lib/okx/map";
 import { MAX_HISTORY_MS, type OkxCredentials } from "@/lib/okx/private";
+import type { OkxOpenPosition } from "@/lib/okx/schema";
 import type { Database } from "@/lib/supabase/database.types";
 
 type Db = SupabaseClient<Database>;
 
 export interface SyncResult {
   tradesAdded: number;
+  /** 들고 있던 줄을 청산으로 덮어쓴 건수 — 적어 둔 기록은 그대로 남는다 */
+  tradesClosed: number;
+  /** 목록에 올라간 미청산 포지션 수 */
+  openCount: number;
   fillsAdded: number;
   /** 입금·출금·이체 */
   flowsAdded: number;
@@ -120,7 +129,8 @@ export async function syncOkx(input: {
         .update({
           finished_at: new Date().toISOString(),
           cursor_at: result.until,
-          trades_added: result.tradesAdded,
+          // 청산으로 덮어쓴 것도 이번에 들어온 거래다 — 0건으로 남으면 이력이 거짓말을 한다.
+          trades_added: result.tradesAdded + result.tradesClosed,
           fills_added: result.fillsAdded,
           flows_added: result.flowsAdded,
         })
@@ -148,9 +158,10 @@ async function runSync(
   startedAt: number,
   startDate: string,
 ): Promise<SyncResult> {
-  const [ctVals, positions] = await Promise.all([
+  const [ctVals, positions, open] = await Promise.all([
     fetchContractValues(),
     fetchPositionsHistory(creds, sinceMs),
+    fetchOpenPositions(creds),
   ]);
 
   const since = new Date(sinceMs).toISOString();
@@ -159,48 +170,122 @@ async function runSync(
   // 입출금은 거래가 없어도 잔고를 움직인다 — 포지션 유무와 무관하게 훑는다.
   const flowsAdded = await syncCashFlows(supabase, creds, userId, bookId, flowWindow(startDate));
 
-  if (positions.length === 0) {
-    await snapshotBalance(supabase, creds, userId, bookId);
-    return { tradesAdded: 0, fillsAdded: 0, flowsAdded, since, until };
-  }
+  const counts = await syncTrades(supabase, userId, bookId, positions, open, ctVals);
+  const fillsAdded =
+    positions.length === 0
+      ? 0
+      : await syncFills(supabase, creds, userId, positions, ctVals, sinceMs);
 
-  // 이미 들어와 있는 거래는 건너뛴다 — 같은 구간을 다시 훑어도 손익이 겹치지 않게.
-  const posIds = [...new Set(positions.map((p) => p.posId))];
+  await snapshotBalance(supabase, creds, userId, bookId, open);
+
+  return { ...counts, fillsAdded, flowsAdded, since, until };
+}
+
+/**
+ * 닫힌 포지션과 들고 있는 포지션을 한 번에 맞춰 넣는다.
+ *
+ * 들고 있는 포지션도 목록에 올린다 — 진입 근거는 들어갈 때 적어야 뜻이 있고, 청산되고
+ * 나서 되짚어 적으면 이미 결과를 아는 채로 쓴 글이 된다.
+ *
+ * 청산되면 **그 줄을 덮어쓴다**. 새 줄을 넣으면 들고 있는 동안 적어 둔 근거·복기·
+ * 원칙 판단·차트 메모가 열린 채 남은 줄에 매달려 끊긴다.
+ */
+async function syncTrades(
+  supabase: Db,
+  userId: string,
+  bookId: string,
+  positions: Awaited<ReturnType<typeof fetchPositionsHistory>>,
+  open: readonly OkxOpenPosition[],
+  ctVals: Map<string, number | null>,
+): Promise<{ tradesAdded: number; tradesClosed: number; openCount: number }> {
+  const posIds = [...new Set([...positions, ...open].map((p) => p.posId))];
+  if (posIds.length === 0) return { tradesAdded: 0, tradesClosed: 0, openCount: 0 };
+
+  /*
+   * 이 북의 것만 본다.
+   *
+   * `okx_pos_id`는 거래소 계정 안에서만 유일하다. 북으로 좁히지 않으면 같은 계정을
+   * 붙인 다른 북의 줄을 열려 있는 줄로 착각해 덮어쓴다.
+   */
   const { data: known } = await supabase
     .from("trades")
-    .select("id, okx_pos_id, exit_at, side")
+    .select("id, okx_pos_id, exit_at")
+    .eq("book_id", bookId)
     .in("okx_pos_id", posIds);
 
-  const seen = new Set(
+  const closed = new Set(
     (known ?? [])
       .filter((t) => t.okx_pos_id !== null && t.exit_at !== null)
       .map((t) => positionKey(t.okx_pos_id!, Date.parse(t.exit_at!))),
   );
 
-  // 오래된 것부터 순번을 매긴다 — 시트의 `순번`은 시간순이다.
-  // 응답 안에서도 같은 거래가 두 번 올 수 있으므로 여기서 함께 걸러 낸다.
-  const fresh: typeof positions = [];
-  for (const pos of [...positions].sort((a, b) => Number(a.cTime) - Number(b.cTime))) {
-    const key = positionKey(pos.posId, Number(pos.uTime));
-    if (seen.has(key)) continue;
-    seen.add(key);
-    fresh.push(pos);
-  }
+  // 아직 안 닫힌 줄 — posId 하나에 하나뿐이라 이것으로 특정된다.
+  const holding = new Map(
+    (known ?? [])
+      .filter((t) => t.okx_pos_id !== null && t.exit_at === null)
+      .map((t) => [t.okx_pos_id!, t.id]),
+  );
 
   let seq = await nextSeq(supabase, bookId);
-  const rows = fresh
-    .map((pos) => toTradeInsert({ pos, ctVal: ctVals.get(pos.instId) ?? null, bookId, userId, seq: seq++ }))
-    .filter((row): row is NonNullable<typeof row> => row !== null);
+  let tradesClosed = 0;
+  const inserts = [];
 
-  if (rows.length > 0) {
-    const { error } = await supabase.from("trades").insert(rows);
+  // 오래된 것부터 순번을 매긴다 — 시트의 `순번`은 시간순이다.
+  // 응답 안에서도 같은 거래가 두 번 올 수 있으므로 여기서 함께 걸러 낸다.
+  for (const pos of [...positions].sort((a, b) => Number(a.cTime) - Number(b.cTime))) {
+    const key = positionKey(pos.posId, Number(pos.uTime));
+    if (closed.has(key)) continue;
+    closed.add(key);
+
+    const ctVal = ctVals.get(pos.instId) ?? null;
+    const row = toTradeInsert({ pos, ctVal, bookId, userId, seq });
+    if (row === null) continue;
+
+    const holdingId = holding.get(pos.posId);
+    if (holdingId === undefined) {
+      seq += 1;
+      inserts.push(row);
+      continue;
+    }
+
+    holding.delete(pos.posId);
+    const { error } = await supabase
+      .from("trades")
+      .update(toCloseUpdate(row))
+      .eq("id", holdingId);
+    if (error) throw new Error(`거래 청산 반영 실패: ${error.message}`);
+    tradesClosed += 1;
+  }
+
+  // 아직 들고 있는 포지션 — 있던 줄은 값만 새로 고치고, 없으면 자리를 만든다.
+  let openCount = 0;
+  for (const pos of [...open].sort((a, b) => Number(a.cTime) - Number(b.cTime))) {
+    const ctVal = ctVals.get(pos.instId) ?? null;
+    const row = toOpenTradeInsert({ pos, ctVal, bookId, userId, seq });
+    if (row === null) continue;
+    openCount += 1;
+
+    const holdingId = holding.get(pos.posId);
+    if (holdingId === undefined) {
+      seq += 1;
+      inserts.push(row);
+      continue;
+    }
+
+    holding.delete(pos.posId);
+    const { error } = await supabase
+      .from("trades")
+      .update(toOpenUpdate(row))
+      .eq("id", holdingId);
+    if (error) throw new Error(`보유 포지션 갱신 실패: ${error.message}`);
+  }
+
+  if (inserts.length > 0) {
+    const { error } = await supabase.from("trades").insert(inserts);
     if (error) throw new Error(`거래 저장 실패: ${error.message}`);
   }
 
-  const fillsAdded = await syncFills(supabase, creds, userId, positions, ctVals, sinceMs);
-  await snapshotBalance(supabase, creds, userId, bookId);
-
-  return { tradesAdded: rows.length, fillsAdded, flowsAdded, since, until };
+  return { tradesAdded: inserts.length, tradesClosed, openCount };
 }
 
 /**
@@ -315,12 +400,12 @@ async function snapshotBalance(
   creds: OkxCredentials,
   userId: string,
   bookId: string,
+  positions: readonly OkxOpenPosition[],
 ): Promise<void> {
-  const [balance, open] = await Promise.all([
-    fetchTotalEquity(creds),
-    fetchOpenPositionPnl(creds),
-  ]);
+  const balance = await fetchTotalEquity(creds);
   if (!balance) return;
+
+  const open = openPositionPnl(positions);
 
   const { data: dup } = await supabase
     .from("balance_snapshots")
