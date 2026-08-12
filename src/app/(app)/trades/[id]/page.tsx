@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { PrincipleChecklist } from "@/app/(app)/trades/[id]/principle-checklist";
 import { TradeForm } from "@/app/(app)/trades/trade-form";
 import { TradeChart } from "@/components/trade-chart";
+import { nowMs } from "@/lib/okx";
 import {
   getTrade,
   listAnnotations,
@@ -47,6 +48,7 @@ export default async function EditTradePage({ params }: { params: Promise<{ id: 
         exitPrice={trade.exit_price}
         stopPrice={trade.stop_price}
         notional={trade.notional}
+        now={nowMs()}
         fills={fills}
         annotations={annotations}
       />

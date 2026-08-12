@@ -1,6 +1,14 @@
 import { describe, expect, it } from 'vitest';
 
-import { BAR_MS, MAX_CANDLE_PAGES, candleCursors, pickBar, toInstId, windowFor } from '@/lib/okx';
+import {
+  BAR_MS,
+  MAX_CANDLE_PAGES,
+  candleCursors,
+  floorToBar,
+  pickBar,
+  toInstId,
+  windowFor,
+} from '@/lib/okx';
 
 describe('toInstId — 시트의 종목명을 OKX 계약으로 편다', () => {
   it('기초자산만 있으면 USDT 무기한으로 만든다', () => {
@@ -53,9 +61,29 @@ describe('windowFor — 거래 전후로 여유를 둔다', () => {
     expect(w.to).toBe(exit + 10 * BAR_MS['4H']);
   });
 
-  it('미청산이면 진입 시각을 끝으로 본다', () => {
-    const w = windowFor(entry, null, '1H', 5);
+  it('아직 들고 있으면 지금까지 열어 준다 — 진입 뒤 시세가 화면에 남아야 한다', () => {
+    const now = Date.parse('2026-07-27T09:00:00Z');
+    const w = windowFor(entry, now, '1H', 5);
+    expect(w.to).toBe(now + 5 * BAR_MS['1H']);
+  });
+
+  it('끝이 진입보다 앞서도 구간이 뒤집히지 않는다', () => {
+    const w = windowFor(entry, entry - 60_000, '1H', 5);
     expect(w.to).toBe(entry + 5 * BAR_MS['1H']);
+    expect(w.to).toBeGreaterThan(w.from);
+  });
+});
+
+describe('floorToBar — 진행 중인 봉의 시작으로 뭉뚱그린다', () => {
+  it('같은 봉 안에서는 같은 값이 나온다 — 캐시가 빗나가지 않게', () => {
+    const at = Date.parse('2026-07-27T04:37:41Z');
+    expect(floorToBar(at, '15m')).toBe(Date.parse('2026-07-27T04:30:00Z'));
+    expect(floorToBar(at + 60_000, '15m')).toBe(floorToBar(at, '15m'));
+  });
+
+  it('봉이 넘어가면 값도 넘어간다', () => {
+    const at = Date.parse('2026-07-27T04:59:59Z');
+    expect(floorToBar(at + 1_000, '1H')).toBe(Date.parse('2026-07-27T05:00:00Z'));
   });
 });
 

@@ -28,6 +28,7 @@ import {
   monthKey,
   summarizePerformance,
 } from "@/lib/metrics";
+import { nowMs } from "@/lib/okx";
 import { historyFloorMs } from "@/lib/okx/private";
 import {
   getActiveBook,
@@ -418,6 +419,7 @@ export default async function DashboardPage() {
             <RecentTrades
               rows={recent}
               currency={book.base_currency}
+              now={nowMs()}
               fillsByTrade={recentFills}
               annotationsByTrade={recentAnnotations}
             />

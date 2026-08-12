@@ -17,11 +17,14 @@ import type { TradeDerived } from "@/lib/metrics";
 export function RecentTrades({
   rows,
   currency,
+  now,
   fillsByTrade,
   annotationsByTrade,
 }: {
   rows: TradeDerived[];
   currency: string;
+  /** 페이지를 그린 시각 — 아직 들고 있는 거래의 차트를 여기까지 그린다 */
+  now: number;
   /** 거래 id → 낱개 체결. 차트가 평균가 대신 실제 좌표를 찍는 데 쓴다. */
   fillsByTrade: Record<string, TradeFill[]>;
   /** 거래 id → 차트 메모. 펼친 차트에 그대로 그려진다. */
@@ -134,6 +137,7 @@ export function RecentTrades({
                     exitPrice={trade.exit_price}
                     stopPrice={trade.stop_price}
                     notional={trade.notional}
+                    now={now}
                     fills={fillsByTrade[trade.id] ?? []}
                     annotations={annotationsByTrade[trade.id] ?? []}
                   />

@@ -44,7 +44,14 @@ import {
 import { num, signed } from "@/lib/format";
 import { handleMovesTime, type AnnotationHit } from "@/lib/hit-test";
 import { positionProblemOf } from "@/lib/position-tool";
-import { BAR_MS, pickBar, windowFor, type Bar as OkxBar, type Candle } from "@/lib/okx";
+import {
+  BAR_MS,
+  floorToBar,
+  pickBar,
+  windowFor,
+  type Bar as OkxBar,
+  type Candle,
+} from "@/lib/okx";
 
 /** 화면에 노출하는 보기 — 자동은 거래 길이에 맞춰 봉을 고른다. */
 type View = "auto" | "15m" | "1H" | "4H" | "1D";
@@ -56,6 +63,9 @@ const VIEW_LABEL: Record<View, string> = {
   "4H": "4시간봉",
   "1D": "일봉",
 };
+
+/** 아직 들고 있는 거래에서는 자동 보기의 끝이 청산이 아니라 지금이다. */
+const OPEN_VIEW_LABEL: Record<View, string> = { ...VIEW_LABEL, auto: "진입~현재" };
 
 /** 거래 구간 앞뒤로 붙이는 여유 봉 수 — 차트 분석이 되려면 맥락이 있어야 한다. */
 const PAD_BARS = 60;
@@ -139,6 +149,7 @@ export function TradeChart({
   exitPrice,
   stopPrice,
   notional = null,
+  now,
   fills = [],
   annotations = [],
 }: {
@@ -153,6 +164,13 @@ export function TradeChart({
   stopPrice: number | null;
   /** 시트의 `투입` — 손익 툴이 비율을 금액으로 옮기는 데 쓴다. 없으면 비율만 나온다 */
   notional?: number | null;
+  /**
+   * 페이지를 그린 시각(ms) — 아직 들고 있는 거래를 어디까지 그릴지 정한다.
+   *
+   * 서버가 내려보낸다. 브라우저에서 읽으면 서버가 그린 화면과 값이 갈리고, 렌더 중에
+   * 시계를 읽는 것 자체가 순수하지 않다. 그 사이 흐른 시간은 앞뒤 여유 봉이 덮는다.
+   */
+  now: number;
   /**
    * 낱개 체결. 분할 체결이면 `entryPrice`/`exitPrice`는 가중평균가라
    * 어느 한 시점의 가격이 아니다 — 그대로 찍으면 캔들 밖으로 떠오른다.
@@ -213,9 +231,12 @@ export function TradeChart({
     [annotations, moving],
   );
 
+  /** 차트가 어디까지 보여 줄지 — 청산된 거래는 청산 시각, 들고 있는 거래는 지금. */
+  const endMs = exitMs ?? now;
+
   const bar: OkxBar = useMemo(
-    () => (view === "auto" ? pickBar(Math.max((exitMs ?? entryMs) - entryMs, BAR_MS["1m"])) : view),
-    [view, entryMs, exitMs],
+    () => (view === "auto" ? pickBar(Math.max(endMs - entryMs, BAR_MS["1m"])) : view),
+    [view, entryMs, endMs],
   );
   const barSeconds = BAR_MS[bar] / 1000;
 
@@ -299,10 +320,20 @@ export function TradeChart({
   useEffect(() => {
     let cancelled = false;
 
-    async function load() {
-      // 앞뒤 60봉 — 거래 구간이 화면 가운데 1/3에 놓인다. 직전 추세와 청산 뒤 움직임까지
-      // 들어와야 "그때 시장이 어땠는지"를 읽을 수 있다.
-      const { from, to } = windowFor(entryMs, exitMs, bar, PAD_BARS);
+    async function load(end: number) {
+      /*
+       * 앞뒤 60봉 — 거래 구간이 화면 가운데 1/3에 놓인다. 직전 추세와 청산 뒤 움직임까지
+       * 들어와야 "그때 시장이 어땠는지"를 읽을 수 있다.
+       *
+       * 들고 있는 거래의 끝은 봉 눈금에 맞춰 뭉뚱그린다 — 밀리초 그대로 쓰면
+       * 새로고침할 때마다 페이지 커서가 달라져 캐시가 통째로 빗나간다.
+       */
+      const { from, to } = windowFor(
+        entryMs,
+        exitMs === null ? floorToBar(end, bar) : end,
+        bar,
+        PAD_BARS,
+      );
       setLoading(true);
       setError(null);
 
@@ -326,11 +357,11 @@ export function TradeChart({
       }
     }
 
-    void load();
+    void load(endMs);
     return () => {
       cancelled = true;
     };
-  }, [symbol, bar, entryMs, exitMs]);
+  }, [symbol, bar, entryMs, exitMs, endMs]);
 
   /* ---------- 데이터·마커·기준선 반영 ---------- */
   useEffect(() => {
@@ -757,9 +788,18 @@ export function TradeChart({
     drawKind !== null && isPositionKind(drawKind) && !asking
       ? POSITION_STEPS[pending?.points.length ?? 0] ?? null
       : null;
+  /*
+   * 들고 있는 거래는 마지막 봉의 종가를 지금 값으로 본다.
+   *
+   * 거래에 적힌 청산가는 없고, 화면에는 이미 지금까지의 봉이 들어와 있다 — 굳이 시세를
+   * 한 번 더 부를 이유가 없다.
+   */
+  const lastClose = candles && candles.length > 0 ? candles[candles.length - 1].c : null;
+  const markPrice = exitPrice ?? lastClose;
+  const viewLabel = exitAt === null ? OPEN_VIEW_LABEL : VIEW_LABEL;
   const held =
-    exitPrice !== null && entryPrice !== null
-      ? ((exitPrice - entryPrice) / entryPrice) * (side === "long" ? 1 : -1)
+    markPrice !== null && entryPrice !== null
+      ? ((markPrice - entryPrice) / entryPrice) * (side === "long" ? 1 : -1)
       : null;
 
   return (
@@ -820,7 +860,7 @@ export function TradeChart({
             </span>
           ) : null}
           <span className="mx-1 w-px self-stretch bg-border" aria-hidden />
-          {(Object.keys(VIEW_LABEL) as View[]).map((v) => (
+          {(Object.keys(viewLabel) as View[]).map((v) => (
             <button
               key={v}
               type="button"
@@ -829,7 +869,7 @@ export function TradeChart({
                 view === v ? "border-accent text-accent" : "border-border text-dim hover:text-text"
               }`}
             >
-              {VIEW_LABEL[v]}
+              {viewLabel[v]}
             </button>
           ))}
         </div>
@@ -838,7 +878,8 @@ export function TradeChart({
       <p className="mt-1 text-xs text-dim">
         {view === "auto" ? `${bar} 봉 자동 선택 · ` : ""}
         앞뒤 {PAD_BARS}봉 ·{" "}
-        진입 {num(entryPrice)} → 청산 {exitPrice === null ? "—" : num(exitPrice)}
+        {/* 들고 있는 거래는 청산가가 없다 — 마지막 봉의 종가를 지금 값으로 세운다. */}
+        진입 {num(entryPrice)} → {exitAt === null ? "현재" : "청산"} {num(markPrice)}
         {held !== null ? (
           <span className={held >= 0 ? "text-profit" : "text-loss"}> ({signed(held * 100, 2)}%)</span>
         ) : null}

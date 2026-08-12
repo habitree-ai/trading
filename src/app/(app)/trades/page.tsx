@@ -5,6 +5,7 @@ import { TradeTable } from "@/app/(app)/trades/trade-table";
 import { EmptyBook } from "@/components/empty-book";
 import { dateTime } from "@/lib/format";
 import { deriveTrades } from "@/lib/metrics";
+import { nowMs } from "@/lib/okx";
 import {
   getActiveBook,
   getLastSync,
@@ -59,6 +60,7 @@ export default async function TradesPage() {
         <TradeTable
           rows={derived}
           currency={book.base_currency}
+          now={nowMs()}
           fillsByTrade={fillsByTrade}
           annotationsByTrade={annotationsByTrade}
         />

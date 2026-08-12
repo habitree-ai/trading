@@ -163,14 +163,38 @@ export async function fetchCandles(
  * 차트에 보여줄 구간을 정한다 — 거래 전후로 여유를 둬야 맥락이 보인다.
  *
  * 진입/청산만 딱 잘라 보여주면 "그때 시장이 어땠는지"를 알 수 없다.
+ *
+ * 끝을 부르는 쪽이 정한다. 청산된 거래는 청산 시각이지만, 아직 들고 있는 거래는
+ * **지금**이다 — 진입 시각으로 자르면 들어간 뒤 시세가 어디로 갔는지가 화면에서
+ * 통째로 빠진다. 시계를 읽는 건 순수하지 않아 여기서 하지 않는다.
  */
 export function windowFor(
   entryMs: number,
-  exitMs: number | null,
+  endMs: number,
   bar: Bar,
   padBars = 24,
 ): { from: number; to: number } {
-  const end = exitMs ?? entryMs;
   const pad = BAR_MS[bar] * padBars;
-  return { from: entryMs - pad, to: end + pad };
+  return { from: entryMs - pad, to: Math.max(entryMs, endMs) + pad };
+}
+
+/**
+ * 봉 눈금에 맞춰 내림 — 아직 들고 있는 거래의 끝을 정할 때 쓴다.
+ *
+ * `지금`을 밀리초 그대로 쓰면 새로고침할 때마다 페이지 커서가 달라져 캐시가 통째로
+ * 빗나간다. 봉 하나만큼 뭉뚱그리면 같은 봉 안에서는 같은 요청이 된다.
+ */
+export function floorToBar(ms: number, bar: Bar): number {
+  return Math.floor(ms / BAR_MS[bar]) * BAR_MS[bar];
+}
+
+/**
+ * 지금(ms) — 아직 들고 있는 거래의 차트를 어디까지 그릴지 정하는 데 쓴다.
+ *
+ * 렌더 중에 시계를 직접 읽으면 순수성 검사에 걸린다. 서버가 페이지를 그리는 시점에
+ * 한 번 읽어 내려보내면 서버와 브라우저가 같은 값을 보게 되고(하이드레이션이 어긋나지
+ * 않는다), 그 사이 흐른 시간은 앞뒤 여유 봉이 이미 넉넉히 덮는다.
+ */
+export function nowMs(): number {
+  return Date.now();
 }
