@@ -73,6 +73,7 @@ function toChartPoint(point: PanePoint): ChartPoint {
  * 그리든 나머지 창이 같은 데이터를 그대로 그린다.
  */
 export function QuadPane({
+  className,
   symbol,
   bar,
   onBarChange,
@@ -92,6 +93,8 @@ export function QuadPane({
   onMovePreview,
   onMoveEnd,
 }: {
+  /** 그리드 안 자리 지정(order 등) — 부모가 ㄹ자 배치를 만드는 데 쓴다. */
+  className?: string;
   symbol: string;
   bar: Bar;
   onBarChange: (bar: Bar) => void;
@@ -510,7 +513,9 @@ export function QuadPane({
   const lastClose = candles && candles.length > 0 ? candles[candles.length - 1].c : null;
 
   return (
-    <div className="flex h-72 flex-col overflow-hidden rounded-xl border border-border bg-surface md:h-auto md:min-h-0">
+    <div
+      className={`flex h-72 flex-col overflow-hidden rounded-xl border border-border bg-surface md:h-auto md:min-h-0 ${className ?? ""}`}
+    >
       <div className="flex shrink-0 items-center gap-2 border-b border-border px-2 py-1.5">
         <select
           value={bar}

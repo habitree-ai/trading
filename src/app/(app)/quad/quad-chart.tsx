@@ -37,8 +37,16 @@ const POSITION_STEPS = ["진입가를 누르세요", "손절가를 누르세요"
 /** trade-chart와 같은 기준 — 이보다 덜 움직였으면 옮긴 게 아니라 고른 것이다. */
 const MIN_MOVE_PX = 3;
 
-/** 4분할의 기본 구성 — 요구된 15분/1시간/4시간/일봉. 창마다 바꿀 수 있다. */
-const DEFAULT_BARS: Bar[] = ["15m", "1H", "4H", "1D"];
+/** 4분할의 기본 구성 — 긴 봉이 먼저 온다. 창마다 바꿀 수 있다. */
+const DEFAULT_BARS: Bar[] = ["1D", "4H", "1H", "15m"];
+
+/**
+ * 데스크톱 2×2에서의 자리 — ㄹ자 읽기(왼쪽위 → 오른쪽위 → 오른쪽아래 → 왼쪽아래).
+ *
+ * 배열 순서(= 모바일 세로 순서)는 1D→4H→1H→15m로 단조롭게 두고, 데스크톱에서만
+ * 아랫줄 두 창을 order로 맞바꿔 1H가 오른쪽 아래, 15m가 왼쪽 아래에 온다.
+ */
+const PANE_ORDER = ["md:order-1", "md:order-2", "md:order-4", "md:order-3"];
 
 /** 봉이 넘어갔는지 보는 주기(ms) — 가장 촘촘한 1분봉이 한 번은 걸리는 간격. */
 const REFRESH_MS = 60_000;
@@ -410,6 +418,7 @@ export function QuadChart({ now: initialNow }: { now: number }) {
           {paneBars.map((bar, i) => (
             <QuadPane
               key={i}
+              className={PANE_ORDER[i]}
               symbol={symbol}
               bar={bar}
               onBarChange={(next) =>
