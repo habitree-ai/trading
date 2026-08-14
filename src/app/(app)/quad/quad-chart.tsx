@@ -77,6 +77,31 @@ export function QuadChart({ now: initialNow }: { now: number }) {
   const [notice, setNotice] = useState<string | null>(null);
   const [history, setHistory] = useState<AnnotationChange[]>([]);
 
+  /**
+   * Alt+R — 트레이딩뷰의 "차트 초기화"와 같은 단축키.
+   *
+   * 확대·이동·축 배율을 처음 보기로 되돌린다. 값이 오를 때마다 네 창이 함께
+   * 초기화되도록 카운터로 둔다(불리언이면 연타를 구분하지 못한다).
+   */
+  const [resetTick, setResetTick] = useState(0);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!e.altKey || e.ctrlKey || e.metaKey) return;
+      if (e.key.toLowerCase() !== "r" && e.code !== "KeyR") return;
+      // 입력칸에서 누른 것은 글자 입력의 일부일 수 있다 — 다른 단축키와 같은 규칙.
+      const target = e.target as HTMLElement | null;
+      if (target?.isContentEditable) return;
+      if (target && /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName)) return;
+      e.preventDefault();
+      setResetTick((t) => t + 1);
+      // 보기만 되돌리지 않고 최신 봉도 함께 확인한다 — "새로고침"의 기대에 맞춘다.
+      setNow(Date.now());
+      setNotice("차트 보기를 초기화했습니다.");
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
   const record = (change: AnnotationChange) => {
     setHistory((stack) => pushChange(stack, change));
     setNotice(null);
@@ -391,6 +416,7 @@ export function QuadChart({ now: initialNow }: { now: number }) {
                 setPaneBars((prev) => prev.map((b, j) => (j === i ? next : b)))
               }
               now={now}
+              resetTick={resetTick}
               tool={tool}
               asking={asking}
               annotations={annotations}
@@ -461,8 +487,10 @@ export function QuadChart({ now: initialNow }: { now: number }) {
           <>
             한 창에 그리면 네 창 모두에 실시간으로 같이 그려집니다 — 도형이 (시각, 가격)에
             붙기 때문입니다. 그린 것은 눌러서 고르고 끌어 옮기며 <b className="text-text">Del</b>{" "}
-            로 지우고 <b className="text-text">Ctrl+Z</b> 로 무릅니다. 봉 단위가 큰 창에서는
-            시간축이 그 봉 단위로 뭉뚱그려 보입니다. 그린 내용은 새로고침하면 사라집니다.
+            로 지우고 <b className="text-text">Ctrl+Z</b> 로 무릅니다.{" "}
+            <b className="text-text">Alt+R</b> 은 트레이딩뷰처럼 네 창의 확대·이동을 처음
+            보기로 되돌립니다. 봉 단위가 큰 창에서는 시간축이 그 봉 단위로 뭉뚱그려
+            보입니다. 그린 내용은 새로고침하면 사라집니다.
           </>
         )}
       </p>

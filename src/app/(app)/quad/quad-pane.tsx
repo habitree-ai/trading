@@ -77,6 +77,7 @@ export function QuadPane({
   bar,
   onBarChange,
   now,
+  resetTick,
   tool,
   asking,
   annotations,
@@ -96,6 +97,8 @@ export function QuadPane({
   onBarChange: (bar: Bar) => void;
   /** 지금(ms) — 서버 값에서 출발해 부모가 주기적으로 올린다. 봉이 넘어가면 새로 받는다. */
   now: number;
+  /** Alt+R 카운터 — 오를 때마다 확대·이동·축 배율을 처음 보기로 되돌린다. */
+  resetTick: number;
   tool: "none" | AnnotationKind;
   /** 라벨 입력 중 — 그동안 새 도형을 시작하지 않는다(trade-chart와 같은 이유). */
   asking: boolean;
@@ -287,6 +290,20 @@ export function QuadPane({
       handleScale: tool === "none",
     });
   }, [tool]);
+
+  /* ---------- Alt+R — 트레이딩뷰의 차트 초기화와 같은 되돌림 ---------- */
+  useEffect(() => {
+    // 0은 마운트 직후다 — 눌러서 오른 값에만 반응한다.
+    if (resetTick === 0) return;
+    const chart = chartRef.current;
+    const series = seriesRef.current;
+    if (!chart || !series) return;
+
+    // 가격 축을 손으로 끌면 자동 배율이 꺼진 채 남는다 — 되돌릴 때 함께 켠다.
+    series.priceScale().applyOptions({ autoScale: true });
+    chart.timeScale().resetTimeScale();
+    chart.timeScale().fitContent();
+  }, [resetTick]);
 
   const toPoint = useCallback((x: number, y: number): PanePoint | null => {
     const chart = chartRef.current;
