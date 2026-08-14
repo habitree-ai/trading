@@ -13,6 +13,9 @@ import { ANNOTATION_DOT_CLASS, normalizePoints, pointCount } from "@/lib/annotat
 import {
   ANNOTATION_COLORS,
   ANNOTATION_COLOR_LABEL,
+  ANNOTATION_KIND_LABEL,
+  ANNOTATION_LINE_STYLES,
+  ANNOTATION_LINE_STYLE_LABEL,
   isPositionKind,
   type AnnotationColor,
   type AnnotationKind,
@@ -48,6 +51,9 @@ const DEFAULT_BARS: Bar[] = ["1D", "4H", "1H", "15m"];
  */
 const PANE_ORDER = ["md:order-1", "md:order-2", "md:order-4", "md:order-3"];
 
+/** 스타일 바에서 고를 수 있는 선 굵기(px). */
+const LINE_WIDTHS = [1, 2, 3];
+
 /** 봉이 넘어갔는지 보는 주기(ms) — 가장 촘촘한 1분봉이 한 번은 걸리는 간격. */
 const REFRESH_MS = 60_000;
 
@@ -69,6 +75,9 @@ export function QuadChart({ now: initialNow }: { now: number }) {
     const id = setInterval(() => setNow(Date.now()), REFRESH_MS);
     return () => clearInterval(id);
   }, []);
+
+  /** 혼자 크게 보는 창의 번호 — null이면 4분할. 차트 상태(줌·그림)는 유지된 채 숨긴다. */
+  const [maximized, setMaximized] = useState<number | null>(null);
 
   const [tool, setTool] = useState<"none" | AnnotationKind>("none");
   const [color, setColor] = useState<AnnotationColor>("accent");
@@ -360,10 +369,40 @@ export function QuadChart({ now: initialNow }: { now: number }) {
       ? POSITION_STEPS[draft?.points.length ?? 0] ?? null
       : null;
 
+  /** 고른 도형이 스타일을 고칠 수 있는 종류(박스·수평선·추세선)면 그 도형. */
+  const styleTarget =
+    selected !== null
+      ? (annotations.find(
+          (a) =>
+            a.id === selected &&
+            (a.kind === "hline" || a.kind === "line" || a.kind === "rect"),
+        ) ?? null)
+      : null;
+
+  const updateStyle = (
+    patch: Partial<Pick<TradeAnnotation, "color" | "line_width" | "line_style">>,
+  ) => {
+    if (selected === null) return;
+    setAnnotations((prev) =>
+      prev.map((a) =>
+        a.id === selected ? { ...a, ...patch, updated_at: new Date().toISOString() } : a,
+      ),
+    );
+  };
+
+  /** 확대 중이면 그 창만 전체를 차지하고 나머지는 상태를 유지한 채 숨는다. */
+  const paneClass = (i: number) =>
+    maximized === null
+      ? PANE_ORDER[i]
+      : maximized === i
+        ? "!h-full md:order-none md:col-span-2 md:row-span-2"
+        : "hidden";
+
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-2">
-      {/* 도구 막대 — 네 창이 하나의 도구·색·심볼을 공유한다. */}
+    <div className="flex min-h-0 flex-1 flex-col gap-1 p-1">
+      {/* 도구 막대 — 네 창이 하나의 도구·색·심볼을 공유한다. 제목도 여기 얹어 줄을 아낀다. */}
       <div className="flex shrink-0 flex-wrap items-center gap-1">
+        <h1 className="mr-1 text-sm font-semibold tracking-tight">4분할 차트</h1>
         <label className="mr-1 flex items-center gap-1 text-xs text-dim">
           종목
           <input
@@ -414,11 +453,11 @@ export function QuadChart({ now: initialNow }: { now: number }) {
       </div>
 
       <div className="relative min-h-0 flex-1">
-        <div className="grid h-full grid-cols-1 gap-2 overflow-y-auto md:grid-cols-2 md:grid-rows-2 md:overflow-visible">
+        <div className="grid h-full grid-cols-1 gap-1 overflow-y-auto md:grid-cols-2 md:grid-rows-2 md:overflow-visible">
           {paneBars.map((bar, i) => (
             <QuadPane
               key={i}
-              className={PANE_ORDER[i]}
+              className={paneClass(i)}
               symbol={symbol}
               bar={bar}
               onBarChange={(next) =>
@@ -426,6 +465,8 @@ export function QuadChart({ now: initialNow }: { now: number }) {
               }
               now={now}
               resetTick={resetTick}
+              maximizedSelf={maximized === i}
+              onToggleMax={() => setMaximized((m) => (m === i ? null : i))}
               tool={tool}
               asking={asking}
               annotations={annotations}
@@ -479,36 +520,94 @@ export function QuadChart({ now: initialNow }: { now: number }) {
             {problem ? <p className="mt-1 text-[11px] text-loss">{problem}</p> : null}
           </div>
         ) : null}
+
+        {/* 스타일 바 — 박스·수평선·추세선을 고르면 색·굵기·선 종류를 바로 고친다. */}
+        {styleTarget && !asking ? (
+          <div
+            className="absolute inset-x-2 bottom-2 rounded-lg border border-border bg-surface p-2 shadow-lg"
+            style={{ zIndex: 7 }}
+          >
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="rounded border border-border px-1.5 py-0.5 text-[10px] text-dim">
+                {ANNOTATION_KIND_LABEL[styleTarget.kind]}
+              </span>
+              <span className="flex items-center gap-1">
+                {ANNOTATION_COLORS.map((c) => (
+                  <button
+                    key={c}
+                    type="button"
+                    aria-label={ANNOTATION_COLOR_LABEL[c]}
+                    aria-pressed={styleTarget.color === c}
+                    title={ANNOTATION_COLOR_LABEL[c]}
+                    onClick={() => updateStyle({ color: c })}
+                    className={`size-4 rounded-full ${ANNOTATION_DOT_CLASS[c]} ${
+                      styleTarget.color === c
+                        ? "ring-2 ring-text ring-offset-1 ring-offset-surface"
+                        : ""
+                    }`}
+                  />
+                ))}
+              </span>
+              <span className="mx-1 w-px self-stretch bg-border" aria-hidden />
+              {LINE_WIDTHS.map((w) => (
+                <button
+                  key={w}
+                  type="button"
+                  aria-pressed={(styleTarget.line_width ?? 1) === w}
+                  onClick={() => updateStyle({ line_width: w })}
+                  className={`rounded border px-2 py-0.5 text-[11px] ${
+                    (styleTarget.line_width ?? 1) === w
+                      ? "border-accent text-accent"
+                      : "border-border text-dim hover:text-text"
+                  }`}
+                >
+                  {w}px
+                </button>
+              ))}
+              <span className="mx-1 w-px self-stretch bg-border" aria-hidden />
+              {ANNOTATION_LINE_STYLES.map((s) => (
+                <button
+                  key={s}
+                  type="button"
+                  aria-pressed={(styleTarget.line_style ?? "solid") === s}
+                  onClick={() => updateStyle({ line_style: s })}
+                  className={`rounded border px-2 py-0.5 text-[11px] ${
+                    (styleTarget.line_style ?? "solid") === s
+                      ? "border-accent text-accent"
+                      : "border-border text-dim hover:text-text"
+                  }`}
+                >
+                  {ANNOTATION_LINE_STYLE_LABEL[s]}
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : null}
       </div>
 
-      <p className="shrink-0 text-[11px] text-dim">
+      {/* 안내는 한 줄로 최소화한다 — 이 화면의 주인공은 차트 면적이다. */}
+      <p className="shrink-0 truncate text-[10px] text-dim">
         {positionStep ? (
           <b className="text-accent">
-            {tool === "long" ? "롱" : "숏"} 손익 — {positionStep} (진입 → 손절 → 목표).
-            창을 옮겨 다니며 찍어도 됩니다.
+            {tool === "long" ? "롱" : "숏"} 손익 — {positionStep} (진입 → 손절 → 목표)
           </b>
         ) : tool !== "none" ? (
           <b className="text-accent">
-            {DRAW_TOOLS.find((t) => t.tool === tool)?.hint} — 어느 창에 그리든 네 창 모두에
-            같이 그려집니다. 다시 누르면 끕니다.
+            {DRAW_TOOLS.find((t) => t.tool === tool)?.hint} — 네 창에 같이 그려집니다.
+            다시 누르면 끕니다.
           </b>
+        ) : problem ? (
+          <b className="text-loss">{problem}</b>
+        ) : notice ? (
+          notice
         ) : (
           <>
-            한 창에 그리면 네 창 모두에 실시간으로 같이 그려집니다 — 도형이 (시각, 가격)에
-            붙기 때문입니다. 그린 것은 눌러서 고르고 끌어 옮기며 <b className="text-text">Del</b>{" "}
-            로 지우고 <b className="text-text">Ctrl+Z</b> 로 무릅니다.{" "}
-            <b className="text-text">Alt+R</b> 은 트레이딩뷰처럼 네 창의 확대·이동을 처음
-            보기로 되돌립니다. 봉 단위가 큰 창에서는 시간축이 그 봉 단위로 뭉뚱그려
-            보입니다. 그린 내용은 새로고침하면 사라집니다.
+            그리면 네 창 동기 · 눌러 고르고 끌어 이동 · 고르면 색·굵기·선 종류 수정 ·{" "}
+            <b className="text-text">Del</b> 삭제 · <b className="text-text">Ctrl+Z</b> 되돌리기
+            · <b className="text-text">Alt+R</b> 보기 초기화 · 새로고침하면 사라짐
           </>
         )}
       </p>
-
-      {problem && !asking ? (
-        <p className="shrink-0 text-[11px] text-loss">{problem}</p>
-      ) : notice ? (
-        <p className="shrink-0 text-[11px] text-dim">{notice}</p>
-      ) : null}
     </div>
   );
 }

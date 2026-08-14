@@ -30,7 +30,6 @@ import {
   type ChartPoint,
   type TradeAnnotation,
 } from "@/lib/domain";
-import { num } from "@/lib/format";
 import { handleMovesTime, type AnnotationHit } from "@/lib/hit-test";
 import { edgePointIndex } from "@/lib/position-tool";
 import { BARS, BAR_MS, floorToBar, type Bar, type Candle } from "@/lib/okx";
@@ -79,6 +78,8 @@ export function QuadPane({
   onBarChange,
   now,
   resetTick,
+  maximizedSelf,
+  onToggleMax,
   tool,
   asking,
   annotations,
@@ -102,6 +103,9 @@ export function QuadPane({
   now: number;
   /** Alt+R 카운터 — 오를 때마다 확대·이동·축 배율을 처음 보기로 되돌린다. */
   resetTick: number;
+  /** 이 창이 지금 혼자 크게 떠 있는가 — 버튼 아이콘·설명이 바뀐다. */
+  maximizedSelf: boolean;
+  onToggleMax: () => void;
   tool: "none" | AnnotationKind;
   /** 라벨 입력 중 — 그동안 새 도형을 시작하지 않는다(trade-chart와 같은 이유). */
   asking: boolean;
@@ -193,7 +197,11 @@ export function QuadPane({
       wickDownColor: theme.down,
     });
 
-    const layer = new AnnotationPrimitive(annotationColors(theme));
+    // 4분할은 창이 작다 — 복기 차트보다 선을 가늘고 연하게 그려 캔들을 덜 가린다.
+    const layer = new AnnotationPrimitive(annotationColors(theme), {
+      lineWidth: 1,
+      alpha: 0.8,
+    });
     series.attachPrimitive(layer);
 
     chartRef.current = chart;
@@ -201,8 +209,13 @@ export function QuadPane({
     layerRef.current = layer;
 
     // 4분할은 창 크기가 화면을 따라 변한다 — 너비뿐 아니라 높이도 맞춘다.
-    const apply = () =>
+    // 크기가 바뀌어도 보던 구간은 그대로 늘려 보여준다(확대 버튼·창 리사이즈 공통).
+    // 그냥 두면 봉 간격이 유지된 채 오른쪽에 붙어, 커진 창의 왼쪽이 비어 보인다.
+    const apply = () => {
+      const range = chart.timeScale().getVisibleLogicalRange();
       chart.applyOptions({ width: host.clientWidth, height: host.clientHeight });
+      if (range !== null) chart.timeScale().setVisibleLogicalRange(range);
+    };
     const observer = new ResizeObserver(apply);
     observer.observe(host);
     apply();
@@ -510,17 +523,18 @@ export function QuadPane({
     };
   }, [tool, annotations, toPoint, barSeconds]);
 
-  const lastClose = candles && candles.length > 0 ? candles[candles.length - 1].c : null;
-
   return (
     <div
-      className={`flex h-72 flex-col overflow-hidden rounded-xl border border-border bg-surface md:h-auto md:min-h-0 ${className ?? ""}`}
+      className={`relative h-72 overflow-hidden rounded-lg border border-border bg-surface md:h-auto md:min-h-0 ${className ?? ""}`}
     >
-      <div className="flex shrink-0 items-center gap-2 border-b border-border px-2 py-1.5">
+      <div ref={hostRef} className="absolute inset-0" />
+
+      {/* 컨트롤은 차트 위에 겹친다 — 줄을 따로 차지하면 그만큼 차트가 준다. */}
+      <div className="absolute top-1 left-1 flex items-center gap-1" style={{ zIndex: 6 }}>
         <select
           value={bar}
           onChange={(e) => onBarChange(e.target.value as Bar)}
-          className="rounded-lg border border-border bg-surface px-2 py-1 text-xs text-text"
+          className="rounded border border-border bg-surface/80 px-1 py-0.5 text-[11px] text-text backdrop-blur-sm"
           aria-label="봉 단위"
         >
           {BARS.map((b) => (
@@ -529,35 +543,36 @@ export function QuadPane({
             </option>
           ))}
         </select>
-        {lastClose !== null ? (
-          <span className="tnum ml-auto text-[11px] text-dim">종가 {num(lastClose)}</span>
-        ) : null}
+        <button
+          type="button"
+          onClick={onToggleMax}
+          title={maximizedSelf ? "원래 배치로 돌아갑니다" : "이 창만 크게 봅니다"}
+          className="rounded border border-border bg-surface/80 px-1.5 py-0.5 text-[11px] text-dim backdrop-blur-sm hover:text-text"
+        >
+          {maximizedSelf ? "🗗" : "⛶"}
+        </button>
       </div>
 
-      <div className="relative min-h-0 flex-1">
-        <div ref={hostRef} className="absolute inset-0" />
+      {/* 도구를 켠 동안에만 포인터를 받는 판 — 차트의 팬·줌을 가로챈다. */}
+      <div
+        ref={overlayRef}
+        className={`absolute inset-0 ${tool === "none" ? "pointer-events-none" : "cursor-crosshair"}`}
+        style={{ touchAction: tool === "none" ? undefined : "none", zIndex: 5 }}
+      />
 
-        {/* 도구를 켠 동안에만 포인터를 받는 판 — 차트의 팬·줌을 가로챈다. */}
-        <div
-          ref={overlayRef}
-          className={`absolute inset-0 ${tool === "none" ? "pointer-events-none" : "cursor-crosshair"}`}
-          style={{ touchAction: tool === "none" ? undefined : "none", zIndex: 5 }}
-        />
-
-        {error ? (
-          <p className="absolute inset-0 flex items-center justify-center bg-surface/80 px-2 text-center text-xs text-loss">
-            {error}
-          </p>
-        ) : loading && !candles ? (
-          <p className="absolute inset-0 flex items-center justify-center text-xs text-dim">
-            캔들 불러오는 중…
-          </p>
-        ) : candles && candles.length === 0 ? (
-          <p className="absolute inset-0 flex items-center justify-center bg-surface/80 px-2 text-center text-xs text-dim">
-            캔들이 없습니다. 종목명이 다르거나 OKX에 데이터가 없을 수 있습니다.
-          </p>
-        ) : null}
-      </div>
+      {error ? (
+        <p className="absolute inset-0 flex items-center justify-center bg-surface/80 px-2 text-center text-xs text-loss">
+          {error}
+        </p>
+      ) : loading && !candles ? (
+        <p className="absolute inset-0 flex items-center justify-center text-xs text-dim">
+          캔들 불러오는 중…
+        </p>
+      ) : candles && candles.length === 0 ? (
+        <p className="absolute inset-0 flex items-center justify-center bg-surface/80 px-2 text-center text-xs text-dim">
+          캔들이 없습니다. 종목명이 다르거나 OKX에 데이터가 없을 수 있습니다.
+        </p>
+      ) : null}
     </div>
   );
 }

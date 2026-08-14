@@ -158,6 +158,17 @@ export type AnnotationKind = 'text' | 'line' | 'hline' | 'rect' | 'long' | 'shor
 /** 색은 CSS 토큰 이름으로 둔다 — 라이트/다크가 바뀌어도 같은 뜻의 색을 쓴다. */
 export type AnnotationColor = 'accent' | 'profit' | 'loss' | 'beta';
 
+/** 선 종류 — 실선·파선·점선. */
+export type AnnotationLineStyle = 'solid' | 'dashed' | 'dotted';
+
+export const ANNOTATION_LINE_STYLES: AnnotationLineStyle[] = ['solid', 'dashed', 'dotted'];
+
+export const ANNOTATION_LINE_STYLE_LABEL: Record<AnnotationLineStyle, string> = {
+  solid: '실선',
+  dashed: '파선',
+  dotted: '점선',
+};
+
 /** 메모가 가리키는 자리 — 화면 픽셀이 아니라 (시각, 가격)이라 봉을 바꿔도 같은 곳이다. */
 export interface ChartPoint {
   /** 초 단위 epoch — lightweight-charts의 UTCTimestamp와 같은 단위 */
@@ -187,6 +198,14 @@ export interface TradeAnnotation {
   locked: boolean;
   created_at: string;
   updated_at: string;
+  /**
+   * 선 굵기(px)·선 종류 — 없으면 화면 기본값으로 그린다.
+   *
+   * 4분할 차트(세션 메모리)에서 도형별로 고치는 값이라 DB 컬럼은 없다. DB에서 읽은
+   * 메모는 이 필드가 비어 있고, 그때는 화면이 정한 기본 굵기·실선으로 그려진다.
+   */
+  line_width?: number;
+  line_style?: AnnotationLineStyle;
 }
 
 export const ANNOTATION_KINDS: AnnotationKind[] = [
