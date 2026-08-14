@@ -28,6 +28,7 @@
 | `src/lib/okx.ts` · `src/app/api/candles/` | **OKX 공개 시세** — 거래 당시 캔들 |
 | `src/components/trade-chart.tsx` | 진입·청산 표시가 얹힌 캔들 차트 |
 | `src/app/(app)/chart/` | **실시간 차트** — TradingView 위젯 ([docs/tradingview.md](docs/tradingview.md)) |
+| `src/app/(app)/quad/` | **4분할 차트** — 멀티 타임프레임 + 그리기 동기화 ([docs/quad-chart.md](docs/quad-chart.md)) |
 | `supabase/migrations/` | 스키마 · RLS · Storage 버킷 |
 
 ## 계정별 관리
