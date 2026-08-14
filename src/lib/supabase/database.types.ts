@@ -121,42 +121,6 @@ export type Database = {
           },
         ]
       }
-      exchange_accounts: {
-        Row: {
-          api_key_secret_id: string
-          api_secret_secret_id: string
-          created_at: string
-          exchange: string
-          id: string
-          label: string
-          passphrase_secret_id: string
-          updated_at: string
-          user_id: string
-        }
-        Insert: {
-          api_key_secret_id: string
-          api_secret_secret_id: string
-          created_at?: string
-          exchange?: string
-          id?: string
-          label: string
-          passphrase_secret_id: string
-          updated_at?: string
-          user_id: string
-        }
-        Update: {
-          api_key_secret_id?: string
-          api_secret_secret_id?: string
-          created_at?: string
-          exchange?: string
-          id?: string
-          label?: string
-          passphrase_secret_id?: string
-          updated_at?: string
-          user_id?: string
-        }
-        Relationships: []
-      }
       cash_flows: {
         Row: {
           amount: number
@@ -209,6 +173,42 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      exchange_accounts: {
+        Row: {
+          api_key_secret_id: string
+          api_secret_secret_id: string
+          created_at: string
+          exchange: string
+          id: string
+          label: string
+          passphrase_secret_id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          api_key_secret_id: string
+          api_secret_secret_id: string
+          created_at?: string
+          exchange?: string
+          id?: string
+          label: string
+          passphrase_secret_id: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          api_key_secret_id?: string
+          api_secret_secret_id?: string
+          created_at?: string
+          exchange?: string
+          id?: string
+          label?: string
+          passphrase_secret_id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
       }
       goals: {
         Row: {
@@ -295,6 +295,99 @@ export type Database = {
           },
         ]
       }
+      research_notes: {
+        Row: {
+          body: string | null
+          category: Database["public"]["Enums"]["research_note_category"]
+          created_at: string
+          id: string
+          importance: number
+          source_url: string | null
+          symbol: string
+          title: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          body?: string | null
+          category?: Database["public"]["Enums"]["research_note_category"]
+          created_at?: string
+          id?: string
+          importance?: number
+          source_url?: string | null
+          symbol: string
+          title: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          body?: string | null
+          category?: Database["public"]["Enums"]["research_note_category"]
+          created_at?: string
+          id?: string
+          importance?: number
+          source_url?: string | null
+          symbol?: string
+          title?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      research_snapshots: {
+        Row: {
+          collected_at: string
+          dominance_pct: number | null
+          fear_greed: number | null
+          fear_greed_label: string | null
+          funding_rate: number | null
+          headlines: Json
+          id: string
+          market_cap_usd: number | null
+          open_interest: number | null
+          open_interest_usd: number | null
+          price_usd: number | null
+          sources: Json
+          symbol: string
+          user_id: string
+          volume_24h_usd: number | null
+        }
+        Insert: {
+          collected_at?: string
+          dominance_pct?: number | null
+          fear_greed?: number | null
+          fear_greed_label?: string | null
+          funding_rate?: number | null
+          headlines?: Json
+          id?: string
+          market_cap_usd?: number | null
+          open_interest?: number | null
+          open_interest_usd?: number | null
+          price_usd?: number | null
+          sources?: Json
+          symbol: string
+          user_id: string
+          volume_24h_usd?: number | null
+        }
+        Update: {
+          collected_at?: string
+          dominance_pct?: number | null
+          fear_greed?: number | null
+          fear_greed_label?: string | null
+          funding_rate?: number | null
+          headlines?: Json
+          id?: string
+          market_cap_usd?: number | null
+          open_interest?: number | null
+          open_interest_usd?: number | null
+          price_usd?: number | null
+          sources?: Json
+          symbol?: string
+          user_id?: string
+          volume_24h_usd?: number | null
+        }
+        Relationships: []
+      }
       sync_runs: {
         Row: {
           book_id: string
@@ -302,8 +395,8 @@ export type Database = {
           error: string | null
           exchange_account_id: string | null
           fills_added: number
-          flows_added: number
           finished_at: string | null
+          flows_added: number
           id: string
           source: string
           started_at: string
@@ -316,8 +409,8 @@ export type Database = {
           error?: string | null
           exchange_account_id?: string | null
           fills_added?: number
-          flows_added?: number
           finished_at?: string | null
+          flows_added?: number
           id?: string
           source?: string
           started_at?: string
@@ -330,8 +423,8 @@ export type Database = {
           error?: string | null
           exchange_account_id?: string | null
           fills_added?: number
-          flows_added?: number
           finished_at?: string | null
+          flows_added?: number
           id?: string
           source?: string
           started_at?: string
@@ -675,20 +768,20 @@ export type Database = {
       }
       save_okx_account: {
         Args: {
-          p_label: string
           p_api_key: string
           p_api_secret: string
+          p_label: string
           p_passphrase: string
         }
         Returns: string
       }
       save_okx_account_for: {
         Args: {
-          p_user_id: string
-          p_label: string
           p_api_key: string
           p_api_secret: string
+          p_label: string
           p_passphrase: string
+          p_user_id: string
         }
         Returns: string
       }
@@ -699,8 +792,6 @@ export type Database = {
       capture_kind: "position" | "chart" | "balance"
       extract_engine: "ocr" | "ai" | "manual"
       fill_role: "open" | "close"
-      margin_mode: "cross" | "isolated"
-      principle_category: "entry" | "exit" | "risk" | "mental" | "routine"
       goal_metric:
         | "return_pct"
         | "max_drawdown_pct"
@@ -710,6 +801,15 @@ export type Database = {
         | "trade_count"
       goal_period: "week" | "month" | "year"
       goal_tier: "beta" | "alpha"
+      margin_mode: "cross" | "isolated"
+      principle_category: "entry" | "exit" | "risk" | "mental" | "routine"
+      research_note_category:
+        | "fundamental"
+        | "onchain"
+        | "regulation"
+        | "social"
+        | "macro"
+        | "briefing"
       trade_result: "win" | "loss" | "be" | "open"
       trade_side: "long" | "short"
     }
@@ -852,10 +952,18 @@ export const Constants = {
         "risk_per_trade_pct",
         "trade_count",
       ],
-      margin_mode: ["cross", "isolated"],
-      principle_category: ["entry", "exit", "risk", "mental", "routine"],
       goal_period: ["week", "month", "year"],
       goal_tier: ["beta", "alpha"],
+      margin_mode: ["cross", "isolated"],
+      principle_category: ["entry", "exit", "risk", "mental", "routine"],
+      research_note_category: [
+        "fundamental",
+        "onchain",
+        "regulation",
+        "social",
+        "macro",
+        "briefing",
+      ],
       trade_result: ["win", "loss", "be", "open"],
       trade_side: ["long", "short"],
     },

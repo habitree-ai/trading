@@ -4,6 +4,10 @@
     {
       "path": "/api/cron/okx-sync",
       "schedule": "0 18 * * *"
+    },
+    {
+      "path": "/api/cron/research-sync",
+      "schedule": "0 22 * * *"
     }
   ]
 }

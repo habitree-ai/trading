@@ -9,7 +9,8 @@
     "lint": "eslint",
     "test": "vitest run",
     "test:watch": "vitest",
-    "seed:okx-account": "node --env-file=.env.local scripts/seed-okx-account.mjs"
+    "seed:okx-account": "node --env-file=.env.local scripts/seed-okx-account.mjs",
+    "seed:research-notes": "node --env-file=.env.local scripts/seed-research-notes.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.3",

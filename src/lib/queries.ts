@@ -9,6 +9,9 @@ import type {
   ExchangeAccount,
   Goal,
   Principle,
+  ResearchHeadline,
+  ResearchNote,
+  ResearchSnapshot,
   SyncRun,
   Trade,
   TradeAnnotation,
@@ -268,6 +271,79 @@ export async function listPrincipleChecksByBook(
     delete check.principles;
     return check as TradePrincipleCheck;
   });
+}
+
+/** DB의 jsonb 컬럼을 도메인 모양으로 되돌린다 — 쓰는 쪽이 collect뿐이라 형태를 신뢰한다. */
+type ResearchSnapshotRow = Omit<ResearchSnapshot, "headlines" | "sources"> & {
+  headlines: unknown;
+  sources: unknown;
+};
+
+function toSnapshot(row: ResearchSnapshotRow): ResearchSnapshot {
+  return {
+    ...row,
+    headlines: Array.isArray(row.headlines) ? (row.headlines as ResearchHeadline[]) : [],
+    sources:
+      typeof row.sources === "object" && row.sources !== null
+        ? (row.sources as Record<string, string>)
+        : {},
+  };
+}
+
+/** 심볼의 최신 스냅샷 — 리서치 화면의 KPI가 이 한 장을 읽는다. */
+export async function getLatestSnapshot(symbol: string): Promise<ResearchSnapshot | null> {
+  const { supabase } = await requireUser();
+  const { data, error } = await supabase
+    .from("research_snapshots")
+    .select("*")
+    .eq("symbol", symbol)
+    .order("collected_at", { ascending: false })
+    .limit(1);
+  if (error) throw new Error(error.message);
+
+  const row = data[0] as ResearchSnapshotRow | undefined;
+  return row ? toSnapshot(row) : null;
+}
+
+/** 심볼의 스냅샷 이력 — 최신순. 추이를 훑는 용도라 최근 것만 받는다. */
+export async function listSnapshots(symbol: string, limit = 30): Promise<ResearchSnapshot[]> {
+  const { supabase } = await requireUser();
+  const { data, error } = await supabase
+    .from("research_snapshots")
+    .select("*")
+    .eq("symbol", symbol)
+    .order("collected_at", { ascending: false })
+    .limit(limit);
+  if (error) throw new Error(error.message);
+  return (data as ResearchSnapshotRow[]).map(toSnapshot);
+}
+
+/** 심볼의 리서치 노트 — 중요한 것부터. 묶음 나누기는 화면이 한다. */
+export async function listResearchNotes(symbol: string): Promise<ResearchNote[]> {
+  const { supabase } = await requireUser();
+  const { data, error } = await supabase
+    .from("research_notes")
+    .select("*")
+    .eq("symbol", symbol)
+    .order("importance", { ascending: false })
+    .order("created_at", { ascending: false });
+  if (error) throw new Error(error.message);
+  return data as ResearchNote[];
+}
+
+/** 리서치가 있는 심볼들 — 심볼 전환 칩이 쓴다. 아무것도 없어도 BTC는 보인다. */
+export async function listResearchSymbols(): Promise<string[]> {
+  const { supabase } = await requireUser();
+  const [snaps, notes] = await Promise.all([
+    supabase.from("research_snapshots").select("symbol"),
+    supabase.from("research_notes").select("symbol"),
+  ]);
+  if (snaps.error) throw new Error(snaps.error.message);
+  if (notes.error) throw new Error(notes.error.message);
+
+  const symbols = new Set<string>(["BTC"]);
+  for (const row of [...snaps.data, ...notes.data]) symbols.add(row.symbol);
+  return [...symbols].sort();
 }
 
 /** 북 내 다음 순번 — 시트의 `순번`을 이어받는다. */

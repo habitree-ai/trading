@@ -405,3 +405,87 @@ export const CAPTURE_KIND_LABEL: Record<CaptureKind, string> = {
   chart: '차트(진입 근거)',
   balance: '계좌 잔고',
 };
+
+/**
+ * 종목 리서치 — 매매 이전에 참고하는 자료.
+ *
+ * 일지가 "이미 한 거래"를 되짚는 도구라면 리서치는 "하기 전"의 자리다.
+ * 스냅샷은 수집 시점의 시장 단면(정량), 노트는 사람이 쌓는 맥락(정성)이다.
+ * 북과 무관하게 종목 단위다 — 리서치는 계좌/기간이 아니라 대상에 붙는다.
+ */
+export type ResearchNoteCategory =
+  | 'fundamental'
+  | 'onchain'
+  | 'regulation'
+  | 'social'
+  | 'macro'
+  | 'briefing';
+
+export interface ResearchNote {
+  id: string;
+  user_id: string;
+  symbol: string;
+  category: ResearchNoteCategory;
+  title: string;
+  body: string | null;
+  source_url: string | null;
+  /** 1(참고) ~ 3(핵심) — 목록에서 중요한 것이 위로 온다 */
+  importance: number;
+  created_at: string;
+  updated_at: string;
+}
+
+/**
+ * 뉴스 헤드라인 1건 — 스냅샷의 jsonb에 담긴다.
+ *
+ * interface가 아니라 type인 것에 뜻이 있다 — DB의 `Json` 타입(인덱스 시그니처)에
+ * 그대로 대입되려면 type alias여야 한다. interface는 확장 가능성 때문에 거부된다.
+ */
+export type ResearchHeadline = {
+  title: string;
+  link: string;
+  source: string;
+  published_at: string | null;
+};
+
+/** 정량 스냅샷 1장. 실패한 소스의 값은 null이고 `sources`에 사유가 남는다. */
+export interface ResearchSnapshot {
+  id: string;
+  user_id: string;
+  symbol: string;
+  collected_at: string;
+  price_usd: number | null;
+  market_cap_usd: number | null;
+  volume_24h_usd: number | null;
+  /** 글로벌 시총 점유율(%) */
+  dominance_pct: number | null;
+  /** 시장 전체 지수 — 심볼과 무관하게 같은 값이 기록된다 */
+  fear_greed: number | null;
+  fear_greed_label: string | null;
+  /** 소수 — 0.0001 = 0.01% */
+  funding_rate: number | null;
+  open_interest: number | null;
+  open_interest_usd: number | null;
+  headlines: ResearchHeadline[];
+  /** 소스별 성공/실패 — `{"coingecko":"ok","okx":"error: ..."}` */
+  sources: Record<string, string>;
+}
+
+export const RESEARCH_NOTE_CATEGORY_LABEL: Record<ResearchNoteCategory, string> = {
+  fundamental: '기본적 분석',
+  onchain: '온체인·수급',
+  regulation: '규제·정책',
+  social: '사회·채택',
+  macro: '매크로',
+  briefing: 'AI 브리핑',
+};
+
+/** 화면에 뜨는 묶음 순서 — 종목 자체의 가치부터, 브리핑은 종합이라 맨 뒤. */
+export const RESEARCH_NOTE_CATEGORIES: ResearchNoteCategory[] = [
+  'fundamental',
+  'onchain',
+  'regulation',
+  'social',
+  'macro',
+  'briefing',
+];

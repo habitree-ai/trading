@@ -29,6 +29,8 @@
 | `src/components/trade-chart.tsx` | 진입·청산 표시가 얹힌 캔들 차트 |
 | `src/app/(app)/chart/` | **실시간 차트** — TradingView 위젯 ([docs/tradingview.md](docs/tradingview.md)) |
 | `src/app/(app)/quad/` | **4분할 차트** — 멀티 타임프레임 + 그리기 동기화 ([docs/quad-chart.md](docs/quad-chart.md)) |
+| `src/app/(app)/research/` | **종목 리서치** — 매매 이전 데이터 수집 · 맥락 노트 축적 |
+| `src/lib/research/` | 리서치 수집 계층 — CoinGecko · 공포탐욕 · OKX 파생 · 뉴스 RSS |
 | `supabase/migrations/` | 스키마 · RLS · Storage 버킷 |
 
 ## 계정별 관리
@@ -296,6 +298,38 @@ KPI 타일은 지금 상태가 어떤지를 한눈에 보여 준다. 성과 요�
 입력값과 대조한다. 부호가 반대거나 25% 넘게 어긋나면 저장 전에 경고한다.
 OCR이 자릿수를 밀거나 방향을 반대로 읽는 사고를 여기서 잡는다.
 
+## 종목 리서치 (매매 이전)
+
+일지가 "이미 한 거래"를 되짚는 도구라면, **종목 리서치** 탭은 "하기 전"의 자리다.
+심볼(기본 BTC) 단위로 정량 스냅샷을 수집하고, 기본적 분석·정치/사회 맥락 노트를 쌓는다.
+북과 무관하다 — 리서치는 계좌/기간이 아니라 종목에 붙는다.
+
+| 수집원 | 값 | 키 |
+|---|---|---|
+| CoinGecko | 가격 · 시총 · 24h 거래량 · 도미넌스 | 불필요 (`COINGECKO_API_KEY` 있으면 한도 완화) |
+| alternative.me | 공포탐욕지수 — **시장 전체 지수**라 심볼과 무관 | 불필요 |
+| OKX 공개 | 펀딩비 · 미결제약정 (USDT 무기한) | 불필요 |
+| CoinDesk · Cointelegraph RSS | 뉴스 헤드라인 (본문은 긁지 않는다) | 불필요 |
+
+- **부분 실패 허용** — 소스 하나가 죽어도 나머지는 저장된다. 실패한 소스의 컬럼은
+  null이고 `sources`에 사유가 남아, "값이 없던 날"과 "0이던 날"이 갈린다.
+- **자동 적재** — `/api/cron/research-sync`(매일 07:00 KST)가 "한 번이라도 수동 수집한
+  (사용자, 심볼)"을 다시 걷는다. 관심 목록 표는 따로 없다 — 화면에서 한 번 수집하면
+  그날부터 이력이 쌓인다.
+- **AI 브리핑** — `AI_GATEWAY_API_KEY`가 있을 때만 버튼이 뜬다. 최신 스냅샷과 헤드라인
+  **만**을 입력으로 기본적 분석·정치사회 맥락을 정리해 노트로 남긴다 — 모델이 시장을
+  새로 조사하는 게 아니라 걷어 온 것을 접는 일이라, 환각이 낄 자리가 없다.
+- TradingView 위젯의 데이터는 긁지 않는다(약관 금지) — 수집원은 위 공개 API 4종뿐이다.
+
+시작 절차:
+
+```bash
+# 1) supabase/migrations/0017_research.sql 적용
+npm run seed:research-notes   # 2) 2026-08-14 BTC 리포트(docs/research/)를 노트로 시드
+# 3) npx supabase gen types typescript --project-id iwdjhrecujchauavpnja > src/lib/supabase/database.types.ts
+#    (research 두 표는 지금 수기로 반영돼 있다 — 재생성하면 같은 내용으로 덮인다)
+```
+
 ## 색 규칙
 
 손익의 적/녹은 거래소 캡쳐와 색을 맞추기 위한 선택이다. 적녹색약에게 두 색은 구분되지
@@ -330,5 +364,5 @@ npm run seed:okx-account     # 2) 키 → Vault, 기존 동기화 북 → 새 �
 
 ## 진행 상태
 
-- **완료** — 스키마 + RLS(타인 데이터 0건 실증) + 인증 + 계정별 거래소 키(Vault) + 북/거래 CRUD + 지표 엔진 + 대시보드 + 복기 분석 + OKX 캡쳐 추출
+- **완료** — 스키마 + RLS(타인 데이터 0건 실증) + 인증 + 계정별 거래소 키(Vault) + 북/거래 CRUD + 지표 엔진 + 대시보드 + 복기 분석 + OKX 캡쳐 추출 + 종목 리서치(수집·노트·크론·AI 브리핑, 0017 적용 필요)
 - **다음** — 목표 β/α 2중 관리, 배포
