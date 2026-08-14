@@ -27,6 +27,7 @@
 | `src/app/api/extract/` | AI 비전 폴백 (OCR 신뢰도가 낮을 때만) |
 | `src/lib/okx.ts` · `src/app/api/candles/` | **OKX 공개 시세** — 거래 당시 캔들 |
 | `src/components/trade-chart.tsx` | 진입·청산 표시가 얹힌 캔들 차트 |
+| `src/app/(app)/chart/` | **실시간 차트** — TradingView 위젯 ([docs/tradingview.md](docs/tradingview.md)) |
 | `supabase/migrations/` | 스키마 · RLS · Storage 버킷 |
 
 ## 계정별 관리
