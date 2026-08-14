@@ -243,6 +243,25 @@ function drawPosition(
     const bottom = Math.max(entry.y, stop?.y ?? entry.y, target?.y ?? entry.y);
     drawLabel(ctx, labels[3], left + 4, bottom + 14, shape.color);
   }
+
+  /*
+   * 집는 자리는 점이 찍힌 좌표가 아니라 상자에 붙인다.
+   *
+   * 세 값은 상자 안 어디서든 높이로 집히고, 가로 폭은 좌·우 가장자리로 늘인다 —
+   * 저장된 점의 x 는 처음 눌렀던 자리일 뿐이라 거기에 표시를 두면 엉뚱한 데를 짚는다.
+   */
+  if (shape.selected) {
+    const mid = (left + right) / 2;
+    drawGrips(
+      ctx,
+      [
+        { x: left, y: entry.y },
+        { x: right, y: entry.y },
+        ...shape.xy.map((p) => ({ x: mid, y: p.y })),
+      ],
+      shape.color,
+    );
+  }
 }
 
 class AnnotationPaneView implements IPrimitivePaneView {
@@ -307,7 +326,10 @@ class AnnotationPaneView implements IPrimitivePaneView {
             }
 
             // 고른 도형에만 집는 자리를 띄운다 — 무엇이 잡혀 있는지 눈에 보여야 한다.
-            if (shape.selected) drawGrips(ctx, shape.xy, shape.color);
+            // 손익 툴은 상자에 맞춰 따로 그렸다.
+            if (shape.selected && !isPositionKind(shape.kind)) {
+              drawGrips(ctx, shape.xy, shape.color);
+            }
 
             ctx.restore();
           }

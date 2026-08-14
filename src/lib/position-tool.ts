@@ -74,6 +74,25 @@ export function positionMetrics(input: PositionInput): PositionMetrics | null {
 }
 
 /**
+ * 상자의 좌·우 끝을 쥐고 있는 점의 번호.
+ *
+ * 세 점은 역할(진입·손절·목표) 순서로 저장돼 있고 시각은 제각각이다. 가로 폭을 늘일
+ * 때 움직여야 할 건 **지금 그 끝에 있는 점**이지 특정 역할이 아니다 — 폭을 바꿔도
+ * 가격은 그대로여야 하므로 어느 점이 끌리든 뜻은 달라지지 않는다.
+ */
+export function edgePointIndex(
+  points: readonly ChartPoint[],
+  side: 'left' | 'right',
+): number {
+  let best = 0;
+  for (let i = 1; i < points.length; i += 1) {
+    const closer = side === 'left' ? points[i].t < points[best].t : points[i].t > points[best].t;
+    if (closer) best = i;
+  }
+  return best;
+}
+
+/**
  * 찍어 둔 세 점이 이 방향과 맞는지 — 어긋나면 그 이유.
  *
  * 그리는 화면, 저장하는 서버, 끌어서 옮긴 뒤까지 같은 기준으로 봐야 한다. 한 군데라도

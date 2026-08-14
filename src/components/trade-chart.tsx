@@ -50,7 +50,8 @@ import {
 } from "@/lib/domain";
 import { num, signed } from "@/lib/format";
 import { handleMovesTime, type AnnotationHit } from "@/lib/hit-test";
-import { positionProblemOf } from "@/lib/position-tool";
+import { levelFields, parseLevel } from "@/lib/annotation-levels";
+import { edgePointIndex, positionProblemOf } from "@/lib/position-tool";
 import {
   BAR_MS,
   floorToBar,
@@ -119,7 +120,7 @@ interface DragState {
 const MIN_MOVE_PX = 3;
 
 /** 차트 색은 CSS 토큰에서 읽는다 — 라이트/다크 전환을 한 곳에서 관리하기 위해. */
-function readTheme(el: HTMLElement) {
+export function readTheme(el: HTMLElement) {
   const s = getComputedStyle(el);
   const v = (name: string) => s.getPropertyValue(name).trim();
   return {
@@ -134,7 +135,7 @@ function readTheme(el: HTMLElement) {
 }
 
 /** 메모 색 토큰을 실제 색으로 푼다 — 캔버스는 CSS 변수를 읽지 못한다. */
-function annotationColors(theme: ReturnType<typeof readTheme>): AnnotationColorMap {
+export function annotationColors(theme: ReturnType<typeof readTheme>): AnnotationColorMap {
   return { accent: theme.accent, profit: theme.up, loss: theme.down, beta: theme.beta };
 }
 
@@ -244,6 +245,25 @@ export function TradeChart({
   };
   /** 되돌린 뒤 남기는 한 줄 — 눌렀는데 아무 말이 없으면 먹었는지 알 수 없다. */
   const [notice, setNotice] = useState<string | null>(null);
+  /**
+   * 더블클릭으로 연 수치 입력 — 값을 손이 아니라 숫자로 넣는다.
+   *
+   * 끌어서 맞추는 건 눈으로 대충 놓는 일이다. 전고점이나 라운드 넘버처럼 "63,500
+   * 정확히"가 필요한 자리에서는 픽셀로 맞출 수가 없다.
+   */
+  const [levels, setLevels] = useState<{ target: TradeAnnotation; values: string[] } | null>(
+    null,
+  );
+
+  const openLevels = (target: TradeAnnotation) => {
+    setLevels({
+      target,
+      values: levelFields(target.kind).map((f) => String(target.points[f.index]?.p ?? "")),
+    });
+    setAsking(false);
+    setEditing(null);
+    setNoteError(null);
+  };
 
   /**
    * 화면에 그릴 메모 — 끌고 있는 것만 새 좌표로 갈아 끼운다.
@@ -664,12 +684,31 @@ export function TradeChart({
       const dt = at.time - d.from.t;
       const dp = at.price - d.from.p;
       const withTime = handleMovesTime(d.kind);
+      const side = d.hit.target;
 
-      current = d.origin.map((point, i) => {
-        if (d.hit.target === "body") return { t: point.t + dt, p: point.p + dp };
-        if (i !== d.hit.target) return point;
-        return withTime ? { t: point.t + dt, p: point.p + dp } : { t: point.t, p: point.p + dp };
-      });
+      if (side === "left" || side === "right") {
+        /*
+         * 가로 폭만 늘이고 줄인다 — 값(가격)은 그대로 둔다.
+         *
+         * 반대편 너머로 끌면 상자가 뒤집히므로 봉 하나만큼은 남겨 둔다.
+         */
+        const edge = edgePointIndex(d.origin, side);
+        const others = d.origin.filter((_, i) => i !== edge).map((p) => p.t);
+        const limit =
+          side === "left"
+            ? Math.max(...others) - barSeconds
+            : Math.min(...others) + barSeconds;
+        const moved = d.origin[edge].t + dt;
+        const t = side === "left" ? Math.min(moved, limit) : Math.max(moved, limit);
+
+        current = d.origin.map((point, i) => (i === edge ? { t, p: point.p } : point));
+      } else {
+        current = d.origin.map((point, i) => {
+          if (side === "body") return { t: point.t + dt, p: point.p + dp };
+          if (i !== side) return point;
+          return withTime ? { t: point.t + dt, p: point.p + dp } : { t: point.t, p: point.p + dp };
+        });
+      }
 
       d.moved = Math.max(d.moved, Math.abs(x - d.at.x) + Math.abs(y - d.at.y));
       setMoving({ id: d.hit.id, points: current });
@@ -713,7 +752,23 @@ export function TradeChart({
       });
     };
 
+    // 더블클릭 — 숫자로 값을 넣는 자리를 연다.
+    const onDouble = (e: MouseEvent) => {
+      const r = host.getBoundingClientRect();
+      const hit = layerRef.current?.findHit(e.clientX - r.left, e.clientY - r.top);
+      if (!hit) return;
+
+      const target = annotations.find((a) => a.id === hit.id);
+      if (!target) return;
+
+      e.stopPropagation();
+      e.preventDefault();
+      setSelected(hit.id);
+      openLevels(target);
+    };
+
     host.addEventListener("pointerdown", onDown, true);
+    host.addEventListener("dblclick", onDouble, true);
     host.addEventListener("mousedown", swallow, true);
     host.addEventListener("touchstart", swallow, true);
     window.addEventListener("pointermove", onMove);
@@ -722,6 +777,7 @@ export function TradeChart({
 
     return () => {
       host.removeEventListener("pointerdown", onDown, true);
+      host.removeEventListener("dblclick", onDouble, true);
       host.removeEventListener("mousedown", swallow, true);
       host.removeEventListener("touchstart", swallow, true);
       window.removeEventListener("pointermove", onMove);
@@ -880,6 +936,41 @@ export function TradeChart({
       }
       record({ type: "text", id: before.id, kind: before.kind, before: before.text });
       setEditing(null);
+    });
+  };
+
+  /** 숫자로 적은 값을 좌표에 얹는다 — 시각은 그대로 두고 가격만 바꾼다. */
+  const saveLevels = () => {
+    if (!levels) return;
+    const { target, values } = levels;
+
+    const points = target.points.map((point) => ({ ...point }));
+    const fields = levelFields(target.kind);
+    for (let i = 0; i < fields.length; i += 1) {
+      const price = parseLevel(values[i] ?? "");
+      if (price === null) {
+        setNoteError(`${fields[i].label}를 숫자로 입력해 주세요.`);
+        return;
+      }
+      points[fields[i].index] = { t: points[fields[i].index].t, p: price };
+    }
+
+    if (isPositionKind(target.kind)) {
+      const problem = positionProblemOf(target.kind, points);
+      if (problem !== null) {
+        setNoteError(problem);
+        return;
+      }
+    }
+
+    startSaving(async () => {
+      const result = await updateAnnotationPoints(target.id, points);
+      if (result.error) {
+        setNoteError(result.error);
+        return;
+      }
+      record({ type: "move", id: target.id, kind: target.kind, before: target.points });
+      setLevels(null);
     });
   };
 
@@ -1102,6 +1193,62 @@ export function TradeChart({
           </div>
         ) : null}
 
+        {/* 더블클릭 — 값을 숫자로 넣는다. 픽셀로는 못 맞추는 자리가 있다. */}
+        {levels ? (
+          <div
+            className="absolute inset-x-2 bottom-2 rounded-lg border border-border bg-surface p-2 shadow-lg"
+            style={{ zIndex: 7 }}
+          >
+            <div className="flex flex-wrap items-end gap-2">
+              <span className="rounded border border-border px-1.5 py-0.5 text-[10px] text-dim">
+                {ANNOTATION_KIND_LABEL[levels.target.kind]}
+              </span>
+              {levelFields(levels.target.kind).map((field, i) => (
+                <label key={field.index} className="text-[11px] text-dim">
+                  {field.label}
+                  <input
+                    autoFocus={i === 0}
+                    inputMode="decimal"
+                    value={levels.values[i] ?? ""}
+                    onChange={(e) =>
+                      setLevels((state) =>
+                        state === null
+                          ? state
+                          : {
+                              ...state,
+                              values: state.values.map((v, j) => (j === i ? e.target.value : v)),
+                            },
+                      )
+                    }
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") saveLevels();
+                      if (e.key === "Escape") setLevels(null);
+                    }}
+                    className="tnum mt-0.5 block w-32 rounded-lg border border-border bg-bg px-2 py-1.5 text-sm outline-none focus:border-accent"
+                  />
+                </label>
+              ))}
+              <button
+                type="button"
+                disabled={saving}
+                onClick={saveLevels}
+                className="rounded-lg bg-accent px-3 py-1.5 text-xs font-medium text-white disabled:opacity-50"
+              >
+                {saving ? "저장 중…" : "저장"}
+              </button>
+              <button
+                type="button"
+                disabled={saving}
+                onClick={() => setLevels(null)}
+                className="rounded-lg border border-border px-3 py-1.5 text-xs text-dim disabled:opacity-50"
+              >
+                취소
+              </button>
+            </div>
+            {noteError ? <p className="mt-1 text-[11px] text-loss">{noteError}</p> : null}
+          </div>
+        ) : null}
+
         {/* 골라 둔 메모 — 누른 자리에서 바로 라벨을 고치거나 지운다. */}
         {editing ? (
           <div
@@ -1253,7 +1400,7 @@ const KST_PARTS = new Intl.DateTimeFormat("en-GB", {
 });
 
 /** 시간축 눈금 — 라이브러리가 알려준 눈금 종류에 맞춰 KST로 찍는다. */
-function formatTick(ms: number, type: TickMarkType): string {
+export function formatTick(ms: number, type: TickMarkType): string {
   const p: Record<string, string> = {};
   for (const part of KST_PARTS.formatToParts(new Date(ms))) p[part.type] = part.value;
   if (p.hour === "24") p.hour = "00";
@@ -1283,7 +1430,7 @@ const KST_FMT = new Intl.DateTimeFormat("en-GB", {
 });
 
 /** 축·십자선 라벨은 서버 렌더링과 무관하지만, 표기를 앱 전체와 맞춘다. */
-function formatKst(ms: number, withTime: boolean): string {
+export function formatKst(ms: number, withTime: boolean): string {
   const p: Record<string, string> = {};
   for (const part of KST_FMT.formatToParts(new Date(ms))) p[part.type] = part.value;
   if (p.hour === "24") p.hour = "00";

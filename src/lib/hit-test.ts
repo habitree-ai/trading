@@ -32,8 +32,13 @@ export interface HitShape {
   span?: { left: number; right: number };
 }
 
-/** 점 번호를 집었으면 그 번호, 도형 전체를 집었으면 `'body'`. */
-export type HitTarget = number | 'body';
+/**
+ * 무엇을 집었는가.
+ *
+ * 점 번호이거나, 도형 전체(`body`)이거나, 손익 툴 상자의 좌·우 가장자리다.
+ * 가장자리는 가로 폭만 늘이고 줄인다 — 값(가격)은 그대로 둔다.
+ */
+export type HitTarget = number | 'body' | 'left' | 'right';
 
 export interface AnnotationHit {
   id: string;
@@ -57,14 +62,29 @@ export function distanceToSegment(a: Point2D, b: Point2D, x: number, y: number):
   return Math.hypot(x - (a.x + t * dx), y - (a.y + t * dy));
 }
 
-/** 이 도형의 점 가운데 집힌 것 — 없으면 null. */
-function handleAt(shape: HitShape, x: number, y: number): number | null {
+/** 이 도형에서 집힌 자리 — 점 번호이거나 가장자리. 없으면 null. */
+function handleAt(shape: HitShape, x: number, y: number): HitTarget | null {
   const { kind, xy } = shape;
 
-  // 손익 툴의 세 값은 가격이다 — 상자 안이라면 가로 어디서든 그 높이를 집을 수 있다.
   if (isPositionKind(kind)) {
     const span = shape.span;
-    if (!span || x < span.left - HANDLE_HIT || x > span.right + HANDLE_HIT) return null;
+    if (!span) return null;
+
+    /*
+     * 가장자리가 값보다 먼저다.
+     *
+     * 모서리에서는 둘 다 걸리는데, 거기서 잡히길 기대하는 건 폭 조절이다 — 값은
+     * 상자 안 어디서든 집히지만 가장자리는 그 선 위에서만 집힌다.
+     */
+    const ys = xy.map((p) => p.y);
+    const inBand = y >= Math.min(...ys) - HANDLE_HIT && y <= Math.max(...ys) + HANDLE_HIT;
+    if (inBand) {
+      if (Math.abs(x - span.left) <= HANDLE_HIT) return 'left';
+      if (Math.abs(x - span.right) <= HANDLE_HIT) return 'right';
+    }
+
+    // 세 값은 가격이다 — 상자 안이라면 가로 어디서든 그 높이를 집을 수 있다.
+    if (x < span.left - HANDLE_HIT || x > span.right + HANDLE_HIT) return null;
     for (let i = 0; i < xy.length; i += 1) {
       if (Math.abs(xy[i].y - y) <= HANDLE_HIT) return i;
     }

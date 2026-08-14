@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { positionMetrics } from '@/lib/position-tool';
+import { edgePointIndex, positionMetrics } from '@/lib/position-tool';
 
 describe('positionMetrics', () => {
   it('롱 — 목표까지 2, 손절까지 1이면 손익비 2', () => {
@@ -48,5 +48,29 @@ describe('positionMetrics', () => {
 
   it('진입가가 0이면 잴 기준이 없다', () => {
     expect(positionMetrics({ side: 'long', entry: 0, stop: -1, target: 1 })).toBeNull();
+  });
+});
+
+describe('edgePointIndex', () => {
+  /* 세 점은 역할 순서로 저장되고 시각은 제각각이다 — 끝을 쥔 점이 역할과 무관하다. */
+  const points = [
+    { t: 300, p: 100 },
+    { t: 100, p: 99 },
+    { t: 200, p: 102 },
+  ];
+
+  it('지금 그 끝에 있는 점을 가리킨다', () => {
+    expect(edgePointIndex(points, 'left')).toBe(1);
+    expect(edgePointIndex(points, 'right')).toBe(0);
+  });
+
+  it('시각이 같으면 먼저 만난 점을 쥔다 — 어느 쪽이든 폭은 같다', () => {
+    const flat = [
+      { t: 100, p: 1 },
+      { t: 100, p: 2 },
+      { t: 100, p: 3 },
+    ];
+    expect(edgePointIndex(flat, 'left')).toBe(0);
+    expect(edgePointIndex(flat, 'right')).toBe(0);
   });
 });

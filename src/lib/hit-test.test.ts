@@ -96,6 +96,24 @@ describe('resolveHit', () => {
     expect(resolveHit([position], 700, 250)).toEqual({ id: 'pos', target: 'body' });
   });
 
+  it('손익 툴의 좌·우 가장자리는 가로 폭 조절로 잡힌다', () => {
+    expect(resolveHit([position], 601, 250)).toEqual({ id: 'pos', target: 'left' });
+    expect(resolveHit([position], 799, 250)).toEqual({ id: 'pos', target: 'right' });
+  });
+
+  /*
+   * 모서리에서는 값(높이)과 가장자리(가로)가 함께 걸린다.
+   * 거기서 잡히길 기대하는 건 폭 조절이다 — 값은 상자 안 어디서든 집히지만
+   * 가장자리는 그 선 위에서만 집힌다.
+   */
+  it('모서리에서는 가장자리가 값을 이긴다', () => {
+    expect(resolveHit([position], 600, 200)).toEqual({ id: 'pos', target: 'left' });
+  });
+
+  it('상자 위아래로 벗어나면 가장자리도 안 잡힌다', () => {
+    expect(resolveHit([position], 600, 40)).toBeNull();
+  });
+
   it('상자 밖은 잡히지 않는다', () => {
     expect(resolveHit([position], 900, 200)).toBeNull();
   });
