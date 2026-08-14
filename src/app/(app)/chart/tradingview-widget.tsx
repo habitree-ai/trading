@@ -16,17 +16,20 @@ const COPYRIGHT_PX = 32;
 export function TradingViewWidget({ symbol }: { symbol: string }) {
   const hostRef = useRef<HTMLDivElement>(null);
   /*
-   * 렌더 중 matchMedia를 읽으면 서버 HTML과 어긋난다(하이드레이션 불일치).
+   * 앱의 화면 모드는 <html data-theme>이 진실 원천이다(헤더 토글이 바꾼다).
+   * 렌더 중 문서 속성을 읽으면 서버 HTML과 어긋난다(하이드레이션 불일치).
    * null(미정)로 시작해 이펙트에서 확정하고, 그 전에는 위젯을 만들지 않는다.
    */
   const [theme, setTheme] = useState<"light" | "dark" | null>(null);
 
   useEffect(() => {
-    const mq = window.matchMedia("(prefers-color-scheme: dark)");
-    const apply = () => setTheme(mq.matches ? "dark" : "light");
+    const root = document.documentElement;
+    const apply = () =>
+      setTheme(root.getAttribute("data-theme") === "light" ? "light" : "dark");
     apply();
-    mq.addEventListener("change", apply);
-    return () => mq.removeEventListener("change", apply);
+    const observer = new MutationObserver(apply);
+    observer.observe(root, { attributes: true, attributeFilter: ["data-theme"] });
+    return () => observer.disconnect();
   }, []);
 
   useEffect(() => {

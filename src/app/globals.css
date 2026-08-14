@@ -8,8 +8,27 @@
 /*
   손익 색은 글로벌 거래소 관행(수익=녹, 손실=적)을 따른다.
   캡쳐 화면과 색이 어긋나면 대조가 어렵기 때문.
+
+  기본 테마는 다크. 헤더의 토글이 <html data-theme>을 바꾸면 라이트로 전환된다.
+  color-scheme은 스크롤바·셀렉트 같은 네이티브 컨트롤을 테마에 맞춘다.
 */
 :root {
+  color-scheme: dark;
+  --bg: #0e1116;
+  --surface: #161a21;
+  --surface-2: #1e232c;
+  --border: #2a3039;
+  --text: #e6e9ee;
+  --text-dim: #8b95a3;
+  --accent: #5b8cff;
+  --profit: #26c281;
+  --loss: #f0616d;
+  --beta: #f5b23c;
+  --alpha: #9b83ff;
+}
+
+[data-theme="light"] {
+  color-scheme: light;
   --bg: #f7f8fa;
   --surface: #ffffff;
   --surface-2: #f1f3f6;
@@ -21,22 +40,6 @@
   --loss: #dc3545;
   --beta: #d68910;
   --alpha: #7b61ff;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #0e1116;
-    --surface: #161a21;
-    --surface-2: #1e232c;
-    --border: #2a3039;
-    --text: #e6e9ee;
-    --text-dim: #8b95a3;
-    --accent: #5b8cff;
-    --profit: #26c281;
-    --loss: #f0616d;
-    --beta: #f5b23c;
-    --alpha: #9b83ff;
-  }
 }
 
 @theme inline {
