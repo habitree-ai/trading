@@ -1,0 +1,686 @@
+<title>BTC 스윙 플레이북</title>
+<style>
+  /* 다크가 기본 — 트레이딩 앱·백테스트 원장과 같은 토큰. */
+  :root {
+    color-scheme: dark;
+    --bg: #0e1116;
+    --surface: #161a21;
+    --surface-2: #1e232c;
+    --border: #2a3039;
+    --ink: #e6e9ee;
+    --dim: #8b95a3;
+    --accent: #5b8cff;
+    --profit: #26c281;
+    --loss: #f0616d;
+    --bench: #c98500;
+    --grid: #232935;
+    --accent-soft: rgba(91, 140, 255, 0.14);
+  }
+  @media (prefers-color-scheme: light) {
+    :root:not([data-theme="dark"]) {
+      color-scheme: light;
+      --bg: #f7f8fa;
+      --surface: #ffffff;
+      --surface-2: #f1f3f6;
+      --border: #e2e5ea;
+      --ink: #14171c;
+      --dim: #666e7a;
+      --accent: #3b6ef5;
+      --profit: #0f9d58;
+      --loss: #dc3545;
+      --bench: #d68910;
+      --grid: #eceef2;
+      --accent-soft: rgba(59, 110, 245, 0.10);
+    }
+  }
+  :root[data-theme="light"] {
+    color-scheme: light;
+    --bg: #f7f8fa;
+    --surface: #ffffff;
+    --surface-2: #f1f3f6;
+    --border: #e2e5ea;
+    --ink: #14171c;
+    --dim: #666e7a;
+    --accent: #3b6ef5;
+    --profit: #0f9d58;
+    --loss: #dc3545;
+    --bench: #d68910;
+    --grid: #eceef2;
+    --accent-soft: rgba(59, 110, 245, 0.10);
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: ui-sans-serif, system-ui, "Pretendard", "Segoe UI", "Malgun Gothic", sans-serif;
+    font-size: 14px;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 40px 20px 72px; }
+
+  header.masthead { display: flex; flex-wrap: wrap; align-items: baseline; gap: 10px 16px; padding-bottom: 18px; border-bottom: 1px solid var(--border); }
+  .masthead h1 { margin: 0; font-size: 24px; font-weight: 750; letter-spacing: -0.02em; }
+  .round-stamp {
+    font-size: 12px; font-weight: 650; color: var(--accent);
+    border: 1px solid var(--accent); border-radius: 999px; padding: 1px 10px;
+    letter-spacing: 0.04em; white-space: nowrap;
+  }
+  .masthead .meta { flex-basis: 100%; color: var(--dim); font-size: 12.5px; }
+  .masthead .meta b { color: var(--ink); font-weight: 600; }
+
+  section { margin-top: 44px; }
+  .eyebrow { font-size: 11px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; color: var(--dim); margin: 0 0 6px; }
+  h2 { margin: 0 0 14px; font-size: 18px; font-weight: 700; letter-spacing: -0.01em; text-wrap: balance; }
+  h3 { margin: 0; font-size: 14px; font-weight: 650; }
+  .note { color: var(--dim); font-size: 12.5px; }
+  .tnum { font-variant-numeric: tabular-nums; }
+  .up { color: var(--profit); }
+  .down { color: var(--loss); }
+
+  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px; margin-top: 18px; }
+  .tile { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px 12px; }
+  .tile .k { font-size: 11.5px; color: var(--dim); letter-spacing: 0.02em; }
+  .tile .v { font-size: 22px; font-weight: 700; letter-spacing: -0.01em; margin-top: 2px; line-height: 1.25; }
+  .tile .s { font-size: 11.5px; color: var(--dim); margin-top: 3px; }
+
+  .table-scroll { overflow-x: auto; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); }
+  table { border-collapse: collapse; width: 100%; font-size: 13px; }
+  th, td { padding: 8px 12px; text-align: right; white-space: nowrap; }
+  th { font-size: 11px; color: var(--dim); font-weight: 600; border-bottom: 1px solid var(--border); }
+  td { border-bottom: 1px solid var(--grid); font-variant-numeric: tabular-nums; }
+  tr:last-child td { border-bottom: none; }
+  th:first-child, td:first-child { text-align: left; }
+  tbody tr:hover td { background: var(--accent-soft); }
+
+  /* 손익비 ↔ 손익분기 구조 표 */
+  .formula { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-top: 14px; }
+  .fcell { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 11px 14px; text-align: center; }
+  .fcell .rr { font-size: 15px; font-weight: 750; }
+  .fcell .be { font-size: 12px; color: var(--dim); margin-top: 2px; }
+  .fcell .be b { color: var(--ink); }
+
+  /* 기준 블록 */
+  .crit { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 18px; margin-top: 18px; }
+  .crit .head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+  .crit .no { font-size: 22px; font-weight: 750; color: var(--dim); }
+  .crit .name { font-size: 16px; font-weight: 750; }
+  .chip { font-size: 10.5px; font-weight: 700; border-radius: 4px; padding: 1px 7px; border: 1px solid var(--border); color: var(--dim); white-space: nowrap; }
+  .chip.tf { color: var(--accent); border-color: var(--accent); }
+  .margin-badge { margin-left: auto; font-size: 12px; font-weight: 750; border-radius: 999px; padding: 3px 12px; background: var(--profit); color: #fff; white-space: nowrap; }
+  .crit .simple { margin-top: 6px; font-size: 13px; }
+  .crit .simple b { color: var(--accent); font-weight: 650; }
+  .crit .ruleline { color: var(--dim); font-size: 12.5px; margin-top: 2px; }
+  .crit .exitline { font-size: 13px; margin-top: 6px; }
+  .crit .exitline b { color: var(--bench); font-weight: 650; }
+
+  /* 승률 여유 게이지 */
+  .gauge { margin-top: 12px; }
+  .gauge .bar { position: relative; height: 22px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 6px; }
+  .gauge .fill { position: absolute; top: 0; bottom: 0; left: 0; background: color-mix(in srgb, var(--dim) 26%, transparent); border-radius: 6px 0 0 6px; }
+  .gauge .margin-fill { position: absolute; top: 0; bottom: 0; background: color-mix(in srgb, var(--profit) 55%, transparent); }
+  .gauge .be-line { position: absolute; top: -4px; bottom: -4px; width: 2px; background: var(--loss); }
+  .gauge .wr-dot { position: absolute; top: 50%; width: 10px; height: 10px; border-radius: 50%; background: var(--profit); border: 2px solid var(--surface); transform: translate(-50%, -50%); }
+  .gauge .lbl { display: flex; justify-content: space-between; font-size: 11px; color: var(--dim); margin-top: 4px; }
+  .gauge .lbl b { color: var(--ink); }
+
+  .rc-stats { display: flex; flex-wrap: wrap; gap: 6px 18px; margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--grid); font-size: 12px; }
+  .rc-stats .st { color: var(--dim); }
+  .rc-stats .st b { color: var(--ink); font-weight: 650; font-variant-numeric: tabular-nums; }
+  .rc-viz { display: flex; flex-wrap: wrap; align-items: center; gap: 16px; margin-top: 10px; }
+  .p3 { display: flex; gap: 3px; align-items: center; }
+  .p3 .cell { width: 46px; height: 16px; border-radius: 4px; display: grid; place-items: center; font-size: 9.5px; font-weight: 700; color: var(--ink); border: 1px solid var(--grid); }
+  .p3-label { font-size: 10.5px; color: var(--dim); margin-right: 2px; }
+
+  .sub-h { margin: 18px 0 6px; font-size: 12px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--dim); }
+  .ov-legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 11.5px; color: var(--dim); margin-bottom: 4px; }
+  .ov-legend .m { display: inline-block; width: 9px; height: 9px; vertical-align: -1px; margin-right: 5px; }
+  svg text { font-family: inherit; }
+  .axis-label { font-size: 10.5px; fill: var(--dim); }
+  .grid-line { stroke: var(--grid); stroke-width: 1; }
+
+  .cases { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 12px; }
+
+  /* 확대 보기 — 차트를 누르면 라이트박스로 크게 띄운다. */
+  .zoomable { cursor: zoom-in; border-radius: 8px; }
+  .zoomable:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  #lightbox {
+    position: fixed; inset: 0; z-index: 90; display: none;
+    background: rgba(0, 0, 0, 0.72); padding: 24px;
+    align-items: center; justify-content: center;
+  }
+  #lightbox.open { display: flex; }
+  #lightbox .lb-box {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 14px;
+    padding: 18px; max-width: min(96vw, 1400px); max-height: 94vh; overflow: auto;
+    box-shadow: 0 12px 48px rgba(0, 0, 0, 0.5);
+  }
+  /* 복제된 svg는 인라인 width:100%를 갖고 온다 — 컨테이너 폭이 곧 확대 크기다. */
+  #lightbox .lb-svg { width: min(92vw, 1300px); }
+  #lightbox .lb-cap { font-size: 13px; margin-bottom: 10px; color: var(--ink); }
+  #lightbox .lb-close {
+    margin-top: 12px; border: 1px solid var(--border); background: var(--surface-2);
+    color: var(--ink); border-radius: 8px; padding: 6px 14px; font-size: 13px; cursor: pointer;
+  }
+  #lightbox .lb-close:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .case { background: var(--surface-2); border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; }
+  .case .cap { font-size: 11.5px; color: var(--dim); margin-top: 6px; line-height: 1.55; }
+  .case .cap b { color: var(--ink); font-weight: 650; }
+  .exit-tag { font-size: 10px; font-weight: 700; border-radius: 4px; padding: 1px 6px; margin-left: 4px; }
+  .exit-tp { background: var(--profit); color: #fff; }
+  .exit-sl { background: var(--loss); color: #fff; }
+  .exit-time { background: var(--surface); color: var(--dim); border: 1px solid var(--border); }
+  .exit-open { background: var(--accent); color: #fff; }
+
+  details { margin-top: 12px; }
+  summary { cursor: pointer; color: var(--accent); font-weight: 600; font-size: 13px; padding: 5px 2px; border-radius: 6px; list-style-position: inside; }
+  summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  details .table-scroll { margin-top: 8px; }
+
+  .caveats { margin: 14px 0 0; padding-left: 18px; color: var(--dim); font-size: 12.5px; }
+  .caveats li { margin-top: 4px; }
+  .caveats b { color: var(--ink); font-weight: 600; }
+
+  footer { margin-top: 56px; padding-top: 16px; border-top: 1px solid var(--border); color: var(--dim); font-size: 12px; }
+  footer code { font-family: ui-monospace, "Cascadia Mono", monospace; font-size: 11.5px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 4px; padding: 1px 5px; }
+
+  #tooltip {
+    position: fixed; pointer-events: none; z-index: 50; display: none;
+    background: var(--surface-2); color: var(--ink); border: 1px solid var(--border);
+    border-radius: 8px; padding: 7px 11px; font-size: 12px; line-height: 1.5;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35); max-width: 300px; white-space: nowrap;
+  }
+  #tooltip .t { color: var(--dim); font-size: 11px; }
+</style>
+
+<div class="wrap">
+  <header class="masthead">
+    <h1>BTC 스윙 플레이북</h1>
+    <span class="round-stamp" id="stamp"></span>
+    <p class="meta" id="head-meta"></p>
+  </header>
+
+  <section aria-labelledby="s-structure">
+    <p class="eyebrow">Structure</p>
+    <h2 id="s-structure">지속 실현 가능한 구조 — 승률이 손익분기보다 얼마나 위에 있는가</h2>
+    <p style="max-width:70ch">
+      손익비를 정하면 <b>버텨야 하는 최소 승률(손익분기)</b>이 정해진다. 전략이 오래 살아남으려면
+      실측 승률이 그 선보다 <b>여유 있게</b> 위에 있어야 한다 — 그 여유분이 수수료 변화, 슬리피지,
+      국면 악화를 흡수하는 완충이다. 아래 다섯 기준은 132개 조합 탐색에서 강건성 게이트를 통과한 것
+      중 <b>판정 조건이 1~2개뿐인 심플한 기준</b>만 남기고, 여유분이 큰 순서로 늘어놓았다.
+    </p>
+    <div class="formula" id="formula"></div>
+    <div class="tiles" id="tiles"></div>
+    <div class="table-scroll" style="margin-top:14px">
+      <table id="summary-table">
+        <thead><tr>
+          <th>#</th><th>기준</th><th>봉</th><th>방향</th><th>손익비</th>
+          <th>실측 승률</th><th>손익분기</th><th>여유</th><th>기대값/건</th><th>P/F</th><th>표본</th>
+        </tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section aria-labelledby="s-crit">
+    <p class="eyebrow">Top 5 · Samples</p>
+    <h2 id="s-crit">기준별 정의 · 샘플 위치 · 진입/청산 시점</h2>
+    <p class="note">
+      개요 차트의 삼각형이 실제 진입 지점이다(▲ 롱 · ▼ 숏, 초록 = 이익 · 빨강 = 손실 청산).
+      마우스를 올리면 그 거래의 진입·청산 시각과 가격이 뜬다. 사례 차트에는 그 기준의 <b>판정 지표</b>가
+      함께 그려진다 — 골든크로스는 SMA20·SMA50 두 줄, 신저가 이탈은 20봉 최저선, 거래량 기준은 거래량
+      막대와 20봉 평균선, RSI 기준은 RSI 띠. 점선은 목표(초록)·손절(빨강).
+      <b>모든 차트는 누르면 크게 볼 수 있다.</b>
+    </p>
+    <div id="criteria"></div>
+  </section>
+
+  <section aria-labelledby="s-caveat">
+    <p class="eyebrow">Limits</p>
+    <h2 id="s-caveat">읽기 전 마지막 주의</h2>
+    <ul class="caveats">
+      <li><b>이 수치는 인샘플이다.</b> 132개 조합에서 상위를 고른 값이라 실전 기대치는 이보다 낮게 잡아야 하고, 최고 t-통계량(1.53)도 우연 기준선(≈1.9~2.5)을 넘지 못했다 — 이 목록은 매매 승인이 아니라 <b>전방 검증 후보</b>다.</li>
+      <li><b>여유분이 얇은 기준(③~⑤, +3~5%p)은 비용 가정(왕복 0.1%)이 조금만 어긋나도 잠식된다.</b> 여유분이 큰 ①·②부터 소액으로 검증하는 것이 순서다.</li>
+      <li><b>승률 36~41% 구조는 연패가 정상 상태다</b>(최대 10연패 기록). 거래당 위험 0.5~1%를 지키지 못하면 기준이 옳아도 계좌가 먼저 꺾인다.</li>
+    </ul>
+  </section>
+
+  <footer id="foot"></footer>
+</div>
+
+<div id="tooltip" role="presentation"></div>
+
+<!-- 확대 보기 — 차트를 누르면 여기로 크게 띄운다. -->
+<div id="lightbox" role="dialog" aria-modal="true" aria-label="차트 확대 보기">
+  <div class="lb-box">
+    <div class="lb-cap"></div>
+    <div class="lb-svg"></div>
+    <button type="button" class="lb-close">닫기 (Esc)</button>
+  </div>
+</div>
+
+<script>
+  const DATA = __DATA_JSON__;
+
+  const KST_FULL = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Asia/Seoul", year: "2-digit", month: "2-digit", day: "2-digit",
+    hour: "2-digit", minute: "2-digit", hour12: false,
+  });
+  function kst(ms, withTime = true) {
+    const p = {};
+    for (const part of KST_FULL.formatToParts(new Date(ms))) p[part.type] = part.value;
+    if (p.hour === "24") p.hour = "00";
+    return withTime ? `${p.year}.${p.month}.${p.day} ${p.hour}:${p.minute}` : `${p.year}.${p.month}.${p.day}`;
+  }
+  const n1 = (x) => x === null || x === undefined ? "—" : x.toLocaleString("ko-KR", { maximumFractionDigits: 1 });
+  const n2 = (x) => x === null || x === undefined ? "—" : x.toLocaleString("ko-KR", { maximumFractionDigits: 2, minimumFractionDigits: 2 });
+  const signed = (x, d = 2) => x === null || x === undefined ? "—" : (x > 0 ? "+" : "") + x.toLocaleString("ko-KR", { maximumFractionDigits: d, minimumFractionDigits: d });
+  const pnlClass = (x) => x > 0 ? "up" : x < 0 ? "down" : "";
+  const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+  const m = DATA.meta;
+  const TF_LABEL = { "4H": "4시간봉", "1D": "일봉" };
+  const EXIT_LABEL = { tp: "목표", sl: "손절", time: "시간", open: "진행 중" };
+  const exitText = (e) => e.type === "atr"
+    ? `손절 <b>${e.sl}×ATR(14)</b> · 목표 <b>${e.tp}×ATR(14)</b> (신호 봉 ATR 기준) · 손익비 1:${e.rr}`
+    : `손절 <b>${e.sl}%</b> · 목표 <b>${e.tp}%</b> 고정 · 손익비 1:${e.rr}`;
+
+  // 여유분(실측 승률 − 손익분기) 큰 순서 — "지속 가능"의 순서다.
+  const crits = DATA.criteria
+    .map((c) => ({ ...c, margin: c.stats.winRate - c.stats.breakEvenWinRate }))
+    .sort((a, b) => b.margin - a.margin);
+
+  /* ---------- 머리 ---------- */
+  const f4 = DATA.frames["4H"];
+  document.getElementById("stamp").textContent = `Top 5 · ${kst(m.generatedAt, false)}`;
+  document.getElementById("head-meta").innerHTML =
+    `<b>${esc(m.symbol)}</b> · <b>4시간봉 + 일봉</b> · ${kst(f4.from, false)} ~ ${kst(f4.to, false)} (${m.days}일 ≈ 2년) · ` +
+    `${esc(m.source)} · ${esc(m.pick)}`;
+
+  /* ---------- 구조 공식 ---------- */
+  document.getElementById("formula").innerHTML = [
+    { rr: "1 : 1", be: "50%" },
+    { rr: "1 : 1.5", be: "40%" },
+    { rr: "1 : 2", be: "33.3%" },
+    { rr: "1 : 3", be: "25%" },
+  ].map((f) => `<div class="fcell"><div class="rr">${f.rr}</div><div class="be">손익분기 승률 <b>${f.be}</b><br>+ 비용만큼 위로</div></div>`).join("");
+
+  const totalTrades = crits.reduce((s, c) => s + c.stats.trades, 0);
+  document.getElementById("tiles").innerHTML = [
+    { k: "선정 기준", v: "5개", s: "판정 조건 1~2개 · 게이트 통과분에서 선별" },
+    { k: "완결 표본", v: `${totalTrades}건`, s: "진입·청산 시점 전량 아래 수록" },
+    { k: "승률 여유분", v: `${signed(crits[crits.length - 1].margin, 1)}~${signed(crits[0].margin, 1)}%p`, s: "실측 승률 − 손익분기 승률" },
+    { k: "검증 구간", v: "2년 · 3국면", s: `BTC 상승·하락·급락 포함` },
+  ].map((t) => `<div class="tile"><div class="k">${t.k}</div><div class="v">${t.v}</div><div class="s">${t.s}</div></div>`).join("");
+
+  document.querySelector("#summary-table tbody").innerHTML = crits.map((c, i) => `<tr>
+    <td>${i + 1}</td>
+    <td>${esc(c.name)}</td>
+    <td>${TF_LABEL[c.tf]}</td>
+    <td>${c.side === "long" ? "롱" : "숏"}</td>
+    <td>1:${c.exit.rr}</td>
+    <td>${n1(c.stats.winRate)}%</td>
+    <td>${n1(c.stats.breakEvenWinRate)}%</td>
+    <td class="up">+${n1(c.margin)}%p</td>
+    <td class="${pnlClass(c.stats.avgPnl)}">${signed(c.stats.avgPnl)}%</td>
+    <td>${n2(c.stats.profitFactor)}</td>
+    <td>${c.stats.trades}건</td>
+  </tr>`).join("");
+
+  /* ---------- 툴팁 ---------- */
+  const tip = document.getElementById("tooltip");
+  function showTip(html, x, y) {
+    tip.innerHTML = html;
+    tip.style.display = "block";
+    const r = tip.getBoundingClientRect();
+    const px = Math.min(x + 14, window.innerWidth - r.width - 8);
+    const py = y - r.height - 12 < 8 ? y + 18 : y - r.height - 12;
+    tip.style.left = px + "px";
+    tip.style.top = py + "px";
+  }
+  function hideTip() { tip.style.display = "none"; }
+
+  /* ---------- 기준 블록 ---------- */
+  const host = document.getElementById("criteria");
+  host.innerHTML = crits.map((c, ci) => {
+    const st = c.stats;
+
+    /* 승률 여유 게이지 — 0~60% 눈금 위에 손익분기와 실측 승률을 함께 놓는다. */
+    const SCALE = 60;
+    const bePct = (st.breakEvenWinRate / SCALE) * 100;
+    const wrPct = (st.winRate / SCALE) * 100;
+    const gauge = `<div class="gauge">
+      <div class="bar">
+        <span class="fill" style="width:${wrPct}%"></span>
+        <span class="margin-fill" style="left:${Math.min(bePct, wrPct)}%;width:${Math.abs(wrPct - bePct)}%"></span>
+        <span class="be-line" style="left:${bePct}%" title="손익분기 승률"></span>
+        <span class="wr-dot" style="left:${wrPct}%" title="실측 승률"></span>
+      </div>
+      <div class="lbl">
+        <span>손익분기 <b class="down">${n1(st.breakEvenWinRate)}%</b> (실측 평균 이익 ${signed(st.avgWin)}% · 손실 ${signed(st.avgLoss)}% 기준)</span>
+        <span>실측 승률 <b class="up">${n1(st.winRate)}%</b> → 여유 <b class="up">+${n1(c.margin)}%p</b></span>
+      </div>
+    </div>`;
+
+    /* 3구간 + 스파크라인 */
+    const p3 = st.periods.map((p, k) => {
+      const col = p.n === 0 ? "var(--surface-2)"
+        : p.pnl > 0 ? "color-mix(in srgb, var(--profit) 28%, transparent)"
+        : "color-mix(in srgb, var(--loss) 28%, transparent)";
+      return `<span class="cell" style="background:${col}" title="${k + 1}구간: ${p.n}건 ${signed(p.pnl, 1)}%p">${p.n === 0 ? "—" : signed(p.pnl, 0)}</span>`;
+    }).join("");
+    const spark = (() => {
+      if (!st.curve || st.curve.length < 2) return "";
+      const W = 140, H = 36;
+      const t0 = st.curve[0].at, t1 = st.curve[st.curve.length - 1].at;
+      let lo = Math.min(0, ...st.curve.map((p) => p.equity));
+      let hi = Math.max(0, ...st.curve.map((p) => p.equity));
+      if (hi - lo < 1e-9) hi = lo + 1;
+      const x = (at) => ((at - t0) / (t1 - t0)) * (W - 4) + 2;
+      const y = (v) => 2 + (1 - (v - lo) / (hi - lo)) * (H - 4);
+      const d = st.curve.map((p, i) => `${i ? "L" : "M"}${x(p.at).toFixed(1)},${y(p.equity).toFixed(1)}`).join("");
+      return `<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" aria-hidden="true">
+        <line x1="2" x2="${W - 2}" y1="${y(0).toFixed(1)}" y2="${y(0).toFixed(1)}" stroke="var(--grid)"></line>
+        <path d="${d}" fill="none" stroke="var(--accent)" stroke-width="1.5"></path>
+      </svg>`;
+    })();
+
+    /* 개요 차트 — 2년 가격선 위에 진입 지점을 찍는다. */
+    const frame = DATA.frames[c.tf];
+    const ov = frame.overview.filter((p) => p.t >= frame.warmupFrom);
+    const W = 1020, H = 190, L = 52, R = 12, T = 10, B = 22;
+    const t0 = ov[0].t, t1 = ov[ov.length - 1].t;
+    const ovPts = (c.overlay?.points ?? []).filter((p) => p.t >= t0 && p.t <= t1);
+    // 판정 지표 선(최저선 등)이 종가 범위 밖으로 나갈 수 있다 — 축에 함께 넣는다.
+    const ovVals = ovPts.flatMap((p) => [p.a, p.b, p.v].filter((v) => v !== undefined && v !== null));
+    let lo = Math.min(...ov.map((p) => p.c), ...ovVals), hi = Math.max(...ov.map((p) => p.c), ...ovVals);
+    const pad = (hi - lo) * 0.06;
+    lo -= pad; hi += pad;
+    const x = (t) => L + ((t - t0) / (t1 - t0)) * (W - L - R);
+    const y = (v) => T + (1 - (v - lo) / (hi - lo)) * (H - T - B);
+    const linePath = ov.map((p, i) => `${i ? "L" : "M"}${x(p.t).toFixed(1)},${y(p.c).toFixed(1)}`).join("");
+
+    const months = [];
+    let cur = new Date(t0); cur = Date.UTC(cur.getUTCFullYear(), cur.getUTCMonth() + 1, 1);
+    while (cur < t1) { months.push(cur); const d = new Date(cur); cur = Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 2, 1); }
+
+    const markers = c.trades.map((t, k) => {
+      const cx = x(t.entryAt).toFixed(1);
+      const cy = y(t.entry).toFixed(1);
+      const col = t.exitType === "open" ? "var(--accent)" : t.pnl > 0 ? "var(--profit)" : "var(--loss)";
+      const d = c.side === "long"
+        ? `M ${cx} ${cy} m 0 -5 l 5 9 l -10 0 z`
+        : `M ${cx} ${cy} m 0 5 l 5 -9 l -10 0 z`;
+      return `<path class="ov-mark" data-c="${ci}" data-k="${k}" d="${d}" fill="${col}" stroke="var(--surface)" stroke-width="1" tabindex="0"></path>`;
+    }).join("");
+
+    /* 판정 지표 오버레이 — 골든크로스는 SMA 두 줄, 신저가 이탈은 20봉 최저선. */
+    let overlaySvg = "";
+    let overlayLegend = "";
+    if (c.overlay?.type === "sma") {
+      const pa = ovPts.map((p, i) => `${i ? "L" : "M"}${x(p.t).toFixed(1)},${y(p.a).toFixed(1)}`).join("");
+      const pb = ovPts.map((p, i) => `${i ? "L" : "M"}${x(p.t).toFixed(1)},${y(p.b).toFixed(1)}`).join("");
+      overlaySvg = `<path d="${pb}" fill="none" stroke="var(--bench)" stroke-width="1.2" opacity="0.9"></path>
+        <path d="${pa}" fill="none" stroke="var(--accent)" stroke-width="1.2" opacity="0.9"></path>`;
+      overlayLegend = `<span><span class="m" style="background:var(--accent);height:3px;border-radius:2px"></span>SMA20</span>
+        <span><span class="m" style="background:var(--bench);height:3px;border-radius:2px"></span>SMA50</span>
+        <span>두 줄이 교차하는 자리가 신호다</span>`;
+    } else if (c.overlay?.type === "ll20") {
+      const pl = ovPts.map((p, i) => `${i ? "L" : "M"}${x(p.t).toFixed(1)},${y(p.v).toFixed(1)}`).join("");
+      overlaySvg = `<path d="${pl}" fill="none" stroke="var(--bench)" stroke-width="1.1" stroke-dasharray="3 3" opacity="0.9"></path>`;
+      overlayLegend = `<span><span class="m" style="background:var(--bench);height:3px;border-radius:2px"></span>직전 20봉 최저선</span>
+        <span>종가가 이 선 아래로 마감하는 자리가 신호다</span>`;
+    }
+
+    const overview = `${overlayLegend ? `<div class="ov-legend">${overlayLegend}</div>` : ""}
+    <div class="zoomable" role="button" tabindex="0" aria-label="샘플 위치 차트 크게 보기" data-cap="${esc(c.name)} — 샘플 위치 (2년)">
+    <svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;display:block" role="img" aria-label="${esc(c.name)} 진입 지점 분포">
+      ${[lo + pad, (lo + hi) / 2, hi - pad].map((v) => `<line class="grid-line" x1="${L}" x2="${W - R}" y1="${y(v).toFixed(1)}" y2="${y(v).toFixed(1)}"></line>
+        <text class="axis-label" x="${L - 5}" y="${(y(v) + 3.5).toFixed(1)}" text-anchor="end">${Math.round(v / 1000)}k</text>`).join("")}
+      ${months.map((mt) => `<text class="axis-label" x="${x(mt).toFixed(1)}" y="${H - 6}" text-anchor="middle">${String(new Date(mt).getUTCFullYear()).slice(2)}.${String(new Date(mt).getUTCMonth() + 1).padStart(2, "0")}</text>`).join("")}
+      <path d="${linePath}" fill="none" stroke="var(--dim)" stroke-width="1.2" opacity="0.75"></path>
+      ${overlaySvg}
+      ${markers}
+    </svg>
+    </div>`;
+
+    /* 확대 사례 — 그 기준의 판정 지표(SMA·최저선·거래량·RSI)를 함께 그린다. */
+    const caseCards = c.cases.map((t, caseIdx) => {
+      const w = t.window;
+      const isRsi = c.signal.startsWith("rsi");
+      const hasVol = c.signal === "rsi-50-volume";
+      const isSma = c.signal === "golden-cross";
+      const isLL = c.signal === "donchian-breakdown";
+      const CW = 340, PH = 150, VH = hasVol ? 36 : 0, RH = isRsi ? 48 : 0, GAP = 6;
+      const CH = PH + (hasVol ? GAP + VH : 0) + (isRsi ? GAP + RH : 0) + 12;
+      const CL = 4, CR = 48;
+      const iw = CW - CL - CR;
+      const n = w.length;
+      const bw = Math.max(1.6, Math.min(6, (iw / n) * 0.62));
+      // 판정 지표 선도 축 범위에 넣는다 — 최저선·이동평균이 창 밖으로 잘리면 판정이 안 보인다.
+      const indVals = w.flatMap((b) => [isSma ? b.sma20 : null, isSma ? b.sma50 : null, isLL ? b.ll20 : null].filter((v) => v !== null));
+      const wlo = Math.min(...w.map((b) => b.l), t.stop, t.target, ...indVals);
+      const whi = Math.max(...w.map((b) => b.h), t.stop, t.target, ...indVals);
+      const px = (i) => CL + ((i + 0.5) / n) * iw;
+      const py = (v) => 3 + (1 - (v - wlo) / (whi - wlo)) * (PH - 6);
+      const vTop = PH + GAP;
+      const rTop = PH + (hasVol ? GAP + VH : 0) + GAP;
+      const ry = (v) => rTop + (1 - v / 100) * RH;
+      const findI = (ms) => w.findIndex((b) => b.t === ms);
+      const sigI = findI(t.signalAt);
+      const entryI = findI(t.entryAt);
+      const exitI = findI(t.exitAt);
+
+      const candles = w.map((b, i) => {
+        const col = b.c >= b.o ? "var(--profit)" : "var(--loss)";
+        return `<line x1="${px(i).toFixed(1)}" x2="${px(i).toFixed(1)}" y1="${py(b.h).toFixed(1)}" y2="${py(b.l).toFixed(1)}" stroke="${col}" stroke-width="1"></line>` +
+          `<rect x="${(px(i) - bw / 2).toFixed(1)}" y="${py(Math.max(b.o, b.c)).toFixed(1)}" width="${bw.toFixed(1)}" height="${Math.max(1, Math.abs(py(b.o) - py(b.c))).toFixed(1)}" fill="${col}" rx="0.5"></rect>`;
+      }).join("");
+
+      const lvl = (v, col, label) =>
+        `<line x1="${CL}" x2="${CW - CR}" y1="${py(v).toFixed(1)}" y2="${py(v).toFixed(1)}" stroke="${col}" stroke-width="1" stroke-dasharray="4 3" opacity="0.75"></line>` +
+        `<text class="axis-label" x="${CW - CR + 4}" y="${(py(v) + 3.5).toFixed(1)}" style="fill:${col}">${label}</text>`;
+
+      /* 판정 지표 — 골든크로스: SMA 두 줄이 교차하는 모습, 신저가 이탈: 최저선을 깨는 모습. */
+      const polyOf = (get) => w.map((b, i) => get(b) === null ? null : `${px(i).toFixed(1)},${py(get(b)).toFixed(1)}`).filter(Boolean).join(" ");
+      // 우측 라벨끼리 겹치지 않게 자리를 내린다 — 목표·손절 라벨이 이미 차지한 자리를 피한다.
+      const takenYs = [py(t.target) + 3.5, py(t.stop) + 3.5];
+      const placeY = (y) => {
+        while (takenYs.some((v) => Math.abs(v - y) < 10)) y += 10;
+        takenYs.push(y);
+        return y;
+      };
+      let indicator = "";
+      if (isSma) {
+        const lastY = (get) => { for (let i = n - 1; i >= 0; i -= 1) if (get(w[i]) !== null) return py(get(w[i])); return null; };
+        indicator = `<polyline points="${polyOf((b) => b.sma50)}" fill="none" stroke="var(--bench)" stroke-width="1.3" opacity="0.95"></polyline>
+          <polyline points="${polyOf((b) => b.sma20)}" fill="none" stroke="var(--accent)" stroke-width="1.3" opacity="0.95"></polyline>
+          <text class="axis-label" x="${CW - CR + 4}" y="${placeY((lastY((b) => b.sma20) ?? 10) + 3.5).toFixed(1)}" style="fill:var(--accent)">SMA20</text>
+          <text class="axis-label" x="${CW - CR + 4}" y="${placeY((lastY((b) => b.sma50) ?? 20) + 3.5).toFixed(1)}" style="fill:var(--bench)">SMA50</text>`;
+      } else if (isLL) {
+        const lastLL = [...w].reverse().find((b) => b.ll20 !== null);
+        indicator = `<polyline points="${polyOf((b) => b.ll20)}" fill="none" stroke="var(--bench)" stroke-width="1.2" stroke-dasharray="3 3" opacity="0.95"></polyline>
+          <text class="axis-label" x="${CW - CR + 4}" y="${placeY(lastLL ? py(lastLL.ll20) + 3.5 : 20).toFixed(1)}" style="fill:var(--bench)">20봉 최저</text>`;
+      }
+
+      /* 거래량 패널 — 신호 봉의 스파이크가 평균선 대비 얼마나 컸는지 보인다. */
+      let volPart = "";
+      if (hasVol) {
+        const vmax = Math.max(...w.map((b) => b.v), 1);
+        const vy = (v) => vTop + (1 - v / vmax) * VH;
+        const bars = w.map((b, i) => {
+          const col = b.c >= b.o ? "var(--profit)" : "var(--loss)";
+          const alpha = i === sigI ? "" : "opacity=\"0.45\"";
+          return `<rect x="${(px(i) - bw / 2).toFixed(1)}" y="${vy(b.v).toFixed(1)}" width="${bw.toFixed(1)}" height="${(vTop + VH - vy(b.v)).toFixed(1)}" fill="${col}" ${alpha}></rect>`;
+        }).join("");
+        const maPts = w.map((b, i) => b.volMA === null ? null : `${px(i).toFixed(1)},${vy(b.volMA).toFixed(1)}`).filter(Boolean).join(" ");
+        volPart = `${bars}
+          <polyline points="${maPts}" fill="none" stroke="var(--bench)" stroke-width="1.2"></polyline>
+          <text class="axis-label" x="${CW - CR + 4}" y="${(vTop + VH / 2 + 3).toFixed(1)}" style="fill:var(--bench)">V·20평균</text>`;
+      }
+
+      const rsiPart = isRsi ? (() => {
+        const pts = w.map((b, i) => b.rsi === null ? null : `${px(i).toFixed(1)},${ry(b.rsi).toFixed(1)}`).filter(Boolean).join(" ");
+        return `<rect x="${CL}" y="${ry(70).toFixed(1)}" width="${iw}" height="${(ry(30) - ry(70)).toFixed(1)}" fill="var(--accent-soft)"></rect>
+          <text class="axis-label" x="${CW - CR + 4}" y="${(ry(70) + 3.5).toFixed(1)}">70</text>
+          <text class="axis-label" x="${CW - CR + 4}" y="${(ry(30) + 3.5).toFixed(1)}">30</text>
+          ${hasVol ? `<line x1="${CL}" x2="${CW - CR}" y1="${ry(50).toFixed(1)}" y2="${ry(50).toFixed(1)}" stroke="var(--dim)" stroke-width="1" stroke-dasharray="2 3" opacity="0.7"></line>
+          <text class="axis-label" x="${CW - CR + 4}" y="${(ry(50) + 3.5).toFixed(1)}">50</text>` : ""}
+          <polyline points="${pts}" fill="none" stroke="var(--accent)" stroke-width="1.3"></polyline>`;
+      })() : "";
+
+      const dir = c.side === "long" ? 1 : -1;
+      const svg = `<svg viewBox="0 0 ${CW} ${CH}" style="width:100%;height:auto;display:block" role="img" aria-label="사례 차트">
+        ${sigI >= 0 ? `<line x1="${px(sigI).toFixed(1)}" x2="${px(sigI).toFixed(1)}" y1="0" y2="${(rTop + RH || vTop + VH || PH).toFixed(1)}" stroke="var(--dim)" stroke-width="${bw + 4}" opacity="0.16"></line>` : ""}
+        ${lvl(t.target, "var(--profit)", "목표")}
+        ${lvl(t.stop, "var(--loss)", "손절")}
+        ${candles}
+        ${indicator}
+        ${entryI >= 0 ? `<path d="M ${px(entryI).toFixed(1)} ${(py(t.entry) + dir * 9).toFixed(1)} l -4.5 ${dir * 7} l 9 0 z" fill="var(--accent)"></path>` : ""}
+        ${exitI >= 0 && t.exitType !== "open" ? `<circle cx="${px(exitI).toFixed(1)}" cy="${py(t.exit).toFixed(1)}" r="3.5" fill="none" stroke="var(--bench)" stroke-width="2"></circle>` : ""}
+        ${volPart}
+        ${rsiPart}
+      </svg>`;
+
+      const volRatio = hasVol && sigI >= 0 && w[sigI].volMA ? w[sigI].v / w[sigI].volMA : null;
+      const detail = [
+        isRsi ? `신호 RSI <b class="tnum">${n1(t.rsiAtSignal)}</b>` : null,
+        volRatio !== null ? `거래량 <b class="tnum">${n2(volRatio)}×</b>` : null,
+        c.exit.type === "atr" ? `ATR <b class="tnum">${n1(t.atrAtSignal)}</b>` : null,
+      ].filter(Boolean).join(" · ");
+
+      return `<div class="case">
+        <div class="zoomable" role="button" tabindex="0" aria-label="사례 차트 크게 보기" data-cap="${esc(c.name)} — 진입 ${kst(t.entryAt)} @ ${Math.round(t.entry).toLocaleString()}">${svg}</div>
+        <p class="cap">
+          신호 <b>${kst(t.signalAt)}</b> 마감 → 진입 <b>${kst(t.entryAt)}</b> @ <b class="tnum">${Math.round(t.entry).toLocaleString()}</b><br>
+          ${t.exitType === "open" ? "아직 보유 중" : `청산 <b>${kst(t.exitAt)}</b> @ <b class="tnum">${Math.round(t.exit).toLocaleString()}</b>`}
+          <span class="exit-tag exit-${t.exitType}">${EXIT_LABEL[t.exitType]}</span>
+          ${t.exitType === "open" ? "" : `<b class="${pnlClass(t.pnl)}">${signed(t.pnl)}%</b>`} · 보유 ${t.holdBars}봉${detail ? `<br>${detail}` : ""}
+        </p>
+      </div>`;
+    }).join("");
+
+    /* 전체 내역 표 */
+    const rows = c.trades.map((t, k) => `<tr>
+      <td>${k + 1}</td>
+      <td>${kst(t.signalAt)}</td>
+      <td>${kst(t.entryAt)}</td>
+      <td>${Math.round(t.entry).toLocaleString()}</td>
+      <td>${t.exitType === "open" ? "—" : kst(t.exitAt)}</td>
+      <td>${t.exitType === "open" ? "—" : Math.round(t.exit).toLocaleString()}</td>
+      <td>${EXIT_LABEL[t.exitType]}</td>
+      <td>${t.holdBars}봉</td>
+      <td class="${t.exitType === "open" ? "" : pnlClass(t.pnl)}">${t.exitType === "open" ? "—" : signed(t.pnl) + "%"}</td>
+    </tr>`).join("");
+
+    return `<article class="crit" id="crit-${ci}">
+      <div class="head">
+        <span class="no">${String(ci + 1).padStart(2, "0")}</span>
+        <span class="chip tf">${TF_LABEL[c.tf]}</span>
+        <span class="name">${esc(c.name)}</span>
+        <span class="chip">${esc(c.view)}</span>
+        <span class="chip">${c.side === "long" ? "롱" : "숏"}</span>
+        <span class="margin-badge">여유 +${n1(c.margin)}%p</span>
+      </div>
+      <p class="simple">${esc(c.simple)}</p>
+      <p class="ruleline">정의: ${esc(c.rule)} → 다음 봉 시가 진입</p>
+      <p class="exitline">청산: ${exitText(c.exit)} · 시한 ${c.tf === "4H" ? "60봉(10일)" : "20봉(20일)"}</p>
+      ${gauge}
+      <div class="rc-stats">
+        <span class="st">표본 <b>${st.trades}건</b></span>
+        <span class="st">기대값 <b class="${pnlClass(st.avgPnl)}">${signed(st.avgPnl)}%/건</b></span>
+        <span class="st">총손익 <b class="${pnlClass(st.totalPnl)}">${signed(st.totalPnl, 1)}%p</b></span>
+        <span class="st">P/F <b>${n2(st.profitFactor)}</b></span>
+        <span class="st">MDD <b class="down">${signed(st.mdd, 1)}%p</b></span>
+        <span class="st">최대연패 <b>${st.maxLossStreak}</b></span>
+        <span class="st">평균보유 <b>${n1(c.tf === "4H" ? st.avgHoldBars * 4 / 24 : st.avgHoldBars)}일</b></span>
+        <span class="st">청산 구성 <b>목표 ${st.exits.tp} · 손절 ${st.exits.sl} · 시간 ${st.exits.time}</b></span>
+      </div>
+      <div class="rc-viz"><span class="p3"><span class="p3-label">3구간</span>${p3}</span>${spark}</div>
+
+      <p class="sub-h">샘플 위치 — 2년 가격 위 진입 지점 ${c.trades.length}곳</p>
+      ${overview}
+
+      <p class="sub-h">확대 사례 — 최근 ${c.cases.length}건</p>
+      <div class="cases">${caseCards}</div>
+
+      <details>
+        <summary>진입·청산 전체 내역 ${c.trades.length}건 펼쳐 보기</summary>
+        <div class="table-scroll">
+          <table>
+            <thead><tr>
+              <th>#</th><th>신호 마감(KST)</th><th>진입(KST)</th><th>진입가</th>
+              <th>청산(KST)</th><th>청산가</th><th>사유</th><th>보유</th><th>손익</th>
+            </tr></thead>
+            <tbody>${rows}</tbody>
+          </table>
+        </div>
+      </details>
+    </article>`;
+  }).join("");
+
+  /* 개요 마커 툴팁 */
+  document.querySelectorAll(".ov-mark").forEach((el) => {
+    const c = crits[Number(el.dataset.c)];
+    const t = c.trades[Number(el.dataset.k)];
+    const html = `<span class="t">${esc(c.name)}</span><br>` +
+      `진입 ${kst(t.entryAt)} @ ${Math.round(t.entry).toLocaleString()}<br>` +
+      (t.exitType === "open"
+        ? "아직 보유 중"
+        : `청산 ${kst(t.exitAt)} @ ${Math.round(t.exit).toLocaleString()} (${EXIT_LABEL[t.exitType]}) <b class="${pnlClass(t.pnl)}">${signed(t.pnl)}%</b>`);
+    el.addEventListener("pointermove", (e) => showTip(html, e.clientX, e.clientY));
+    el.addEventListener("pointerleave", hideTip);
+    el.addEventListener("focus", () => { const r = el.getBoundingClientRect(); showTip(html, r.left, r.top); });
+    el.addEventListener("blur", hideTip);
+  });
+
+  /* ---------- 확대 보기 ---------- */
+  (function lightbox() {
+    const lb = document.getElementById("lightbox");
+    const cap = lb.querySelector(".lb-cap");
+    const body = lb.querySelector(".lb-svg");
+    const closeBtn = lb.querySelector(".lb-close");
+    let opener = null;
+
+    function open(el) {
+      opener = el;
+      cap.textContent = el.dataset.cap || "";
+      body.innerHTML = el.innerHTML; // SVG는 벡터라 그대로 키워도 선명하다.
+      lb.classList.add("open");
+      closeBtn.focus();
+    }
+    function close() {
+      lb.classList.remove("open");
+      body.innerHTML = "";
+      if (opener) opener.focus();
+    }
+
+    for (const el of document.querySelectorAll(".zoomable")) {
+      el.addEventListener("click", (e) => {
+        // 개요 차트의 마커를 눌렀을 때는 툴팁이 우선 — 마커 클릭은 확대로 보내지 않는다.
+        if (e.target.closest(".ov-mark")) return;
+        open(el);
+      });
+      el.addEventListener("keydown", (e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          open(el);
+        }
+      });
+    }
+    closeBtn.addEventListener("click", close);
+    lb.addEventListener("click", (e) => {
+      if (e.target === lb) close();
+    });
+    window.addEventListener("keydown", (e) => {
+      if (e.key === "Escape" && lb.classList.contains("open")) close();
+    });
+  })();
+
+  document.getElementById("foot").innerHTML =
+    `원시 데이터 <code>__DATA_PATH__</code> · 재실행 <code>node scripts/backtest/top5-samples.mjs</code> · ` +
+    `계보: 백테스트 원장(1회차) → 손익비 1:4 검토 → 스윙 기준 Top 10(132조합) → 이 플레이북 · ` +
+    `생성 ${kst(m.generatedAt)} KST · 투자 판단의 책임은 본인에게 있다.`;
+</script>

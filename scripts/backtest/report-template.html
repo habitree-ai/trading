@@ -1,0 +1,686 @@
+<title>BTC 백테스트 원장</title>
+<style>
+  /* 다크가 기본 — 트레이딩 앱과 같은 토큰. 라이트는 명시 선택 또는 OS 설정으로. */
+  :root {
+    color-scheme: dark;
+    --bg: #0e1116;
+    --surface: #161a21;
+    --surface-2: #1e232c;
+    --border: #2a3039;
+    --ink: #e6e9ee;
+    --dim: #8b95a3;
+    --accent: #5b8cff;
+    --profit: #26c281;
+    --loss: #f0616d;
+    --bench: #c98500;
+    --grid: #232935;
+    --accent-soft: rgba(91, 140, 255, 0.14);
+  }
+  @media (prefers-color-scheme: light) {
+    :root:not([data-theme="dark"]) {
+      color-scheme: light;
+      --bg: #f7f8fa;
+      --surface: #ffffff;
+      --surface-2: #f1f3f6;
+      --border: #e2e5ea;
+      --ink: #14171c;
+      --dim: #666e7a;
+      --accent: #3b6ef5;
+      --profit: #0f9d58;
+      --loss: #dc3545;
+      --bench: #d68910;
+      --grid: #eceef2;
+      --accent-soft: rgba(59, 110, 245, 0.10);
+    }
+  }
+  :root[data-theme="light"] {
+    color-scheme: light;
+    --bg: #f7f8fa;
+    --surface: #ffffff;
+    --surface-2: #f1f3f6;
+    --border: #e2e5ea;
+    --ink: #14171c;
+    --dim: #666e7a;
+    --accent: #3b6ef5;
+    --profit: #0f9d58;
+    --loss: #dc3545;
+    --bench: #d68910;
+    --grid: #eceef2;
+    --accent-soft: rgba(59, 110, 245, 0.10);
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: ui-sans-serif, system-ui, "Pretendard", "Segoe UI", "Malgun Gothic", sans-serif;
+    font-size: 14px;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 40px 20px 72px; }
+
+  /* ---------- 머리 ---------- */
+  header.masthead { display: flex; flex-wrap: wrap; align-items: baseline; gap: 10px 16px; padding-bottom: 18px; border-bottom: 1px solid var(--border); }
+  .masthead h1 { margin: 0; font-size: 24px; font-weight: 750; letter-spacing: -0.02em; }
+  .round-stamp {
+    font-size: 12px; font-weight: 650; color: var(--accent);
+    border: 1px solid var(--accent); border-radius: 999px; padding: 1px 10px;
+    letter-spacing: 0.04em; white-space: nowrap;
+  }
+  .masthead .meta { flex-basis: 100%; color: var(--dim); font-size: 12.5px; }
+  .masthead .meta b { color: var(--ink); font-weight: 600; }
+
+  /* ---------- 공통 섹션 ---------- */
+  section { margin-top: 44px; }
+  .eyebrow {
+    font-size: 11px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase;
+    color: var(--dim); margin: 0 0 6px;
+  }
+  h2 { margin: 0 0 14px; font-size: 18px; font-weight: 700; letter-spacing: -0.01em; text-wrap: balance; }
+  .note { color: var(--dim); font-size: 12.5px; }
+  .tnum { font-variant-numeric: tabular-nums; }
+  .up { color: var(--profit); }
+  .down { color: var(--loss); }
+
+  /* ---------- 요약 타일 ---------- */
+  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-top: 18px; }
+  .tile { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px 12px; }
+  .tile .k { font-size: 11.5px; color: var(--dim); letter-spacing: 0.02em; }
+  .tile .v { font-size: 24px; font-weight: 700; letter-spacing: -0.01em; margin-top: 2px; line-height: 1.2; }
+  .tile .s { font-size: 11.5px; color: var(--dim); margin-top: 3px; }
+
+  /* ---------- 결론 ---------- */
+  .verdict { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+  .verdict li { background: var(--surface); border: 1px solid var(--border); border-left: 3px solid var(--accent); border-radius: 10px; padding: 10px 14px; }
+  .verdict li.win { border-left-color: var(--profit); }
+  .verdict li.lose { border-left-color: var(--loss); }
+  .verdict b { font-weight: 650; }
+
+  /* ---------- 체크리스트 ---------- */
+  .check-head { display: flex; flex-wrap: wrap; gap: 8px 20px; align-items: baseline; margin-bottom: 12px; }
+  .check-head .now { font-size: 13px; color: var(--dim); }
+  .check-head .now b { color: var(--ink); font-weight: 650; }
+  .checklist { display: grid; gap: 6px; }
+  .check-row {
+    display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+    background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 9px 14px;
+  }
+  .check-row .name { font-weight: 650; min-width: 190px; }
+  .check-row .cond { color: var(--dim); font-size: 12.5px; flex: 1; min-width: 220px; }
+  .pill {
+    font-size: 11.5px; font-weight: 700; border-radius: 999px; padding: 2px 10px; white-space: nowrap;
+  }
+  .pill.on { background: var(--profit); color: #fff; }
+  .pill.off { background: var(--surface-2); color: var(--dim); border: 1px solid var(--border); }
+
+  /* ---------- 표 ---------- */
+  .table-scroll { overflow-x: auto; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); }
+  table { border-collapse: collapse; width: 100%; font-size: 13px; }
+  th, td { padding: 9px 14px; text-align: right; white-space: nowrap; }
+  th { font-size: 11.5px; color: var(--dim); font-weight: 600; letter-spacing: 0.03em; border-bottom: 1px solid var(--border); }
+  td { border-bottom: 1px solid var(--grid); font-variant-numeric: tabular-nums; }
+  tr:last-child td { border-bottom: none; }
+  th:first-child, td:first-child { text-align: left; }
+  tbody tr:hover td { background: var(--accent-soft); }
+  td .rule-sub { display: block; font-size: 11.5px; color: var(--dim); white-space: normal; max-width: 30em; font-variant-numeric: normal; }
+  tfoot td { border-top: 1px solid var(--border); border-bottom: none; font-weight: 650; }
+
+  /* ---------- 차트 공통 ---------- */
+  .chart-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 16px 16px 10px; }
+  .legend { display: flex; gap: 18px; flex-wrap: wrap; font-size: 12px; color: var(--dim); margin-bottom: 8px; }
+  .legend .sw { display: inline-block; width: 14px; height: 3px; border-radius: 2px; vertical-align: middle; margin-right: 6px; }
+  svg text { font-family: inherit; }
+  .axis-label { font-size: 10.5px; fill: var(--dim); }
+  .grid-line { stroke: var(--grid); stroke-width: 1; }
+  .zero-line { stroke: var(--dim); stroke-width: 1; stroke-dasharray: 2 3; opacity: 0.7; }
+
+  #tooltip {
+    position: fixed; pointer-events: none; z-index: 50; display: none;
+    background: var(--surface-2); color: var(--ink); border: 1px solid var(--border);
+    border-radius: 8px; padding: 7px 11px; font-size: 12px; line-height: 1.5;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35); max-width: 260px; white-space: nowrap;
+  }
+  #tooltip .t { color: var(--dim); font-size: 11px; }
+
+  /* ---------- 전략 성과 막대 ---------- */
+  .strat-bars { display: grid; gap: 10px; margin-top: 14px; }
+  .sbar { display: grid; grid-template-columns: 200px 1fr 90px; gap: 12px; align-items: center; }
+  .sbar .label { font-size: 12.5px; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .sbar .track { position: relative; height: 18px; }
+  .sbar .track .mid { position: absolute; top: -3px; bottom: -3px; width: 1px; background: var(--dim); opacity: 0.55; }
+  .sbar .bar { position: absolute; top: 0; height: 18px; border-radius: 4px; min-width: 2px; }
+  .sbar .val { font-size: 13px; font-weight: 650; text-align: left; font-variant-numeric: tabular-nums; }
+  @media (max-width: 640px) { .sbar { grid-template-columns: 1fr; gap: 4px; } .sbar .val { text-align: left; } }
+
+  /* ---------- 사례 카드 ---------- */
+  .cases { display: grid; grid-template-columns: repeat(auto-fill, minmax(430px, 1fr)); gap: 14px; margin-top: 16px; }
+  @media (max-width: 480px) { .cases { grid-template-columns: 1fr; } }
+  .case { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 14px 14px 10px; }
+  .case .head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+  .case .no { font-size: 11px; font-weight: 700; color: var(--dim); letter-spacing: 0.08em; }
+  .case .strat { font-weight: 650; font-size: 13.5px; }
+  .case .res { margin-left: auto; font-weight: 700; font-size: 14px; font-variant-numeric: tabular-nums; }
+  .case .sub { color: var(--dim); font-size: 11.5px; margin: 2px 0 8px; }
+  .case .exit-tag { font-size: 10.5px; font-weight: 700; border-radius: 4px; padding: 1px 6px; vertical-align: 1px; margin-left: 6px; }
+  .exit-tp { background: var(--profit); color: #fff; }
+  .exit-sl { background: var(--loss); color: #fff; }
+  .exit-time { background: var(--surface-2); color: var(--dim); border: 1px solid var(--border); }
+  .exit-open { background: var(--accent); color: #fff; }
+
+  /* ---------- 접기 ---------- */
+  details { margin-top: 14px; }
+  summary {
+    cursor: pointer; color: var(--accent); font-weight: 600; font-size: 13px;
+    padding: 6px 2px; border-radius: 6px; list-style-position: inside;
+  }
+  summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  details .table-scroll { margin-top: 10px; }
+
+  /* ---------- 방법론 ---------- */
+  .rules { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 10px; }
+  .rule-item { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 11px 14px; }
+  .rule-item .k { font-size: 11.5px; color: var(--dim); font-weight: 650; letter-spacing: 0.03em; }
+  .rule-item .v { margin-top: 2px; font-size: 13px; }
+  .caveats { margin: 14px 0 0; padding-left: 18px; color: var(--dim); font-size: 12.5px; }
+  .caveats li { margin-top: 4px; }
+  .caveats b { color: var(--ink); font-weight: 600; }
+
+  footer { margin-top: 56px; padding-top: 16px; border-top: 1px solid var(--border); color: var(--dim); font-size: 12px; }
+  footer code { font-family: ui-monospace, "Cascadia Mono", monospace; font-size: 11.5px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 4px; padding: 1px 5px; }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .sbar .bar { transition: width 0.5s cubic-bezier(0.2, 0.7, 0.2, 1); }
+  }
+</style>
+
+<div class="wrap">
+  <header class="masthead">
+    <h1>BTC 백테스트 원장</h1>
+    <span class="round-stamp" id="round-stamp"></span>
+    <p class="meta" id="head-meta"></p>
+  </header>
+
+  <!-- 종합 요약 -->
+  <section aria-labelledby="s-summary">
+    <p class="eyebrow">Summary</p>
+    <h2 id="s-summary">종합 성과 — 5가지 기준 합산</h2>
+    <div class="tiles" id="tiles"></div>
+    <p class="note" style="margin-top:10px" id="summary-note"></p>
+  </section>
+
+  <!-- 핵심 결론 -->
+  <section aria-labelledby="s-verdict">
+    <p class="eyebrow">Findings</p>
+    <h2 id="s-verdict">이번 회차가 말해 주는 것</h2>
+    <ul class="verdict" id="verdict"></ul>
+  </section>
+
+  <!-- 진입 체크리스트 -->
+  <section aria-labelledby="s-check">
+    <p class="eyebrow">Entry checklist</p>
+    <h2 id="s-check">지금 진입해도 되는가 — 마지막 마감봉 기준</h2>
+    <div class="check-head" id="check-head"></div>
+    <div class="checklist" id="checklist"></div>
+    <p class="note" style="margin-top:10px">
+      신호 판정은 마감된 봉 기준이다. 다음 봉이 마감될 때마다 이 표의 답이 바뀔 수 있으니,
+      진입 전에 4분할 차트에서 RSI·거래량 패널로 같은 조건을 직접 확인한다.
+    </p>
+  </section>
+
+  <!-- 5가지 기준 정의와 성과 -->
+  <section aria-labelledby="s-strat">
+    <p class="eyebrow">Criteria</p>
+    <h2 id="s-strat">5가지 기준 — 정의와 180일 성과</h2>
+    <div class="table-scroll">
+      <table id="strat-table">
+        <thead>
+          <tr>
+            <th scope="col">기준</th>
+            <th scope="col">방향</th>
+            <th scope="col">거래</th>
+            <th scope="col">승률</th>
+            <th scope="col">총손익</th>
+            <th scope="col">P/F</th>
+            <th scope="col">평균손익</th>
+            <th scope="col">MDD</th>
+            <th scope="col">최대연승</th>
+            <th scope="col">최대연패</th>
+            <th scope="col">청산 (목표·손절·시간)</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+        <tfoot></tfoot>
+      </table>
+    </div>
+    <div class="strat-bars" id="strat-bars" aria-label="기준별 총손익 비교"></div>
+  </section>
+
+  <!-- 수익 곡선 -->
+  <section aria-labelledby="s-equity">
+    <p class="eyebrow">Equity curve</p>
+    <h2 id="s-equity">누적 손익 곡선 — 같은 기간 BTC와 비교</h2>
+    <div class="chart-card">
+      <div class="legend" id="equity-legend"></div>
+      <div id="equity-chart" style="position:relative"></div>
+    </div>
+    <p class="note" style="margin-top:8px">
+      거래당 자본 100 기준 단리 합산(%p). BTC는 기간 시작 종가 대비 등락률(%) — 같은 축에서
+      "전략이 그냥 들고 있는 것보다 나았는가"를 읽는 자리다.
+    </p>
+  </section>
+
+  <!-- 최근 신호 10건 -->
+  <section aria-labelledby="s-cases">
+    <p class="eyebrow">Recent signals</p>
+    <h2 id="s-cases">최근 신호 10건 — 봉·RSI와 함께 복기</h2>
+    <p class="note">회색 세로선이 신호 봉, ▲/▼가 진입, ●가 청산. 점선은 목표(초록)와 손절(빨강). 아래 띠가 RSI(14)다.</p>
+    <div class="cases" id="cases"></div>
+  </section>
+
+  <!-- 전체 거래 -->
+  <section aria-labelledby="s-trades">
+    <p class="eyebrow">All trades</p>
+    <h2 id="s-trades">전체 거래 내역</h2>
+    <details>
+      <summary id="trades-summary"></summary>
+      <div class="table-scroll">
+        <table id="trades-table">
+          <thead>
+            <tr>
+              <th scope="col">#</th>
+              <th scope="col">기준</th>
+              <th scope="col">방향</th>
+              <th scope="col">진입(KST)</th>
+              <th scope="col">진입가</th>
+              <th scope="col">청산(KST)</th>
+              <th scope="col">청산가</th>
+              <th scope="col">청산 사유</th>
+              <th scope="col">보유</th>
+              <th scope="col">신호 RSI</th>
+              <th scope="col">거래량배수</th>
+              <th scope="col">손익</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </details>
+  </section>
+
+  <!-- 방법론 -->
+  <section aria-labelledby="s-method">
+    <p class="eyebrow">Method</p>
+    <h2 id="s-method">체결 규칙과 한계</h2>
+    <div class="rules" id="rules"></div>
+    <ul class="caveats">
+      <li><b>한 구간의 표본이다.</b> 이번 180일이 상승·하락·횡보 중 무엇이었는지에 따라 기준별 성적은 다음 회차에 뒤집힐 수 있다 — 그래서 회차를 누적한다.</li>
+      <li><b>봉 안의 경로는 모른다.</b> 같은 봉에서 목표와 손절이 둘 다 닿으면 손절로 세었다(보수적). 실제 성적은 이보다 좋았을 수 있다.</li>
+      <li><b>수수료·슬리피지는 왕복 0.1%로 뭉뚱그렸다.</b> 시장가 체결·급변동에서는 더 나갈 수 있다.</li>
+      <li><b>기준을 이 데이터에 맞춰 고치기 시작하면</b> 다음 회차 성적은 그만큼 부풀려진다. 규칙 변경은 회차 사이에, 이유와 함께 기록한다.</li>
+    </ul>
+  </section>
+
+  <footer id="foot"></footer>
+</div>
+
+<div id="tooltip" role="presentation"></div>
+
+<script>
+  const DATA = __DATA_JSON__;
+
+  /* ---------- 공통 ---------- */
+  const KST = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Asia/Seoul", year: "2-digit", month: "2-digit", day: "2-digit",
+    hour: "2-digit", minute: "2-digit", hour12: false,
+  });
+  function kst(ms, withTime = true) {
+    const p = {};
+    for (const part of KST.formatToParts(new Date(ms))) p[part.type] = part.value;
+    if (p.hour === "24") p.hour = "00";
+    return withTime ? `${p.year}.${p.month}.${p.day} ${p.hour}:${p.minute}` : `${p.year}.${p.month}.${p.day}`;
+  }
+  const n1 = (x) => x === null || x === undefined ? "—" : x.toLocaleString("ko-KR", { maximumFractionDigits: 1, minimumFractionDigits: 0 });
+  const n2 = (x) => x === null || x === undefined ? "—" : x.toLocaleString("ko-KR", { maximumFractionDigits: 2, minimumFractionDigits: 2 });
+  const signed = (x, d = 2) => x === null || x === undefined ? "—" : (x > 0 ? "+" : "") + x.toLocaleString("ko-KR", { maximumFractionDigits: d, minimumFractionDigits: d });
+  const pnlClass = (x) => x > 0 ? "up" : x < 0 ? "down" : "";
+  const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+  const css = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+
+  const STRAT_NAME = Object.fromEntries(DATA.strategies.map((s) => [s.key, s.name]));
+  const STRAT_SIDE = Object.fromEntries(DATA.strategies.map((s) => [s.key, s.side]));
+  const EXIT_LABEL = { tp: "목표", sl: "손절", time: "시간", open: "진행 중" };
+
+  /* ---------- 머리 ---------- */
+  const m = DATA.meta;
+  document.getElementById("round-stamp").textContent = `__ROUND__회차 · ${kst(m.generatedAt, false)}`;
+  document.getElementById("head-meta").innerHTML =
+    `<b>${esc(m.symbol)}</b> · <b>${esc(m.bar)}</b>봉 · ${kst(m.from, false)} ~ ${kst(m.to, false)} (${m.days}일 · ${m.candles.toLocaleString()}봉) · ` +
+    `RSI(14) · 거래량 20봉 평균 대비 · 데이터: OKX 공개 API`;
+
+  /* ---------- 요약 타일 ---------- */
+  const o = DATA.overall;
+  const openCount = DATA.trades.filter((t) => t.exitType === "open").length;
+  const tiles = [
+    { k: "총손익", v: `<span class="${pnlClass(o.totalPnl)}">${signed(o.totalPnl, 1)}%p</span>`, s: `총수익 ${signed(o.grossProfit, 1)} · 총손실 ${signed(o.grossLoss, 1)}` },
+    { k: "승률", v: `${n1(o.winRate)}%`, s: `${o.wins}승 ${o.losses}패` },
+    { k: "손익비 (P/F)", v: n2(o.profitFactor), s: "총수익 ÷ 총손실" },
+    { k: "MDD", v: `<span class="down">${signed(o.mdd, 1)}%p</span>`, s: "누적곡선 최대 낙폭" },
+    { k: "거래 수", v: `${o.trades}건`, s: openCount ? `완결 기준 · 진행 중 ${openCount}건 제외` : "완결 거래 기준" },
+  ];
+  document.getElementById("tiles").innerHTML = tiles
+    .map((t) => `<div class="tile"><div class="k">${t.k}</div><div class="v">${t.v}</div><div class="s">${t.s}</div></div>`)
+    .join("");
+  document.getElementById("summary-note").textContent =
+    `평균 손익 ${signed(o.avgPnl)}%p/건 · 평균 보유 ${n1(o.avgHoldBars)}봉 · 최대 연승 ${o.maxWinStreak} · 최대 연패 ${o.maxLossStreak} · ` +
+    `청산 구성 — 목표 ${o.exits.tp} · 손절 ${o.exits.sl} · 시간 ${o.exits.time}`;
+
+  /* ---------- 결론 — 데이터에서 뽑는다 ---------- */
+  (function verdict() {
+    const rows = DATA.strategies.map((s) => ({ ...s, st: DATA.perStrategy[s.key] }));
+    const best = [...rows].sort((a, b) => b.st.totalPnl - a.st.totalPnl)[0];
+    const worst = [...rows].sort((a, b) => a.st.totalPnl - b.st.totalPnl)[0];
+    const positives = rows.filter((r) => r.st.totalPnl > 0);
+    const items = [];
+    items.push({
+      cls: "win",
+      html: `<b>${esc(best.name)}</b>이 가장 우수 — 승률 ${n1(best.st.winRate)}%, 총손익 <b class="up">${signed(best.st.totalPnl, 1)}%p</b>, P/F ${n2(best.st.profitFactor)}, MDD ${signed(best.st.mdd, 1)}%p. 거래량이 실린 돌파는 이 구간에서 값을 했다.`,
+    });
+    items.push({
+      cls: "lose",
+      html: `<b>${esc(worst.name)}</b>은 손실 — 총손익 <b class="down">${signed(worst.st.totalPnl, 1)}%p</b>, 최대 연패 ${worst.st.maxLossStreak}회. "RSI가 낮다 = 싸다"가 아니라는 걸 이 구간이 보여 준다. 하락 추세에서 과매도는 더 과매도가 된다.`,
+    });
+    items.push({
+      cls: "",
+      html: `5가지 중 <b>${positives.length}가지</b>가 플러스. 종합 ${signed(o.totalPnl, 1)}%p는 사실상 ${esc(best.name)}${positives.length > 1 ? "와 " + esc(positives.filter((p) => p.key !== best.key).map((p) => p.name).join(", ")) : ""}가 벌고 나머지가 깎아 먹은 그림이다 — 다음 회차에서 이 구도가 유지되는지가 관전 포인트.`,
+    });
+    const conservativeNote = o.exits.sl > o.exits.tp
+      ? `손절(${o.exits.sl})이 목표(${o.exits.tp})보다 많다. 손익비 1:1.5 구조라 승률 40%만 넘으면 남는 설계인데, 같은 봉에서 목표·손절 동시 도달 시 손절로 세는 보수적 집계임을 감안하고 읽는다.`
+      : `목표 도달(${o.exits.tp})이 손절(${o.exits.sl})보다 많았다.`;
+    items.push({ cls: "", html: conservativeNote });
+    document.getElementById("verdict").innerHTML = items
+      .map((i) => `<li class="${i.cls}">${i.html}</li>`)
+      .join("");
+  })();
+
+  /* ---------- 체크리스트 ---------- */
+  (function checklist() {
+    const s = DATA.snapshot;
+    document.getElementById("check-head").innerHTML =
+      `<span class="now">기준 봉 <b>${kst(s.at)}</b> (KST 마감)</span>` +
+      `<span class="now">종가 <b class="tnum">${s.close.toLocaleString()}</b></span>` +
+      `<span class="now">RSI(14) <b class="tnum">${n1(s.rsi)}</b></span>` +
+      `<span class="now">거래량 <b class="tnum">${n2(s.volRatio)}×</b> (20봉 평균 대비)</span>` +
+      `<span class="now">ATR(14) <b class="tnum">${n1(s.atr)}</b></span>`;
+    document.getElementById("checklist").innerHTML = DATA.strategies
+      .map((st) => {
+        const on = s.signals[st.key];
+        return `<div class="check-row">
+          <span class="name">${esc(st.name)}</span>
+          <span class="cond">${esc(st.rule)}</span>
+          <span class="pill ${on ? "on" : "off"}">${on ? "신호 발생" : "조건 미충족"}</span>
+        </div>`;
+      })
+      .join("");
+  })();
+
+  /* ---------- 기준 표 ---------- */
+  (function stratTable() {
+    const tbody = document.querySelector("#strat-table tbody");
+    tbody.innerHTML = DATA.strategies
+      .map((s) => {
+        const st = DATA.perStrategy[s.key];
+        return `<tr>
+          <td>${esc(s.name)}<span class="rule-sub">${esc(s.rule)}</span></td>
+          <td>${s.side === "long" ? "롱" : "숏"}</td>
+          <td>${st.trades}</td>
+          <td>${n1(st.winRate)}%</td>
+          <td class="${pnlClass(st.totalPnl)}">${signed(st.totalPnl, 1)}%p</td>
+          <td>${n2(st.profitFactor)}</td>
+          <td class="${pnlClass(st.avgPnl)}">${signed(st.avgPnl)}%p</td>
+          <td class="down">${signed(st.mdd, 1)}%p</td>
+          <td>${st.maxWinStreak}</td>
+          <td>${st.maxLossStreak}</td>
+          <td>${st.exits.tp} · ${st.exits.sl} · ${st.exits.time}</td>
+        </tr>`;
+      })
+      .join("");
+    document.querySelector("#strat-table tfoot").innerHTML = `<tr>
+      <td>종합</td><td>—</td><td>${o.trades}</td><td>${n1(o.winRate)}%</td>
+      <td class="${pnlClass(o.totalPnl)}">${signed(o.totalPnl, 1)}%p</td>
+      <td>${n2(o.profitFactor)}</td>
+      <td class="${pnlClass(o.avgPnl)}">${signed(o.avgPnl)}%p</td>
+      <td class="down">${signed(o.mdd, 1)}%p</td>
+      <td>${o.maxWinStreak}</td><td>${o.maxLossStreak}</td>
+      <td>${o.exits.tp} · ${o.exits.sl} · ${o.exits.time}</td>
+    </tr>`;
+
+    // 총손익 가로 막대 — 0 기준 양쪽으로.
+    const max = Math.max(...DATA.strategies.map((s) => Math.abs(DATA.perStrategy[s.key].totalPnl)), 1);
+    document.getElementById("strat-bars").innerHTML = DATA.strategies
+      .map((s) => {
+        const v = DATA.perStrategy[s.key].totalPnl;
+        const half = 50;
+        const w = (Math.abs(v) / max) * (half - 2);
+        const left = v >= 0 ? half : half - w;
+        return `<div class="sbar" data-key="${s.key}" tabindex="0">
+          <span class="label">${esc(s.name)}</span>
+          <span class="track"><span class="mid" style="left:${half}%"></span>
+            <span class="bar" style="left:${left}%;width:${w}%;background:var(--${v >= 0 ? "profit" : "loss"})"></span>
+          </span>
+          <span class="val ${pnlClass(v)}">${signed(v, 1)}%p</span>
+        </div>`;
+      })
+      .join("");
+  })();
+
+  /* ---------- 툴팁 ---------- */
+  const tip = document.getElementById("tooltip");
+  function showTip(html, x, y) {
+    tip.innerHTML = html;
+    tip.style.display = "block";
+    const r = tip.getBoundingClientRect();
+    const px = Math.min(x + 14, window.innerWidth - r.width - 8);
+    const py = y - r.height - 12 < 8 ? y + 18 : y - r.height - 12;
+    tip.style.left = px + "px";
+    tip.style.top = py + "px";
+  }
+  function hideTip() { tip.style.display = "none"; }
+
+  // 막대 호버 — 전략 상세.
+  for (const el of document.querySelectorAll(".sbar")) {
+    const st = DATA.perStrategy[el.dataset.key];
+    const name = STRAT_NAME[el.dataset.key];
+    const html = `<b>${esc(name)}</b><br>` +
+      `${st.trades}건 · 승률 ${n1(st.winRate)}% · P/F ${n2(st.profitFactor)}<br>` +
+      `총손익 ${signed(st.totalPnl, 1)}%p · MDD ${signed(st.mdd, 1)}%p`;
+    el.addEventListener("pointermove", (e) => showTip(html, e.clientX, e.clientY));
+    el.addEventListener("pointerleave", hideTip);
+    el.addEventListener("focus", () => { const r = el.getBoundingClientRect(); showTip(html, r.left + 40, r.top); });
+    el.addEventListener("blur", hideTip);
+  }
+
+  /* ---------- 수익 곡선 ---------- */
+  (function equity() {
+    const host = document.getElementById("equity-chart");
+    const W = 1020, H = 280, L = 46, R = 14, T = 14, B = 26;
+    const iw = W - L - R, ih = H - T - B;
+
+    const curve = o.curve;
+    const bench0 = DATA.benchmark[0].close;
+    const bench = DATA.benchmark.map((b) => ({ at: b.at, v: ((b.close - bench0) / bench0) * 100 }));
+    const t0 = Math.min(curve[0].at, bench[0].at);
+    const t1 = Math.max(curve[curve.length - 1].at, bench[bench.length - 1].at);
+    const all = [...curve.map((c) => c.equity), ...bench.map((b) => b.v), 0];
+    let lo = Math.min(...all), hi = Math.max(...all);
+    const pad = (hi - lo) * 0.08;
+    lo -= pad; hi += pad;
+
+    const x = (t) => L + ((t - t0) / (t1 - t0)) * iw;
+    const y = (v) => T + (1 - (v - lo) / (hi - lo)) * ih;
+
+    const path = (pts, get) => pts.map((p, i) => `${i ? "L" : "M"}${x(p.at).toFixed(1)},${y(get(p)).toFixed(1)}`).join("");
+
+    // y 눈금 — 0을 반드시 포함해 5개 안팎.
+    const step = Math.pow(10, Math.floor(Math.log10((hi - lo) / 4)));
+    const nice = [1, 2, 2.5, 5, 10].map((k) => k * step).find((s) => (hi - lo) / s <= 6) || step * 10;
+    const ticks = [];
+    for (let v = Math.ceil(lo / nice) * nice; v <= hi; v += nice) ticks.push(v);
+
+    // x 눈금 — 월 단위.
+    const months = [];
+    const d0 = new Date(t0);
+    let cur = Date.UTC(d0.getUTCFullYear(), d0.getUTCMonth() + 1, 1);
+    while (cur < t1) { months.push(cur); cur = Date.UTC(new Date(cur).getUTCFullYear(), new Date(cur).getUTCMonth() + 1, 1); }
+
+    const last = curve[curve.length - 1];
+    const lastB = bench[bench.length - 1];
+
+    host.innerHTML = `<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;display:block" role="img" aria-label="누적 손익 곡선과 BTC 등락률 비교">
+      ${ticks.map((v) => `<line class="${Math.abs(v) < 1e-9 ? "zero-line" : "grid-line"}" x1="${L}" x2="${W - R}" y1="${y(v).toFixed(1)}" y2="${y(v).toFixed(1)}"></line>
+        <text class="axis-label" x="${L - 6}" y="${(y(v) + 3.5).toFixed(1)}" text-anchor="end">${signed(v, 0)}</text>`).join("")}
+      ${months.map((t) => `<line class="grid-line" y1="${T}" y2="${T + ih}" x1="${x(t).toFixed(1)}" x2="${x(t).toFixed(1)}"></line>
+        <text class="axis-label" x="${x(t).toFixed(1)}" y="${H - 8}" text-anchor="middle">${new Date(t).getUTCMonth() + 1}월</text>`).join("")}
+      <path d="${path(bench, (b) => b.v)}" fill="none" stroke="var(--bench)" stroke-width="1.5" opacity="0.9"></path>
+      <path d="${path(curve, (c) => c.equity)}" fill="none" stroke="var(--accent)" stroke-width="2"></path>
+      <circle cx="${x(last.at).toFixed(1)}" cy="${y(last.equity).toFixed(1)}" r="3.5" fill="var(--accent)"></circle>
+      <circle cx="${x(lastB.at).toFixed(1)}" cy="${y(lastB.v).toFixed(1)}" r="3" fill="var(--bench)"></circle>
+      <line id="xhair" y1="${T}" y2="${T + ih}" stroke="var(--dim)" stroke-width="1" stroke-dasharray="3 3" style="display:none"></line>
+    </svg>`;
+
+    document.getElementById("equity-legend").innerHTML =
+      `<span><span class="sw" style="background:var(--accent)"></span>전략 종합 누적 손익 (마지막 <b class="tnum ${pnlClass(last.equity)}">${signed(last.equity, 1)}%p</b>)</span>` +
+      `<span><span class="sw" style="background:var(--bench)"></span>BTC 등락률 (마지막 <b class="tnum ${pnlClass(lastB.v)}">${signed(lastB.v, 1)}%</b>)</span>`;
+
+    const svg = host.querySelector("svg");
+    const xhair = svg.querySelector("#xhair");
+    svg.addEventListener("pointermove", (e) => {
+      const r = svg.getBoundingClientRect();
+      const px = ((e.clientX - r.left) / r.width) * W;
+      if (px < L || px > W - R) { xhair.style.display = "none"; hideTip(); return; }
+      const t = t0 + ((px - L) / iw) * (t1 - t0);
+      const c = curve.reduce((best, p) => Math.abs(p.at - t) < Math.abs(best.at - t) ? p : best, curve[0]);
+      const b = bench.reduce((best, p) => Math.abs(p.at - t) < Math.abs(best.at - t) ? p : best, bench[0]);
+      xhair.setAttribute("x1", x(c.at).toFixed(1));
+      xhair.setAttribute("x2", x(c.at).toFixed(1));
+      xhair.style.display = "";
+      showTip(
+        `<span class="t">${kst(c.at)}</span><br>전략 누적 <b class="${pnlClass(c.equity)}">${signed(c.equity, 1)}%p</b><br>BTC <b class="${pnlClass(b.v)}">${signed(b.v, 1)}%</b>`,
+        e.clientX, e.clientY,
+      );
+    });
+    svg.addEventListener("pointerleave", () => { xhair.style.display = "none"; hideTip(); });
+  })();
+
+  /* ---------- 사례 카드 ---------- */
+  (function cases() {
+    const hostAll = document.getElementById("cases");
+    hostAll.innerHTML = DATA.recent
+      .map((t, idx) => {
+        const w = t.window;
+        const W = 440, PH = 150, RH = 52, GAP = 8, H = PH + GAP + RH + 16, L = 6, R = 50;
+        const iw = W - L - R;
+        const n = w.length;
+        const bw = Math.max(2, Math.min(7, (iw / n) * 0.62));
+        const lo = Math.min(...w.map((c) => c.l), t.stop, t.target);
+        const hi = Math.max(...w.map((c) => c.h), t.stop, t.target);
+        const px = (i) => L + ((i + 0.5) / n) * iw;
+        const py = (v) => 4 + (1 - (v - lo) / (hi - lo)) * (PH - 8);
+        const ry = (v) => PH + GAP + (1 - v / 100) * RH;
+
+        // window는 signalIdx-20부터 시작한다 — 위치는 시각으로 찾는다.
+        const findI = (ms) => w.findIndex((c) => c.t === ms);
+        const entryI = findI(t.entryAt);
+        const exitI = findI(t.exitAt);
+        const signalI = entryI > 0 ? entryI - 1 : 0;
+
+        const candles = w.map((c, i) => {
+          const up = c.c >= c.o;
+          const col = up ? "var(--profit)" : "var(--loss)";
+          const bx = (px(i) - bw / 2).toFixed(1);
+          const byTop = py(Math.max(c.o, c.c)).toFixed(1);
+          const byH = Math.max(1, Math.abs(py(c.o) - py(c.c))).toFixed(1);
+          return `<line x1="${px(i).toFixed(1)}" x2="${px(i).toFixed(1)}" y1="${py(c.h).toFixed(1)}" y2="${py(c.l).toFixed(1)}" stroke="${col}" stroke-width="1"></line>` +
+            `<rect x="${bx}" y="${byTop}" width="${bw.toFixed(1)}" height="${byH}" fill="${col}" rx="0.5"></rect>`;
+        }).join("");
+
+        const rsiPts = w.map((c, i) => c.rsi === null ? null : `${px(i).toFixed(1)},${ry(c.rsi).toFixed(1)}`)
+          .filter(Boolean).join(" ");
+
+        const dir = t.side === "long" ? 1 : -1;
+        const entryY = py(t.entry);
+        const lvl = (v, col, label) =>
+          `<line x1="${L}" x2="${W - R}" y1="${py(v).toFixed(1)}" y2="${py(v).toFixed(1)}" stroke="${col}" stroke-width="1" stroke-dasharray="4 3" opacity="0.75"></line>` +
+          `<text class="axis-label" x="${W - R + 4}" y="${(py(v) + 3.5).toFixed(1)}" style="fill:${col}">${label}</text>`;
+
+        const svg = `<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;display:block" role="img" aria-label="${esc(STRAT_NAME[t.strategy])} 신호 차트">
+          ${signalI >= 0 ? `<line x1="${px(signalI).toFixed(1)}" x2="${px(signalI).toFixed(1)}" y1="0" y2="${PH}" stroke="var(--dim)" stroke-width="${bw + 4}" opacity="0.16"></line>` : ""}
+          ${lvl(t.target, "var(--profit)", "목표")}
+          ${lvl(t.stop, "var(--loss)", "손절")}
+          ${candles}
+          ${entryI >= 0 ? `<path d="M ${px(entryI).toFixed(1)} ${(entryY + dir * 10).toFixed(1)} l -5 ${dir * 8} l 10 0 z" fill="var(--accent)"></path>` : ""}
+          ${exitI >= 0 ? `<circle cx="${px(exitI).toFixed(1)}" cy="${py(t.exit).toFixed(1)}" r="4" fill="none" stroke="var(--bench)" stroke-width="2"></circle>` : ""}
+          <line x1="${L}" x2="${W - R}" y1="${PH + GAP / 2}" y2="${PH + GAP / 2}" class="grid-line"></line>
+          <rect x="${L}" y="${ry(70).toFixed(1)}" width="${iw}" height="${(ry(30) - ry(70)).toFixed(1)}" fill="var(--accent-soft)"></rect>
+          <text class="axis-label" x="${W - R + 4}" y="${(ry(70) + 3.5).toFixed(1)}">70</text>
+          <text class="axis-label" x="${W - R + 4}" y="${(ry(30) + 3.5).toFixed(1)}">30</text>
+          <polyline points="${rsiPts}" fill="none" stroke="var(--accent)" stroke-width="1.4"></polyline>
+        </svg>`;
+
+        return `<article class="case">
+          <div class="head">
+            <span class="no">${String(idx + 1).padStart(2, "0")}</span>
+            <span class="strat">${esc(STRAT_NAME[t.strategy])} · ${t.side === "long" ? "롱" : "숏"}</span>
+            <span class="res ${pnlClass(t.pnl)}">${t.exitType === "open" ? "진행 중" : signed(t.pnl) + "%"}<span class="exit-tag exit-${t.exitType}">${EXIT_LABEL[t.exitType]}</span></span>
+          </div>
+          <p class="sub">
+            진입 ${kst(t.entryAt)} @ <span class="tnum">${t.entry.toLocaleString()}</span>
+            → ${t.exitType === "open" ? "미청산" : `청산 ${kst(t.exitAt)} @ <span class="tnum">${Math.round(t.exit).toLocaleString()}</span>`}
+            · 보유 ${t.holdBars}봉 · 신호 RSI <span class="tnum">${n1(t.rsiAtSignal)}</span>${t.volRatio !== null ? ` · 거래량 <span class="tnum">${n2(t.volRatio)}×</span>` : ""}
+          </p>
+          ${svg}
+        </article>`;
+      })
+      .join("");
+  })();
+
+  /* ---------- 전체 거래 표 ---------- */
+  (function tradesTable() {
+    document.getElementById("trades-summary").textContent =
+      `${DATA.trades.length}건 전체 펼쳐 보기 (진행 중 ${DATA.trades.filter((t) => t.exitType === "open").length}건 포함)`;
+    document.querySelector("#trades-table tbody").innerHTML = DATA.trades
+      .map((t, i) => `<tr>
+        <td>${i + 1}</td>
+        <td>${esc(STRAT_NAME[t.strategy])}</td>
+        <td>${t.side === "long" ? "롱" : "숏"}</td>
+        <td>${kst(t.entryAt)}</td>
+        <td>${t.entry.toLocaleString()}</td>
+        <td>${t.exitType === "open" ? "—" : kst(t.exitAt)}</td>
+        <td>${t.exitType === "open" ? "—" : Math.round(t.exit).toLocaleString()}</td>
+        <td>${EXIT_LABEL[t.exitType]}</td>
+        <td>${t.holdBars}봉</td>
+        <td>${n1(t.rsiAtSignal)}</td>
+        <td>${t.volRatio === null ? "—" : n2(t.volRatio) + "×"}</td>
+        <td class="${t.exitType === "open" ? "" : pnlClass(t.pnl)}">${t.exitType === "open" ? "—" : signed(t.pnl) + "%"}</td>
+      </tr>`)
+      .join("");
+  })();
+
+  /* ---------- 방법론 ---------- */
+  document.getElementById("rules").innerHTML = Object.entries({
+    "진입": m.rules.entry,
+    "손절": m.rules.stop,
+    "목표": m.rules.target,
+    "보유 시한": m.rules.maxHold,
+    "비용": m.rules.fee,
+    "동시 도달": m.rules.conflict,
+  }).map(([k, v]) => `<div class="rule-item"><div class="k">${k}</div><div class="v">${esc(v)}</div></div>`).join("");
+
+  /* ---------- 바닥 ---------- */
+  document.getElementById("foot").innerHTML =
+    `이 원장은 회차를 누적하는 자료다. 원시 데이터는 <code>__DATA_PATH__</code>에 있고, ` +
+    `다음 회차는 <code>node scripts/backtest/run.mjs</code> → <code>node scripts/backtest/build.mjs</code>로 같은 규칙을 다시 돌려 이어 붙인다 — ` +
+    `규칙을 바꿨다면 바꾼 이유를 함께 남긴다. ` +
+    `생성 ${kst(m.generatedAt)} KST · 데이터 OKX ${esc(m.symbol)} · 투자 판단의 책임은 본인에게 있다.`;
+</script>

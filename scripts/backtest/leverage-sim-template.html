@@ -1,0 +1,454 @@
+<title>레버리지 스윙 운용</title>
+<style>
+  /* 다크가 기본 — 트레이딩 앱·백테스트 시리즈와 같은 토큰. */
+  :root {
+    color-scheme: dark;
+    --bg: #0e1116;
+    --surface: #161a21;
+    --surface-2: #1e232c;
+    --border: #2a3039;
+    --ink: #e6e9ee;
+    --dim: #8b95a3;
+    --accent: #5b8cff;
+    --profit: #26c281;
+    --loss: #f0616d;
+    --bench: #c98500;
+    --grid: #232935;
+    --accent-soft: rgba(91, 140, 255, 0.14);
+  }
+  @media (prefers-color-scheme: light) {
+    :root:not([data-theme="dark"]) {
+      color-scheme: light;
+      --bg: #f7f8fa;
+      --surface: #ffffff;
+      --surface-2: #f1f3f6;
+      --border: #e2e5ea;
+      --ink: #14171c;
+      --dim: #666e7a;
+      --accent: #3b6ef5;
+      --profit: #0f9d58;
+      --loss: #dc3545;
+      --bench: #d68910;
+      --grid: #eceef2;
+      --accent-soft: rgba(59, 110, 245, 0.10);
+    }
+  }
+  :root[data-theme="light"] {
+    color-scheme: light;
+    --bg: #f7f8fa;
+    --surface: #ffffff;
+    --surface-2: #f1f3f6;
+    --border: #e2e5ea;
+    --ink: #14171c;
+    --dim: #666e7a;
+    --accent: #3b6ef5;
+    --profit: #0f9d58;
+    --loss: #dc3545;
+    --bench: #d68910;
+    --grid: #eceef2;
+    --accent-soft: rgba(59, 110, 245, 0.10);
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: ui-sans-serif, system-ui, "Pretendard", "Segoe UI", "Malgun Gothic", sans-serif;
+    font-size: 14px;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 40px 20px 72px; }
+
+  header.masthead { display: flex; flex-wrap: wrap; align-items: baseline; gap: 10px 16px; padding-bottom: 18px; border-bottom: 1px solid var(--border); }
+  .masthead h1 { margin: 0; font-size: 24px; font-weight: 750; letter-spacing: -0.02em; }
+  .round-stamp {
+    font-size: 12px; font-weight: 650; color: var(--accent);
+    border: 1px solid var(--accent); border-radius: 999px; padding: 1px 10px;
+    letter-spacing: 0.04em; white-space: nowrap;
+  }
+  .masthead .meta { flex-basis: 100%; color: var(--dim); font-size: 12.5px; }
+  .masthead .meta b { color: var(--ink); font-weight: 600; }
+
+  section { margin-top: 44px; }
+  .eyebrow { font-size: 11px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; color: var(--dim); margin: 0 0 6px; }
+  h2 { margin: 0 0 14px; font-size: 18px; font-weight: 700; letter-spacing: -0.01em; text-wrap: balance; }
+  h3 { margin: 0; font-size: 14px; font-weight: 650; }
+  .note { color: var(--dim); font-size: 12.5px; }
+  .tnum { font-variant-numeric: tabular-nums; }
+  .up { color: var(--profit); }
+  .down { color: var(--loss); }
+
+  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px; margin-top: 18px; }
+  .tile { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px 12px; }
+  .tile .k { font-size: 11.5px; color: var(--dim); letter-spacing: 0.02em; }
+  .tile .v { font-size: 22px; font-weight: 700; letter-spacing: -0.01em; margin-top: 2px; line-height: 1.25; }
+  .tile .s { font-size: 11.5px; color: var(--dim); margin-top: 3px; }
+
+  .verdict { display: grid; gap: 8px; margin: 14px 0 0; padding: 0; list-style: none; }
+  .verdict li { background: var(--surface); border: 1px solid var(--border); border-left: 3px solid var(--accent); border-radius: 10px; padding: 10px 14px; }
+  .verdict li.win { border-left-color: var(--profit); }
+  .verdict li.lose { border-left-color: var(--loss); }
+  .verdict b { font-weight: 650; }
+
+  .table-scroll { overflow-x: auto; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); }
+  table { border-collapse: collapse; width: 100%; font-size: 12.5px; }
+  th, td { padding: 8px 11px; text-align: right; white-space: nowrap; }
+  th { font-size: 11px; color: var(--dim); font-weight: 600; border-bottom: 1px solid var(--border); }
+  td { border-bottom: 1px solid var(--grid); font-variant-numeric: tabular-nums; }
+  tr:last-child td { border-bottom: none; }
+  th:first-child, td:first-child { text-align: left; }
+  tbody tr:hover td { background: var(--accent-soft); }
+  .hm td.best { font-weight: 750; text-decoration: underline; text-underline-offset: 3px; }
+  .hm-legend { display: flex; gap: 16px; flex-wrap: wrap; font-size: 11.5px; color: var(--dim); margin-top: 8px; align-items: center; }
+  .hm-legend .sw { display: inline-block; width: 12px; height: 12px; border-radius: 3px; vertical-align: -2px; margin-right: 5px; }
+
+  /* 조건 카드 */
+  .cond { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 16px 18px; margin-top: 14px; }
+  .cond.watch { opacity: 0.88; }
+  .cond .head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+  .cond .no { font-size: 20px; font-weight: 750; color: var(--dim); }
+  .cond .name { font-size: 15px; font-weight: 750; }
+  .chip { font-size: 10.5px; font-weight: 700; border-radius: 4px; padding: 1px 7px; border: 1px solid var(--border); color: var(--dim); white-space: nowrap; }
+  .chip.tf { color: var(--accent); border-color: var(--accent); }
+  .badge { font-size: 11px; font-weight: 700; border-radius: 999px; padding: 2px 10px; margin-left: auto; white-space: nowrap; }
+  .badge.rec { background: var(--profit); color: #fff; }
+  .badge.watch { background: var(--surface-2); color: var(--dim); border: 1px solid var(--border); }
+  .cond .desc { color: var(--dim); font-size: 12.5px; margin-top: 4px; }
+  .cond .grid2 { display: grid; grid-template-columns: 1fr; gap: 14px; margin-top: 12px; }
+  @media (min-width: 760px) { .cond .grid2 { grid-template-columns: 1.4fr 1fr; } }
+  .rc-stats { display: flex; flex-wrap: wrap; gap: 6px 16px; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--grid); font-size: 12px; }
+  .rc-stats .st { color: var(--dim); }
+  .rc-stats .st b { color: var(--ink); font-weight: 650; font-variant-numeric: tabular-nums; }
+  .p3 { display: inline-flex; gap: 3px; align-items: center; margin-left: 6px; }
+  .p3 .cell { min-width: 46px; height: 16px; padding: 0 4px; border-radius: 4px; display: grid; place-items: center; font-size: 9.5px; font-weight: 700; color: var(--ink); border: 1px solid var(--grid); }
+  .risk-mini { width: 100%; border-collapse: collapse; font-size: 11.5px; }
+  .risk-mini th, .risk-mini td { padding: 4px 8px; }
+  .risk-mini caption { caption-side: top; text-align: left; font-size: 11px; color: var(--dim); font-weight: 650; padding-bottom: 4px; }
+
+  svg text { font-family: inherit; }
+  .axis-label { font-size: 10.5px; fill: var(--dim); }
+  .grid-line { stroke: var(--grid); stroke-width: 1; }
+
+  details { margin-top: 10px; }
+  summary { cursor: pointer; color: var(--accent); font-weight: 600; font-size: 12.5px; padding: 4px 2px; border-radius: 6px; list-style-position: inside; }
+  summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  details .table-scroll { margin-top: 8px; }
+
+  .guide { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 10px; }
+  .guide-item { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; }
+  .guide-item .k { font-size: 12px; color: var(--accent); font-weight: 700; }
+  .guide-item .v { margin-top: 3px; font-size: 13px; }
+
+  .caveats { margin: 14px 0 0; padding-left: 18px; color: var(--dim); font-size: 12.5px; }
+  .caveats li { margin-top: 4px; }
+  .caveats b { color: var(--ink); font-weight: 600; }
+
+  footer { margin-top: 56px; padding-top: 16px; border-top: 1px solid var(--border); color: var(--dim); font-size: 12px; }
+  footer code { font-family: ui-monospace, "Cascadia Mono", monospace; font-size: 11.5px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 4px; padding: 1px 5px; }
+
+  #tooltip {
+    position: fixed; pointer-events: none; z-index: 50; display: none;
+    background: var(--surface-2); color: var(--ink); border: 1px solid var(--border);
+    border-radius: 8px; padding: 7px 11px; font-size: 12px; line-height: 1.5;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35); max-width: 300px; white-space: nowrap;
+  }
+</style>
+
+<div class="wrap">
+  <header class="masthead">
+    <h1>레버리지 스윙 운용</h1>
+    <span class="round-stamp" id="stamp"></span>
+    <p class="meta" id="head-meta"></p>
+  </header>
+
+  <section aria-labelledby="s-sum">
+    <p class="eyebrow">Summary</p>
+    <h2 id="s-sum">$100으로 시작한 25가지 운용 — 무엇이 살아남았나</h2>
+    <div class="tiles" id="tiles"></div>
+    <ul class="verdict" id="verdict"></ul>
+  </section>
+
+  <section aria-labelledby="s-matrix">
+    <p class="eyebrow">Evidence</p>
+    <h2 id="s-matrix">청산 관리 5방식 비교 — "수익을 길게"의 근거는 여기 있다</h2>
+    <p class="note">
+      같은 신호·같은 손절 폭에서 <b>청산 관리만 바꿨을 때</b> $100이 720일 뒤 얼마가 됐는지(거래당 리스크 10%).
+      굵은 밑줄이 그 기준의 최고 관리 방식. 셀에 마우스를 올리면 상세가 뜬다.
+    </p>
+    <div class="table-scroll">
+      <table class="hm" id="matrix"></table>
+    </div>
+    <div class="hm-legend">
+      <span><span class="sw" style="background:color-mix(in srgb, var(--profit) 30%, transparent)"></span>$100 초과 (수익)</span>
+      <span><span class="sw" style="background:color-mix(in srgb, var(--loss) 30%, transparent)"></span>$100 미만 (손실)</span>
+    </div>
+    <p class="note" style="margin-top:10px" id="matrix-note"></p>
+  </section>
+
+  <section aria-labelledby="s-top">
+    <p class="eyebrow">Top 10 conditions</p>
+    <h2 id="s-top">가장 안정적인 조건 10 — MAR(총수익 ÷ 최대낙폭) 순</h2>
+    <p class="note">
+      게이트(거래 ≥ 20 · 총수익 플러스 · 3구간 중 2구간 이상 플러스)를 통과한 조건이 <b>추천</b>,
+      못 넘은 조건은 <b>미달</b>로 표시. 각 카드의 리스크 표가 "안정"의 진짜 손잡이다 —
+      같은 조건이라도 거래당 리스크를 낮추면 낙폭이 어떻게 줄어드는지 보라.
+    </p>
+    <div id="conds"></div>
+  </section>
+
+  <section aria-labelledby="s-guide">
+    <p class="eyebrow">Playbook</p>
+    <h2 id="s-guide">운용 지침</h2>
+    <div class="guide">
+      <div class="guide-item"><div class="k">1 · 리스크는 단계로 올린다</div><div class="v"><b>2%로 전방 검증 → 5%로 운용 → 10%는 공격 상한.</b> 10%는 복리가 가장 빠르지만 최대낙폭 −60%대를 견딘다는 뜻이다 — 견딜 수 없는 낙폭은 수익률이 아니라 이탈로 끝난다.</div></div>
+      <div class="guide-item"><div class="k">2 · 레버리지는 손절 폭이 정한다</div><div class="v">배수를 먼저 정하지 말 것. <b>L = min(10, 리스크% ÷ (손절폭% + 0.1%))</b> — 손절이 넓은 날은 배수가 저절로 내려간다(이번 표본 평균 4~9배).</div></div>
+      <div class="guide-item"><div class="k">3 · 청산가와의 거리</div><div class="v">10배 격리 기준 강제청산은 약 −9.5% 가격 이동. 이 설계의 손절은 0.5~2%라 <b>항상 손절이 먼저</b>다 — 단, 갭·급락에서 손절가 체결이 미끄러지면 레버리지만큼 증폭된다는 것은 잊지 말 것.</div></div>
+      <div class="guide-item"><div class="k">4 · 본절 룰은 이번 표본에서 탈락</div><div class="v">"목표 50% 후 본전 청산"은 25칸 전부에서 기존·트레일보다 나빴다. 승자가 본전을 한 번 밟고 가는 경우가 많아서다. 쓰려면 <b>50%가 아니라 목표의 80~100% 도달 후</b>로 늦추는 변형을 다음 회차에서 검증할 것.</div></div>
+      <div class="guide-item"><div class="k">5 · 길게 가져가기는 추세 신호에만</div><div class="v">트레일 연장은 신저가 이탈·골든크로스(추세추종)에서 유효했고, RSI 반등·반락(평균회귀)에서는 역효과였다. <b>신호의 성격이 청산 방식을 정한다.</b></div></div>
+      <div class="guide-item"><div class="k">6 · 펀딩비를 계산에 넣어라</div><div class="v">이 시뮬레이션은 펀딩비를 뺐다. 평균 보유 1~3일 × 8시간마다 ±0.01%대라 왕복 0.1~0.3%p가 추가로 나갈 수 있다 — 레버리지를 곱하면 체감이 크다.</div></div>
+    </div>
+  </section>
+
+  <section aria-labelledby="s-caveat">
+    <p class="eyebrow">Limits</p>
+    <h2 id="s-caveat">읽기 전 마지막 주의</h2>
+    <ul class="caveats">
+      <li><b>인샘플 계보 그대로다.</b> 신호는 132조합 탐색에서, 관리 방식은 이번 25조합에서 골랐다 — 선택이 거듭될수록 수치는 실전보다 부풀려진다. 전방 검증 전에는 후보일 뿐이다.</li>
+      <li><b>레버리지는 가정 오차도 증폭한다.</b> 슬리피지 0·정확한 손절가 체결·펀딩비 0 가정이 10배에서는 그대로 10배 커진다. 급락 갭에서 −10% 캡은 보장되지 않는다.</li>
+      <li><b>본절 룰의 탈락은 이 표본에서의 결론이다.</b> 변동성이 다른 국면·다른 트리거 지점(80~100%)에서는 결과가 다를 수 있다 — 규칙을 바꿔 다시 검증하는 것이 순서다.</li>
+      <li><b>MDD −60%대는 숫자가 아니라 경험이다.</b> $288의 조건도 도중에 $35 근처를 지났다. 그 지점에서 규칙을 버리지 않을 자신이 없다면 그 조건은 당신에게 안정적이지 않다.</li>
+    </ul>
+  </section>
+
+  <footer id="foot"></footer>
+</div>
+
+<div id="tooltip" role="presentation"></div>
+
+<script>
+  const DATA = __DATA_JSON__;
+
+  const KST = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Asia/Seoul", year: "2-digit", month: "2-digit", day: "2-digit",
+    hour: "2-digit", minute: "2-digit", hour12: false,
+  });
+  function kst(ms, withTime = false) {
+    const p = {};
+    for (const part of KST.formatToParts(new Date(ms))) p[part.type] = part.value;
+    if (p.hour === "24") p.hour = "00";
+    return withTime ? `${p.year}.${p.month}.${p.day} ${p.hour}:${p.minute}` : `${p.year}.${p.month}.${p.day}`;
+  }
+  const n1 = (x) => x === null || x === undefined ? "—" : x.toLocaleString("ko-KR", { maximumFractionDigits: 1 });
+  const n2 = (x) => x === null || x === undefined ? "—" : x.toLocaleString("ko-KR", { maximumFractionDigits: 2, minimumFractionDigits: 2 });
+  const usd = (x) => x === null || x === undefined ? "—" : "$" + x.toLocaleString("ko-KR", { maximumFractionDigits: 0 });
+  const signed = (x, d = 1) => x === null || x === undefined ? "—" : (x > 0 ? "+" : "") + x.toLocaleString("ko-KR", { maximumFractionDigits: d, minimumFractionDigits: d });
+  const pnlClass = (x) => x > 0 ? "up" : x < 0 ? "down" : "";
+  const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+  const m = DATA.meta;
+  const TF_LABEL = { "4H": "4시간봉", "1D": "일봉" };
+  const MGMT = Object.fromEntries(DATA.mgmts.map((x) => [x.key, x]));
+  const CRIT = Object.fromEntries(DATA.criteria.map((c) => [`${c.tf}|${c.signal}`, c]));
+  const combo = (tf, sig, mg) => DATA.combos.find((c) => c.tf === tf && c.signal === sig && c.mgmt === mg);
+  const EXIT_LABEL = { tp: "목표", sl: "손절", be: "본절", trail: "트레일", time: "시간", open: "진행" };
+  const gate = (st) => st.trades >= 20 && st.totalReturn > 0 && st.positivePeriods >= 2;
+
+  /* ---------- 머리 ---------- */
+  const f4 = DATA.frames["4H"];
+  document.getElementById("stamp").textContent = `10배 상한 · $${m.startEquity} 복리 · ${kst(m.generatedAt)}`;
+  document.getElementById("head-meta").innerHTML =
+    `<b>${esc(m.symbol)}</b> · ${kst(f4.from)} ~ ${kst(f4.to)} (${m.days}일 ≈ 2년) · 플레이북 Top 5 신호 × 청산 관리 5방식 · ` +
+    `거래당 손실 상한 <b>${m.maxRiskPct}%</b> (수수료 포함) · 사이징 ${esc(m.sizing)}`;
+
+  /* ---------- 타일·결론 ---------- */
+  const gated = DATA.combos.filter((c) => gate(c.stats));
+  const best = [...DATA.combos].sort((a, b) => (b.stats.mar ?? -9) - (a.stats.mar ?? -9))[0];
+  document.getElementById("tiles").innerHTML = [
+    { k: "시뮬레이션", v: "25조합", s: "신호 5 × 청산 관리 5 · $100 복리" },
+    { k: "게이트 통과", v: `${gated.length}개`, s: "거래≥20 · 수익 플러스 · 3구간 중 2+" },
+    { k: "최고 성적", v: `<span class="${pnlClass(best.stats.totalReturn)}">${usd(best.stats.finalEquity)}</span>`, s: `${esc(CRIT[best.tf + "|" + best.signal].name)} × ${esc(MGMT[best.mgmt].name)}` },
+    { k: "그 대가", v: `<span class="down">${signed(best.stats.mdd)}%</span>`, s: "최고 조건의 최대낙폭 — 한때 $100이 $" + Math.round(100 * (1 + best.stats.mdd / 100)) + " 부근" },
+  ].map((t) => `<div class="tile"><div class="k">${t.k}</div><div class="v">${t.v}</div><div class="s">${t.s}</div></div>`).join("");
+
+  (function verdict() {
+    const gc = combo("4H", "golden-cross", "fixed");
+    const gcBe = combo("4H", "golden-cross", "be");
+    const dc = combo("1D", "donchian-breakdown", "fixed");
+    const dcTrail = combo("1D", "donchian-breakdown", "trail");
+    const ob = combo("4H", "rsi-oversold-bounce", "fixed");
+    const obTrail = combo("4H", "rsi-oversold-bounce", "trail");
+    const items = [
+      {
+        cls: "lose",
+        html: `<b>요청하신 본절 룰(목표 50% 도달 후 본전 청산)은 이 데이터에서 전멸이다.</b> 25칸 매트릭스에서 본절 계열이 기존을 이긴 칸이 하나도 없다 — 골든크로스는 ${usd(gc.stats.finalEquity)} → ${usd(gcBe.stats.finalEquity)}로 무너진다. 이유는 단순하다: 이긴 거래의 다수가 목표 50%를 찍고 <b>본전을 한 번 밟은 뒤</b> 목표까지 간다. 본절 스톱은 그 승자들을 수수료만 내고 내보낸다.`,
+      },
+      {
+        cls: "win",
+        html: `<b>"수익을 길게 가져가는" 근거는 추세추종 신호에서 성립한다.</b> 20봉 신저가 이탈(숏)은 고정 목표 ${usd(dc.stats.finalEquity)} vs 트레일 ${usd(dcTrail.stats.finalEquity)} — 목표를 없애고 2×ATR 트레일로 끌고 가자 수익이 ${n1(dcTrail.stats.finalEquity / dc.stats.finalEquity)}배가 됐다(거래 수는 ${dc.stats.trades}→${dcTrail.stats.trades}건으로 줄고 건당이 커졌다). 반대로 평균회귀인 RSI 과매도 반등은 ${usd(ob.stats.finalEquity)} → ${usd(obTrail.stats.finalEquity)}로 역효과 — <b>신호의 성격이 청산 방식을 정한다.</b>`,
+      },
+      {
+        cls: "",
+        html: `<b>10% 리스크의 대가는 낙폭이다.</b> 최고 조건도 최대낙폭 −59~−65% — $100이 도중에 $35~40까지 밀렸다가 회복한 경로다. 같은 조건을 거래당 5%로 낮추면 낙폭이 −35~−40%로, 2%면 −16~−18%로 줄고 MAR(수익÷낙폭)은 오히려 비슷하거나 좋아진다. <b>"가장 안정적"의 답은 조건 선택 + 리스크 2~5%다.</b>`,
+      },
+      {
+        cls: "",
+        html: `사이징이 안전판이다 — 배수를 고정하지 않고 <b>손절 폭이 배수를 정하게</b> 했다(L = min(10, 10 ÷ (손절폭+0.1%))). 그래서 손절이 넓은 날은 5배, 좁은 날만 10배로 갔고(평균 4~9배), 어떤 거래도 수수료 포함 −10%를 넘지 않았다. 강제청산(−9.5% 가격)에는 구조적으로 닿지 않는다.`,
+      },
+    ];
+    document.getElementById("verdict").innerHTML = items.map((i) => `<li class="${i.cls}">${i.html}</li>`).join("");
+  })();
+
+  /* ---------- 툴팁 ---------- */
+  const tip = document.getElementById("tooltip");
+  function showTip(html, x, y) {
+    tip.innerHTML = html;
+    tip.style.display = "block";
+    const r = tip.getBoundingClientRect();
+    const px = Math.min(x + 14, window.innerWidth - r.width - 8);
+    const py = y - r.height - 12 < 8 ? y + 18 : y - r.height - 12;
+    tip.style.left = px + "px";
+    tip.style.top = py + "px";
+  }
+  function hideTip() { tip.style.display = "none"; }
+
+  /* ---------- 관리 비교 매트릭스 ---------- */
+  (function matrix() {
+    const maxRet = Math.max(...DATA.combos.map((c) => Math.abs(c.stats.totalReturn)), 1);
+    const cellBg = (ret) => {
+      const pct = Math.min(34, (Math.abs(ret) / maxRet) * 34 + 4);
+      return `color-mix(in srgb, var(--${ret > 0 ? "profit" : "loss"}) ${pct.toFixed(0)}%, transparent)`;
+    };
+    const head = `<thead><tr><th>신호 ↓ · 청산 관리 →</th>${DATA.mgmts.map((mg) => `<th title="${esc(mg.desc)}">${esc(mg.name)}</th>`).join("")}</tr></thead>`;
+    const rows = DATA.criteria.map((cr) => {
+      const cells = DATA.mgmts.map((mg) => combo(cr.tf, cr.signal, mg.key));
+      const bestEq = Math.max(...cells.map((c) => c.stats.finalEquity));
+      return `<tr><td>${esc(cr.name)} <span class="chip tf">${TF_LABEL[cr.tf]}</span></td>` + cells.map((c) => {
+        const st = c.stats;
+        return `<td class="mx-cell ${st.finalEquity === bestEq ? "best" : ""}" style="background:${cellBg(st.totalReturn)}"
+          data-tip="${esc(`${CRIT[c.tf + "|" + c.signal].name} × ${MGMT[c.mgmt].name} — ${st.trades}건, 승률 ${n1(st.winRate)}%, MDD ${signed(st.mdd)}%, MAR ${n2(st.mar)}`)}">${usd(st.finalEquity)}</td>`;
+      }).join("") + "</tr>";
+    }).join("");
+    document.getElementById("matrix").innerHTML = head + `<tbody>${rows}</tbody>`;
+    document.getElementById("matrix-note").innerHTML =
+      `읽는 법 — <b>본절·본절+러너·절반 익절(본절 포함) 열은 전 행에서 기존보다 나쁘다.</b> ` +
+      `트레일 열은 추세추종 두 행(골든크로스·신저가 이탈)에서만 기존과 대등하거나 우세하다. ` +
+      `"길게 가져가되, 본전 스톱은 서두르지 말 것"이 25칸이 말하는 전부다.`;
+    document.querySelectorAll(".mx-cell").forEach((el) => {
+      el.addEventListener("pointermove", (e) => showTip(el.dataset.tip, e.clientX, e.clientY));
+      el.addEventListener("pointerleave", hideTip);
+    });
+  })();
+
+  /* ---------- Top 10 조건 카드 ---------- */
+  (function conds() {
+    let divider = false;
+    document.getElementById("conds").innerHTML = DATA.top10.map((t, idx) => {
+      const c = combo(t.tf, t.signal, t.mgmt);
+      const cr = CRIT[`${c.tf}|${c.signal}`];
+      const mg = MGMT[c.mgmt];
+      const st = c.stats;
+      const days = Math.round((DATA.frames[c.tf].to - DATA.frames[c.tf].warmupFrom) / 86400000);
+      const perMonth = st.trades / (days / 30);
+      const holdDays = c.tf === "4H" ? st.avgHoldBars * 4 / 24 : st.avgHoldBars;
+      let prefix = "";
+      if (!t.gated && !divider) {
+        divider = true;
+        prefix = `<h3 style="margin:16px 0 0;font-size:13px;color:var(--dim);font-weight:650">─ 이하 게이트 미달 — 순위를 채우는 참고용이지 추천이 아니다.</h3>`;
+      }
+
+      /* $100 복리 곡선 */
+      const cv = c.curve;
+      const W = 560, H = 170, L = 44, R = 10, T = 8, B = 20;
+      const t0 = cv[0].at, t1 = cv[cv.length - 1].at;
+      let lo = Math.min(...cv.map((p) => p.eq)), hi = Math.max(...cv.map((p) => p.eq));
+      const pad = (hi - lo) * 0.08 || 5;
+      lo -= pad; hi += pad;
+      const x = (at) => L + ((at - t0) / (t1 - t0)) * (W - L - R);
+      const y = (v) => T + (1 - (v - lo) / (hi - lo)) * (H - T - B);
+      const path = cv.map((p, i) => `${i ? "L" : "M"}${x(p.at).toFixed(1)},${y(p.eq).toFixed(1)}`).join("");
+      const last = cv[cv.length - 1];
+      const curveSvg = `<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;display:block" role="img" aria-label="$100 복리 곡선">
+        ${[lo + pad, 100, hi - pad].filter((v, i, a) => a.findIndex((w) => Math.abs(w - v) < (hi - lo) * 0.04) === i).map((v) =>
+          `<line class="grid-line" x1="${L}" x2="${W - R}" y1="${y(v).toFixed(1)}" y2="${y(v).toFixed(1)}" ${Math.abs(v - 100) < 1e-9 ? 'stroke="var(--dim)" stroke-dasharray="2 3"' : ""}></line>
+          <text class="axis-label" x="${L - 5}" y="${(y(v) + 3.5).toFixed(1)}" text-anchor="end">$${Math.round(v)}</text>`).join("")}
+        <path d="${path}" fill="none" stroke="var(--accent)" stroke-width="1.8"></path>
+        <circle cx="${x(last.at).toFixed(1)}" cy="${y(last.eq).toFixed(1)}" r="3" fill="var(--accent)"></circle>
+        <text class="axis-label" x="${L}" y="${H - 6}">${kst(t0)}</text>
+        <text class="axis-label" x="${W - R}" y="${H - 6}" text-anchor="end">${kst(t1)}</text>
+      </svg>`;
+
+      const p3 = st.periods.map((p, k) => {
+        const col = p.n === 0 ? "var(--surface-2)"
+          : p.ret > 0 ? "color-mix(in srgb, var(--profit) 28%, transparent)"
+          : "color-mix(in srgb, var(--loss) 28%, transparent)";
+        return `<span class="cell" style="background:${col}" title="${k + 1}구간: ${p.n}건 ${signed(p.ret)}%">${p.n === 0 ? "—" : signed(p.ret, 0) + "%"}</span>`;
+      }).join("");
+
+      const rs = c.riskSensitivity;
+      const riskTable = `<table class="risk-mini">
+        <caption>거래당 리스크별 — 같은 거래, 다른 크기</caption>
+        <thead><tr><th>리스크</th><th>최종</th><th>MDD</th><th>MAR</th><th>평균레버</th></tr></thead>
+        <tbody>
+          <tr><td>2%</td><td>${usd(rs.r2.finalEquity)}</td><td class="down">${signed(rs.r2.mdd)}%</td><td>${n2(rs.r2.mar)}</td><td>${n1(rs.r2.avgLev)}배</td></tr>
+          <tr><td>5%</td><td>${usd(rs.r5.finalEquity)}</td><td class="down">${signed(rs.r5.mdd)}%</td><td>${n2(rs.r5.mar)}</td><td>${n1(rs.r5.avgLev)}배</td></tr>
+          <tr><td><b>10%</b></td><td><b>${usd(st.finalEquity)}</b></td><td class="down"><b>${signed(st.mdd)}%</b></td><td><b>${n2(st.mar)}</b></td><td>${n1(st.avgLev)}배</td></tr>
+        </tbody>
+      </table>`;
+
+      const tradeRows = (c.trades ?? []).map((tr, k) => `<tr>
+        <td>${k + 1}</td>
+        <td>${kst(tr.entryAt, true)}</td>
+        <td>${Math.round(tr.entry).toLocaleString()}</td>
+        <td>${kst(tr.exitAt, true)}</td>
+        <td>${EXIT_LABEL[tr.exitType] ?? esc(tr.exitType)}</td>
+        <td>${tr.holdBars}봉</td>
+        <td>${n1(tr.lev)}배</td>
+        <td class="${pnlClass(tr.netPct)}">${signed(tr.netPct, 2)}%</td>
+        <td>$${tr.equity.toLocaleString("ko-KR", { maximumFractionDigits: 2 })}</td>
+      </tr>`).join("");
+
+      const exits = Object.entries(st.exitCounts).map(([k2, v]) => `${EXIT_LABEL[k2] ?? k2} ${v}`).join(" · ");
+
+      return `${prefix}<article class="cond ${t.gated ? "" : "watch"}">
+        <div class="head">
+          <span class="no">${String(idx + 1).padStart(2, "0")}</span>
+          <span class="chip tf">${TF_LABEL[c.tf]}</span>
+          <span class="name">${esc(cr.name)} × ${esc(mg.name)}</span>
+          <span class="chip">${cr.side === "long" ? "롱" : "숏"}</span>
+          <span class="badge ${t.gated ? "rec" : "watch"}">${t.gated ? "추천" : "게이트 미달"}</span>
+        </div>
+        <p class="desc">${esc(cr.rule)} → 다음 봉 시가 진입 · ${esc(mg.desc)} · 손절 기준 ${c.exit.type === "atr" ? c.exit.sl + "×ATR" : c.exit.sl + "%"}</p>
+        <div class="grid2">
+          <div>${curveSvg}</div>
+          <div>${riskTable}</div>
+        </div>
+        <div class="rc-stats">
+          <span class="st">최종 <b class="${pnlClass(st.totalReturn)}">${usd(st.finalEquity)} (${signed(st.totalReturn)}%)</b></span>
+          <span class="st">MDD <b class="down">${signed(st.mdd)}%</b></span>
+          <span class="st">MAR <b>${n2(st.mar)}</b></span>
+          <span class="st">거래 <b>${st.trades}건 / ${days}일</b> (월 ${n1(perMonth)}건)</span>
+          <span class="st">승률 <b>${n1(st.winRate)}%</b></span>
+          <span class="st">평균보유 <b>${n1(holdDays)}일</b></span>
+          <span class="st">평균레버 <b>${n1(st.avgLev)}배</b></span>
+          <span class="st">최대연패 <b>${st.maxLossStreak}</b></span>
+          <span class="st">청산 <b>${exits}</b></span>
+          <span class="st">3구간${p3}</span>
+        </div>
+        ${c.trades ? `<details>
+          <summary>거래 내역 ${c.trades.length}건 — 진입·청산·레버리지·잔고</summary>
+          <div class="table-scroll"><table>
+            <thead><tr><th>#</th><th>진입(KST)</th><th>진입가</th><th>청산(KST)</th><th>청산 유형</th><th>보유</th><th>레버</th><th>계좌 손익</th><th>잔고</th></tr></thead>
+            <tbody>${tradeRows}</tbody>
+          </table></div>
+        </details>` : ""}
+      </article>`;
+    }).join("");
+  })();
+
+  document.getElementById("foot").innerHTML =
+    `원시 데이터 <code>__DATA_PATH__</code> · 재실행 <code>node scripts/backtest/leverage-sim.mjs</code> · ` +
+    `계보: 백테스트 원장 → 손익비 1:4 검토 → 스윙 Top 10 → 플레이북 Top 5 → 이 운용 검토 · ` +
+    `생성 ${kst(m.generatedAt, true)} KST · 투자 판단의 책임은 본인에게 있다.`;
+</script>

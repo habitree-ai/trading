@@ -1,0 +1,401 @@
+<title>표본 200 검증</title>
+<style>
+  /* 다크가 기본 — 트레이딩 앱·백테스트 시리즈와 같은 토큰. */
+  :root {
+    color-scheme: dark;
+    --bg: #0e1116;
+    --surface: #161a21;
+    --surface-2: #1e232c;
+    --border: #2a3039;
+    --ink: #e6e9ee;
+    --dim: #8b95a3;
+    --accent: #5b8cff;
+    --profit: #26c281;
+    --loss: #f0616d;
+    --bench: #c98500;
+    --grid: #232935;
+    --accent-soft: rgba(91, 140, 255, 0.14);
+  }
+  @media (prefers-color-scheme: light) {
+    :root:not([data-theme="dark"]) {
+      color-scheme: light;
+      --bg: #f7f8fa;
+      --surface: #ffffff;
+      --surface-2: #f1f3f6;
+      --border: #e2e5ea;
+      --ink: #14171c;
+      --dim: #666e7a;
+      --accent: #3b6ef5;
+      --profit: #0f9d58;
+      --loss: #dc3545;
+      --bench: #d68910;
+      --grid: #eceef2;
+      --accent-soft: rgba(59, 110, 245, 0.10);
+    }
+  }
+  :root[data-theme="light"] {
+    color-scheme: light;
+    --bg: #f7f8fa;
+    --surface: #ffffff;
+    --surface-2: #f1f3f6;
+    --border: #e2e5ea;
+    --ink: #14171c;
+    --dim: #666e7a;
+    --accent: #3b6ef5;
+    --profit: #0f9d58;
+    --loss: #dc3545;
+    --bench: #d68910;
+    --grid: #eceef2;
+    --accent-soft: rgba(59, 110, 245, 0.10);
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: ui-sans-serif, system-ui, "Pretendard", "Segoe UI", "Malgun Gothic", sans-serif;
+    font-size: 14px;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 40px 20px 72px; }
+
+  header.masthead { display: flex; flex-wrap: wrap; align-items: baseline; gap: 10px 16px; padding-bottom: 18px; border-bottom: 1px solid var(--border); }
+  .masthead h1 { margin: 0; font-size: 24px; font-weight: 750; letter-spacing: -0.02em; }
+  .round-stamp {
+    font-size: 12px; font-weight: 650; color: var(--accent);
+    border: 1px solid var(--accent); border-radius: 999px; padding: 1px 10px;
+    letter-spacing: 0.04em; white-space: nowrap;
+  }
+  .masthead .meta { flex-basis: 100%; color: var(--dim); font-size: 12.5px; }
+  .masthead .meta b { color: var(--ink); font-weight: 600; }
+
+  section { margin-top: 44px; }
+  .eyebrow { font-size: 11px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; color: var(--dim); margin: 0 0 6px; }
+  h2 { margin: 0 0 14px; font-size: 18px; font-weight: 700; letter-spacing: -0.01em; text-wrap: balance; }
+  h3 { margin: 0; font-size: 14px; font-weight: 650; }
+  .note { color: var(--dim); font-size: 12.5px; }
+  .tnum { font-variant-numeric: tabular-nums; }
+  .up { color: var(--profit); }
+  .down { color: var(--loss); }
+
+  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px; margin-top: 18px; }
+  .tile { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px 12px; }
+  .tile .k { font-size: 11.5px; color: var(--dim); letter-spacing: 0.02em; }
+  .tile .v { font-size: 22px; font-weight: 700; letter-spacing: -0.01em; margin-top: 2px; line-height: 1.25; }
+  .tile .s { font-size: 11.5px; color: var(--dim); margin-top: 3px; }
+
+  .verdict { display: grid; gap: 8px; margin: 14px 0 0; padding: 0; list-style: none; }
+  .verdict li { background: var(--surface); border: 1px solid var(--border); border-left: 3px solid var(--accent); border-radius: 10px; padding: 10px 14px; }
+  .verdict li.win { border-left-color: var(--profit); }
+  .verdict li.lose { border-left-color: var(--loss); }
+  .verdict b { font-weight: 650; }
+
+  /* 비용 구조 카드 */
+  .frames { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 12px; }
+  .frame-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 16px; }
+  .frame-card .fh { display: flex; align-items: baseline; gap: 10px; margin-bottom: 8px; }
+  .frame-card .fh .tf { font-size: 16px; font-weight: 750; }
+  .frame-card .fh .sub { color: var(--dim); font-size: 12px; }
+  .costline { display: grid; grid-template-columns: 92px 1fr 96px; gap: 10px; align-items: center; margin-top: 8px; font-size: 12px; }
+  .costline .cl { color: var(--dim); }
+  .costline .track { position: relative; height: 12px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
+  .costline .fill { position: absolute; inset: 0 auto 0 0; border-radius: 6px; }
+  .costline .cv { text-align: right; font-variant-numeric: tabular-nums; }
+  .frame-card .conclusion { margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--grid); font-size: 12.5px; }
+  .frame-card .conclusion b { font-weight: 650; }
+
+  .table-scroll { overflow-x: auto; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); }
+  table { border-collapse: collapse; width: 100%; font-size: 12.5px; }
+  th, td { padding: 8px 10px; text-align: right; white-space: nowrap; }
+  th { font-size: 11px; color: var(--dim); font-weight: 600; border-bottom: 1px solid var(--border); }
+  td { border-bottom: 1px solid var(--grid); font-variant-numeric: tabular-nums; }
+  tr:last-child td { border-bottom: none; }
+  th:first-child, td:first-child { text-align: left; }
+  tbody tr:hover td { background: var(--accent-soft); }
+  .hm td.el { font-weight: 750; text-decoration: underline; text-underline-offset: 3px; }
+  .hm-legend { display: flex; gap: 16px; flex-wrap: wrap; font-size: 11.5px; color: var(--dim); margin-top: 8px; align-items: center; }
+  .hm-legend .sw { display: inline-block; width: 12px; height: 12px; border-radius: 3px; vertical-align: -2px; margin-right: 5px; }
+  .pill { font-size: 10.5px; font-weight: 700; border-radius: 999px; padding: 2px 9px; white-space: nowrap; }
+  .pill.t2 { background: var(--profit); color: #fff; }
+  .pill.t1 { background: var(--surface-2); color: var(--ink); border: 1px solid var(--accent); }
+  .pill.t0 { background: var(--surface-2); color: var(--dim); border: 1px solid var(--border); }
+
+  .guide { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 10px; }
+  .guide-item { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; }
+  .guide-item .k { font-size: 12px; color: var(--accent); font-weight: 700; }
+  .guide-item .v { margin-top: 3px; font-size: 13px; }
+
+  .caveats { margin: 14px 0 0; padding-left: 18px; color: var(--dim); font-size: 12.5px; }
+  .caveats li { margin-top: 4px; }
+  .caveats b { color: var(--ink); font-weight: 600; }
+
+  footer { margin-top: 56px; padding-top: 16px; border-top: 1px solid var(--border); color: var(--dim); font-size: 12px; }
+  footer code { font-family: ui-monospace, "Cascadia Mono", monospace; font-size: 11.5px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 4px; padding: 1px 5px; }
+
+  #tooltip {
+    position: fixed; pointer-events: none; z-index: 50; display: none;
+    background: var(--surface-2); color: var(--ink); border: 1px solid var(--border);
+    border-radius: 8px; padding: 7px 11px; font-size: 12px; line-height: 1.5;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35); max-width: 320px; white-space: normal;
+  }
+</style>
+
+<div class="wrap">
+  <header class="masthead">
+    <h1>표본 200 검증</h1>
+    <span class="round-stamp" id="stamp"></span>
+    <p class="meta" id="head-meta"></p>
+  </header>
+
+  <section aria-labelledby="s-sum">
+    <p class="eyebrow">Summary</p>
+    <h2 id="s-sum">거래수를 늘리면 무슨 일이 벌어지는가</h2>
+    <div class="tiles" id="tiles"></div>
+    <ul class="verdict" id="verdict"></ul>
+  </section>
+
+  <section aria-labelledby="s-cost">
+    <p class="eyebrow">Why</p>
+    <h2 id="s-cost">비용 구조 — 봉이 짧아질수록 수수료가 엣지를 먹는다</h2>
+    <div class="frames" id="cost-cards"></div>
+    <p class="note" style="margin-top:10px">
+      막대는 왕복 비용 0.1%를 그 봉의 ATR(14)과 견준 것이다. 비용이 변동폭에 가까워질수록
+      "맞아도 남는 게 없는" 구조가 된다 — 이것이 15분봉 전 조합이 무너진 이유다.
+    </p>
+  </section>
+
+  <section aria-labelledby="s-grid">
+    <p class="eyebrow">Grid</p>
+    <h2 id="s-grid">60개 조합 전체 지도 — 기대값(%/건)</h2>
+    <p class="note">굵은 밑줄 = 게이트 통과(표본 50+ 기준). 셀에 마우스를 올리면 표본 수·수수료 잠식률·메이커 수수료 가정 기대값이 뜬다.</p>
+    <div id="heatmaps"></div>
+    <div class="hm-legend">
+      <span><span class="sw" style="background:color-mix(in srgb, var(--profit) 30%, transparent)"></span>기대값 플러스</span>
+      <span><span class="sw" style="background:color-mix(in srgb, var(--loss) 30%, transparent)"></span>기대값 마이너스</span>
+    </div>
+  </section>
+
+  <section aria-labelledby="s-top">
+    <p class="eyebrow">Ranking</p>
+    <h2 id="s-top">상위 12 — 게이트·표본 티어 표시</h2>
+    <div class="table-scroll">
+      <table id="top-table">
+        <thead><tr>
+          <th>#</th><th>조합</th><th>표본</th><th>승률</th><th>기대값/건</th>
+          <th>메이커 가정</th><th>t</th><th>P/F</th><th>수수료 잠식</th><th>MDD</th><th>구간</th><th>티어</th>
+        </tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+    <p class="note" style="margin-top:8px">
+      "메이커 가정"은 왕복 비용을 0.1% → 0.04%(지정가 체결)로 낮췄을 때의 기대값이다 —
+      실제로는 지정가 미체결로 놓치는 신호가 생기므로 낙관적 상한으로만 읽는다.
+    </p>
+  </section>
+
+  <section aria-labelledby="s-guide">
+    <p class="eyebrow">Playbook</p>
+    <h2 id="s-guide">그래서 200건은 어떻게 채우는가</h2>
+    <div class="guide">
+      <div class="guide-item"><div class="k">1 · 봉을 줄이지 말고 기준을 병행한다</div><div class="v">4시간봉 유효 기준(골든크로스·과매도 반등·과매수 반락·신저가 이탈)을 <b>동시에 운용하면 월 8~10건</b> — 200건까지 약 20~24개월. 짧은 봉으로 당기는 것보다 느리지만 엣지가 살아 있는 유일한 길이다.</div></div>
+      <div class="guide-item"><div class="k">2 · 비용부터 줄인다</div><div class="v">테이커 0.05%×2 대신 <b>지정가(메이커) 진입</b>이 습관이 되면 왕복 비용이 절반 이하로 내려간다 — 1시간봉의 경계선 조합들(골든크로스 128건 등)은 그때 재검토할 가치가 생긴다.</div></div>
+      <div class="guide-item"><div class="k">3 · 15분봉은 이 신호들로는 금지선</div><div class="v">ATR 0.04% vs 비용 0.1% — 구조적으로 진 게임이다. 15분봉을 쓰려면 신호가 아니라 <b>비용 구조(메이커·리베이트)와 손익 폭 설계</b>가 먼저 바뀌어야 한다.</div></div>
+      <div class="guide-item"><div class="k">4 · 표본은 원장에서 쌓인다</div><div class="v">백테스트 표본이 아니라 <b>실거래 표본 200건</b>이 목표다. 회차 누적 원장에 4H 병행 기준의 전방 성적을 쌓아, 게이트(기대값>0 · 2/3구간)를 실데이터로 다시 통과시키는 것이 종착점이다.</div></div>
+    </div>
+  </section>
+
+  <section aria-labelledby="s-caveat">
+    <p class="eyebrow">Limits</p>
+    <h2 id="s-caveat">읽기 전 마지막 주의</h2>
+    <ul class="caveats">
+      <li><b>인샘플 반복 검토다.</b> 같은 신호 계열을 창을 바꿔 다시 본 것이므로, 4H 결과가 유지된 것은 강건성의 방증이지만 독립 증명은 아니다.</li>
+      <li><b>봉별 데이터 창이 다르다</b> (15m 180일 · 1H 540일 · 4H 720일) — 봉 간 비교는 "그 봉이 감당할 수 있는 최근 구간" 기준이지 동일 기간 비교가 아니다.</li>
+      <li><b>수수료 잠식률은 총이익 대비 총비용</b>으로 계산했다. 슬리피지는 0.1%에 뭉뚱그려져 있어 짧은 봉에서는 실제가 더 나쁠 수 있다.</li>
+      <li><b>최고 t=1.74도 유의 기준(1.96) 미달</b>이며 60조합 중 상위 선별값이다 — 이 시리즈의 결론은 언제나 같다: 전방 검증 없이는 후보일 뿐이다.</li>
+    </ul>
+  </section>
+
+  <footer id="foot"></footer>
+</div>
+
+<div id="tooltip" role="presentation"></div>
+
+<script>
+  const DATA = __DATA_JSON__;
+
+  const KST = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Asia/Seoul", year: "2-digit", month: "2-digit", day: "2-digit", hour12: false,
+  });
+  function kst(ms) {
+    const p = {};
+    for (const part of KST.formatToParts(new Date(ms))) p[part.type] = part.value;
+    return `${p.year}.${p.month}.${p.day}`;
+  }
+  const n1 = (x) => x === null || x === undefined ? "—" : x.toLocaleString("ko-KR", { maximumFractionDigits: 1 });
+  const n2 = (x) => x === null || x === undefined ? "—" : x.toLocaleString("ko-KR", { maximumFractionDigits: 2, minimumFractionDigits: 2 });
+  const n3 = (x) => x === null || x === undefined ? "—" : x.toLocaleString("ko-KR", { maximumFractionDigits: 3, minimumFractionDigits: 3 });
+  const signed = (x, d = 2) => x === null || x === undefined ? "—" : (x > 0 ? "+" : "") + x.toLocaleString("ko-KR", { maximumFractionDigits: d, minimumFractionDigits: d });
+  const pnlClass = (x) => x > 0 ? "up" : x < 0 ? "down" : "";
+  const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+  const m = DATA.meta;
+  const TF_LABEL = { "15m": "15분봉", "1H": "1시간봉", "4H": "4시간봉" };
+  const TFS = ["15m", "1H", "4H"];
+  const SIG = Object.fromEntries(DATA.signals.map((s) => [s.key, s]));
+  const EXIT = Object.fromEntries(DATA.exits.map((e) => [e.key, e]));
+  const combo = (tf, sig, ex) => DATA.combos.find((c) => c.tf === tf && c.signal === sig && c.exit === ex);
+  const MAKER_SAVE = 0.06; // 왕복 0.1% → 0.04% 가정 시 기대값 개선폭
+
+  const tier2 = (st) => st.trades >= 200 && st.avgPnl > 0 && (st.profitFactor ?? Infinity) >= 1.1 && st.positivePeriods >= 2;
+  const tier1 = (st) => st.trades >= 50 && st.avgPnl > 0 && (st.profitFactor ?? Infinity) >= 1.1 && st.positivePeriods >= 2;
+
+  /* ---------- 머리 ---------- */
+  document.getElementById("stamp").textContent = `15m·1H·4H · 60조합 · ${kst(m.generatedAt)}`;
+  document.getElementById("head-meta").innerHTML =
+    `<b>${esc(m.symbol)}</b> · 최근 구간 — 15분봉 ${DATA.frames["15m"].days}일 · 1시간봉 ${DATA.frames["1H"].days}일 · 4시간봉 ${DATA.frames["4H"].days}일 · ` +
+    `신호 5 × 청산 4 × 봉 3 · 게이트: ${esc(m.gates)}`;
+
+  /* ---------- 타일·결론 ---------- */
+  const t2n = DATA.combos.filter((c) => tier2(c.stats)).length;
+  const t1n = DATA.combos.filter((c) => !tier2(c.stats) && tier1(c.stats)).length;
+  const biggest = [...DATA.combos].sort((a, b) => b.stats.trades - a.stats.trades)[0];
+  const bestT = [...DATA.combos].sort((a, b) => b.stats.tstat - a.stats.tstat)[0];
+  const feeMult15 = 0.1 / DATA.frames["15m"].atrPct;
+
+  document.getElementById("tiles").innerHTML = [
+    { k: "표본 200 게이트", v: `<span class="${t2n ? "up" : "down"}">${t2n}개 통과</span>`, s: "거래 ≥ 200 + 수익 게이트 — 하나도 없다" },
+    { k: "가장 큰 표본", v: `${biggest.stats.trades}건`, s: `${esc(SIG[biggest.signal].name)} (${TF_LABEL[biggest.tf]}) — 기대값 ${signed(biggest.stats.avgPnl, 3)}%` },
+    { k: "15분봉의 비용", v: `ATR의 ${n1(feeMult15)}배`, s: `왕복 0.1% vs ATR ${n3(DATA.frames["15m"].atrPct)}% — 구조적 잠식` },
+    { k: "최고 t-통계량", v: n2(bestT.stats.tstat), s: `${esc(SIG[bestT.signal].name)} (${TF_LABEL[bestT.tf]}) — 여전히 4시간봉` },
+  ].map((t) => `<div class="tile"><div class="k">${t.k}</div><div class="v">${t.v}</div><div class="s">${t.s}</div></div>`).join("");
+
+  (function verdict() {
+    const dc1h = combo("1H", "donchian-breakdown", "atr-1.5-2.25");
+    const items = [
+      {
+        cls: "lose",
+        html: `<b>봉을 줄여 거래수를 늘리는 순간 엣지가 비용에 잠식된다.</b> 15분봉의 ATR은 ${n3(DATA.frames["15m"].atrPct)}% — 왕복 비용 0.1%가 변동폭의 ${n1(feeMult15)}배다. 15분봉 20개 조합 중 상위 12위에 든 것이 하나도 없고, 전부 마이너스권이다. 거래가 잦다는 것은 수수료를 자주 낸다는 뜻일 뿐이었다.`,
+      },
+      {
+        cls: "",
+        html: `<b>표본은 엣지를 유지한 채 채워야 의미가 있다.</b> 200건을 넘긴 조합은 여럿이다 — 15분봉 신저가 이탈 ${biggest.stats.trades}건(기대값 ${signed(biggest.stats.avgPnl, 3)}%, 마이너스), 1시간봉 신저가 이탈 ${dc1h.stats.trades}건(${signed(dc1h.stats.avgPnl, 3)}%, t=${n2(dc1h.stats.tstat)}). 표본이 커져도 건당 엣지가 사라지면 확신은 늘지 않는다. n을 채우는 것과 근거가 서는 것은 다른 일이다.`,
+      },
+      {
+        cls: "win",
+        html: `<b>엣지는 여전히 4시간봉에 산다.</b> 골든크로스 × ATR 1/3이 t=${n2(bestT.stats.tstat)}(3구간 모두 플러스)로 시리즈 최고를 경신했고, RSI 과매도 반등 × ATR 1/3도 t=1.47·3/3구간으로 재확인됐다. 최근 창으로 다시 봐도 같은 조합이 살아남는 것 — 이것이 이번 검토의 수확이다.`,
+      },
+      {
+        cls: "",
+        html: `<b>200건을 채우는 현실적인 길은 두 가지다.</b> ① 4시간봉 유효 기준들을 병행해 월 8~10건씩 원장에 쌓는다(약 20개월). ② 지정가(메이커) 체결로 비용을 절반으로 — 그러면 1시간봉 경계선 조합들이 표 안으로 들어온다(아래 "메이커 가정" 열).`,
+      },
+    ];
+    document.getElementById("verdict").innerHTML = items.map((i) => `<li class="${i.cls}">${i.html}</li>`).join("");
+  })();
+
+  /* ---------- 비용 구조 카드 ---------- */
+  (function costCards() {
+    document.getElementById("cost-cards").innerHTML = TFS.map((tf) => {
+      const f = DATA.frames[tf];
+      const mult = 0.1 / f.atrPct;
+      const tfCombos = DATA.combos.filter((c) => c.tf === tf && c.stats.feeShare !== null);
+      const medFee = tfCombos.map((c) => c.stats.feeShare).sort((a, b) => a - b)[Math.floor(tfCombos.length / 2)];
+      const posCount = DATA.combos.filter((c) => c.tf === tf && c.stats.avgPnl > 0).length;
+      const scale = Math.max(feeMult15, 3);
+      const bar = (label, ratio, col, text) => `
+        <div class="costline">
+          <span class="cl">${label}</span>
+          <span class="track"><span class="fill" style="width:${Math.min(100, (ratio / scale) * 100)}%;background:${col}"></span></span>
+          <span class="cv">${text}</span>
+        </div>`;
+      return `<div class="frame-card">
+        <div class="fh"><span class="tf">${TF_LABEL[tf]}</span><span class="sub">최근 ${f.days}일 · ${f.candles.toLocaleString()}봉</span></div>
+        ${bar("봉 변동폭", 1, "var(--dim)", "1.0×ATR (" + n3(f.atrPct) + "%)")}
+        ${bar("왕복 비용", mult, mult > 1 ? "var(--loss)" : "var(--bench)", n2(mult) + "×ATR")}
+        <div class="conclusion">
+          수수료 잠식률 중앙값 <b class="${medFee > 30 ? "down" : ""}">${n1(medFee)}%</b> ·
+          20개 조합 중 기대값 플러스 <b>${posCount}개</b>
+          ${tf === "15m" ? " — <b class='down'>구조적으로 진 게임</b>" : tf === "1H" ? " — 경계선, 메이커 비용이면 재검토" : " — 엣지가 남는 유일한 봉"}
+        </div>
+      </div>`;
+    }).join("");
+  })();
+
+  /* ---------- 툴팁 ---------- */
+  const tip = document.getElementById("tooltip");
+  function showTip(html, x, y) {
+    tip.innerHTML = html;
+    tip.style.display = "block";
+    const r = tip.getBoundingClientRect();
+    const px = Math.min(x + 14, window.innerWidth - r.width - 8);
+    const py = y - r.height - 12 < 8 ? y + 18 : y - r.height - 12;
+    tip.style.left = px + "px";
+    tip.style.top = py + "px";
+  }
+  function hideTip() { tip.style.display = "none"; }
+
+  /* ---------- 60조합 히트맵 ---------- */
+  (function heatmaps() {
+    const maxAbs = Math.max(...DATA.combos.map((c) => Math.abs(c.stats.avgPnl ?? 0)), 0.05);
+    const cellBg = (v) => {
+      if (v === null) return "transparent";
+      const pct = Math.min(34, (Math.abs(v) / maxAbs) * 34 + 4);
+      return `color-mix(in srgb, var(--${v > 0 ? "profit" : "loss"}) ${pct.toFixed(0)}%, transparent)`;
+    };
+    document.getElementById("heatmaps").innerHTML = TFS.map((tf) => {
+      const rows = DATA.signals.map((s) => {
+        const cells = DATA.exits.map((e) => {
+          const c = combo(tf, s.key, e.key);
+          const st = c.stats;
+          const v = st.trades === 0 ? null : st.avgPnl;
+          const tipText = `${TF_LABEL[tf]} ${s.name} × ${e.name} — ${st.trades}건, 승률 ${n1(st.winRate)}%, 기대값 ${signed(v, 3)}%/건 (메이커 가정 ${signed(v === null ? null : v + MAKER_SAVE, 3)}%), P/F ${n2(st.profitFactor)}, 수수료 잠식 ${n1(st.feeShare)}%, 구간 ${st.positivePeriods}/3`;
+          return `<td class="hm-cell ${tier1(st) ? "el" : ""}" style="background:${cellBg(v)}" data-tip="${esc(tipText)}">${v === null ? "—" : signed(v, 2)}</td>`;
+        }).join("");
+        return `<tr><td>${esc(s.name)}</td>${cells}</tr>`;
+      }).join("");
+      return `<h3 style="margin:${tf === "15m" ? "0" : "18px"} 0 0;font-size:14px">${TF_LABEL[tf]} <span class="note" style="font-weight:400">— 최근 ${DATA.frames[tf].days}일</span></h3>
+        <div class="table-scroll" style="margin-top:6px"><table class="hm">
+          <thead><tr><th>신호 ↓ · 청산 →</th>${DATA.exits.map((e) => `<th title="${esc(e.name)}">${e.type === "atr" ? `ATR ${e.sl}/${e.tp}` : `${e.sl}%/${e.tp}%`}</th>`).join("")}</tr></thead>
+          <tbody>${rows}</tbody>
+        </table></div>`;
+    }).join("");
+    document.querySelectorAll(".hm-cell").forEach((el) => {
+      el.addEventListener("pointermove", (e) => showTip(el.dataset.tip, e.clientX, e.clientY));
+      el.addEventListener("pointerleave", hideTip);
+    });
+  })();
+
+  /* ---------- 상위 12 표 ---------- */
+  (function topTable() {
+    document.querySelector("#top-table tbody").innerHTML = DATA.topList.map((t, i) => {
+      const c = combo(t.tf, t.signal, t.exit);
+      const st = c.stats;
+      const e = EXIT[t.exit];
+      const tierPill = t.tier === 2
+        ? `<span class="pill t2">표본 200</span>`
+        : t.tier === 1
+          ? `<span class="pill t1">소표본 게이트</span>`
+          : `<span class="pill t0">게이트 미달</span>`;
+      return `<tr>
+        <td>${i + 1}</td>
+        <td>${TF_LABEL[t.tf]} ${esc(SIG[t.signal].name)} × ${e.type === "atr" ? `ATR ${e.sl}/${e.tp}` : `${e.sl}%/${e.tp}%`}</td>
+        <td>${st.trades}건</td>
+        <td>${n1(st.winRate)}%</td>
+        <td class="${pnlClass(st.avgPnl)}">${signed(st.avgPnl, 3)}%</td>
+        <td class="${pnlClass(st.avgPnl + MAKER_SAVE)}">${signed(st.avgPnl + MAKER_SAVE, 3)}%</td>
+        <td>${n2(st.tstat)}</td>
+        <td>${n2(st.profitFactor)}</td>
+        <td>${n1(st.feeShare)}%</td>
+        <td class="down">${signed(st.mdd, 1)}%p</td>
+        <td>${st.positivePeriods}/3</td>
+        <td>${tierPill}</td>
+      </tr>`;
+    }).join("");
+  })();
+
+  document.getElementById("foot").innerHTML =
+    `원시 데이터 <code>__DATA_PATH__</code> · 재실행 <code>node scripts/backtest/sample200.mjs</code> · ` +
+    `계보: 스윙 Top 10(132조합) → 플레이북 Top 5 → 레버리지 운용 → 이 검토 · ` +
+    `생성 ${kst(m.generatedAt)} KST · 투자 판단의 책임은 본인에게 있다.`;
+</script>

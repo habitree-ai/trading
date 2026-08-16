@@ -1,0 +1,579 @@
+<title>손익비 1:4 가능영역</title>
+<style>
+  /* 다크가 기본 — 트레이딩 앱·백테스트 원장과 같은 토큰. */
+  :root {
+    color-scheme: dark;
+    --bg: #0e1116;
+    --surface: #161a21;
+    --surface-2: #1e232c;
+    --border: #2a3039;
+    --ink: #e6e9ee;
+    --dim: #8b95a3;
+    --accent: #5b8cff;
+    --profit: #26c281;
+    --loss: #f0616d;
+    --bench: #c98500;
+    --grid: #232935;
+    --accent-soft: rgba(91, 140, 255, 0.14);
+  }
+  @media (prefers-color-scheme: light) {
+    :root:not([data-theme="dark"]) {
+      color-scheme: light;
+      --bg: #f7f8fa;
+      --surface: #ffffff;
+      --surface-2: #f1f3f6;
+      --border: #e2e5ea;
+      --ink: #14171c;
+      --dim: #666e7a;
+      --accent: #3b6ef5;
+      --profit: #0f9d58;
+      --loss: #dc3545;
+      --bench: #d68910;
+      --grid: #eceef2;
+      --accent-soft: rgba(59, 110, 245, 0.10);
+    }
+  }
+  :root[data-theme="light"] {
+    color-scheme: light;
+    --bg: #f7f8fa;
+    --surface: #ffffff;
+    --surface-2: #f1f3f6;
+    --border: #e2e5ea;
+    --ink: #14171c;
+    --dim: #666e7a;
+    --accent: #3b6ef5;
+    --profit: #0f9d58;
+    --loss: #dc3545;
+    --bench: #d68910;
+    --grid: #eceef2;
+    --accent-soft: rgba(59, 110, 245, 0.10);
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: ui-sans-serif, system-ui, "Pretendard", "Segoe UI", "Malgun Gothic", sans-serif;
+    font-size: 14px;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 40px 20px 72px; }
+
+  header.masthead { display: flex; flex-wrap: wrap; align-items: baseline; gap: 10px 16px; padding-bottom: 18px; border-bottom: 1px solid var(--border); }
+  .masthead h1 { margin: 0; font-size: 24px; font-weight: 750; letter-spacing: -0.02em; }
+  .round-stamp {
+    font-size: 12px; font-weight: 650; color: var(--accent);
+    border: 1px solid var(--accent); border-radius: 999px; padding: 1px 10px;
+    letter-spacing: 0.04em; white-space: nowrap;
+  }
+  .masthead .meta { flex-basis: 100%; color: var(--dim); font-size: 12.5px; }
+  .masthead .meta b { color: var(--ink); font-weight: 600; }
+
+  section { margin-top: 44px; }
+  .eyebrow { font-size: 11px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; color: var(--dim); margin: 0 0 6px; }
+  h2 { margin: 0 0 14px; font-size: 18px; font-weight: 700; letter-spacing: -0.01em; text-wrap: balance; }
+  h3 { margin: 0 0 8px; font-size: 14px; font-weight: 650; }
+  .note { color: var(--dim); font-size: 12.5px; }
+  .tnum { font-variant-numeric: tabular-nums; }
+  .up { color: var(--profit); }
+  .down { color: var(--loss); }
+
+  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-top: 18px; }
+  .tile { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px 12px; }
+  .tile .k { font-size: 11.5px; color: var(--dim); letter-spacing: 0.02em; }
+  .tile .v { font-size: 24px; font-weight: 700; letter-spacing: -0.01em; margin-top: 2px; line-height: 1.2; }
+  .tile .s { font-size: 11.5px; color: var(--dim); margin-top: 3px; }
+
+  .verdict { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+  .verdict li { background: var(--surface); border: 1px solid var(--border); border-left: 3px solid var(--accent); border-radius: 10px; padding: 10px 14px; }
+  .verdict li.win { border-left-color: var(--profit); }
+  .verdict li.lose { border-left-color: var(--loss); }
+  .verdict b { font-weight: 650; }
+
+  /* 구조 카드 — 봉별 변동성 대비 손절·목표 폭 */
+  .frames { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 12px; }
+  .frame-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 16px; }
+  .frame-card .fh { display: flex; align-items: baseline; gap: 10px; margin-bottom: 10px; }
+  .frame-card .fh .tf { font-size: 16px; font-weight: 750; }
+  .frame-card .fh .atr { color: var(--dim); font-size: 12px; }
+  .gaugeline { display: grid; grid-template-columns: 70px 1fr 84px; gap: 10px; align-items: center; margin-top: 8px; font-size: 12px; }
+  .gaugeline .gl { color: var(--dim); }
+  .gaugeline .track { position: relative; height: 12px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
+  .gaugeline .fill { position: absolute; inset: 0 auto 0 0; border-radius: 6px; }
+  .gaugeline .gv { text-align: right; font-variant-numeric: tabular-nums; }
+  .base-note { margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--grid); font-size: 12.5px; color: var(--dim); }
+  .base-note b { color: var(--ink); font-weight: 650; }
+
+  .chart-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 16px 16px 10px; }
+  .legend { display: flex; gap: 18px; flex-wrap: wrap; font-size: 12px; color: var(--dim); margin-bottom: 8px; }
+  .legend .dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; vertical-align: -1px; margin-right: 6px; }
+  svg text { font-family: inherit; }
+  .axis-label { font-size: 10.5px; fill: var(--dim); }
+  .grid-line { stroke: var(--grid); stroke-width: 1; }
+  .row-label { font-size: 11.5px; fill: var(--ink); }
+  .row-sub { font-size: 10px; fill: var(--dim); }
+
+  #tooltip {
+    position: fixed; pointer-events: none; z-index: 50; display: none;
+    background: var(--surface-2); color: var(--ink); border: 1px solid var(--border);
+    border-radius: 8px; padding: 7px 11px; font-size: 12px; line-height: 1.5;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35); max-width: 280px; white-space: nowrap;
+  }
+  #tooltip .t { color: var(--dim); font-size: 11px; }
+
+  .table-scroll { overflow-x: auto; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); }
+  table { border-collapse: collapse; width: 100%; font-size: 13px; }
+  th, td { padding: 9px 14px; text-align: right; white-space: nowrap; }
+  th { font-size: 11.5px; color: var(--dim); font-weight: 600; letter-spacing: 0.03em; border-bottom: 1px solid var(--border); }
+  td { border-bottom: 1px solid var(--grid); font-variant-numeric: tabular-nums; }
+  tr:last-child td { border-bottom: none; }
+  th:first-child, td:first-child { text-align: left; }
+  tbody tr:hover td { background: var(--accent-soft); }
+  tbody tr.tf-head td { text-align: left; font-weight: 700; color: var(--dim); background: var(--surface-2); font-size: 12px; }
+  .pill { font-size: 11px; font-weight: 700; border-radius: 999px; padding: 2px 9px; white-space: nowrap; }
+  .pill.ok { background: var(--profit); color: #fff; }
+  .pill.edge { background: var(--surface-2); color: var(--dim); border: 1px solid var(--border); }
+  .pill.no { background: var(--loss); color: #fff; }
+
+  .duo { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 12px; }
+
+  details { margin-top: 14px; }
+  summary { cursor: pointer; color: var(--accent); font-weight: 600; font-size: 13px; padding: 6px 2px; border-radius: 6px; list-style-position: inside; }
+  summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  details .table-scroll { margin-top: 10px; }
+
+  .rules { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 10px; }
+  .rule-item { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 11px 14px; }
+  .rule-item .k { font-size: 11.5px; color: var(--dim); font-weight: 650; letter-spacing: 0.03em; }
+  .rule-item .v { margin-top: 2px; font-size: 13px; }
+  .caveats { margin: 14px 0 0; padding-left: 18px; color: var(--dim); font-size: 12.5px; }
+  .caveats li { margin-top: 4px; }
+  .caveats b { color: var(--ink); font-weight: 600; }
+
+  footer { margin-top: 56px; padding-top: 16px; border-top: 1px solid var(--border); color: var(--dim); font-size: 12px; }
+  footer code { font-family: ui-monospace, "Cascadia Mono", monospace; font-size: 11.5px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 4px; padding: 1px 5px; }
+</style>
+
+<div class="wrap">
+  <header class="masthead">
+    <h1>손익비 1:4 가능영역</h1>
+    <span class="round-stamp">목표 +2% · 손절 −0.5%</span>
+    <p class="meta" id="head-meta"></p>
+  </header>
+
+  <section aria-labelledby="s-verdict">
+    <p class="eyebrow">Verdict</p>
+    <h2 id="s-verdict">판정 — 이 구조는 어디서 통하는가</h2>
+    <div class="tiles" id="tiles"></div>
+    <ul class="verdict" id="verdict" style="margin-top:14px"></ul>
+  </section>
+
+  <section aria-labelledby="s-structure">
+    <p class="eyebrow">Why</p>
+    <h2 id="s-structure">구조 분석 — 손절 0.5%가 변동성 안에 잠긴다</h2>
+    <div class="frames" id="frames"></div>
+    <p class="note" style="margin-top:10px">
+      기준선은 신호 없이 매 봉 진입했을 때 +2%가 −0.5%보다 먼저 올 확률이다(겹침 무시한 도달 확률
+      추정). 신호의 값어치는 이 기준선을 얼마나 웃도느냐로 읽는다.
+    </p>
+  </section>
+
+  <section aria-labelledby="s-chart">
+    <p class="eyebrow">Win rate vs break-even</p>
+    <h2 id="s-chart">승률 vs 손익분기 24% — 조합별 위치</h2>
+    <div class="chart-card">
+      <div class="legend">
+        <span><span class="dot" style="background:var(--profit)"></span>기대값 플러스</span>
+        <span><span class="dot" style="background:var(--loss)"></span>기대값 마이너스</span>
+        <span><span class="dot" style="background:var(--dim)"></span>기준선(무조건 진입)</span>
+        <span>가로 수염 = 승률의 95% 신뢰구간(Wilson)</span>
+      </div>
+      <div id="wr-chart"></div>
+    </div>
+    <p class="note" style="margin-top:8px" id="wr-note"></p>
+  </section>
+
+  <section aria-labelledby="s-table">
+    <p class="eyebrow">Detail</p>
+    <h2 id="s-table">봉·기준별 상세</h2>
+    <div class="table-scroll">
+      <table id="detail-table">
+        <thead>
+          <tr>
+            <th scope="col">기준</th>
+            <th scope="col">방향</th>
+            <th scope="col">거래</th>
+            <th scope="col">승률</th>
+            <th scope="col">95% CI</th>
+            <th scope="col">기대값/건</th>
+            <th scope="col">총손익</th>
+            <th scope="col">P/F</th>
+            <th scope="col">청산 (목표·손절·시간)</th>
+            <th scope="col">판정</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section aria-labelledby="s-curve">
+    <p class="eyebrow">Equity</p>
+    <h2 id="s-curve">누적 손익 곡선 — 봉별</h2>
+    <div class="duo" id="curves"></div>
+    <p class="note" style="margin-top:8px">거래당 자본 100 기준 단리 합산(%p) · 5기준 합산 · 청산 시각순.</p>
+  </section>
+
+  <section aria-labelledby="s-trades">
+    <p class="eyebrow">All samples</p>
+    <h2 id="s-trades">취합 표본 전체</h2>
+    <details>
+      <summary id="trades-summary"></summary>
+      <div class="table-scroll">
+        <table id="trades-table">
+          <thead>
+            <tr>
+              <th scope="col">#</th>
+              <th scope="col">봉</th>
+              <th scope="col">기준</th>
+              <th scope="col">방향</th>
+              <th scope="col">진입(KST)</th>
+              <th scope="col">진입가</th>
+              <th scope="col">청산 사유</th>
+              <th scope="col">보유</th>
+              <th scope="col">신호 RSI</th>
+              <th scope="col">손익</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </details>
+  </section>
+
+  <section aria-labelledby="s-method">
+    <p class="eyebrow">Method</p>
+    <h2 id="s-method">체결 규칙과 한계</h2>
+    <div class="rules" id="rules"></div>
+    <ul class="caveats">
+      <li><b>1회차 원장과의 비교.</b> 같은 신호 5기준에 ATR 연동 청산(손절 1.5×ATR·목표 2.25×ATR)을 쓴 1회차는 1시간봉에서 +5.9%p였다. 신호가 아니라 <b>청산 구조가 성패를 갈랐다</b> — 손절을 변동성에 묶는 쪽이 이 구간에서는 옳았다.</li>
+      <li><b>보수적 집계.</b> 같은 봉에서 목표·손절 동시 도달 시 손절로 세었다. 손절 0.5%는 봉 안에서 자주 스치므로 이 가정의 영향이 1회차보다 크다 — 실제 성적은 여기 숫자보다 다소 좋았을 수 있지만, 구조적 결론(손절이 변동성보다 얇다)은 바뀌지 않는다.</li>
+      <li><b>한 구간의 표본.</b> 이번 180일은 하락·횡보가 섞인 구간이다. 강한 추세장에서는 +2% 도달률이 올라 결과가 달라질 수 있다 — 그래서 회차 누적이 필요하다.</li>
+      <li><b>4시간봉 표본은 얇다.</b> 기준당 7~23건이라 승률의 신뢰구간이 매우 넓다. 4H ①·③의 플러스는 참고만 하고, 근거로 쓰려면 표본이 더 쌓여야 한다.</li>
+    </ul>
+  </section>
+
+  <footer id="foot"></footer>
+</div>
+
+<div id="tooltip" role="presentation"></div>
+
+<script>
+  const DATA = __DATA_JSON__;
+
+  const KST = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Asia/Seoul", year: "2-digit", month: "2-digit", day: "2-digit",
+    hour: "2-digit", minute: "2-digit", hour12: false,
+  });
+  function kst(ms, withTime = true) {
+    const p = {};
+    for (const part of KST.formatToParts(new Date(ms))) p[part.type] = part.value;
+    if (p.hour === "24") p.hour = "00";
+    return withTime ? `${p.year}.${p.month}.${p.day} ${p.hour}:${p.minute}` : `${p.year}.${p.month}.${p.day}`;
+  }
+  const n1 = (x) => x === null || x === undefined ? "—" : x.toLocaleString("ko-KR", { maximumFractionDigits: 1 });
+  const n2 = (x) => x === null || x === undefined ? "—" : x.toLocaleString("ko-KR", { maximumFractionDigits: 2, minimumFractionDigits: 2 });
+  const signed = (x, d = 2) => x === null || x === undefined ? "—" : (x > 0 ? "+" : "") + x.toLocaleString("ko-KR", { maximumFractionDigits: d, minimumFractionDigits: d });
+  const pnlClass = (x) => x > 0 ? "up" : x < 0 ? "down" : "";
+  const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+  const m = DATA.meta;
+  const BE = m.breakEvenWinRate;
+  const STRAT_NAME = Object.fromEntries(DATA.strategies.map((s) => [s.key, s.name]));
+  const EXIT_LABEL = { tp: "목표", sl: "손절", time: "시간", open: "진행 중" };
+  const TF_LABEL = { "1H": "1시간봉", "4H": "4시간봉" };
+  const TFS = ["1H", "4H"];
+
+  /** Wilson 95% 신뢰구간 — 표본이 얇은 4H에서 특히 정직해야 한다. */
+  function wilson(wins, n) {
+    if (n === 0) return null;
+    const z = 1.96, p = wins / n;
+    const denom = 1 + z * z / n;
+    const center = (p + z * z / (2 * n)) / denom;
+    const half = (z * Math.sqrt(p * (1 - p) / n + z * z / (4 * n * n))) / denom;
+    return { lo: Math.max(0, (center - half) * 100), hi: Math.min(100, (center + half) * 100) };
+  }
+
+  /** 판정 — 기대값과 손익분기 대비 위치로 가른다. */
+  function verdictOf(st) {
+    if (st.trades === 0) return { cls: "edge", label: "표본 없음" };
+    if (st.avgPnl > 0.05 && st.winRate > BE) return { cls: "ok", label: "잠정 가능" };
+    if (st.avgPnl >= -0.05) return { cls: "edge", label: "경계" };
+    return { cls: "no", label: "불가" };
+  }
+
+  /* ---------- 머리 ---------- */
+  const f1 = DATA.frames["1H"], f4 = DATA.frames["4H"];
+  document.getElementById("head-meta").innerHTML =
+    `<b>${esc(m.symbol)}</b> · <b>1시간봉 + 4시간봉</b> · ${kst(f1.from, false)} ~ ${kst(f1.to, false)} (${m.days}일) · ` +
+    `신호 5기준 공통 · 최대 보유 ${m.maxHold}봉 · 왕복 비용 ${m.fee}% · 검토일 ${kst(m.generatedAt, false)}`;
+
+  /* ---------- 판정 타일·결론 ---------- */
+  const combos = TFS.flatMap((tf) =>
+    DATA.strategies.map((s) => ({ tf, ...s, st: DATA.frames[tf].perStrategy[s.key] })),
+  );
+  const viable = combos.filter((c) => c.st.trades > 0 && c.st.avgPnl > 0.05 && c.st.winRate > BE);
+  const totalClosed = DATA.combined.trades;
+  const openCount = DATA.trades.filter((t) => t.exitType === "open").length;
+
+  document.getElementById("tiles").innerHTML = [
+    { k: "취합 표본", v: `${totalClosed}건`, s: `1H ${f1.overall.trades} + 4H ${f4.overall.trades} · 진행 중 ${openCount}건 제외` },
+    { k: "손익분기 승률", v: `${n1(BE)}%`, s: "승 +1.9% · 패 −0.6% 기준" },
+    { k: "손익분기 넘은 조합", v: `${viable.length} / ${combos.length}`, s: "기대값 플러스 기준" },
+    { k: "종합 손익", v: `<span class="${pnlClass(DATA.combined.totalPnl)}">${signed(DATA.combined.totalPnl, 1)}%p</span>`, s: `종합 승률 ${n1(DATA.combined.winRate)}%` },
+  ].map((t) => `<div class="tile"><div class="k">${t.k}</div><div class="v">${t.v}</div><div class="s">${t.s}</div></div>`).join("");
+
+  (function verdictList() {
+    const items = [];
+    const best = viable.slice().sort((a, b) => b.st.avgPnl - a.st.avgPnl);
+    const robust = best.filter((c) => {
+      const ci = wilson(c.st.wins, c.st.trades);
+      return ci && ci.lo > BE;
+    });
+    if (best.length === 0) {
+      items.push({ cls: "lose", html: `10개 조합 어디에서도 기대값이 플러스가 아니다 — 이 구조는 이번 구간에서 전면 불가.` });
+    } else {
+      items.push({
+        cls: "win",
+        html: `가능영역은 <b>${best.map((c) => `${TF_LABEL[c.tf]} ${esc(c.name)}${c.st.trades < 30 ? ` (표본 ${c.st.trades}건뿐)` : ""}`).join(", ")}</b> — ` +
+          `그중 표본이 서른 건을 넘는 것은 ${best.filter((c) => c.st.trades >= 30).map((c) => `${TF_LABEL[c.tf]} ${esc(c.name)} (승률 ${n1(c.st.winRate)}%, 기대값 ${signed(c.st.avgPnl)}%/건)`).join(", ") || "없다"}.`,
+      });
+      items.push({
+        cls: robust.length ? "win" : "",
+        html: robust.length
+          ? `통계적으로도 확정적인 조합: <b>${robust.map((c) => TF_LABEL[c.tf] + " " + esc(c.name)).join(", ")}</b> (승률 신뢰구간 하한이 손익분기 위).`
+          : `단, <b>어느 조합도 통계적으로 확정적이지 않다</b> — 승률의 95% 신뢰구간 하한이 전부 손익분기 ${n1(BE)}% 아래다. 지금 숫자는 "가능성 있음"이지 "증명됨"이 아니다.`,
+      });
+    }
+    items.push({
+      cls: "lose",
+      html: `구조적 원인 — <b>손절 0.5%가 변동성 안에 잠긴다.</b> 4시간봉 ATR이 ${n2(f4.atrPct)}%라 손절이 봉 하나의 평균 변동폭보다 좁고, ` +
+        `1시간봉에서도 목표 2%는 ATR의 ${n1(2 / f1.atrPct)}배 거리다. 그래서 신호 없이 진입해도 10번 중 8번은 손절부터 닿는다(기준선 손절 도달 ${n1(f1.baseline.long.slRate)}% · ${n1(f4.baseline.long.slRate)}%).`,
+    });
+    items.push({
+      cls: "",
+      html: `같은 신호로 <b>ATR 연동 청산(1회차 원장)은 +5.9%p</b>였다. 손익비 1:4를 살리고 싶다면 고정 0.5%가 아니라 ` +
+        `변동성이 낮아진 국면(1H ATR ≤ 0.13% 수준)으로 진입을 제한하거나, 손절을 ATR에 묶는 절충이 다음 검토 후보다.`,
+    });
+    document.getElementById("verdict").innerHTML = items.map((i) => `<li class="${i.cls}">${i.html}</li>`).join("");
+  })();
+
+  /* ---------- 구조 카드 ---------- */
+  (function frames() {
+    document.getElementById("frames").innerHTML = TFS.map((tf) => {
+      const f = DATA.frames[tf];
+      const slAtr = m.sl / f.atrPct;
+      const tpAtr = m.tp / f.atrPct;
+      const scale = Math.max(tpAtr, 14); // 게이지 공통 스케일
+      const gauge = (label, ratio, col, text) => `
+        <div class="gaugeline">
+          <span class="gl">${label}</span>
+          <span class="track"><span class="fill" style="width:${Math.min(100, (ratio / scale) * 100)}%;background:${col}"></span></span>
+          <span class="gv">${text}</span>
+        </div>`;
+      const b = f.baseline.long;
+      return `<div class="frame-card">
+        <div class="fh"><span class="tf">${TF_LABEL[tf]}</span><span class="atr">ATR(14) ${n2(f.atrPct)}% · ${f.candles.toLocaleString()}봉</span></div>
+        ${gauge("봉 변동폭", 1, "var(--dim)", "1.0×ATR")}
+        ${gauge("손절 0.5%", slAtr, "var(--loss)", n2(slAtr) + "×ATR")}
+        ${gauge("목표 2%", tpAtr, "var(--profit)", n1(tpAtr) + "×ATR")}
+        <div class="base-note">
+          기준선(무조건 진입·롱): 목표 먼저 <b>${n1(b.tpRate)}%</b> · 손절 먼저 <b>${n1(b.slRate)}%</b> · 시간청산 ${n1(b.timeRate)}%
+          → 기대값 <b class="${pnlClass(b.expectancy)}">${signed(b.expectancy)}%/건</b>
+          ${tf === "4H" ? " — 손절이 ATR보다 좁아 한 봉의 노이즈로도 잘린다." : ""}
+        </div>
+      </div>`;
+    }).join("");
+  })();
+
+  /* ---------- 툴팁 ---------- */
+  const tip = document.getElementById("tooltip");
+  function showTip(html, x, y) {
+    tip.innerHTML = html;
+    tip.style.display = "block";
+    const r = tip.getBoundingClientRect();
+    const px = Math.min(x + 14, window.innerWidth - r.width - 8);
+    const py = y - r.height - 12 < 8 ? y + 18 : y - r.height - 12;
+    tip.style.left = px + "px";
+    tip.style.top = py + "px";
+  }
+  function hideTip() { tip.style.display = "none"; }
+
+  /* ---------- 승률 vs 손익분기 차트 ---------- */
+  (function wrChart() {
+    const rows = [];
+    for (const tf of TFS) {
+      rows.push({ type: "head", label: TF_LABEL[tf] });
+      const b = DATA.frames[tf].baseline.long;
+      rows.push({ type: "base", tf, label: "기준선 — 매 봉 무조건 진입(롱)", wr: b.tpRate, n: b.n, ci: null, pos: b.expectancy > 0 });
+      for (const s of DATA.strategies) {
+        const st = DATA.frames[tf].perStrategy[s.key];
+        rows.push({
+          type: "strat", tf, key: s.key, label: s.name, side: s.side,
+          wr: st.winRate, n: st.trades, ci: wilson(st.wins, st.trades), pos: st.avgPnl > 0, st,
+        });
+      }
+    }
+
+    const W = 1020, L = 250, R = 30, ROW = 30, HEAD = 26, T = 24, B = 8;
+    let yCur = T;
+    const yOf = rows.map((r) => { const y = yCur; yCur += r.type === "head" ? HEAD : ROW; return y; });
+    const H = yCur + B;
+    const xMax = 60;
+    const x = (v) => L + (Math.min(v, xMax) / xMax) * (W - L - R);
+
+    const parts = [];
+    for (const gv of [0, 10, 20, 30, 40, 50, 60]) {
+      parts.push(`<line class="grid-line" x1="${x(gv)}" x2="${x(gv)}" y1="${T - 6}" y2="${H - B}"></line>`);
+      parts.push(`<text class="axis-label" x="${x(gv)}" y="${T - 10}" text-anchor="middle">${gv}%</text>`);
+    }
+    // 손익분기선 — 이 선의 오른쪽만 살아남는다.
+    parts.push(`<line x1="${x(BE)}" x2="${x(BE)}" y1="${T - 6}" y2="${H - B}" stroke="var(--bench)" stroke-width="1.5" stroke-dasharray="5 4"></line>`);
+    parts.push(`<text class="axis-label" x="${x(BE) + 5}" y="${T + 4}" style="fill:var(--bench);font-weight:700">손익분기 ${BE}%</text>`);
+
+    rows.forEach((r, i) => {
+      const y = yOf[i];
+      if (r.type === "head") {
+        parts.push(`<text class="row-label" x="0" y="${y + 17}" style="font-weight:750">${esc(r.label)}</text>`);
+        return;
+      }
+      const cy = y + ROW / 2 + 2;
+      const col = r.type === "base" ? "var(--dim)" : r.pos ? "var(--profit)" : "var(--loss)";
+      parts.push(`<text class="${r.type === "base" ? "row-sub" : "row-label"}" x="14" y="${cy + 3.5}">${esc(r.label)}${r.type === "strat" ? ` · ${r.side === "long" ? "롱" : "숏"}` : ""}</text>`);
+      parts.push(`<text class="row-sub" x="${L - 10}" y="${cy + 3.5}" text-anchor="end">${r.n}건</text>`);
+      if (r.wr === null) return;
+      if (r.ci) {
+        parts.push(`<line x1="${x(r.ci.lo)}" x2="${x(r.ci.hi)}" y1="${cy}" y2="${cy}" stroke="${col}" stroke-width="1.5" opacity="0.55"></line>`);
+        parts.push(`<line x1="${x(r.ci.lo)}" x2="${x(r.ci.lo)}" y1="${cy - 3.5}" y2="${cy + 3.5}" stroke="${col}" stroke-width="1.5" opacity="0.55"></line>`);
+        parts.push(`<line x1="${x(r.ci.hi)}" x2="${x(r.ci.hi)}" y1="${cy - 3.5}" y2="${cy + 3.5}" stroke="${col}" stroke-width="1.5" opacity="0.55"></line>`);
+      }
+      parts.push(`<circle class="wr-dot" data-i="${i}" cx="${x(r.wr)}" cy="${cy}" r="${r.type === "base" ? 3.5 : 5}" fill="${col}" stroke="var(--surface)" stroke-width="1.5" tabindex="0"></circle>`);
+    });
+
+    const host = document.getElementById("wr-chart");
+    host.innerHTML = `<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;display:block" role="img" aria-label="조합별 승률과 손익분기 비교">${parts.join("")}</svg>`;
+
+    host.querySelectorAll(".wr-dot").forEach((dot) => {
+      const r = rows[Number(dot.dataset.i)];
+      const html = r.type === "base"
+        ? `<b>${TF_LABEL[r.tf]} 기준선</b><br>목표 먼저 도달 ${n1(r.wr)}% · 표본 ${r.n}건`
+        : `<b>${TF_LABEL[r.tf]} ${esc(r.label)}</b><br>` +
+          `승률 ${n1(r.wr)}% (CI ${n1(r.ci.lo)}~${n1(r.ci.hi)}%) · ${r.n}건<br>` +
+          `기대값 <b class="${pnlClass(r.st.avgPnl)}">${signed(r.st.avgPnl)}%/건</b> · 총손익 ${signed(r.st.totalPnl, 1)}%p`;
+      dot.addEventListener("pointermove", (e) => showTip(html, e.clientX, e.clientY));
+      dot.addEventListener("pointerleave", hideTip);
+      dot.addEventListener("focus", () => { const b = dot.getBoundingClientRect(); showTip(html, b.left, b.top); });
+      dot.addEventListener("blur", hideTip);
+    });
+
+    document.getElementById("wr-note").textContent =
+      `손익분기 ${BE}% 오른쪽에 있으면서 신뢰구간까지 오른쪽인 조합만 "증명된 가능영역"이다 — 이번 표본에서는 ` +
+      (rows.some((r) => r.ci && r.ci.lo > BE) ? "일부 조합이 해당한다." : "해당 조합이 없다. 점이 오른쪽이어도 수염이 손익분기를 걸치면 표본 부족이다.");
+  })();
+
+  /* ---------- 상세 표 ---------- */
+  (function detail() {
+    const tbody = document.querySelector("#detail-table tbody");
+    tbody.innerHTML = TFS.map((tf) => {
+      const f = DATA.frames[tf];
+      const head = `<tr class="tf-head"><td colspan="10">${TF_LABEL[tf]} — ${f.candles.toLocaleString()}봉 · ATR ${n2(f.atrPct)}% · 소계 ${f.overall.trades}건 승률 ${n1(f.overall.winRate)}% 총손익 <span class="${pnlClass(f.overall.totalPnl)}">${signed(f.overall.totalPnl, 1)}%p</span></td></tr>`;
+      const body = DATA.strategies.map((s) => {
+        const st = f.perStrategy[s.key];
+        const ci = wilson(st.wins, st.trades);
+        const v = verdictOf(st);
+        return `<tr>
+          <td>${esc(s.name)}</td>
+          <td>${s.side === "long" ? "롱" : "숏"}</td>
+          <td>${st.trades}</td>
+          <td>${n1(st.winRate)}%</td>
+          <td>${ci ? `${n1(ci.lo)}~${n1(ci.hi)}%` : "—"}</td>
+          <td class="${pnlClass(st.avgPnl)}">${signed(st.avgPnl)}%</td>
+          <td class="${pnlClass(st.totalPnl)}">${signed(st.totalPnl, 1)}%p</td>
+          <td>${n2(st.profitFactor)}</td>
+          <td>${st.exits.tp} · ${st.exits.sl} · ${st.exits.time}</td>
+          <td><span class="pill ${v.cls}">${v.label}</span></td>
+        </tr>`;
+      }).join("");
+      return head + body;
+    }).join("");
+  })();
+
+  /* ---------- 누적 곡선 (봉별 소형) ---------- */
+  (function curves() {
+    document.getElementById("curves").innerHTML = TFS.map((tf) => {
+      const f = DATA.frames[tf];
+      const curve = f.overall.curve;
+      if (curve.length === 0) return "";
+      const W = 500, H = 180, L = 40, R = 12, T = 12, B = 22;
+      const t0 = curve[0].at, t1 = curve[curve.length - 1].at;
+      let lo = Math.min(0, ...curve.map((c) => c.equity));
+      let hi = Math.max(0, ...curve.map((c) => c.equity));
+      const pad = (hi - lo) * 0.1 || 1;
+      lo -= pad; hi += pad;
+      const x = (t) => L + ((t - t0) / (t1 - t0)) * (W - L - R);
+      const y = (v) => T + (1 - (v - lo) / (hi - lo)) * (H - T - B);
+      const path = curve.map((p, i) => `${i ? "L" : "M"}${x(p.at).toFixed(1)},${y(p.equity).toFixed(1)}`).join("");
+      const last = curve[curve.length - 1];
+      const ticks = [lo + pad, 0, hi - pad].filter((v, i, a) => a.findIndex((w) => Math.abs(w - v) < 0.5) === i);
+      return `<div class="chart-card">
+        <h3>${TF_LABEL[tf]} <span class="note" style="font-weight:400">마지막 <b class="tnum ${pnlClass(last.equity)}">${signed(last.equity, 1)}%p</b></span></h3>
+        <svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;display:block" role="img" aria-label="${TF_LABEL[tf]} 누적 손익">
+          ${ticks.map((v) => `<line class="grid-line" x1="${L}" x2="${W - R}" y1="${y(v).toFixed(1)}" y2="${y(v).toFixed(1)}" ${Math.abs(v) < 1e-9 ? 'stroke-dasharray="2 3" stroke="var(--dim)"' : ""}></line>
+            <text class="axis-label" x="${L - 5}" y="${(y(v) + 3.5).toFixed(1)}" text-anchor="end">${signed(v, 0)}</text>`).join("")}
+          <path d="${path}" fill="none" stroke="var(--accent)" stroke-width="1.8"></path>
+          <circle cx="${x(last.at).toFixed(1)}" cy="${y(last.equity).toFixed(1)}" r="3" fill="var(--accent)"></circle>
+          <text class="axis-label" x="${L}" y="${H - 6}">${kst(t0, false)}</text>
+          <text class="axis-label" x="${W - R}" y="${H - 6}" text-anchor="end">${kst(t1, false)}</text>
+        </svg>
+      </div>`;
+    }).join("");
+  })();
+
+  /* ---------- 전체 표본 ---------- */
+  (function tradesTable() {
+    document.getElementById("trades-summary").textContent =
+      `${DATA.trades.length}건 전체 펼쳐 보기 (완결 ${totalClosed} + 진행 중 ${openCount})`;
+    document.querySelector("#trades-table tbody").innerHTML = DATA.trades
+      .slice()
+      .sort((a, b) => a.entryAt - b.entryAt)
+      .map((t, i) => `<tr>
+        <td>${i + 1}</td>
+        <td>${t.bar}</td>
+        <td>${esc(STRAT_NAME[t.strategy])}</td>
+        <td>${t.side === "long" ? "롱" : "숏"}</td>
+        <td>${kst(t.entryAt)}</td>
+        <td>${t.entry.toLocaleString()}</td>
+        <td>${EXIT_LABEL[t.exitType]}</td>
+        <td>${t.holdBars}봉</td>
+        <td>${n1(t.rsiAtSignal)}</td>
+        <td class="${t.exitType === "open" ? "" : pnlClass(t.pnl)}">${t.exitType === "open" ? "—" : signed(t.pnl) + "%"}</td>
+      </tr>`)
+      .join("");
+  })();
+
+  /* ---------- 방법론 ---------- */
+  document.getElementById("rules").innerHTML = Object.entries({
+    "진입": m.rules.entry,
+    "손절": m.rules.stop,
+    "목표": m.rules.target,
+    "보유 시한": m.rules.maxHold,
+    "비용": m.rules.fee,
+    "동시 도달": m.rules.conflict,
+  }).map(([k, v]) => `<div class="rule-item"><div class="k">${k}</div><div class="v">${esc(v)}</div></div>`).join("");
+
+  document.getElementById("foot").innerHTML =
+    `원시 데이터 <code>__DATA_PATH__</code> · 재실행 <code>node scripts/backtest/tp2-sl05.mjs</code> · ` +
+    `신호 5기준·지표 계산은 백테스트 원장(1회차)과 동일 · 생성 ${kst(m.generatedAt)} KST · 투자 판단의 책임은 본인에게 있다.`;
+</script>

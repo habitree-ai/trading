@@ -1,0 +1,386 @@
+<title>복리 운용 5방식</title>
+<style>
+  /* 다크가 기본 — 트레이딩 앱·백테스트 시리즈와 같은 토큰. */
+  :root {
+    color-scheme: dark;
+    --bg: #0e1116;
+    --surface: #161a21;
+    --surface-2: #1e232c;
+    --border: #2a3039;
+    --ink: #e6e9ee;
+    --dim: #8b95a3;
+    --accent: #5b8cff;
+    --profit: #26c281;
+    --loss: #f0616d;
+    --bench: #c98500;
+    --grid: #232935;
+    --accent-soft: rgba(91, 140, 255, 0.14);
+  }
+  @media (prefers-color-scheme: light) {
+    :root:not([data-theme="dark"]) {
+      color-scheme: light;
+      --bg: #f7f8fa;
+      --surface: #ffffff;
+      --surface-2: #f1f3f6;
+      --border: #e2e5ea;
+      --ink: #14171c;
+      --dim: #666e7a;
+      --accent: #3b6ef5;
+      --profit: #0f9d58;
+      --loss: #dc3545;
+      --bench: #d68910;
+      --grid: #eceef2;
+      --accent-soft: rgba(59, 110, 245, 0.10);
+    }
+  }
+  :root[data-theme="light"] {
+    color-scheme: light;
+    --bg: #f7f8fa;
+    --surface: #ffffff;
+    --surface-2: #f1f3f6;
+    --border: #e2e5ea;
+    --ink: #14171c;
+    --dim: #666e7a;
+    --accent: #3b6ef5;
+    --profit: #0f9d58;
+    --loss: #dc3545;
+    --bench: #d68910;
+    --grid: #eceef2;
+    --accent-soft: rgba(59, 110, 245, 0.10);
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: ui-sans-serif, system-ui, "Pretendard", "Segoe UI", "Malgun Gothic", sans-serif;
+    font-size: 14px;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 40px 20px 72px; }
+
+  header.masthead { display: flex; flex-wrap: wrap; align-items: baseline; gap: 10px 16px; padding-bottom: 18px; border-bottom: 1px solid var(--border); }
+  .masthead h1 { margin: 0; font-size: 24px; font-weight: 750; letter-spacing: -0.02em; }
+  .round-stamp {
+    font-size: 12px; font-weight: 650; color: var(--accent);
+    border: 1px solid var(--accent); border-radius: 999px; padding: 1px 10px;
+    letter-spacing: 0.04em; white-space: nowrap;
+  }
+  .masthead .meta { flex-basis: 100%; color: var(--dim); font-size: 12.5px; }
+  .masthead .meta b { color: var(--ink); font-weight: 600; }
+
+  section { margin-top: 44px; }
+  .eyebrow { font-size: 11px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; color: var(--dim); margin: 0 0 6px; }
+  h2 { margin: 0 0 14px; font-size: 18px; font-weight: 700; letter-spacing: -0.01em; text-wrap: balance; }
+  h3 { margin: 0; font-size: 14px; font-weight: 650; }
+  .note { color: var(--dim); font-size: 12.5px; }
+  .tnum { font-variant-numeric: tabular-nums; }
+  .up { color: var(--profit); }
+  .down { color: var(--loss); }
+
+  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px; margin-top: 18px; }
+  .tile { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px 12px; }
+  .tile .k { font-size: 11.5px; color: var(--dim); letter-spacing: 0.02em; }
+  .tile .v { font-size: 22px; font-weight: 700; letter-spacing: -0.01em; margin-top: 2px; line-height: 1.25; }
+  .tile .s { font-size: 11.5px; color: var(--dim); margin-top: 3px; }
+
+  .verdict { display: grid; gap: 8px; margin: 14px 0 0; padding: 0; list-style: none; }
+  .verdict li { background: var(--surface); border: 1px solid var(--border); border-left: 3px solid var(--accent); border-radius: 10px; padding: 10px 14px; }
+  .verdict li.win { border-left-color: var(--profit); }
+  .verdict li.lose { border-left-color: var(--loss); }
+  .verdict b { font-weight: 650; }
+
+  .table-scroll { overflow-x: auto; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); }
+  table { border-collapse: collapse; width: 100%; font-size: 12.5px; }
+  th, td { padding: 8px 11px; text-align: right; white-space: nowrap; }
+  th { font-size: 11px; color: var(--dim); font-weight: 600; border-bottom: 1px solid var(--border); }
+  td { border-bottom: 1px solid var(--grid); font-variant-numeric: tabular-nums; }
+  tr:last-child td { border-bottom: none; }
+  th:first-child, td:first-child { text-align: left; }
+  tbody tr:hover td { background: var(--accent-soft); }
+
+  /* 방식 카드 */
+  .method { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 16px 18px; margin-top: 14px; }
+  .method .head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+  .method .name { font-size: 16px; font-weight: 750; }
+  .chip { font-size: 10.5px; font-weight: 700; border-radius: 4px; padding: 1px 7px; border: 1px solid var(--border); color: var(--dim); white-space: nowrap; }
+  .chip.mem { color: var(--accent); border-color: var(--accent); }
+  .risk-badge { font-size: 11px; font-weight: 700; border-radius: 999px; padding: 2px 10px; margin-left: auto; background: var(--surface-2); border: 1px solid var(--border); white-space: nowrap; }
+  .risk-badge.hot { background: var(--loss); color: #fff; border-color: var(--loss); }
+  .method .desc { color: var(--dim); font-size: 12.5px; margin-top: 4px; }
+  .rc-stats { display: flex; flex-wrap: wrap; gap: 6px 16px; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--grid); font-size: 12px; }
+  .rc-stats .st { color: var(--dim); }
+  .rc-stats .st b { color: var(--ink); font-weight: 650; font-variant-numeric: tabular-nums; }
+  .p3 { display: inline-flex; gap: 3px; align-items: center; margin-left: 6px; }
+  .p3 .cell { min-width: 52px; height: 16px; padding: 0 4px; border-radius: 4px; display: grid; place-items: center; font-size: 9.5px; font-weight: 700; color: var(--ink); border: 1px solid var(--grid); }
+
+  svg text { font-family: inherit; }
+  .axis-label { font-size: 10.5px; fill: var(--dim); }
+  .grid-line { stroke: var(--grid); stroke-width: 1; }
+
+  details { margin-top: 10px; }
+  summary { cursor: pointer; color: var(--accent); font-weight: 600; font-size: 12.5px; padding: 4px 2px; border-radius: 6px; list-style-position: inside; }
+  summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  details .table-scroll { margin-top: 8px; }
+
+  .guide { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 10px; }
+  .guide-item { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; }
+  .guide-item .k { font-size: 12px; color: var(--accent); font-weight: 700; }
+  .guide-item .v { margin-top: 3px; font-size: 13px; }
+
+  .caveats { margin: 14px 0 0; padding-left: 18px; color: var(--dim); font-size: 12.5px; }
+  .caveats li { margin-top: 4px; }
+  .caveats b { color: var(--ink); font-weight: 600; }
+
+  footer { margin-top: 56px; padding-top: 16px; border-top: 1px solid var(--border); color: var(--dim); font-size: 12px; }
+  footer code { font-family: ui-monospace, "Cascadia Mono", monospace; font-size: 11.5px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 4px; padding: 1px 5px; }
+
+  #tooltip {
+    position: fixed; pointer-events: none; z-index: 50; display: none;
+    background: var(--surface-2); color: var(--ink); border: 1px solid var(--border);
+    border-radius: 8px; padding: 7px 11px; font-size: 12px; line-height: 1.5;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35); max-width: 300px; white-space: nowrap;
+  }
+  #tooltip .t { color: var(--dim); font-size: 11px; }
+</style>
+
+<div class="wrap">
+  <header class="masthead">
+    <h1>복리 운용 5방식</h1>
+    <span class="round-stamp" id="stamp"></span>
+    <p class="meta" id="head-meta"></p>
+  </header>
+
+  <section aria-labelledby="s-sum">
+    <p class="eyebrow">Summary</p>
+    <h2 id="s-sum">$100 누적 복리 — 병행이 속도를 만든다</h2>
+    <div class="tiles" id="tiles"></div>
+    <ul class="verdict" id="verdict"></ul>
+  </section>
+
+  <section aria-labelledby="s-compare">
+    <p class="eyebrow">Compare</p>
+    <h2 id="s-compare">5방식 한눈에 — 같은 기준, 다른 조립</h2>
+    <div class="table-scroll">
+      <table id="compare-table">
+        <thead><tr>
+          <th>방식</th><th>구성</th><th>리스크/거래</th><th>$100 →</th><th>수익률</th>
+          <th>MDD</th><th>MAR</th><th>거래</th><th>월평균</th><th>승률</th><th>동시 최대</th><th>구간</th>
+        </tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+    <p class="note" style="margin-top:8px" id="compare-note"></p>
+  </section>
+
+  <section aria-labelledby="s-methods">
+    <p class="eyebrow">Records</p>
+    <h2 id="s-methods">방식별 누적 기록 — 곡선과 거래 내역 전체</h2>
+    <div id="methods"></div>
+  </section>
+
+  <section aria-labelledby="s-guide">
+    <p class="eyebrow">Playbook</p>
+    <h2 id="s-guide">운용 지침</h2>
+    <div class="guide">
+      <div class="guide-item"><div class="k">1 · 속도는 병행에서 나온다</div><div class="v">봉을 줄이면 수수료가 엣지를 먹는다(표본 200 검토). <b>검증된 기준을 한 계좌에 병행</b>하면 월 2건 → 7.5건 — 같은 리스크로 복리 회전수만 올라간다. 이것이 "단시간 누적복리"의 건전한 형태다.</div></div>
+      <div class="guide-item"><div class="k">2 · 사이징은 언제나 잔고 기준</div><div class="v">거래마다 <b>그 시점 잔고 × 리스크%</b>로 손절 금액을 정하고, 레버리지는 L = min(10, 리스크% ÷ (손절폭+0.1%))로 역산한다. 잔고가 자라면 베팅도 자라고 — 줄면 같이 준다. 복리는 이 규칙 하나로 작동한다.</div></div>
+      <div class="guide-item"><div class="k">3 · 동시 리스크 합산 상한을 정한다</div><div class="v">쿼드 병행의 실측 동시 최대는 2개(리스크 합 10~20%)였다. <b>동시 오픈 리스크 합이 15%를 넘으면 새 신호를 건너뛰는</b> 상한을 실전 규칙으로 둘 것 — 백테스트에는 없는 안전장치다.</div></div>
+      <div class="guide-item"><div class="k">4 · 승격 사다리</div><div class="v">②(3/3구간) 또는 ③으로 <b>리스크 2%</b> 전방 검증 → 20~30건 뒤 기대값 플러스면 5%로 → ④ 병행 확장. ⑤(10%)는 MDD −72%를 견딜 수 있다는 증명이 먼저다 — 그 증명은 대부분 실패한다.</div></div>
+    </div>
+  </section>
+
+  <section aria-labelledby="s-caveat">
+    <p class="eyebrow">Limits</p>
+    <h2 id="s-caveat">읽기 전 마지막 주의</h2>
+    <ul class="caveats">
+      <li><b>인샘플 계보의 종착점이다.</b> 신호(132조합)→청산(25조합)→병행(5방식)까지 전부 같은 2년 위에서 골랐다. 여기 수치는 상한이지 기대치가 아니며, 전방 검증 전에는 후보일 뿐이다.</li>
+      <li><b>병행 회계는 실현 잔고 기준이다.</b> 미실현 손익을 사이징에 반영하지 않았고, 동시 포지션의 증거금 경합·펀딩비·갭 슬리피지는 모델 밖이다 — 레버리지가 이 오차를 증폭한다.</li>
+      <li><b>⑤의 $996은 MDD −72%의 경로다.</b> $100이 도중 $28 부근을 지났다. 그 지점에서 규칙을 지킬 수 없다면 그 수익률은 당신 것이 아니다.</li>
+      <li><b>벤치마크가 마이너스인 구간이다.</b> 보유 $96 대비 초과 성과의 상당분은 숏 기준 두 개가 하락 국면에서 벌어 준 것 — 강한 상승장에서는 구도가 달라질 수 있다.</li>
+    </ul>
+  </section>
+
+  <footer id="foot"></footer>
+</div>
+
+<div id="tooltip" role="presentation"></div>
+
+<script>
+  const DATA = __DATA_JSON__;
+
+  const KST = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Asia/Seoul", year: "2-digit", month: "2-digit", day: "2-digit",
+    hour: "2-digit", minute: "2-digit", hour12: false,
+  });
+  function kst(ms, withTime = false) {
+    const p = {};
+    for (const part of KST.formatToParts(new Date(ms))) p[part.type] = part.value;
+    if (p.hour === "24") p.hour = "00";
+    return withTime ? `${p.year}.${p.month}.${p.day} ${p.hour}:${p.minute}` : `${p.year}.${p.month}.${p.day}`;
+  }
+  const n1 = (x) => x === null || x === undefined ? "—" : x.toLocaleString("ko-KR", { maximumFractionDigits: 1 });
+  const n2 = (x) => x === null || x === undefined ? "—" : x.toLocaleString("ko-KR", { maximumFractionDigits: 2, minimumFractionDigits: 2 });
+  const usd = (x) => x === null || x === undefined ? "—" : "$" + x.toLocaleString("ko-KR", { maximumFractionDigits: 0 });
+  const usd2 = (x) => x === null || x === undefined ? "—" : "$" + x.toLocaleString("ko-KR", { maximumFractionDigits: 2, minimumFractionDigits: 2 });
+  const signed = (x, d = 1) => x === null || x === undefined ? "—" : (x > 0 ? "+" : "") + x.toLocaleString("ko-KR", { maximumFractionDigits: d, minimumFractionDigits: d });
+  const pnlClass = (x) => x > 0 ? "up" : x < 0 ? "down" : "";
+  const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+  const m = DATA.meta;
+  const MEM = Object.fromEntries(DATA.members.map((x) => [x.key, x]));
+  const EXIT_LABEL = { tp: "목표", sl: "손절", time: "시간" };
+
+  /* ---------- 머리 ---------- */
+  document.getElementById("stamp").textContent = `$100 복리 · 병행 운용 · ${kst(m.generatedAt)}`;
+  document.getElementById("head-meta").innerHTML =
+    `<b>${esc(m.symbol)}</b> · ${kst(m.from)} ~ ${kst(m.to)} (≈ 2년) · 검증 기준 4종 병행 · ` +
+    `사이징 ${esc(m.sizing)} · ${esc(m.accounting)}`;
+
+  /* ---------- 타일 ---------- */
+  const quad = DATA.methods.find((x) => x.key === "quad");
+  const aggr = DATA.methods.find((x) => x.key === "quad-aggr");
+  document.getElementById("tiles").innerHTML = [
+    { k: "건전 병행 최고 (④·리스크 5%)", v: `<span class="up">${usd(quad.stats.finalEquity)}</span>`, s: `MDD ${signed(quad.stats.mdd)}% · MAR ${n2(quad.stats.mar)} · 3/3구간` },
+    { k: "공격형 (⑤·리스크 10%)", v: usd(aggr.stats.finalEquity), s: `대가: MDD ${signed(aggr.stats.mdd)}% — $100이 도중 $${Math.round(100 * (1 + aggr.stats.mdd / 100))} 부근` },
+    { k: "거래 빈도", v: `월 ${n1(quad.stats.perMonth)}건`, s: `솔로 ${n1(DATA.methods[0].stats.perMonth)}건 → 병행으로 ${n1(quad.stats.perMonth / DATA.methods[0].stats.perMonth)}배` },
+    { k: "BTC 보유 벤치마크", v: `<span class="${pnlClass(DATA.benchmark.finalEquity - 100)}">${usd(DATA.benchmark.finalEquity)}</span>`, s: esc(DATA.benchmark.note) },
+  ].map((t) => `<div class="tile"><div class="k">${t.k}</div><div class="v">${t.v}</div><div class="s">${t.s}</div></div>`).join("");
+
+  /* ---------- 결론 ---------- */
+  (function verdict() {
+    const duo = DATA.methods.find((x) => x.key === "duo-long");
+    const s1 = DATA.methods[0].stats, s2 = DATA.methods[1].stats;
+    const items = [
+      {
+        cls: "win",
+        html: `<b>"단시간 누적복리"의 정답은 봉 단축이 아니라 병행이다.</b> 같은 리스크 5%에서 솔로는 ${usd(s1.finalEquity)}·${usd(s2.finalEquity)}에 그치지만, 둘을 한 계좌에 병행하면 ${usd(duo.stats.finalEquity)}, 넷을 병행하면 <b>${usd(quad.stats.finalEquity)}</b> — 거래가 월 2건에서 7.5건으로 늘며 복리 회전수가 올라간 결과다. MAR(수익÷낙폭)은 2.6 → ${n2(quad.stats.mar)}로, 수익만 는 게 아니라 <b>효율이 좋아졌다.</b>`,
+      },
+      {
+        cls: "",
+        html: `병행이 효율을 올리는 이유는 단순하다 — 네 기준의 신호가 <b>서로 다른 시점</b>에 나서(실측 동시 최대 ${quad.stats.maxConcurrent}개) 자본이 노는 시간이 줄고, 롱 2 + 숏 2 구성이라 하락 국면에서도 벌 기회가 있다(벤치마크 보유는 ${usd(DATA.benchmark.finalEquity)}로 마이너스였다).`,
+      },
+      {
+        cls: "",
+        html: `<b>리스크%는 복리 속도와 낙폭을 함께 올리는 다이얼이다.</b> 같은 구성의 ④(5%) $${quad.stats.finalEquity} · MDD ${signed(quad.stats.mdd)}% vs ⑤(10%) $${aggr.stats.finalEquity} · MDD ${signed(aggr.stats.mdd)}%. 수익은 약 2배지만 낙폭은 "회복 불가능 체감권"으로 들어간다 — 확실함을 원하면 ④까지다.`,
+      },
+      {
+        cls: "lose",
+        html: `이 수치는 <b>인샘플 상한</b>이다. 신호도 청산도 병행 구성도 같은 2년에서 골랐고, 최고 t-통계량(1.74)조차 우연 기준선을 넘지 못한 시리즈다. 이 페이지의 올바른 용도는 "얼마 벌 수 있다"가 아니라 <b>어떤 조립이 구조적으로 유리한가</b>를 고르는 것 — 실행은 리스크 2% 전방 검증부터다.`,
+      },
+    ];
+    document.getElementById("verdict").innerHTML = items.map((i) => `<li class="${i.cls}">${i.html}</li>`).join("");
+  })();
+
+  /* ---------- 비교 표 ---------- */
+  (function compare() {
+    document.querySelector("#compare-table tbody").innerHTML = DATA.methods.map((mt) => {
+      const st = mt.stats;
+      return `<tr>
+        <td>${esc(mt.name)}</td>
+        <td>${mt.members.map((k) => esc(MEM[k].label.replace(/ \(.+\)/, ""))).join(" + ")}</td>
+        <td>${mt.risk}%</td>
+        <td class="${pnlClass(st.totalReturn)}"><b>${usd(st.finalEquity)}</b></td>
+        <td class="${pnlClass(st.totalReturn)}">${signed(st.totalReturn)}%</td>
+        <td class="down">${signed(st.mdd)}%</td>
+        <td>${n2(st.mar)}</td>
+        <td>${st.trades}건</td>
+        <td>${n1(st.perMonth)}건</td>
+        <td>${n1(st.winRate)}%</td>
+        <td>${st.maxConcurrent}개 (${n1(st.maxOpenRisk)}%)</td>
+        <td>${st.positivePeriods}/3</td>
+      </tr>`;
+    }).join("");
+    document.getElementById("compare-note").textContent =
+      "동시 최대 = 같은 순간 열려 있던 포지션 수(괄호는 그때의 손실 상한 합). 모든 방식이 같은 신호·청산 규칙을 쓴다 — 다른 것은 조립과 리스크뿐이다.";
+  })();
+
+  /* ---------- 방식 카드 ---------- */
+  (function methods() {
+    document.getElementById("methods").innerHTML = DATA.methods.map((mt) => {
+      const st = mt.stats;
+      const cv = mt.curve;
+      const W = 1020, H = 210, L = 52, R = 12, T = 10, B = 22;
+      const t0 = cv[0].at, t1 = cv[cv.length - 1].at;
+      let lo = Math.min(...cv.map((p) => p.eq)), hi = Math.max(...cv.map((p) => p.eq));
+      const pad = (hi - lo) * 0.08 || 5;
+      lo -= pad; hi += pad;
+      const x = (at) => L + ((at - t0) / (t1 - t0)) * (W - L - R);
+      const y = (v) => T + (1 - (v - lo) / (hi - lo)) * (H - T - B);
+      const path = cv.map((p, i) => `${i ? "L" : "M"}${x(p.at).toFixed(1)},${y(p.eq).toFixed(1)}`).join("");
+      const last = cv[cv.length - 1];
+      const ticks = [lo + pad, 100, (hi - pad + 100) / 2, hi - pad]
+        .filter((v, i, a) => a.findIndex((w) => Math.abs(w - v) < (hi - lo) * 0.05) === i);
+      const curveSvg = `<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;display:block;margin-top:12px" role="img" aria-label="${esc(mt.name)} $100 누적 곡선">
+        ${ticks.map((v) => `<line class="grid-line" x1="${L}" x2="${W - R}" y1="${y(v).toFixed(1)}" y2="${y(v).toFixed(1)}" ${Math.abs(v - 100) < 1e-9 ? 'stroke="var(--dim)" stroke-dasharray="2 3"' : ""}></line>
+          <text class="axis-label" x="${L - 5}" y="${(y(v) + 3.5).toFixed(1)}" text-anchor="end">$${Math.round(v)}</text>`).join("")}
+        <path d="${path}" fill="none" stroke="var(--accent)" stroke-width="1.8"></path>
+        <circle cx="${x(last.at).toFixed(1)}" cy="${y(last.eq).toFixed(1)}" r="3" fill="var(--accent)"></circle>
+        <text class="axis-label" x="${(x(last.at) - 6).toFixed(1)}" y="${(y(last.eq) - 8).toFixed(1)}" text-anchor="end" style="font-weight:700;fill:var(--ink)">${usd(last.eq)}</text>
+        <text class="axis-label" x="${L}" y="${H - 6}">${kst(t0)}</text>
+        <text class="axis-label" x="${W - R}" y="${H - 6}" text-anchor="end">${kst(t1)}</text>
+      </svg>`;
+
+      const p3 = st.periods.map((p, k) => {
+        const col = p.n === 0 ? "var(--surface-2)"
+          : p.usd > 0 ? "color-mix(in srgb, var(--profit) 28%, transparent)"
+          : "color-mix(in srgb, var(--loss) 28%, transparent)";
+        return `<span class="cell" style="background:${col}" title="${k + 1}구간: ${p.n}건 ${signed(p.usd, 0)}$">${p.n === 0 ? "—" : signed(p.usd, 0) + "$"}</span>`;
+      }).join("");
+
+      const rows = mt.log.map((l, i) => `<tr>
+        <td>${i + 1}</td>
+        <td>${esc(MEM[l.member].label.replace(/ \(.+\)/, ""))}</td>
+        <td>${l.side === "long" ? "롱" : "숏"}</td>
+        <td>${kst(l.entryAt, true)}</td>
+        <td>${Math.round(l.entry).toLocaleString()}</td>
+        <td>${kst(l.exitAt, true)}</td>
+        <td>${Math.round(l.exit).toLocaleString()}</td>
+        <td>${EXIT_LABEL[l.exitType] ?? esc(l.exitType)}</td>
+        <td>${n1(l.lev)}배</td>
+        <td class="${pnlClass(l.netPct)}">${signed(l.netPct, 2)}%</td>
+        <td class="${pnlClass(l.pnlUsd)}">${signed(l.pnlUsd, 2)}$</td>
+        <td>${usd2(l.equityAfter)}</td>
+      </tr>`).join("");
+
+      return `<article class="method">
+        <div class="head">
+          <span class="name">${esc(mt.name)}</span>
+          ${mt.members.map((k) => `<span class="chip mem">${esc(MEM[k].label)}</span>`).join("")}
+          <span class="risk-badge ${mt.risk >= 10 ? "hot" : ""}">리스크 ${mt.risk}%/거래</span>
+        </div>
+        <p class="desc">${esc(mt.desc)} · ${mt.members.map((k) => `${esc(MEM[k].label.replace(/ \(.+\)/, ""))}: ${esc(MEM[k].exitDesc)}`).join(" · ")}</p>
+        ${curveSvg}
+        <div class="rc-stats">
+          <span class="st">최종 <b class="${pnlClass(st.totalReturn)}">${usd(st.finalEquity)} (${signed(st.totalReturn)}%)</b></span>
+          <span class="st">MDD <b class="down">${signed(st.mdd)}%</b></span>
+          <span class="st">MAR <b>${n2(st.mar)}</b></span>
+          <span class="st">거래 <b>${st.trades}건</b> (월 ${n1(st.perMonth)})</span>
+          <span class="st">승률 <b>${n1(st.winRate)}%</b></span>
+          <span class="st">평균레버 <b>${n1(st.avgLev)}배</b></span>
+          <span class="st">동시 최대 <b>${st.maxConcurrent}개 · 리스크 합 ${n1(st.maxOpenRisk)}%</b></span>
+          <span class="st">최대연패 <b>${st.maxLossStreak}</b></span>
+          <span class="st">청산 <b>목표 ${st.exitCounts.tp} · 손절 ${st.exitCounts.sl} · 시간 ${st.exitCounts.time}</b></span>
+          <span class="st">3구간(실현$)${p3}</span>
+        </div>
+        <details>
+          <summary>누적 거래 내역 ${mt.log.length}건 — 진입·청산·레버리지·손익$·잔고</summary>
+          <div class="table-scroll"><table>
+            <thead><tr>
+              <th>#</th><th>기준</th><th>방향</th><th>진입(KST)</th><th>진입가</th>
+              <th>청산(KST)</th><th>청산가</th><th>유형</th><th>레버</th><th>계좌 손익</th><th>손익$</th><th>잔고</th>
+            </tr></thead>
+            <tbody>${rows}</tbody>
+          </table></div>
+        </details>
+      </article>`;
+    }).join("");
+  })();
+
+  document.getElementById("foot").innerHTML =
+    `원시 데이터 <code>__DATA_PATH__</code> · 재실행 <code>node scripts/backtest/portfolio-sim.mjs</code> · ` +
+    `계보: 스윙 Top 10 → 플레이북 Top 5 → 레버리지 운용 → 표본 200 → 이 병행 검토 · ` +
+    `생성 ${kst(m.generatedAt, true)} KST · 투자 판단의 책임은 본인에게 있다.`;
+</script>
