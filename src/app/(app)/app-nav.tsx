@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 
 const LINKS = [
   { href: "/dashboard", label: "대시보드", icon: "📊" },
+  { href: "/system", label: "시스템 트레이딩", icon: "🤖" },
   { href: "/chart", label: "실시간 차트", icon: "📈" },
   { href: "/quad", label: "4분할 차트", icon: "🔲" },
   { href: "/research", label: "종목 리서치", icon: "🔎" },
