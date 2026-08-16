@@ -7,6 +7,7 @@ import { Layer, Note, worstTone } from "@/app/(app)/dashboard/layer";
 import { PerformanceSummary } from "@/app/(app)/dashboard/performance-summary";
 import { PnlPanel } from "@/app/(app)/dashboard/pnl-panel";
 import { RecentTrades } from "@/app/(app)/dashboard/recent-trades";
+import { SystemPanel } from "@/app/(app)/dashboard/system-panel";
 import { SyncAction } from "@/app/(app)/trades/okx-sync-button";
 import {
   DrawdownChart,
@@ -35,10 +36,17 @@ import {
   getLastSync,
   getLatestBalance,
   listAnnotationsByTrade,
+  listBooks,
   listCashFlows,
   listFillsByTrade,
   listTrades,
 } from "@/lib/queries";
+import {
+  SYSTEM_BOOK_NAME,
+  readSystemState,
+  readSystemTrades,
+  systemDataExists,
+} from "@/lib/system-trading";
 import { reconcileEquity } from "@/lib/reconcile";
 import {
   readBalanceGap,
@@ -63,6 +71,18 @@ export default async function DashboardPage() {
     getLatestBalance(book.id),
     book.exchange_account_id ? getLastSync(book.id) : null,
   ]);
+
+  // 시스템 봇(자동매매)이 이 머신에서 돌고 있으면 그 상태와 가져오기 자리를 띄운다.
+  // 봇의 진실 원천은 파일이고, 시스템 북은 가져오기로 따라가는 별도 데이터 북이다.
+  const sys = systemDataExists() ? readSystemState("paper") : null;
+  const sysTrades = sys ? readSystemTrades("paper") : [];
+  let sysImported = 0;
+  if (sys) {
+    const books = await listBooks();
+    const systemBook = books.find((b) => b.name === SYSTEM_BOOK_NAME);
+    if (systemBook) sysImported = (await listTrades(systemBook.id)).length;
+  }
+  const sysLastEval = sys ? Math.max(0, ...Object.values(sys.lastBarTs)) || null : null;
 
   const derived = deriveTrades(book, trades, flows);
   const m = computeMetrics(book, derived, flows);
@@ -197,6 +217,18 @@ export default async function DashboardPage() {
           </Link>
         </div>
       </header>
+
+      {sys ? (
+        <SystemPanel
+          mode={sys.mode}
+          equity={sys.equity}
+          openPositions={Object.values(sys.positions).map((p) => p.name)}
+          lastEvalAt={sysLastEval}
+          closedCount={sysTrades.length}
+          importedCount={sysImported}
+          isSystemBookActive={book.name === SYSTEM_BOOK_NAME}
+        />
+      ) : null}
 
       {derived.length === 0 ? (
         <p className="rounded-xl border border-dashed border-border p-10 text-center text-sm text-dim">
