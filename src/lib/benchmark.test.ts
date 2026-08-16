@@ -11,6 +11,7 @@ function candles(...days: [string, number][]) {
     h: close,
     l: close,
     c: close,
+    v: 0,
   }));
 }
 

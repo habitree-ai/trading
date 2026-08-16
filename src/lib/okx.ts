@@ -28,6 +28,8 @@ export interface Candle {
   h: number;
   l: number;
   c: number;
+  /** 거래량(계약 수). 절대값이 아니라 평균 대비 몇 배인지를 읽는 용도다. */
+  v: number;
 }
 
 /** `BTC` → `BTC-USDT-SWAP`. 시트에는 기초자산만 저장하므로 여기서 무기한 계약으로 편다. */
@@ -150,6 +152,7 @@ export async function fetchCandles(
             h: Number(row[2]),
             l: Number(row[3]),
             c: Number(row[4]),
+            v: Number(row[5]),
           });
         }
       }

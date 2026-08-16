@@ -372,6 +372,8 @@ export function TradeChart({
         lineWidth: 1,
         priceLineVisible: false,
         priceFormat: { type: "price", precision: 1, minMove: 0.1 },
+        // 축을 0~100에 고정한다 — 값에 맞춰 배율이 줄면 30·70 기준선이 화면 밖으로 나간다.
+        autoscaleInfoProvider: () => ({ priceRange: { minValue: 0, maxValue: 100 } }),
       },
       1,
     );
@@ -574,6 +576,9 @@ export function TradeChart({
     const series = seriesRef.current;
     if (!chart || !series) return null;
 
+    // RSI 패널 위의 좌표는 본 창의 가격이 아니다 — 그대로 넘기면 축 밖 가격으로 풀린다.
+    if (y > chart.paneSize(0).height) return null;
+
     const time = chart.timeScale().coordinateToTime(x);
     const price = series.coordinateToPrice(y);
     if (time === null || price === null) return null;
@@ -705,7 +710,11 @@ export function TradeChart({
 
     const onDown = (e: PointerEvent) => {
       const { x, y } = local(e);
-      const hit = layerRef.current?.findHit(x, y);
+      // RSI 패널 위에는 도형이 없다 — 가시 범위 밖 가격이 그 영역으로 투영돼 집히는 것을 막는다.
+      const hit =
+        y > (chartRef.current?.paneSize(0).height ?? y)
+          ? undefined
+          : layerRef.current?.findHit(x, y);
       if (!hit) {
         // 빈 곳을 누르면 고르던 것을 놓는다.
         setSelected(null);
@@ -830,7 +839,9 @@ export function TradeChart({
     // 더블클릭 — 숫자로 값을 넣는 자리를 연다.
     const onDouble = (e: MouseEvent) => {
       const r = host.getBoundingClientRect();
-      const hit = layerRef.current?.findHit(e.clientX - r.left, e.clientY - r.top);
+      const y = e.clientY - r.top;
+      if (y > (chartRef.current?.paneSize(0).height ?? y)) return;
+      const hit = layerRef.current?.findHit(e.clientX - r.left, y);
       if (!hit) return;
 
       const target = annotations.find((a) => a.id === hit.id);
@@ -938,8 +949,9 @@ export function TradeChart({
       const series = seriesRef.current;
       if (!chart || !series) return;
       e.preventDefault();
-      // 가격 축을 손으로 끌면 자동 배율이 꺼진 채 남는다 — 되돌릴 때 함께 켠다.
+      // 가격 축을 손으로 끌면 자동 배율이 꺼진 채 남는다 — 되돌릴 때 함께 켠다. RSI 축도 같다.
       series.priceScale().applyOptions({ autoScale: true });
+      rsiRef.current?.priceScale().applyOptions({ autoScale: true });
       chart.timeScale().resetTimeScale();
       chart.timeScale().fitContent();
     };
