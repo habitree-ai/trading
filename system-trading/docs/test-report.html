@@ -1,0 +1,40 @@
+<title>배선 테스트 결과</title>
+<style>
+  :root { color-scheme: dark; --bg:#0e1116; --surface:#161a21; --border:#2a3039; --ink:#e6e9ee; --dim:#8b95a3; --accent:#5b8cff; --profit:#26c281; --loss:#f0616d; --grid:#232935; }
+  @media (prefers-color-scheme: light) { :root:not([data-theme="dark"]) { color-scheme: light; --bg:#f7f8fa; --surface:#ffffff; --border:#e2e5ea; --ink:#14171c; --dim:#666e7a; --accent:#3b6ef5; --profit:#0f9d58; --loss:#dc3545; --grid:#eceef2; } }
+  :root[data-theme="light"] { color-scheme: light; --bg:#f7f8fa; --surface:#ffffff; --border:#e2e5ea; --ink:#14171c; --dim:#666e7a; --accent:#3b6ef5; --profit:#0f9d58; --loss:#dc3545; --grid:#eceef2; }
+  * { box-sizing:border-box; } .up{color:var(--profit)} .down{color:var(--loss)}
+  body { margin:0; background:var(--bg); color:var(--ink); font-family:ui-sans-serif,system-ui,"Pretendard","Segoe UI","Malgun Gothic",sans-serif; font-size:14px; line-height:1.6; }
+  .wrap { max-width:920px; margin:0 auto; padding:40px 20px 64px; }
+  h1 { font-size:22px; font-weight:750; margin:0 0 4px; } h2 { font-size:16px; margin:36px 0 10px; }
+  .meta { color:var(--dim); font-size:12.5px; margin:0 0 20px; }
+  .verdict { border:1px solid var(--border); border-left:4px solid var(--profit); background:var(--surface); border-radius:10px; padding:12px 16px; }
+  table { border-collapse:collapse; width:100%; font-size:12.5px; background:var(--surface); border:1px solid var(--border); border-radius:10px; overflow:hidden; }
+  th,td { padding:8px 10px; text-align:left; white-space:nowrap; } th { color:var(--dim); font-size:11px; border-bottom:1px solid var(--border); }
+  td { border-bottom:1px solid var(--grid); font-variant-numeric:tabular-nums; } tr:last-child td { border-bottom:none; }
+  .scroll { overflow-x:auto; border-radius:10px; }
+  footer { margin-top:40px; color:var(--dim); font-size:12px; border-top:1px solid var(--border); padding-top:14px; }
+</style>
+<div class="wrap">
+  <h1>배선 테스트 결과</h1>
+  <p class="meta">LIVE · 최소 수량(0.01계약) · 레버리지 10배 ·
+    목표 +0.15% / 손절 −0.1% 브래킷</p>
+  <div class="verdict"><b>앱 버튼 진입 1회 · 청산 확인 1회</b> — 진입·브래킷 부착·청산·기록의 전 배선이 실계좌에서 동작했다.</div>
+  <h2>라운드 요약 (CLI 실행)</h2>
+  <div class="scroll"><table>
+    <tr><th>#</th><th>트리거</th><th>방향</th><th>기준가</th><th>손절/목표</th><th>진입 지연</th><th>청산</th><th>보유</th><th>판정</th></tr>
+    <tr><td colspan="9" style="color:var(--dim)">CLI 라운드 없음</td></tr>
+  </table></div>
+  <h2>앱 버튼 사건 (거래 페이지 실주문 테스트)</h2>
+  <div class="scroll"><table>
+    <tr><th>시각(KST)</th><th>사건</th><th>방향</th><th>상세</th></tr>
+    <tr><td>08. 16. PM 04:14:55</td><td>이미 청산됨</td><td>롱</td><td style="color:var(--dim)"></td></tr><tr><td>08. 16. PM 04:14:58</td><td>주문 시도</td><td>롱</td><td style="color:var(--dim)">기준가 63020.3 · 손절 62957.3 · 목표 63114.8 · 0.01계약</td></tr><tr><td>08. 16. PM 04:14:58</td><td>주문 실패</td><td>롱</td><td style="color:var(--dim)">OKX POST /api/v5/trade/order: This API Key does not have trading permission for the Crypto</td></tr><tr><td>08. 16. PM 04:30:39</td><td>주문 시도</td><td>롱</td><td style="color:var(--dim)">기준가 63033.5 · 손절 62970.5 · 목표 63128.1 · 0.01계약</td></tr><tr><td>08. 16. PM 04:30:40</td><td>주문 접수</td><td>롱</td><td style="color:var(--dim)">ordId 3837386923951345664 · 102ms</td></tr><tr><td>08. 16. PM 04:37:03</td><td>수동 정리</td><td>롱</td><td style="color:var(--dim)">0.01계약</td></tr>
+  </table></div>
+  <h2>전체 타임라인</h2>
+  <div class="scroll"><table>
+    <tr><th>시각(KST)</th><th>사건</th><th>데이터</th></tr>
+    <tr><td>08. 16. PM 04:14:55</td><td>exit-assumed-flat</td><td style="color:var(--dim)">{&quot;source&quot;:&quot;app&quot;,&quot;side&quot;:&quot;long&quot;}</td></tr><tr><td>08. 16. PM 04:14:58</td><td>entry-try</td><td style="color:var(--dim)">{&quot;source&quot;:&quot;app&quot;,&quot;side&quot;:&quot;long&quot;,&quot;refPx&quot;:63020.3,&quot;stop&quot;:62957.3,&quot;target&quot;:63114.8,&quot;sz&quot;:&quot;0.01&quot;}</td></tr><tr><td>08. 16. PM 04:14:58</td><td>entry-error</td><td style="color:var(--dim)">{&quot;source&quot;:&quot;app&quot;,&quot;side&quot;:&quot;long&quot;,&quot;error&quot;:&quot;OKX POST /api/v5/trade/order: This API Key does not have trading permission for the Crypto&quot;}</td></tr><tr><td>08. 16. PM 04:30:39</td><td>entry-try</td><td style="color:var(--dim)">{&quot;source&quot;:&quot;app&quot;,&quot;side&quot;:&quot;long&quot;,&quot;refPx&quot;:63033.5,&quot;stop&quot;:62970.5,&quot;target&quot;:63128.1,&quot;sz&quot;:&quot;0.01&quot;}</td></tr><tr><td>08. 16. PM 04:30:40</td><td>entry-ok</td><td style="color:var(--dim)">{&quot;source&quot;:&quot;app&quot;,&quot;side&quot;:&quot;long&quot;,&quot;ordId&quot;:&quot;3837386923951345664&quot;,&quot;algoClOrdId&quot;:&quot;qb1786865439942&quot;,&quot;latencyMs&quot;:102}</td></tr><tr><td>08. 16. PM 04:37:03</td><td>exit-manual-close</td><td style="color:var(--dim)">{&quot;source&quot;:&quot;app&quot;,&quot;side&quot;:&quot;long&quot;,&quot;sz&quot;:0.01,&quot;avgPx&quot;:63033.5}</td></tr>
+  </table></div>
+  <footer>이 테스트는 실전 기준(4H 쿼드)과 무관한 배선 검증이다 — 수량은 항상 최소, 손익은 목적이 아니다.
+    기록 원본: system-trading/data/events-test-live.jsonl</footer>
+</div>

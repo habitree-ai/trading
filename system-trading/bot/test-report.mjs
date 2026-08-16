@@ -103,6 +103,18 @@ const attempted = [...sessionRounds.values()].filter((evs) => evs.some((e) => e.
 const total = attempted.length;
 const okCount = attempted.filter(isResolved).length;
 
+// CLI 라운드가 없으면 앱 버튼 사건으로 판정한다 — 진입(entry-ok)마다 청산이 확인돼야 성공.
+const appAll = session.filter((e) => e.source === "app");
+const appEntries = appAll.filter((e) => e.event === "entry-ok").length;
+const appExits = appAll.filter((e) => e.event === "exit-manual-close" || e.event === "exit-bracket").length;
+const verdictOk = total > 0 ? okCount === total : appEntries > 0 && appExits >= appEntries;
+const verdictText =
+  total > 0
+    ? `<b>${okCount}/${total} 라운드 왕복 완료</b> — ${okCount === total ? "진입·브래킷 부착·청산·기록의 전 배선이 동작한다." : "미완 라운드가 있다 — 아래 타임라인에서 원인을 확인할 것."}`
+    : appEntries > 0
+      ? `<b>앱 버튼 진입 ${appEntries}회 · 청산 확인 ${appExits}회</b> — ${verdictOk ? "진입·브래킷 부착·청산·기록의 전 배선이 실계좌에서 동작했다." : "청산이 확인되지 않은 진입이 있다 — 아래 타임라인에서 확인할 것."}`
+      : "<b>기록된 왕복 없음</b> — 진입 시도가 아직 없다.";
+
 const timeline = session
   .map((e) => `<tr><td>${kst(e.at)}</td><td>${esc(e.event)}</td><td style="color:var(--dim)">${esc(JSON.stringify({ ...e, at: undefined, event: undefined }))}</td></tr>`)
   .join("");
@@ -117,7 +129,7 @@ const html = `<title>배선 테스트 결과</title>
   .wrap { max-width:920px; margin:0 auto; padding:40px 20px 64px; }
   h1 { font-size:22px; font-weight:750; margin:0 0 4px; } h2 { font-size:16px; margin:36px 0 10px; }
   .meta { color:var(--dim); font-size:12.5px; margin:0 0 20px; }
-  .verdict { border:1px solid var(--border); border-left:4px solid ${okCount === total && total > 0 ? "var(--profit)" : "var(--loss)"}; background:var(--surface); border-radius:10px; padding:12px 16px; }
+  .verdict { border:1px solid var(--border); border-left:4px solid ${verdictOk ? "var(--profit)" : "var(--loss)"}; background:var(--surface); border-radius:10px; padding:12px 16px; }
   table { border-collapse:collapse; width:100%; font-size:12.5px; background:var(--surface); border:1px solid var(--border); border-radius:10px; overflow:hidden; }
   th,td { padding:8px 10px; text-align:left; white-space:nowrap; } th { color:var(--dim); font-size:11px; border-bottom:1px solid var(--border); }
   td { border-bottom:1px solid var(--grid); font-variant-numeric:tabular-nums; } tr:last-child td { border-bottom:none; }
@@ -126,11 +138,11 @@ const html = `<title>배선 테스트 결과</title>
 </style>
 <div class="wrap">
   <h1>배선 테스트 결과</h1>
-  <p class="meta">${esc(mode.toUpperCase())} · 1분봉 RSI 기준 · 최소 수량(${Number(start.minSz ?? 0.01)}계약) · 레버리지 ${Number(start.lev ?? 10)}배 ·
-    목표 ±${Number(start.tpPct ?? 0.15)}% / 손절 ${Number(start.slPct ?? 0.1)}% ·
-    시작 잔고 $${Number(start.equity ?? 0)} → 종료 잔고 $${end.equity !== undefined && end.equity !== null ? Number(end.equity) : "?"}</p>
-  <div class="verdict"><b>${okCount}/${total} 라운드 왕복 완료</b> —
-    ${okCount === total && total > 0 ? "진입·브래킷 부착·청산·기록의 전 배선이 동작한다." : "미완 라운드가 있다 — 아래 타임라인에서 원인을 확인할 것."}</div>
+  <p class="meta">${esc(mode.toUpperCase())} · 최소 수량(${Number(start.minSz ?? 0.01)}계약) · 레버리지 ${Number(start.lev ?? 10)}배 ·
+    목표 +${Number(start.tpPct ?? 0.15)}% / 손절 −${Number(start.slPct ?? 0.1)}% 브래킷${
+      start.equity !== undefined ? ` · 시작 잔고 $${Number(start.equity)} → 종료 잔고 $${end.equity !== undefined && end.equity !== null ? Number(end.equity) : "?"}` : ""
+    }</p>
+  <div class="verdict">${verdictText}</div>
   <h2>라운드 요약 (CLI 실행)</h2>
   <div class="scroll"><table>
     <tr><th>#</th><th>트리거</th><th>방향</th><th>기준가</th><th>손절/목표</th><th>진입 지연</th><th>청산</th><th>보유</th><th>판정</th></tr>
