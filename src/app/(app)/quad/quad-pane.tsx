@@ -40,10 +40,11 @@ import { BARS, BAR_MS, floorToBar, type Bar, type Candle } from "@/lib/okx";
 /**
  * 한 창에 담는 봉 수.
  *
- * 4개 창이 동시에 당겨도 창당 3페이지 — OKX 한도(IP당 20회/2초) 안에 넉넉히 든다.
- * 더 길게 보려면 창을 넓히는 게 아니라 봉 단위를 키우는 화면이다.
+ * 창당 6페이지 — 4개 창이 첫 로드에서 동시에 당기면 OKX 한도(IP당 20회/2초)에
+ * 닿을 수 있다. 지나간 봉은 서버 캐시(24h)에 얹혀 두 번째부터는 요청이 나가지
+ * 않으므로, 걸리는 자리는 새 봉이 열린 직후의 첫 로드뿐이다.
  */
-const PANE_BARS = 220;
+const PANE_BARS = 550;
 
 const BAR_LABEL: Record<Bar, string> = {
   "1m": "1분",

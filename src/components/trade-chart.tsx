@@ -86,6 +86,14 @@ const OPEN_VIEW_LABEL: Record<View, string> = { ...VIEW_LABEL, auto: "진입~현
 const PAD_BARS = 60;
 
 /**
+ * 한 화면에 담는 봉을 기본 보기의 몇 배로 넓힐지.
+ *
+ * 거래 구간은 사실이라 늘릴 수 없다 — 늘어나는 몫은 전부 앞뒤 여유로 간다.
+ * 4분할 차트의 `PANE_BARS`와 같은 배율이라 두 화면이 비슷한 폭을 보여 준다.
+ */
+const VIEW_SCALE = 2.5;
+
+/**
  * 지금 켜 둔 도구. 한 번에 하나만 켠다 — 도구가 켜져 있으면 차트의 드래그 이동을 끄기
  * 때문에, 둘이 동시에 켜지면 어느 쪽이 포인터를 받는지 화면에서 알 수 없다.
  */
@@ -305,6 +313,15 @@ export function TradeChart({
   );
   const barSeconds = BAR_MS[bar] / 1000;
 
+  /**
+   * 앞뒤 여유 봉 — 거래 구간까지 합쳐 화면에 담기는 봉이 기본 보기의 `VIEW_SCALE`배가
+   * 되도록 정한다. 거래가 길수록 여유도 함께 늘어야 배율이 유지된다.
+   */
+  const padBars = useMemo(() => {
+    const tradeBars = Math.max(1, Math.ceil((endMs - entryMs) / BAR_MS[bar]));
+    return Math.round(((tradeBars + PAD_BARS * 2) * VIEW_SCALE - tradeBars) / 2);
+  }, [entryMs, endMs, bar]);
+
   /* ---------- 차트 생성 (한 번만) ---------- */
   useEffect(() => {
     const host = hostRef.current;
@@ -433,8 +450,8 @@ export function TradeChart({
 
     async function load(end: number) {
       /*
-       * 앞뒤 60봉 — 거래 구간이 화면 가운데 1/3에 놓인다. 직전 추세와 청산 뒤 움직임까지
-       * 들어와야 "그때 시장이 어땠는지"를 읽을 수 있다.
+       * 앞뒤 여유(padBars) — 거래 구간이 화면 가운데에 놓인다. 직전 추세와 청산 뒤
+       * 움직임까지 들어와야 "그때 시장이 어땠는지"를 읽을 수 있다.
        *
        * 들고 있는 거래의 끝은 봉 눈금에 맞춰 뭉뚱그린다 — 밀리초 그대로 쓰면
        * 새로고침할 때마다 페이지 커서가 달라져 캐시가 통째로 빗나간다.
@@ -443,7 +460,7 @@ export function TradeChart({
         entryMs,
         exitMs === null ? floorToBar(end, bar) : end,
         bar,
-        PAD_BARS,
+        padBars,
       );
       setLoading(true);
       setError(null);
@@ -472,7 +489,7 @@ export function TradeChart({
     return () => {
       cancelled = true;
     };
-  }, [symbol, bar, entryMs, exitMs, endMs]);
+  }, [symbol, bar, entryMs, exitMs, endMs, padBars]);
 
   /* ---------- 데이터·마커·기준선 반영 ---------- */
   useEffect(() => {
@@ -1266,7 +1283,7 @@ export function TradeChart({
 
       <p className="mt-1 text-xs text-dim">
         {view === "auto" ? `${bar} 봉 자동 선택 · ` : ""}
-        앞뒤 {PAD_BARS}봉 ·{" "}
+        앞뒤 {padBars}봉 ·{" "}
         {/* 들고 있는 거래는 청산가가 없다 — 마지막 봉의 종가를 지금 값으로 세운다. */}
         진입 {num(entryPrice)} → {exitAt === null ? "현재" : "청산"} {num(markPrice)}
         {held !== null ? (
