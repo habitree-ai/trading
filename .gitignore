@@ -45,3 +45,9 @@ next-env.d.ts
 IMG/
 
 .vercel
+
+# 시스템 트레이딩 런타임 데이터 — 로컬에 쌓인다. 스냅샷 커밋은 의도적으로만.
+system-trading/data/*
+!system-trading/data/.gitkeep
+# 위의 .env* 전역 패턴이 키 양식 파일까지 삼키지 않게 한다.
+!system-trading/bot/.env.example
