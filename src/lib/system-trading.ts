@@ -10,10 +10,14 @@ import { join } from "node:path";
 
 const DATA_DIR = join(process.cwd(), "system-trading", "data");
 
-/** 시스템 봇 전용 북 이름 — 이 이름으로 기존 북과 구분한다. */
-export const SYSTEM_BOOK_NAME = "시스템 트레이딩 (페이퍼)";
-
 export type SystemMode = "paper" | "demo" | "live";
+
+/** 시스템 봇 전용 북 이름 — 모드마다 북을 나눠 가상 성적과 실계좌 성적이 섞이지 않게 한다. */
+export const SYSTEM_BOOK_NAMES: Record<SystemMode, string> = {
+  paper: "시스템 트레이딩 (페이퍼)",
+  demo: "시스템 트레이딩 (데모)",
+  live: "시스템 트레이딩 (라이브)",
+};
 
 export interface SystemPosition {
   member: string;

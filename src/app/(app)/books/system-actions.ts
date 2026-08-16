@@ -3,8 +3,15 @@
 import { revalidatePath } from "next/cache";
 
 import { switchBook } from "@/app/(app)/books/actions";
+import type { PrincipleCategory } from "@/lib/domain";
+import { equityUsd, hasLiveKeys } from "@/lib/okx-live";
 import { requireUser, nextSeq } from "@/lib/queries";
-import { SYSTEM_BOOK_NAME, readSystemState, readSystemTrades } from "@/lib/system-trading";
+import {
+  SYSTEM_BOOK_NAMES,
+  readSystemState,
+  readSystemTrades,
+  type SystemMode,
+} from "@/lib/system-trading";
 
 const EXIT_LABEL: Record<string, string> = {
   tp: "목표",
@@ -45,52 +52,92 @@ export interface SystemSyncState {
   message?: string;
 }
 
-/**
- * 봇의 완결 거래를 시스템 북으로 가져온다.
- *
- * 진실 원천은 `system-trading/data/` 파일이고, 여기서는 아직 없는 거래만 붙인다 —
- * 중복 판정은 note 에 심은 `[sys:거래ID]` 표식으로 한다. 북이 없으면 만들고,
- * 처음 만든 그 순간에만 활성 북을 그쪽으로 돌린다(이후 동기화는 보던 북을 존중).
- */
-export async function syncSystemBook(): Promise<SystemSyncState> {
-  const { supabase, user } = await requireUser();
+const MODE_LABEL: Record<SystemMode, string> = { paper: "페이퍼", demo: "데모", live: "라이브" };
 
-  const state = readSystemState("paper");
-  if (!state) return { error: "봇 데이터가 없습니다 — 페이퍼 루프가 한 번은 돌아야 합니다." };
-  const closed = readSystemTrades("paper").sort((a, b) => a.exitTs - b.exitTs || a.entryTs - b.entryTs);
+/**
+ * 시스템 북 생성 시 심는 매매 원칙 — 기준의 정본은 system-trading/docs/criteria.md 이고,
+ * 여기 심는 이유는 거래마다 원칙 체크리스트가 붙어 "기준대로 했는가"를 복기할 수 있게다.
+ */
+const SYSTEM_PRINCIPLES: { category: PrincipleCategory; title: string; detail: string }[] = [
+  { category: "risk", title: "거래당 손실 상한 10% — 레버리지는 min(10, 10÷(손절폭%+0.1))로 역산", detail: "승격 사다리(2→5→10%)의 최종 단계. 소액 검증 구간은 최소 수량 제약으로 10%에서 시작 (사용자 지시, 2026-08-16)." },
+  { category: "risk", title: "동시 포지션 최대 2개 · 열린 리스크 합 20% 상한", detail: "백테스트 실측 동시 최대가 2개였다 — 그 이상은 검증 밖." },
+  { category: "risk", title: "격리 마진 고정 — 청산 파급을 포지션 안에 가둔다", detail: "한 포지션의 최대 손실은 그 포지션 증거금까지." },
+  { category: "entry", title: "골든크로스 (4H 롱): SMA20이 SMA50을 상향 돌파 마감", detail: "청산 손절 1×ATR / 목표 3×ATR. 백테스트 여유분(실측 승률−손익분기) +12.0%p — 시리즈 최상위." },
+  { category: "entry", title: "RSI 과매도 반등 (4H 롱): RSI(14)가 30 아래로 갔다가 30 위로 복귀 마감", detail: "청산 손절 1×ATR / 목표 3×ATR. 백테스트 여유분 +8.9%p." },
+  { category: "entry", title: "RSI 과매수 반락 (4H 숏): RSI(14)가 70 위로 갔다가 70 아래로 복귀 마감", detail: "청산 손절 2×ATR / 목표 4×ATR. 백테스트 여유분 +3.1%p." },
+  { category: "entry", title: "20봉 신저가 이탈 (1D 숏): 종가가 직전 20봉 최저가 아래로 마감", detail: "청산 손절 2% / 목표 4%. 백테스트 여유분 +5.0%p." },
+  { category: "exit", title: "브래킷 자동 청산 — 진입과 동시에 손절·목표가 거래소에 걸린다", detail: "봇이 꺼져 있어도 거래소가 집행한다. 수동 개입은 청산이 아니라 점검." },
+  { category: "exit", title: "보유 시한 초과 시 시장가 정리 — 4H 60봉(10일) / 1D 20봉", detail: "백테스트와 같은 시한. 시한 청산도 엣지의 일부다." },
+  { category: "routine", title: "하루 1회 라이브 로그·경고 점검", detail: "'보호 없음'·'미추적 포지션' 경고는 자동 복구가 없다 — 발견 즉시 수동 처리." },
+];
+
+/** 한 모드의 완결 거래를 그 모드의 북으로 가져온다. 반환은 사람이 읽는 한 줄. */
+async function syncMode(
+  supabase: Awaited<ReturnType<typeof requireUser>>["supabase"],
+  user: Awaited<ReturnType<typeof requireUser>>["user"],
+  mode: SystemMode,
+): Promise<{ error?: string; message?: string }> {
+  const state = readSystemState(mode);
+  if (!state) return {};
+  const closed = readSystemTrades(mode).sort((a, b) => a.exitTs - b.exitTs || a.entryTs - b.entryTs);
 
   // 1) 북 확보.
+  const bookName = SYSTEM_BOOK_NAMES[mode];
   const { data: found, error: findError } = await supabase
     .from("books")
     .select("id")
-    .eq("name", SYSTEM_BOOK_NAME)
+    .eq("name", bookName)
     .maybeSingle();
   if (findError) return { error: findError.message };
 
   let bookId = found?.id ?? null;
   if (!bookId) {
+    // 시작 자본 — 페이퍼는 가상 $100, 라이브는 실계좌 잔고가 정본이다.
+    let initialCapital: number | null = mode === "paper" ? 100 : null;
+    if (initialCapital === null && hasLiveKeys()) {
+      try {
+        initialCapital = Math.round((await equityUsd()) * 100) / 100;
+      } catch {
+        initialCapital = null;
+      }
+    }
+    if (initialCapital === null) initialCapital = closed[0]?.eqAtEntry ?? null;
+    if (initialCapital === null) {
+      return { error: "시작 자본을 정할 수 없습니다 — 거래소 잔고 조회가 막혀 있습니다." };
+    }
     const startDate = new Date(state.createdAt + 9 * 3600_000).toISOString().slice(0, 10);
     const { data: created, error: createError } = await supabase
       .from("books")
       .insert({
         user_id: user.id,
-        name: SYSTEM_BOOK_NAME,
+        name: bookName,
         exchange: "OKX·시스템",
         base_currency: "USDT",
-        initial_capital: 100,
+        initial_capital: initialCapital,
         start_date: startDate,
-        memo: "쿼드 공격형 자동매매 — system-trading/data 가 진실 원천, 이 북은 가져온 사본",
+        memo: `쿼드 공격형 자동매매 (${MODE_LABEL[mode]}) — system-trading/data 가 진실 원천, 이 북은 가져온 사본. 기준 정본: system-trading/docs/criteria.md`,
       })
       .select("id")
       .single();
     if (createError) return { error: createError.message };
     bookId = created.id;
+    // 기준을 원칙으로 심는다 — 거래마다 체크리스트로 붙어 복기의 잣대가 된다.
+    const { error: seedError } = await supabase.from("principles").insert(
+      SYSTEM_PRINCIPLES.map((p, i) => ({
+        book_id: created.id,
+        user_id: user.id,
+        category: p.category,
+        title: p.title,
+        detail: p.detail,
+        sort_order: i,
+      })),
+    );
+    if (seedError) return { error: `원칙 심기 실패: ${seedError.message}` };
     await switchBook(bookId);
   }
 
   if (closed.length === 0) {
-    revalidatePath("/", "layout");
-    return { message: "북은 준비됐습니다 — 아직 완결 거래가 없습니다(신호 대기 중)." };
+    return { message: "북 준비됨 — 완결 거래 대기 중" };
   }
 
   // 2) 이미 가져온 거래 걸러내기 — note 의 [sys:거래ID] 표식.
@@ -108,8 +155,7 @@ export async function syncSystemBook(): Promise<SystemSyncState> {
 
   const fresh = closed.filter((t) => !imported.has(t.tradeId));
   if (fresh.length === 0) {
-    revalidatePath("/", "layout");
-    return { message: `새 거래 없음 — 이미 ${imported.size}건이 들어와 있습니다.` };
+    return { message: `새 거래 없음 (누적 ${imported.size}건)` };
   }
 
   // 3) 붙이기 — 잔고 체계는 봇 회계 그대로: 손익은 진입 시점 잔고 기준.
@@ -150,6 +196,28 @@ export async function syncSystemBook(): Promise<SystemSyncState> {
     seq += 1;
   }
 
+  return { message: `${fresh.length}건 가져옴 (누적 ${imported.size + fresh.length}건)` };
+}
+
+/**
+ * 봇의 완결 거래를 시스템 북으로 가져온다 — 데이터가 있는 모든 모드를 한 번에.
+ *
+ * 진실 원천은 `system-trading/data/` 파일이고, 여기서는 아직 없는 거래만 붙인다 —
+ * 중복 판정은 note 에 심은 `[sys:거래ID]` 표식으로 한다. 모드마다 북을 나누고,
+ * 북을 처음 만든 그 순간에만 활성 북을 그쪽으로 돌린다(이후 동기화는 보던 북을 존중).
+ */
+export async function syncSystemBook(): Promise<SystemSyncState> {
+  const { supabase, user } = await requireUser();
+
+  const parts: string[] = [];
+  for (const mode of ["paper", "live"] as const) {
+    const res = await syncMode(supabase, user, mode);
+    if (res.error) return { error: `[${MODE_LABEL[mode]}] ${res.error}` };
+    if (res.message) parts.push(`${MODE_LABEL[mode]}: ${res.message}`);
+  }
+  if (parts.length === 0) {
+    return { error: "봇 데이터가 없습니다 — 루프가 한 번은 돌아야 합니다." };
+  }
   revalidatePath("/", "layout");
-  return { message: `${fresh.length}건 가져옴 — 시스템 북 누적 ${imported.size + fresh.length}건.` };
+  return { message: parts.join(" · ") };
 }

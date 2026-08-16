@@ -42,7 +42,7 @@ import {
   listTrades,
 } from "@/lib/queries";
 import {
-  SYSTEM_BOOK_NAME,
+  SYSTEM_BOOK_NAMES,
   readSystemState,
   readSystemTrades,
   systemDataExists,
@@ -74,15 +74,31 @@ export default async function DashboardPage() {
 
   // 시스템 봇(자동매매)이 이 머신에서 돌고 있으면 그 상태와 가져오기 자리를 띄운다.
   // 봇의 진실 원천은 파일이고, 시스템 북은 가져오기로 따라가는 별도 데이터 북이다.
-  const sys = systemDataExists() ? readSystemState("paper") : null;
-  const sysTrades = sys ? readSystemTrades("paper") : [];
-  let sysImported = 0;
-  if (sys) {
+  // 페이퍼·라이브는 각자의 상태 파일과 북을 가진다 — 가상 성적과 실계좌를 섞지 않는다.
+  const systemBots: {
+    mode: string;
+    equity: number | null;
+    openPositions: string[];
+    lastEvalAt: number | null;
+    closedCount: number;
+    importedCount: number;
+  }[] = [];
+  if (systemDataExists()) {
     const books = await listBooks();
-    const systemBook = books.find((b) => b.name === SYSTEM_BOOK_NAME);
-    if (systemBook) sysImported = (await listTrades(systemBook.id)).length;
+    for (const mode of ["paper", "live"] as const) {
+      const st = readSystemState(mode);
+      if (!st) continue;
+      const sysBook = books.find((b) => b.name === SYSTEM_BOOK_NAMES[mode]);
+      systemBots.push({
+        mode,
+        equity: st.equity,
+        openPositions: Object.values(st.positions).map((p) => p.name),
+        lastEvalAt: Math.max(0, ...Object.values(st.lastBarTs)) || null,
+        closedCount: readSystemTrades(mode).length,
+        importedCount: sysBook ? (await listTrades(sysBook.id)).length : 0,
+      });
+    }
   }
-  const sysLastEval = sys ? Math.max(0, ...Object.values(sys.lastBarTs)) || null : null;
 
   const derived = deriveTrades(book, trades, flows);
   const m = computeMetrics(book, derived, flows);
@@ -218,15 +234,10 @@ export default async function DashboardPage() {
         </div>
       </header>
 
-      {sys ? (
+      {systemBots.length > 0 ? (
         <SystemPanel
-          mode={sys.mode}
-          equity={sys.equity}
-          openPositions={Object.values(sys.positions).map((p) => p.name)}
-          lastEvalAt={sysLastEval}
-          closedCount={sysTrades.length}
-          importedCount={sysImported}
-          isSystemBookActive={book.name === SYSTEM_BOOK_NAME}
+          bots={systemBots}
+          isSystemBookActive={Object.values(SYSTEM_BOOK_NAMES).includes(book.name)}
         />
       ) : null}
 
