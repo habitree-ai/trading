@@ -265,6 +265,7 @@ export function TradeTable({
                           entryPrice={trade.entry_price}
                           exitPrice={trade.exit_price}
                           stopPrice={trade.stop_price}
+                          targetPrice={trade.tp1_price}
                           notional={trade.notional}
                           now={now}
                           fills={fillsByTrade[trade.id] ?? []}

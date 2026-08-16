@@ -123,6 +123,8 @@ async function enter(client, state, key, m, ctx, i, summary) {
     eqAtEntry: r2(equity),
     maxHold: cfg.maxHoldBars[m.tf],
     openedAt: Date.now(),
+    // 판정 시점의 지표 — "왜 들어갔나"가 거래 기록에 붙어 다녀야 복기가 된다.
+    signal: snapshot(i, ctx),
   };
 
   if (state.mode !== "paper") {
@@ -232,6 +234,9 @@ function managePaper(state, candlesByTf, summary) {
       exitPrice: r2(closed.price),
       exitType: closed.type,
       holdBars: closed.held,
+      stop: r2(pos.stop),
+      target: r2(pos.target),
+      signal: pos.signal,
       lev: r2(pos.lev),
       netPct: r3(netPct),
       eqAtEntry: pos.eqAtEntry,
@@ -340,6 +345,9 @@ function finalizeLive(state, key, pos, closed, summary) {
     entryPrice: pos.entryPrice,
     exitPrice: r2(closed.price),
     exitType: closed.type,
+    stop: r2(pos.stop),
+    target: r2(pos.target),
+    signal: pos.signal,
     lev: r2(pos.lev),
     netPct: r3(netPct),
     eqAtEntry: pos.eqAtEntry,

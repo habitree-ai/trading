@@ -47,6 +47,7 @@ export default async function EditTradePage({ params }: { params: Promise<{ id: 
         entryPrice={trade.entry_price}
         exitPrice={trade.exit_price}
         stopPrice={trade.stop_price}
+        targetPrice={trade.tp1_price}
         notional={trade.notional}
         now={nowMs()}
         fills={fills}

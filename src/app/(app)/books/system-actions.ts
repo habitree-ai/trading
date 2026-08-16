@@ -14,6 +14,32 @@ const EXIT_LABEL: Record<string, string> = {
   algo: "브래킷",
 };
 
+/** 기준별 판정 규칙 — 진입근거 문장의 뼈대. 정본은 system-trading/docs/criteria.md */
+const MEMBER_RULE: Record<string, string> = {
+  gc: "SMA20이 SMA50을 상향 돌파 마감 (4H·추세추종)",
+  ob: "RSI(14)가 30 아래로 갔다가 30 위로 복귀 마감 (4H·평균회귀)",
+  fade: "RSI(14)가 70 위로 갔다가 70 아래로 복귀 마감 (4H·평균회귀 숏)",
+  dc: "종가가 직전 20봉 최저가 아래로 마감 (1D·추세추종 숏)",
+};
+
+/** 진입근거 — 규칙 + 판정 시점 지표를 한 문장으로. 복기 화면의 `근거` 칸에 들어간다. */
+function buildRationale(t: {
+  member: string;
+  signal?: { rsi: number | null; atr: number | null; sma20: number | null; sma50: number | null; ll20: number | null } | undefined;
+}): string {
+  const rule = MEMBER_RULE[t.member] ?? "시스템 기준";
+  const s = t.signal;
+  if (!s) return `[자동] ${rule}`;
+  const parts: string[] = [];
+  if (s.rsi !== null) parts.push(`RSI ${s.rsi}`);
+  if (s.atr !== null) parts.push(`ATR ${s.atr}`);
+  if (t.member === "gc" && s.sma20 !== null && s.sma50 !== null) {
+    parts.push(`SMA20 ${s.sma20} / SMA50 ${s.sma50}`);
+  }
+  if (t.member === "dc" && s.ll20 !== null) parts.push(`20봉최저 ${s.ll20}`);
+  return `[자동] ${rule}${parts.length ? ` — 신호봉 ${parts.join(" · ")}` : ""}`;
+}
+
 export interface SystemSyncState {
   error?: string;
   message?: string;
@@ -110,10 +136,14 @@ export async function syncSystemBook(): Promise<SystemSyncState> {
       realized_pnl: pnlUsd,
       entry_price: t.entryPrice,
       exit_price: t.exitPrice,
+      // 손절·목표는 진입 주문에 함께 걸렸던 값 — 차트가 기준선으로 그린다.
+      stop_price: t.stop ?? null,
+      tp1_price: t.target ?? null,
       notional: eqAtEntry !== null ? r2(eqAtEntry * t.lev) : null,
       leverage: r2(t.lev),
       margin_mode: "isolated" as const,
       setup: t.name,
+      rationale: buildRationale(t),
       note: `[sys:${t.tradeId}] ${EXIT_LABEL[t.exitType] ?? t.exitType} 청산 · 자동 기록`,
     });
     if (error) return { error: `${seq}번째 거래에서 실패: ${error.message}` };

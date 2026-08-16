@@ -179,6 +179,7 @@ export function TradeChart({
   entryPrice,
   exitPrice,
   stopPrice,
+  targetPrice = null,
   notional = null,
   now,
   fills = [],
@@ -193,6 +194,8 @@ export function TradeChart({
   entryPrice: number | null;
   exitPrice: number | null;
   stopPrice: number | null;
+  /** 목표가(TP1) — 시스템 거래는 진입 주문에 걸었던 값이 그대로 온다 */
+  targetPrice?: number | null;
   /** 시트의 `투입` — 손익 툴이 비율을 금액으로 옮기는 데 쓴다. 없으면 비율만 나온다 */
   notional?: number | null;
   /**
@@ -564,6 +567,7 @@ export function TradeChart({
 
     const lines = [
       stopPrice !== null && { price: stopPrice, color: theme.down, title: "손절" },
+      targetPrice !== null && { price: targetPrice, color: theme.up, title: "목표" },
       entryPrice !== null && { price: entryPrice, color: theme.accent, title: fills.length > 2 ? "평균진입" : "진입" },
       exitPrice !== null && { price: exitPrice, color: theme.beta, title: fills.length > 2 ? "평균청산" : "청산" },
     ]
@@ -585,7 +589,7 @@ export function TradeChart({
       markerApi.detach();
       for (const line of lines) series.removePriceLine(line);
     };
-  }, [candles, fills, entryPrice, exitPrice, stopPrice, entryMs, exitMs, bar]);
+  }, [candles, fills, entryPrice, exitPrice, stopPrice, targetPrice, entryMs, exitMs, bar]);
 
   /* ---------- 측정(자)·메모 도구 ---------- */
   const toPoint = useCallback((x: number, y: number): MeasurePoint | null => {
