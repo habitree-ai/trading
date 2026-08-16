@@ -8,8 +8,19 @@
  * 읽지 못한 메모만 버리고 나머지는 그대로 그린다 — OKX 응답을 다루는 방식과 같다.
  */
 
-import type { AnnotationColor, AnnotationKind, ChartPoint, TradeAnnotation } from '@/lib/domain';
-import { ANNOTATION_COLORS, ANNOTATION_KINDS, isPositionKind } from '@/lib/domain';
+import type {
+  AnnotationColor,
+  AnnotationKind,
+  AnnotationLineStyle,
+  ChartPoint,
+  TradeAnnotation,
+} from '@/lib/domain';
+import {
+  ANNOTATION_COLORS,
+  ANNOTATION_KINDS,
+  ANNOTATION_LINE_STYLES,
+  isPositionKind,
+} from '@/lib/domain';
 
 /** 종류마다 필요한 점의 수 — 저장할 때와 읽을 때가 같은 기준을 봐야 한다. */
 export function pointCount(kind: AnnotationKind): 1 | 2 | 3 {
@@ -23,6 +34,10 @@ export function isAnnotationKind(value: unknown): value is AnnotationKind {
 
 export function isAnnotationColor(value: unknown): value is AnnotationColor {
   return typeof value === 'string' && (ANNOTATION_COLORS as string[]).includes(value);
+}
+
+export function isAnnotationLineStyle(value: unknown): value is AnnotationLineStyle {
+  return typeof value === 'string' && (ANNOTATION_LINE_STYLES as string[]).includes(value);
 }
 
 /** 좌표 배열을 읽는다 — 점의 수나 형태가 어긋나면 null. */
@@ -52,6 +67,9 @@ export interface AnnotationRow {
   locked: boolean;
   created_at: string;
   updated_at: string;
+  /** 0018 이후 생긴 칸 — 이전 스냅샷 행에는 없을 수 있어 선택으로 받는다. */
+  line_width?: number | null;
+  line_style?: string | null;
 }
 
 /** 읽을 수 없는 행은 null — 부르는 쪽이 걸러 낸다. */
@@ -72,6 +90,11 @@ export function toAnnotation(row: AnnotationRow): TradeAnnotation | null {
     locked: row.locked,
     created_at: row.created_at,
     updated_at: row.updated_at,
+    // 스타일은 값이 있고 읽을 수 있을 때만 싣는다 — 없으면 화면 기본값으로 그려진다.
+    ...(typeof row.line_width === 'number' && Number.isFinite(row.line_width)
+      ? { line_width: row.line_width }
+      : {}),
+    ...(isAnnotationLineStyle(row.line_style) ? { line_style: row.line_style } : {}),
   };
 }
 

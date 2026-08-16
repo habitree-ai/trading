@@ -4,6 +4,8 @@ import {
   CandlestickSeries,
   ColorType,
   CrosshairMode,
+  HistogramSeries,
+  LineSeries,
   LineStyle,
   createChart,
   type IChartApi,
@@ -31,6 +33,7 @@ import {
   type TradeAnnotation,
 } from "@/lib/domain";
 import { handleMovesTime, type AnnotationHit } from "@/lib/hit-test";
+import { rsi } from "@/lib/indicators";
 import { edgePointIndex } from "@/lib/position-tool";
 import { BARS, BAR_MS, floorToBar, type Bar, type Candle } from "@/lib/okx";
 
@@ -91,6 +94,7 @@ export function QuadPane({
   onDragCommit,
   onDragCancel,
   onSelect,
+  onOpenLevels,
   onMovePreview,
   onMoveEnd,
 }: {
@@ -122,6 +126,8 @@ export function QuadPane({
   onDragCommit: (points: [ChartPoint, ChartPoint]) => void;
   onDragCancel: () => void;
   onSelect: (id: string | null) => void;
+  /** 더블클릭 — 값을 숫자로 넣는 입력을 연다(당시 차트와 같은 흐름). */
+  onOpenLevels: (target: TradeAnnotation) => void;
   onMovePreview: (id: string, points: ChartPoint[]) => void;
   onMoveEnd: (
     id: string,
@@ -135,6 +141,8 @@ export function QuadPane({
   const overlayRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const seriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
+  const volumeRef = useRef<ISeriesApi<"Histogram"> | null>(null);
+  const rsiRef = useRef<ISeriesApi<"Line"> | null>(null);
   const layerRef = useRef<AnnotationPrimitive | null>(null);
 
   const [candles, setCandles] = useState<Candle[] | null>(null);
@@ -146,9 +154,9 @@ export function QuadPane({
    * 넣으면 초안이 바뀔 때마다(끌 때마다) 처리기를 떼었다 붙이게 되므로, ref에 담아
    * 최신 것을 읽는다.
    */
-  const cbRef = useRef({ onClickPoint, onDragDraft, onDragCommit, onDragCancel, onSelect, onMovePreview, onMoveEnd });
+  const cbRef = useRef({ onClickPoint, onDragDraft, onDragCommit, onDragCancel, onSelect, onOpenLevels, onMovePreview, onMoveEnd });
   useEffect(() => {
-    cbRef.current = { onClickPoint, onDragDraft, onDragCommit, onDragCancel, onSelect, onMovePreview, onMoveEnd };
+    cbRef.current = { onClickPoint, onDragDraft, onDragCommit, onDragCancel, onSelect, onOpenLevels, onMovePreview, onMoveEnd };
   });
 
   const barSeconds = BAR_MS[bar] / 1000;
@@ -164,6 +172,7 @@ export function QuadPane({
         background: { type: ColorType.Solid, color: "transparent" },
         textColor: theme.text,
         attributionLogo: false,
+        panes: { separatorColor: theme.grid, enableResize: false },
       },
       grid: {
         vertLines: { color: theme.grid, style: LineStyle.Dotted },
@@ -197,6 +206,39 @@ export function QuadPane({
       wickDownColor: theme.down,
     });
 
+    // 거래량 — 본 창 아래쪽에 겹친다. 축은 따로 두되 라벨은 숨긴다(trade-chart와 동일).
+    const volume = chart.addSeries(HistogramSeries, {
+      priceScaleId: "volume",
+      priceFormat: { type: "volume" },
+      lastValueVisible: false,
+      priceLineVisible: false,
+    });
+    volume.priceScale().applyOptions({ scaleMargins: { top: 0.82, bottom: 0 } });
+
+    // RSI(14) — 창이 작아도 과매수·과매도는 읽혀야 한다. 아래 패널 1/4.
+    const rsiSeries = chart.addSeries(
+      LineSeries,
+      {
+        color: theme.accent,
+        lineWidth: 1,
+        priceLineVisible: false,
+        priceFormat: { type: "price", precision: 1, minMove: 0.1 },
+      },
+      1,
+    );
+    for (const level of [70, 30]) {
+      rsiSeries.createPriceLine({
+        price: level,
+        color: theme.grid,
+        lineWidth: 1,
+        lineStyle: LineStyle.Dashed,
+        axisLabelVisible: false,
+      });
+    }
+    rsiSeries.priceScale().applyOptions({ borderColor: theme.grid });
+    chart.panes()[0]?.setStretchFactor(3);
+    chart.panes()[1]?.setStretchFactor(1);
+
     // 4분할은 창이 작다 — 복기 차트보다 선을 가늘고 연하게 그려 캔들을 덜 가린다.
     const layer = new AnnotationPrimitive(annotationColors(theme), {
       lineWidth: 1,
@@ -206,6 +248,8 @@ export function QuadPane({
 
     chartRef.current = chart;
     seriesRef.current = series;
+    volumeRef.current = volume;
+    rsiRef.current = rsiSeries;
     layerRef.current = layer;
 
     // 4분할은 창 크기가 화면을 따라 변한다 — 너비뿐 아니라 높이도 맞춘다.
@@ -225,6 +269,8 @@ export function QuadPane({
       chart.remove();
       chartRef.current = null;
       seriesRef.current = null;
+      volumeRef.current = null;
+      rsiRef.current = null;
       layerRef.current = null;
     };
   }, []);
@@ -279,7 +325,8 @@ export function QuadPane({
   useEffect(() => {
     const chart = chartRef.current;
     const series = seriesRef.current;
-    if (!chart || !series || !candles) return;
+    const host = hostRef.current;
+    if (!chart || !series || !host || !candles) return;
 
     series.setData(
       candles.map((c) => ({
@@ -290,6 +337,25 @@ export function QuadPane({
         close: c.c,
       })),
     );
+
+    // 거래량은 캔들 방향 색으로, 반투명하게 — 캔들을 가리지 않아야 한다.
+    const theme = readTheme(host);
+    volumeRef.current?.setData(
+      candles.map((c) => ({
+        time: (c.t / 1000) as UTCTimestamp,
+        value: c.v,
+        color: (c.c >= c.o ? theme.up : theme.down) + "66",
+      })),
+    );
+
+    // RSI — 앞 14봉은 재료가 모자라 비어 있다. 선이 그만큼 늦게 시작하는 게 맞다.
+    const rsiValues = rsi(candles.map((c) => c.c));
+    const rsiData: { time: UTCTimestamp; value: number }[] = [];
+    candles.forEach((c, i) => {
+      const value = rsiValues[i];
+      if (value !== null) rsiData.push({ time: (c.t / 1000) as UTCTimestamp, value });
+    });
+    rsiRef.current?.setData(rsiData);
 
     // 봉이 넘어가 새 캔들이 붙을 때마다 fitContent 하면 보고 있던 배율이 풀린다.
     const key = `${symbol}|${bar}`;
@@ -506,7 +572,23 @@ export function QuadPane({
       cbRef.current.onMoveEnd(d.hit.id, d.kind, d.origin, current, d.moved);
     };
 
+    // 더블클릭 — 값을 숫자로 넣는 자리를 연다. 픽셀로는 못 맞추는 가격이 있다.
+    const onDouble = (e: MouseEvent) => {
+      const r = host.getBoundingClientRect();
+      const hit = layerRef.current?.findHit(e.clientX - r.left, e.clientY - r.top);
+      if (!hit) return;
+
+      const target = annotations.find((a) => a.id === hit.id);
+      if (!target) return;
+
+      e.stopPropagation();
+      e.preventDefault();
+      cbRef.current.onSelect(hit.id);
+      cbRef.current.onOpenLevels(target);
+    };
+
     host.addEventListener("pointerdown", onDown, true);
+    host.addEventListener("dblclick", onDouble, true);
     host.addEventListener("mousedown", swallow, true);
     host.addEventListener("touchstart", swallow, true);
     window.addEventListener("pointermove", onMove);
@@ -515,6 +597,7 @@ export function QuadPane({
 
     return () => {
       host.removeEventListener("pointerdown", onDown, true);
+      host.removeEventListener("dblclick", onDouble, true);
       host.removeEventListener("mousedown", swallow, true);
       host.removeEventListener("touchstart", swallow, true);
       window.removeEventListener("pointermove", onMove);

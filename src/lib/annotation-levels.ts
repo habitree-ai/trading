@@ -43,6 +43,22 @@ export function levelFields(kind: AnnotationKind): LevelField[] {
 }
 
 /**
+ * 입력칸을 처음 채울 값 — 차트에 보이는 만큼만 적는다.
+ *
+ * 좌표는 누른 픽셀을 가격으로 되돌린 값이라 `64193.50079339903`처럼 끝이 지저분하다.
+ * 가격축이 `64,193.50`으로 보여 주는 값을 고치라고 여는 칸인데 다른 숫자가 적혀 있으면
+ * 고쳐 넣기 전에 지우는 일부터 하게 된다.
+ *
+ * 1 미만 가격(저가 종목)은 소수 둘째 자리에서 뭉개지므로 유효숫자를 남긴다.
+ */
+export function formatLevel(price: number | undefined): string {
+  if (price === undefined || !Number.isFinite(price)) return '';
+  const text = Math.abs(price) >= 1 ? price.toFixed(2) : price.toPrecision(6);
+  // 뒤에 남는 0은 지운다 — `63500.00`보다 `63500`이 고쳐 넣기 쉽다.
+  return String(Number(text));
+}
+
+/**
  * 입력칸에 적힌 글을 가격으로 읽는다.
  *
  * 자릿수 쉼표는 그대로 받는다 — 화면에 `63,500.00`으로 찍어 두고 고쳐 넣으라고 하면서

@@ -22,6 +22,7 @@ import {
   type ChartPoint,
   type TradeAnnotation,
 } from "@/lib/domain";
+import { formatLevel, levelFields, parseLevel } from "@/lib/annotation-levels";
 import { positionProblemOf } from "@/lib/position-tool";
 import { type Bar } from "@/lib/okx";
 
@@ -42,14 +43,6 @@ const MIN_MOVE_PX = 3;
 
 /** 4분할의 기본 구성 — 긴 봉이 먼저 온다. 창마다 바꿀 수 있다. */
 const DEFAULT_BARS: Bar[] = ["1D", "4H", "1H", "15m"];
-
-/**
- * 데스크톱 2×2에서의 자리 — ㄹ자 읽기(왼쪽위 → 오른쪽위 → 오른쪽아래 → 왼쪽아래).
- *
- * 배열 순서(= 모바일 세로 순서)는 1D→4H→1H→15m로 단조롭게 두고, 데스크톱에서만
- * 아랫줄 두 창을 order로 맞바꿔 1H가 오른쪽 아래, 15m가 왼쪽 아래에 온다.
- */
-const PANE_ORDER = ["md:order-1", "md:order-2", "md:order-4", "md:order-3"];
 
 /** 스타일 바에서 고를 수 있는 선 굵기(px). */
 const LINE_WIDTHS = [1, 2, 3];
@@ -93,6 +86,10 @@ export function QuadChart({ now: initialNow }: { now: number }) {
   const [problem, setProblem] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [history, setHistory] = useState<AnnotationChange[]>([]);
+  /** 더블클릭으로 연 수치 입력 — 값을 손이 아니라 숫자로 넣는다(당시 차트와 같은 흐름). */
+  const [levels, setLevels] = useState<{ target: TradeAnnotation; values: string[] } | null>(
+    null,
+  );
 
   /**
    * Alt+R — 트레이딩뷰의 "차트 초기화"와 같은 단축키.
@@ -223,7 +220,53 @@ export function QuadChart({ now: initialNow }: { now: number }) {
 
   const onSelect = (id: string | null) => {
     setSelected(id);
-    if (id === null) setProblem(null);
+    if (id === null) {
+      setProblem(null);
+      setLevels(null);
+    }
+  };
+
+  const openLevels = (target: TradeAnnotation) => {
+    setLevels({
+      target,
+      values: levelFields(target.kind).map((f) => formatLevel(target.points[f.index]?.p)),
+    });
+    setAsking(false);
+    setProblem(null);
+  };
+
+  /** 숫자로 적은 값을 좌표에 얹는다 — 시각은 그대로 두고 가격만 바꾼다. */
+  const saveLevels = () => {
+    if (!levels) return;
+    const { target, values } = levels;
+
+    const points = target.points.map((point) => ({ ...point }));
+    const fields = levelFields(target.kind);
+    for (let i = 0; i < fields.length; i += 1) {
+      const price = parseLevel(values[i] ?? "");
+      if (price === null) {
+        setProblem(`${fields[i].label}를 숫자로 입력해 주세요.`);
+        return;
+      }
+      points[fields[i].index] = { t: points[fields[i].index].t, p: price };
+    }
+
+    if (isPositionKind(target.kind)) {
+      const p = positionProblemOf(target.kind, points);
+      if (p !== null) {
+        setProblem(p);
+        return;
+      }
+    }
+
+    setAnnotations((prev) =>
+      prev.map((a) =>
+        a.id === target.id ? { ...a, points, updated_at: new Date().toISOString() } : a,
+      ),
+    );
+    record({ type: "move", id: target.id, kind: target.kind, before: target.points });
+    setProblem(null);
+    setLevels(null);
   };
 
   const onMoveEnd = (
@@ -326,6 +369,7 @@ export function QuadChart({ now: initialNow }: { now: number }) {
         stepsRef.current = [];
         setDraft(null);
         setAsking(false);
+        setLevels(null);
         setProblem(null);
         setSelected(null);
         setTool("none");
@@ -390,12 +434,17 @@ export function QuadChart({ now: initialNow }: { now: number }) {
     );
   };
 
-  /** 확대 중이면 그 창만 전체를 차지하고 나머지는 상태를 유지한 채 숨는다. */
+  /**
+   * 확대 중이면 그 창만 전체를 차지하고 나머지는 상태를 유지한 채 숨는다.
+   *
+   * 4분할일 때는 자리를 따로 지정하지 않는다 — 배열 순서(1D→4H→1H→15m)가 그대로
+   * 읽는 순서(왼쪽위 → 오른쪽위 → 왼쪽아래 → 오른쪽아래)로 놓인다.
+   */
   const paneClass = (i: number) =>
     maximized === null
-      ? PANE_ORDER[i]
+      ? ""
       : maximized === i
-        ? "!h-full md:order-none md:col-span-2 md:row-span-2"
+        ? "!h-full md:col-span-2 md:row-span-2"
         : "hidden";
 
   return (
@@ -478,6 +527,7 @@ export function QuadChart({ now: initialNow }: { now: number }) {
               onDragCommit={onDragCommit}
               onDragCancel={resetDraft}
               onSelect={onSelect}
+              onOpenLevels={openLevels}
               onMovePreview={(id, points) => setMoving({ id, points })}
               onMoveEnd={onMoveEnd}
             />
@@ -521,8 +571,62 @@ export function QuadChart({ now: initialNow }: { now: number }) {
           </div>
         ) : null}
 
+        {/* 더블클릭 — 값을 숫자로 넣는다. 픽셀로는 못 맞추는 자리가 있다. */}
+        {levels ? (
+          <div
+            className="absolute inset-x-2 bottom-2 rounded-lg border border-border bg-surface p-2 shadow-lg"
+            style={{ zIndex: 8 }}
+          >
+            <div className="flex flex-wrap items-end gap-2">
+              <span className="rounded border border-border px-1.5 py-0.5 text-[10px] text-dim">
+                {ANNOTATION_KIND_LABEL[levels.target.kind]}
+              </span>
+              {levelFields(levels.target.kind).map((field, i) => (
+                <label key={field.index} className="text-[11px] text-dim">
+                  {field.label}
+                  <input
+                    autoFocus={i === 0}
+                    inputMode="decimal"
+                    value={levels.values[i] ?? ""}
+                    onChange={(e) =>
+                      setLevels((state) =>
+                        state === null
+                          ? state
+                          : {
+                              ...state,
+                              values: state.values.map((v, j) => (j === i ? e.target.value : v)),
+                            },
+                      )
+                    }
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") saveLevels();
+                      if (e.key === "Escape") setLevels(null);
+                    }}
+                    className="tnum mt-0.5 block w-28 rounded-lg border border-border bg-bg px-2 py-1 text-sm outline-none focus:border-accent"
+                  />
+                </label>
+              ))}
+              <button
+                type="button"
+                onClick={saveLevels}
+                className="rounded-lg bg-accent px-3 py-1.5 text-xs font-medium text-white"
+              >
+                적용
+              </button>
+              <button
+                type="button"
+                onClick={() => setLevels(null)}
+                className="rounded-lg border border-border px-3 py-1.5 text-xs text-dim"
+              >
+                취소
+              </button>
+            </div>
+            {problem ? <p className="mt-1 text-[11px] text-loss">{problem}</p> : null}
+          </div>
+        ) : null}
+
         {/* 스타일 바 — 박스·수평선·추세선을 고르면 색·굵기·선 종류를 바로 고친다. */}
-        {styleTarget && !asking ? (
+        {styleTarget && !asking && !levels ? (
           <div
             className="absolute inset-x-2 bottom-2 rounded-lg border border-border bg-surface p-2 shadow-lg"
             style={{ zIndex: 7 }}

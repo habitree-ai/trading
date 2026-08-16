@@ -454,6 +454,8 @@ export type Database = {
           created_at: string
           id: string
           kind: Database["public"]["Enums"]["annotation_kind"]
+          line_style: string | null
+          line_width: number | null
           locked: boolean
           points: Json
           text: string | null
@@ -466,6 +468,8 @@ export type Database = {
           created_at?: string
           id?: string
           kind: Database["public"]["Enums"]["annotation_kind"]
+          line_style?: string | null
+          line_width?: number | null
           locked?: boolean
           points: Json
           text?: string | null
@@ -478,6 +482,8 @@ export type Database = {
           created_at?: string
           id?: string
           kind?: Database["public"]["Enums"]["annotation_kind"]
+          line_style?: string | null
+          line_width?: number | null
           locked?: boolean
           points?: Json
           text?: string | null

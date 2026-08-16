@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import {
   isAnnotationColor,
   isAnnotationKind,
+  isAnnotationLineStyle,
   normalizePoints,
   parsePoints,
 } from "@/lib/annotations";
@@ -177,6 +178,47 @@ export async function updateAnnotationPoints(
     .from("trade_annotations")
     .update({ points: stored })
     .eq("id", id);
+  if (error) return { error: error.message };
+
+  revalidatePath("/", "layout");
+  return {};
+}
+
+/**
+ * 색·굵기·선 종류를 고친다 — 4분할 차트와 같은 스타일 편집을 복기 차트에도 얹는다.
+ *
+ * 넘어온 항목만 고친다. 굵기·선 종류는 null을 받아 "화면 기본값으로 되돌리기"도 된다.
+ */
+export async function updateAnnotationStyle(
+  id: string,
+  style: { color?: string; lineWidth?: number | null; lineStyle?: string | null },
+): Promise<AnnotationResult> {
+  if (!id) return { error: "메모를 찾을 수 없습니다." };
+
+  const patch: { color?: string; line_width?: number | null; line_style?: string | null } = {};
+  if (style.color !== undefined) {
+    if (!isAnnotationColor(style.color)) return { error: "알 수 없는 색입니다." };
+    patch.color = style.color;
+  }
+  if (style.lineWidth !== undefined) {
+    if (
+      style.lineWidth !== null &&
+      (!Number.isInteger(style.lineWidth) || style.lineWidth < 1 || style.lineWidth > 4)
+    ) {
+      return { error: "선 굵기는 1~4px 입니다." };
+    }
+    patch.line_width = style.lineWidth;
+  }
+  if (style.lineStyle !== undefined) {
+    if (style.lineStyle !== null && !isAnnotationLineStyle(style.lineStyle)) {
+      return { error: "알 수 없는 선 종류입니다." };
+    }
+    patch.line_style = style.lineStyle;
+  }
+  if (Object.keys(patch).length === 0) return {};
+
+  const { supabase } = await requireUser();
+  const { error } = await supabase.from("trade_annotations").update(patch).eq("id", id);
   if (error) return { error: error.message };
 
   revalidatePath("/", "layout");

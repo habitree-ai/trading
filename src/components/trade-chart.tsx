@@ -4,6 +4,8 @@ import {
   CandlestickSeries,
   ColorType,
   CrosshairMode,
+  HistogramSeries,
+  LineSeries,
   LineStyle,
   createChart,
   createSeriesMarkers,
@@ -22,6 +24,7 @@ import {
   restoreAnnotation,
   setAnnotationLocked,
   updateAnnotationPoints,
+  updateAnnotationStyle,
   updateAnnotationText,
 } from "@/app/(app)/trades/annotation-actions";
 import { AnnotationList } from "@/components/annotation-list";
@@ -41,16 +44,20 @@ import {
   ANNOTATION_COLORS,
   ANNOTATION_COLOR_LABEL,
   ANNOTATION_KIND_LABEL,
+  ANNOTATION_LINE_STYLES,
+  ANNOTATION_LINE_STYLE_LABEL,
   isPositionKind,
   type AnnotationColor,
   type AnnotationKind,
+  type AnnotationLineStyle,
   type ChartPoint,
   type TradeAnnotation,
   type TradeFill,
 } from "@/lib/domain";
 import { num, signed } from "@/lib/format";
 import { handleMovesTime, type AnnotationHit } from "@/lib/hit-test";
-import { levelFields, parseLevel } from "@/lib/annotation-levels";
+import { rsi } from "@/lib/indicators";
+import { formatLevel, levelFields, parseLevel } from "@/lib/annotation-levels";
 import { edgePointIndex, positionProblemOf } from "@/lib/position-tool";
 import {
   BAR_MS,
@@ -95,6 +102,14 @@ const DRAW_TOOLS: { tool: AnnotationKind; label: string; hint: string }[] = [
 
 /** 손익 툴에서 지금 무엇을 찍을 차례인지 — 찍은 점의 수로 정해진다. */
 const POSITION_STEPS = ["진입가를 누르세요", "손절가를 누르세요", "목표가를 누르세요"];
+
+/** 스타일 편집에서 고를 수 있는 선 굵기(px) — 4분할 차트와 같은 선택지. */
+const STYLE_WIDTHS = [1, 2, 3];
+
+/** 스타일을 고칠 수 있는 종류 — 손익 툴은 색이 뜻(이익·손실)이라 제외한다. */
+function isStylableKind(kind: AnnotationKind): boolean {
+  return kind === "hline" || kind === "line" || kind === "rect";
+}
 
 /** 이보다 짧게 끌면 그릴 뜻이 없었던 것으로 본다 — 클릭 한 번에 길이 0짜리 선이 남지 않게. */
 const MIN_DRAG_PX = 4;
@@ -195,6 +210,8 @@ export function TradeChart({
   const overlayRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const seriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
+  const volumeRef = useRef<ISeriesApi<"Histogram"> | null>(null);
+  const rsiRef = useRef<ISeriesApi<"Line"> | null>(null);
   const layerRef = useRef<AnnotationPrimitive | null>(null);
 
   const [view, setView] = useState<View>("auto");
@@ -258,7 +275,7 @@ export function TradeChart({
   const openLevels = (target: TradeAnnotation) => {
     setLevels({
       target,
-      values: levelFields(target.kind).map((f) => String(target.points[f.index]?.p ?? "")),
+      values: levelFields(target.kind).map((f) => formatLevel(target.points[f.index]?.p)),
     });
     setAsking(false);
     setEditing(null);
@@ -295,11 +312,13 @@ export function TradeChart({
 
     const theme = readTheme(host);
     const chart = createChart(host, {
-      height: 360,
+      // RSI 패널이 아래에 붙는다 — 늘리지 않으면 캔들 영역이 그만큼 줄어든다.
+      height: 480,
       layout: {
         background: { type: ColorType.Solid, color: "transparent" },
         textColor: theme.text,
         attributionLogo: false,
+        panes: { separatorColor: theme.grid, enableResize: false },
       },
       grid: {
         vertLines: { color: theme.grid, style: LineStyle.Dotted },
@@ -336,12 +355,48 @@ export function TradeChart({
       wickDownColor: theme.down,
     });
 
+    // 거래량 — 본 창 아래쪽에 겹친다. 축은 따로 두되 라벨은 숨긴다(트레이딩뷰 기본과 같다).
+    const volume = chart.addSeries(HistogramSeries, {
+      priceScaleId: "volume",
+      priceFormat: { type: "volume" },
+      lastValueVisible: false,
+      priceLineVisible: false,
+    });
+    volume.priceScale().applyOptions({ scaleMargins: { top: 0.82, bottom: 0 } });
+
+    // RSI(14) — 0~100 지표라 가격 축을 같이 못 쓴다. 아래 패널에 따로 그린다.
+    const rsiSeries = chart.addSeries(
+      LineSeries,
+      {
+        color: theme.accent,
+        lineWidth: 1,
+        priceLineVisible: false,
+        priceFormat: { type: "price", precision: 1, minMove: 0.1 },
+      },
+      1,
+    );
+    // 30·70 기준선 — 과매수·과매도를 눈으로 가르는 자리다.
+    for (const level of [70, 30]) {
+      rsiSeries.createPriceLine({
+        price: level,
+        color: theme.grid,
+        lineWidth: 1,
+        lineStyle: LineStyle.Dashed,
+        axisLabelVisible: false,
+      });
+    }
+    rsiSeries.priceScale().applyOptions({ borderColor: theme.grid });
+    chart.panes()[0]?.setStretchFactor(3);
+    chart.panes()[1]?.setStretchFactor(1);
+
     // 메모는 시리즈 플러그인으로 붙인다 — 차트가 다시 그려질 때마다 좌표가 함께 따라온다.
     const layer = new AnnotationPrimitive(annotationColors(theme));
     series.attachPrimitive(layer);
 
     chartRef.current = chart;
     seriesRef.current = series;
+    volumeRef.current = volume;
+    rsiRef.current = rsiSeries;
     layerRef.current = layer;
 
     const observer = new ResizeObserver(() => {
@@ -355,6 +410,8 @@ export function TradeChart({
       chart.remove();
       chartRef.current = null;
       seriesRef.current = null;
+      volumeRef.current = null;
+      rsiRef.current = null;
       layerRef.current = null;
     };
   }, []);
@@ -433,6 +490,24 @@ export function TradeChart({
         close: c.c,
       })),
     );
+
+    // 거래량은 캔들 방향 색으로, 반투명하게 — 캔들을 가리지 않아야 한다.
+    volumeRef.current?.setData(
+      candles.map((c) => ({
+        time: (c.t / 1000) as UTCTimestamp,
+        value: c.v,
+        color: (c.c >= c.o ? theme.up : theme.down) + "66",
+      })),
+    );
+
+    // RSI — 앞 14봉은 재료가 모자라 비어 있다. 선이 그만큼 늦게 시작하는 게 맞다.
+    const rsiValues = rsi(candles.map((c) => c.c));
+    const rsiData: { time: UTCTimestamp; value: number }[] = [];
+    candles.forEach((c, i) => {
+      const value = rsiValues[i];
+      if (value !== null) rsiData.push({ time: (c.t / 1000) as UTCTimestamp, value });
+    });
+    rsiRef.current?.setData(rsiData);
 
     // 체결 좌표에 마커를 찍는다. 평균가는 어느 시점의 가격도 아니라 점으로 쓰지 않는다.
     const points =
@@ -850,6 +925,29 @@ export function TradeChart({
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
+  /* ---------- Alt+R — 4분할 차트와 같은 보기 초기화 ---------- */
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!e.altKey || e.ctrlKey || e.metaKey) return;
+      if (e.key.toLowerCase() !== "r" && e.code !== "KeyR") return;
+      const target = e.target as HTMLElement | null;
+      if (target?.isContentEditable) return;
+      if (target && /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName)) return;
+
+      const chart = chartRef.current;
+      const series = seriesRef.current;
+      if (!chart || !series) return;
+      e.preventDefault();
+      // 가격 축을 손으로 끌면 자동 배율이 꺼진 채 남는다 — 되돌릴 때 함께 켠다.
+      series.priceScale().applyOptions({ autoScale: true });
+      chart.timeScale().resetTimeScale();
+      chart.timeScale().fitContent();
+    };
+
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
   /* ---------- 키보드 ---------- */
   useEffect(() => {
     if (selected === null && tool === "none") return;
@@ -971,6 +1069,31 @@ export function TradeChart({
       }
       record({ type: "move", id: target.id, kind: target.kind, before: target.points });
       setLevels(null);
+    });
+  };
+
+  /**
+   * 골라 둔 메모의 색·굵기·선 종류를 고친다 — 4분할과 같은 스타일 편집.
+   *
+   * 화면을 먼저 바꾼다. 버튼의 눌림 표시가 서버 왕복을 기다리면 굼뜨게 느껴지고,
+   * 실패하면 오류 문구가 알려 준다(revalidate가 원래 값으로 되돌린다).
+   */
+  const applyStyle = (style: {
+    color?: AnnotationColor;
+    lineWidth?: number;
+    lineStyle?: AnnotationLineStyle;
+  }) => {
+    if (!editing) return;
+    const before = editing;
+    setEditing({
+      ...before,
+      ...(style.color !== undefined ? { color: style.color } : {}),
+      ...(style.lineWidth !== undefined ? { line_width: style.lineWidth } : {}),
+      ...(style.lineStyle !== undefined ? { line_style: style.lineStyle } : {}),
+    });
+    startSaving(async () => {
+      const result = await updateAnnotationStyle(before.id, style);
+      if (result.error) setNoteError(result.error);
     });
   };
 
@@ -1295,6 +1418,64 @@ export function TradeChart({
                 닫기
               </button>
             </div>
+
+            {/* 스타일 — 4분할 차트와 같은 색·굵기·선 종류 편집. 손익 툴은 색이 뜻이라 제외. */}
+            {isStylableKind(editing.kind) ? (
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                <span className="flex items-center gap-1">
+                  {ANNOTATION_COLORS.map((c) => (
+                    <button
+                      key={c}
+                      type="button"
+                      aria-label={ANNOTATION_COLOR_LABEL[c]}
+                      aria-pressed={editing.color === c}
+                      title={ANNOTATION_COLOR_LABEL[c]}
+                      disabled={saving}
+                      onClick={() => applyStyle({ color: c })}
+                      className={`size-4 rounded-full ${ANNOTATION_DOT_CLASS[c]} ${
+                        editing.color === c
+                          ? "ring-2 ring-text ring-offset-1 ring-offset-surface"
+                          : ""
+                      }`}
+                    />
+                  ))}
+                </span>
+                <span className="mx-1 w-px self-stretch bg-border" aria-hidden />
+                {STYLE_WIDTHS.map((w) => (
+                  <button
+                    key={w}
+                    type="button"
+                    aria-pressed={editing.line_width === w}
+                    disabled={saving}
+                    onClick={() => applyStyle({ lineWidth: w })}
+                    className={`rounded border px-2 py-0.5 text-[11px] ${
+                      editing.line_width === w
+                        ? "border-accent text-accent"
+                        : "border-border text-dim hover:text-text"
+                    }`}
+                  >
+                    {w}px
+                  </button>
+                ))}
+                <span className="mx-1 w-px self-stretch bg-border" aria-hidden />
+                {ANNOTATION_LINE_STYLES.map((s) => (
+                  <button
+                    key={s}
+                    type="button"
+                    aria-pressed={(editing.line_style ?? "solid") === s}
+                    disabled={saving}
+                    onClick={() => applyStyle({ lineStyle: s })}
+                    className={`rounded border px-2 py-0.5 text-[11px] ${
+                      (editing.line_style ?? "solid") === s
+                        ? "border-accent text-accent"
+                        : "border-border text-dim hover:text-text"
+                    }`}
+                  >
+                    {ANNOTATION_LINE_STYLE_LABEL[s]}
+                  </button>
+                ))}
+              </div>
+            ) : null}
             {noteError ? <p className="mt-1 text-[11px] text-loss">{noteError}</p> : null}
           </div>
         ) : null}
