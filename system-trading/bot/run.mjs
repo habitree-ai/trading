@@ -16,6 +16,7 @@
  */
 import { CONFIG as cfg } from "./config.mjs";
 import { runCycle } from "./engine.mjs";
+import { notify } from "./notify.mjs";
 import { OkxClient } from "./okx.mjs";
 import { loadState } from "./state.mjs";
 
@@ -68,6 +69,8 @@ if (mode !== "paper") {
   }
 }
 
+const TAG = `[${mode.toUpperCase()}]`;
+
 async function once() {
   const started = new Date().toISOString();
   try {
@@ -75,9 +78,12 @@ async function once() {
     console.log(`[${started}] ${mode} 사이클 완료 — 잔고 ${s.equity === null ? "?" : "$" + s.equity} · 열린 포지션 ${s.openPositions.join(", ") || "없음"}`);
     for (const a of s.actions) console.log("  · " + a);
     for (const e of s.evaluated) console.log("  평가 " + e);
+    // 진입·청산·경고가 있던 사이클만 알린다 — 무사건 사이클까지 울리면 알림이 소음이 된다.
+    if (s.actions.length) await notify(`${TAG} ${s.actions.join("\n")}`);
     return s;
   } catch (e) {
     console.error(`[${started}] 사이클 실패:`, e.message);
+    await notify(`${TAG} 사이클 실패: ${e.message}`);
     return null;
   }
 }
@@ -90,6 +96,8 @@ async function onceWithRetry() {
     await new Promise((res) => setTimeout(res, 120_000));
     s = await once();
   }
+  // 재시도까지 소진하고도 봉이 안 확정됐으면 그 봉의 신호는 유실될 수 있다 — 알려야 한다.
+  if (s?.stale?.length) await notify(`${TAG} 봉 확정 지연(${s.stale.join(",")}) — 재시도 소진, 이 봉의 신호는 건너뛸 수 있음`);
   return s;
 }
 
