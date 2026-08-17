@@ -6,7 +6,6 @@ import {
   SYSTEM_BOOK_NAMES,
   readSystemState,
   readSystemTrades,
-  systemDataExists,
   type SystemMode,
 } from "@/lib/system-trading";
 
@@ -80,7 +79,7 @@ const OPERATIONS: { label: string; desc: string }[] = [
   { label: "주문 방식", desc: "시장가 진입에 손절·목표 브래킷을 한 요청으로 원자 부착 — 무보호 창이 없고, 봇이 꺼져도 거래소가 집행" },
   { label: "청산 경로", desc: "① 목표/손절 브래킷(거래소 자율) ② 보유 시한 초과 시 시장가 정리 ③ 수동 정리(버튼)" },
   { label: "알림", desc: "진입·청산·경고·사이클 실패가 디스코드 #시스템-트레이딩 채널로 발송 (무사건 사이클은 조용)" },
-  { label: "기록", desc: "모든 판정·주문·청산이 system-trading/data 파일(진실 원천)에 남고, 동기화로 모드별 시스템 북에 사본이 쌓인다" },
+  { label: "기록", desc: "모든 판정·주문·청산이 Supabase(진실 원천)에 남는다 — 봇이 어느 머신에서 돌든 이 화면에서 보인다. 동기화로 모드별 시스템 북에 사본이 쌓인다" },
   { label: "승격 사다리", desc: "페이퍼 → 데모 → 라이브 2% → 5% → 10%. 파라미터를 바꾸면 검증 시계를 리셋한다" },
 ];
 
@@ -135,20 +134,18 @@ export default async function SystemPage() {
     });
   }
 
-  // 봇 실시간 상태 — 배포 환경에는 파일이 없으므로 자연히 빈 배열이 된다.
+  // 봇 실시간 상태 — 봇이 Supabase 에 남긴 것을 읽는다. 어느 기기에서 보든 같다.
   const bots: BotStatus[] = [];
-  if (systemDataExists()) {
-    for (const mode of ["paper", "live"] as const) {
-      const st = readSystemState(mode);
-      if (!st) continue;
-      bots.push({
-        mode,
-        equity: st.equity,
-        openPositions: Object.values(st.positions).map((p) => `${p.name} ${p.side === "long" ? "롱" : "숏"}`),
-        lastEvalAt: Math.max(0, ...Object.values(st.lastBarTs)) || null,
-        closedCount: readSystemTrades(mode).length,
-      });
-    }
+  for (const mode of ["paper", "live"] as const) {
+    const st = await readSystemState(mode);
+    if (!st) continue;
+    bots.push({
+      mode,
+      equity: st.equity,
+      openPositions: Object.values(st.positions).map((p) => `${p.name} ${p.side === "long" ? "롱" : "숏"}`),
+      lastEvalAt: Math.max(0, ...Object.values(st.lastBarTs)) || null,
+      closedCount: (await readSystemTrades(mode)).length,
+    });
   }
 
   return (
@@ -182,7 +179,7 @@ export default async function SystemPage() {
           </div>
         ) : (
           <p className="mt-2 text-[12px] text-dim">
-            봇 실시간 상태는 봇이 도는 머신에서만 보입니다 — 여기서는 동기화된 시스템 북 데이터로 확인합니다.
+            아직 봇이 한 사이클도 돌지 않았습니다 — 첫 사이클이 끝나면 여기에 잔고와 포지션이 나옵니다.
           </p>
         )}
 

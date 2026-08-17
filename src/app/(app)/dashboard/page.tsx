@@ -45,7 +45,6 @@ import {
   SYSTEM_BOOK_NAMES,
   readSystemState,
   readSystemTrades,
-  systemDataExists,
 } from "@/lib/system-trading";
 import { reconcileEquity } from "@/lib/reconcile";
 import {
@@ -83,10 +82,10 @@ export default async function DashboardPage() {
     closedCount: number;
     importedCount: number;
   }[] = [];
-  if (systemDataExists()) {
+  {
     const books = await listBooks();
     for (const mode of ["paper", "live"] as const) {
-      const st = readSystemState(mode);
+      const st = await readSystemState(mode);
       if (!st) continue;
       const sysBook = books.find((b) => b.name === SYSTEM_BOOK_NAMES[mode]);
       systemBots.push({
@@ -94,7 +93,7 @@ export default async function DashboardPage() {
         equity: st.equity,
         openPositions: Object.values(st.positions).map((p) => p.name),
         lastEvalAt: Math.max(0, ...Object.values(st.lastBarTs)) || null,
-        closedCount: readSystemTrades(mode).length,
+        closedCount: (await readSystemTrades(mode)).length,
         importedCount: sysBook ? (await listTrades(sysBook.id)).length : 0,
       });
     }

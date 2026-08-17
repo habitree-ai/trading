@@ -18,7 +18,7 @@ import { CONFIG as cfg } from "./config.mjs";
 import { runCycle } from "./engine.mjs";
 import { notify } from "./notify.mjs";
 import { OkxClient } from "./okx.mjs";
-import { loadState } from "./state.mjs";
+import { loadState } from "./state-db.mjs";
 
 const args = process.argv.slice(2);
 // `--mode demo` 와 `--mode=demo` 둘 다 받는다 — 한쪽만 받고 조용히 paper 로
@@ -46,7 +46,7 @@ if (mode === "live" && process.env.LIVE_TRADING_ACK !== "I_UNDERSTAND_THE_RISK")
 }
 
 const client = new OkxClient(mode);
-const state = loadState(mode, cfg.paperStartEquity);
+const state = await loadState(mode, cfg.paperStartEquity);
 
 // 데모·라이브 사전 점검 — 계정이 롱숏 분리 모드가 아니면 모든 주문이 실패한다.
 if (mode !== "paper") {

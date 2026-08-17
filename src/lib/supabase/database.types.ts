@@ -448,6 +448,207 @@ export type Database = {
           },
         ]
       }
+      system_decisions: {
+        Row: {
+          action: string | null
+          at: string
+          bar_ts: string | null
+          fired: boolean | null
+          id: string
+          indicators: Json | null
+          member: string | null
+          mode: Database["public"]["Enums"]["system_mode"]
+          skip: string | null
+          tf: string | null
+          user_id: string
+          warn: string | null
+        }
+        Insert: {
+          action?: string | null
+          at?: string
+          bar_ts?: string | null
+          fired?: boolean | null
+          id?: string
+          indicators?: Json | null
+          member?: string | null
+          mode: Database["public"]["Enums"]["system_mode"]
+          skip?: string | null
+          tf?: string | null
+          user_id: string
+          warn?: string | null
+        }
+        Update: {
+          action?: string | null
+          at?: string
+          bar_ts?: string | null
+          fired?: boolean | null
+          id?: string
+          indicators?: Json | null
+          member?: string | null
+          mode?: Database["public"]["Enums"]["system_mode"]
+          skip?: string | null
+          tf?: string | null
+          user_id?: string
+          warn?: string | null
+        }
+        Relationships: []
+      }
+      system_equity: {
+        Row: {
+          at: string
+          equity: number | null
+          id: string
+          mode: Database["public"]["Enums"]["system_mode"]
+          open_members: string[]
+          user_id: string
+        }
+        Insert: {
+          at?: string
+          equity?: number | null
+          id?: string
+          mode: Database["public"]["Enums"]["system_mode"]
+          open_members?: string[]
+          user_id: string
+        }
+        Update: {
+          at?: string
+          equity?: number | null
+          id?: string
+          mode?: Database["public"]["Enums"]["system_mode"]
+          open_members?: string[]
+          user_id?: string
+        }
+        Relationships: []
+      }
+      system_state: {
+        Row: {
+          created_at: string
+          equity: number | null
+          last_bar_ts: Json
+          live_enabled: boolean
+          locked_until: string | null
+          mode: Database["public"]["Enums"]["system_mode"]
+          positions: Json
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          equity?: number | null
+          last_bar_ts?: Json
+          live_enabled?: boolean
+          locked_until?: string | null
+          mode: Database["public"]["Enums"]["system_mode"]
+          positions?: Json
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          equity?: number | null
+          last_bar_ts?: Json
+          live_enabled?: boolean
+          locked_until?: string | null
+          mode?: Database["public"]["Enums"]["system_mode"]
+          positions?: Json
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      system_trades: {
+        Row: {
+          algo_cl_ord_id: string | null
+          closed_at: string | null
+          entry_price: number
+          entry_ts: string
+          eq_at_entry: number | null
+          equity_after: number | null
+          exit_price: number | null
+          exit_ts: string | null
+          exit_type: string | null
+          hold_bars: number | null
+          id: string
+          lev: number | null
+          member: string
+          mode: Database["public"]["Enums"]["system_mode"]
+          name: string
+          net_pct: number | null
+          notional_usd: number | null
+          opened_at: string
+          ord_id: string | null
+          pnl_usd: number | null
+          risk_pct: number | null
+          side: Database["public"]["Enums"]["trade_side"]
+          signal: Json | null
+          stop: number | null
+          sz: string | null
+          target: number | null
+          trade_id: string
+          user_id: string
+        }
+        Insert: {
+          algo_cl_ord_id?: string | null
+          closed_at?: string | null
+          entry_price: number
+          entry_ts: string
+          eq_at_entry?: number | null
+          equity_after?: number | null
+          exit_price?: number | null
+          exit_ts?: string | null
+          exit_type?: string | null
+          hold_bars?: number | null
+          id?: string
+          lev?: number | null
+          member: string
+          mode: Database["public"]["Enums"]["system_mode"]
+          name: string
+          net_pct?: number | null
+          notional_usd?: number | null
+          opened_at?: string
+          ord_id?: string | null
+          pnl_usd?: number | null
+          risk_pct?: number | null
+          side: Database["public"]["Enums"]["trade_side"]
+          signal?: Json | null
+          stop?: number | null
+          sz?: string | null
+          target?: number | null
+          trade_id: string
+          user_id: string
+        }
+        Update: {
+          algo_cl_ord_id?: string | null
+          closed_at?: string | null
+          entry_price?: number
+          entry_ts?: string
+          eq_at_entry?: number | null
+          equity_after?: number | null
+          exit_price?: number | null
+          exit_ts?: string | null
+          exit_type?: string | null
+          hold_bars?: number | null
+          id?: string
+          lev?: number | null
+          member?: string
+          mode?: Database["public"]["Enums"]["system_mode"]
+          name?: string
+          net_pct?: number | null
+          notional_usd?: number | null
+          opened_at?: string
+          ord_id?: string | null
+          pnl_usd?: number | null
+          risk_pct?: number | null
+          side?: Database["public"]["Enums"]["trade_side"]
+          signal?: Json | null
+          stop?: number | null
+          sz?: string | null
+          target?: number | null
+          trade_id?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       trade_annotations: {
         Row: {
           color: string
@@ -816,6 +1017,7 @@ export type Database = {
         | "social"
         | "macro"
         | "briefing"
+      system_mode: "paper" | "demo" | "live"
       trade_result: "win" | "loss" | "be" | "open"
       trade_side: "long" | "short"
     }
@@ -970,6 +1172,7 @@ export const Constants = {
         "macro",
         "briefing",
       ],
+      system_mode: ["paper", "demo", "live"],
       trade_result: ["win", "loss", "be", "open"],
       trade_side: ["long", "short"],
     },

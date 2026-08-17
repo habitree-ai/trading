@@ -77,9 +77,11 @@ async function syncMode(
   user: Awaited<ReturnType<typeof requireUser>>["user"],
   mode: SystemMode,
 ): Promise<{ error?: string; message?: string }> {
-  const state = readSystemState(mode);
+  const state = await readSystemState(mode);
   if (!state) return {};
-  const closed = readSystemTrades(mode).sort((a, b) => a.exitTs - b.exitTs || a.entryTs - b.entryTs);
+  const closed = (await readSystemTrades(mode)).sort(
+    (a, b) => a.exitTs - b.exitTs || a.entryTs - b.entryTs,
+  );
 
   // 1) 북 확보.
   const bookName = SYSTEM_BOOK_NAMES[mode];

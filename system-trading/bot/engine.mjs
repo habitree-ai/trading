@@ -13,7 +13,7 @@
  */
 import { CONFIG as cfg } from "./config.mjs";
 import { SIGNALS, buildCtx, exitLevels, snapshot } from "./signals.mjs";
-import { appendLog, saveState } from "./state.mjs";
+import { appendLog, saveState } from "./state-db.mjs";
 
 const r2 = (x) => Math.round(x * 100) / 100;
 const r3 = (x) => Math.round(x * 1000) / 1000;
@@ -34,7 +34,7 @@ export async function runCycle(client, state) {
   }
   const ctxByTf = Object.fromEntries(TFS.map((tf) => [tf, buildCtx(candlesByTf[tf])]));
 
-  if (state.mode === "paper") managePaper(state, candlesByTf, summary);
+  if (state.mode === "paper") await managePaper(state, candlesByTf, summary);
   else await manageLive(client, state, summary);
 
   for (const [key, m] of Object.entries(cfg.members)) {
@@ -72,7 +72,7 @@ export async function runCycle(client, state) {
         }
       }
       // 신호가 없어도 남긴다 — "그때 왜 안 들어갔나"가 고도화의 절반이다.
-      appendLog(state.mode, "decisions", {
+      await appendLog(state.mode, "decisions", {
         member: key,
         tf: m.tf,
         barTs: candles[i].t,
@@ -91,8 +91,8 @@ export async function runCycle(client, state) {
   }
 
   const equity = state.mode === "paper" ? state.equity : await client.equityUsd().catch(() => null);
-  appendLog(state.mode, "equity", { equity, open: Object.keys(state.positions) });
-  saveState(state);
+  await appendLog(state.mode, "equity", { equity, open: Object.keys(state.positions) });
+  await saveState(state);
   summary.equity = equity;
   summary.openPositions = Object.keys(state.positions);
   return summary;
@@ -145,7 +145,7 @@ async function enter(client, state, key, m, ctx, i, summary) {
     const szNum = lots * inst.lotSz;
     if (szNum < inst.minSz || szNum <= 0) {
       // 최소 수량 미달 — 키우면 리스크 상한이 깨진다. 건너뛰는 것이 맞다.
-      appendLog(state.mode, "decisions", { member: key, warn: `주문 수량 미달(sz=${szNum}) — 진입 생략` });
+      await appendLog(state.mode, "decisions", { member: key, warn: `주문 수량 미달(sz=${szNum}) — 진입 생략` });
       return false;
     }
     const sz = szNum.toFixed(inst.szDecimals);
@@ -171,8 +171,8 @@ async function enter(client, state, key, m, ctx, i, summary) {
   }
 
   state.positions[key] = pos;
-  saveState(state); // 주문이 나간 즉시 — 여기서 죽어도 재시작이 포지션을 안다.
-  appendLog(state.mode, "trades", { type: "open", ...pos, lev: r2(lev) });
+  await saveState(state); // 주문이 나간 즉시 — 여기서 죽어도 재시작이 포지션을 안다.
+  await appendLog(state.mode, "trades", { type: "open", ...pos, lev: r2(lev) });
   summary.actions.push(
     `진입 ${m.name} ${m.side} @ ${price} (레버 ${r2(lev)}배, 손절 ${r2(stop)}, 목표 ${r2(target)})`,
   );
@@ -181,14 +181,14 @@ async function enter(client, state, key, m, ctx, i, summary) {
 
 /* ---------- 페이퍼 — 마감 봉으로 가상 체결 (백테스트와 같은 보수 규칙) ---------- */
 
-function managePaper(state, candlesByTf, summary) {
+async function managePaper(state, candlesByTf, summary) {
   for (const [key, pos] of Object.entries({ ...state.positions })) {
     const bars = candlesByTf[pos.tf].filter((c) => c.t >= pos.entryTs);
     // 진입 봉이 아직 마감 전이면(특히 1D는 진입 후 최대 하루) 기다리는 게 정상이다.
     if (bars.length === 0) continue;
     if (bars[0].t > pos.entryTs) {
       // 캔들 창(300봉)이 진입 봉을 지나쳤다 — 오래 꺼져 있었던 것. 체결을 신뢰할 수 없다.
-      appendLog(state.mode, "decisions", {
+      await appendLog(state.mode, "decisions", {
         member: key,
         warn: "진입 봉이 캔들 창 밖 — 수동 정리 필요(포지션 유지 중)",
       });
@@ -221,8 +221,8 @@ function managePaper(state, candlesByTf, summary) {
     // 복리 검토와 같은 회계 — 손익은 "진입 시점 잔고" 기준이다(병행 중 겹칠 때 갈린다).
     state.equity = r2(state.equity + (pos.eqAtEntry * netPct) / 100);
     delete state.positions[key];
-    saveState(state);
-    appendLog(state.mode, "trades", {
+    await saveState(state);
+    await appendLog(state.mode, "trades", {
       type: "close",
       tradeId: `${key}-${pos.entryTs}`,
       member: key,
@@ -263,7 +263,7 @@ async function manageLive(client, state, summary) {
     if (!det || det.error) {
       // 접수 직후 조회 지연일 수도, 키·권한 문제일 수도 있다 — 원인을 로그에 남긴다.
       // 오류가 반복되면 일일 점검에서 잡아야 한다(브래킷 보호는 거래소에 살아 있다).
-      appendLog(state.mode, "decisions", {
+      await appendLog(state.mode, "decisions", {
         member: key,
         warn: `브래킷 조회 실패 — 다음 사이클 재시도${det?.error ? ` (${det.error})` : ""}`,
       });
@@ -276,7 +276,7 @@ async function manageLive(client, state, summary) {
       if (Date.now() >= deadline) {
         await client.cancelAlgo(cfg.instId, det.algoId);
         await client.closeMarket({ instId: cfg.instId, posSide: pos.posSide, sz: pos.sz, mgnMode: cfg.marginMode });
-        finalizeLive(state, key, pos, { price: await client.lastPrice(cfg.instId), type: "time" }, summary);
+        await finalizeLive(state, key, pos, { price: await client.lastPrice(cfg.instId), type: "time" }, summary);
       }
       continue;
     }
@@ -287,7 +287,7 @@ async function manageLive(client, state, summary) {
       const px = Number(
         det.actualPx || (type === "tp" ? det.tpTriggerPx : det.slTriggerPx) || pos.stop,
       );
-      finalizeLive(state, key, pos, { price: px, type }, summary);
+      await finalizeLive(state, key, pos, { price: px, type }, summary);
       continue;
     }
 
@@ -295,10 +295,10 @@ async function manageLive(client, state, summary) {
     const open = await client.positions(cfg.instId);
     const still = open.some((p) => p.posSide === pos.posSide && Number(p.pos) > 0);
     if (still) {
-      appendLog(state.mode, "decisions", { member: key, warn: "브래킷 취소됨·포지션 존재 — 즉시 수동 확인 필요" });
+      await appendLog(state.mode, "decisions", { member: key, warn: "브래킷 취소됨·포지션 존재 — 즉시 수동 확인 필요" });
       summary.actions.push(`경고: ${pos.name} 보호(브래킷) 없음 — 거래소에서 손절·목표 수동 재설정 필요`);
     } else {
-      finalizeLive(state, key, pos, { price: await client.lastPrice(cfg.instId), type: "unknown" }, summary);
+      await finalizeLive(state, key, pos, { price: await client.lastPrice(cfg.instId), type: "unknown" }, summary);
     }
   }
 
@@ -317,7 +317,7 @@ async function warnOrphans(client, state, summary) {
         .filter((p) => p.posSide === side)
         .reduce((s, p) => s + Number(p.sz ?? 0), 0);
       if (exch > known + 1e-9) {
-        appendLog(state.mode, "decisions", {
+        await appendLog(state.mode, "decisions", {
           warn: `미추적 ${side} 포지션 ${exch - known} 계약 — 수동 확인 필요`,
         });
         summary.actions.push(`경고: state에 없는 ${side} 포지션 감지(${exch - known} 계약) — 수동 확인 필요`);
@@ -328,13 +328,13 @@ async function warnOrphans(client, state, summary) {
   }
 }
 
-function finalizeLive(state, key, pos, closed, summary) {
+async function finalizeLive(state, key, pos, closed, summary) {
   const dir = pos.side === "long" ? 1 : -1;
   const grossPct = ((closed.price - pos.entryPrice) / pos.entryPrice) * dir * 100;
   const netPct = (grossPct - cfg.feePct) * pos.lev;
   delete state.positions[key];
-  saveState(state);
-  appendLog(state.mode, "trades", {
+  await saveState(state);
+  await appendLog(state.mode, "trades", {
     type: "close",
     tradeId: `${key}-${pos.entryTs}`,
     member: key,
