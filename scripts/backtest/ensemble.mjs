@@ -45,6 +45,10 @@ const MEMBERS = {
   dch: { tf: "4H", side: "short", exit: { type: "atr", sl: 1, tp: 3 }, label: "신저가 숏+일봉 하락 (4H·숏)", origin: "후보(페이퍼)" },
   mcv: { tf: "4H", side: "long", exit: { type: "atr", sl: 1, tp: 1 }, label: "MACD+거래량 (4H·롱)", origin: "후보(페이퍼)" },
   ibq: { tf: "1H", side: "long", exit: { type: "atr", sl: 2, tp: 6 }, label: "인사이드바+저변동 (1H·롱)", origin: "후보(페이퍼)" },
+  // 주5회 회차(2026-08-17) 채택 부품 — ib4는 ibq의 무필터 상위집합이라 같은 조합에 둘 다 넣지 않는다.
+  ib4: { tf: "1H", side: "long", exit: { type: "atr", sl: 3, tp: 9 }, label: "인사이드바 무필터 (1H·롱)", origin: "주5회 회차" },
+  mp1: { tf: "1H", side: "long", exit: { type: "atr", sl: 2, tp: 6 }, label: "MA눌림+일봉상승 (1H·롱)", origin: "주5회 회차" },
+  rf1: { tf: "1H", side: "short", exit: { type: "atr", sl: 3, tp: 9 }, label: "RSI반락 숏+일봉하락 (1H·숏)", origin: "주5회 회차(파일럿)" },
 };
 
 /**
@@ -61,6 +65,9 @@ const SUBSETS = [
   { key: "all6", name: "전체 7 − fade", members: ["gc", "ob", "dc", "dch", "mcv", "ibq"], why: "criteria.md가 '여유 최얇·최우선 관찰'로 지목한 fade 제외", cap: { maxConcurrent: 3, xRisk: 3 } },
   { key: "long4", name: "롱 4 병행", members: ["gc", "ob", "mcv", "ibq"], why: "롱 전용 — 방향 분산의 가치를 역으로 측정", cap: { maxConcurrent: 3, xRisk: 3 } },
   { key: "short3", name: "숏 3 병행", members: ["fade", "dc", "dch"], why: "숏 전용 — 하락 국면 방어력 측정", cap: { maxConcurrent: 3, xRisk: 3 } },
+  // 주5회 회차 — ibq를 상위집합 ib4로 대체(신호 중복 방지), 신규 부품 편입. 상한은 멤버 수에 맞춰 4개.
+  { key: "swing9", name: "스윙 9 (주5회 주 가설)", members: ["gc", "ob", "fade", "dc", "dch", "mcv", "ib4", "mp1", "rf1"], why: "주5회 회차 주 가설 — all7에서 ibq→ib4 대체 + mp1·rf1 편입", cap: { maxConcurrent: 4, xRisk: 4 } },
+  { key: "swing8", name: "스윙 8 (파일럿 제외)", members: ["gc", "ob", "fade", "dc", "dch", "mcv", "ib4", "mp1"], why: "swing9에서 파일럿(rf1, 표본 103건) 제외 — 파일럿 의존도 측정", cap: { maxConcurrent: 4, xRisk: 4 } },
 ];
 const PRIMARY_SUBSET = "all7";
 const RISKS = [2, 5, 10];
@@ -214,6 +221,21 @@ const SIGNALS = {
     c.candles[i - 1].h < c.candles[i - 2].h && c.candles[i - 1].l > c.candles[i - 2].l &&
     c.candles[i].c > c.candles[i - 2].h &&
     c.atr[i] !== null && c.atrMA100[i] !== null && c.atr[i] < c.atrMA100[i],
+  ib4: (i, c) =>
+    i >= 2 &&
+    c.candles[i - 1].h < c.candles[i - 2].h && c.candles[i - 1].l > c.candles[i - 2].l &&
+    c.candles[i].c > c.candles[i - 2].h,
+  mp1: (i, c) => {
+    if (c.sma200[i] === null || !(c.sma20[i] > c.sma50[i]) || !(c.candles[i].c > c.sma200[i])) return false;
+    if (!(c.candles[i].l <= c.sma20[i] && c.candles[i].c > c.sma20[i])) return false;
+    const d = c.htf1dIdx[i];
+    return d >= 0 && c.dailySma50[d] !== null && c.daily[d].c > c.dailySma50[d];
+  },
+  rf1: (i, c) => {
+    if (c.rsi[i - 1] === null || !(c.rsi[i - 1] > 70 && c.rsi[i] <= 70)) return false;
+    const d = c.htf1dIdx[i];
+    return d >= 0 && c.dailySma50[d] !== null && c.daily[d].c < c.dailySma50[d];
+  },
 };
 
 /* ---------- 체결 — 시리즈 공통 (신호 봉 마감 → 다음 봉 시가, 손절 우선·갭 시가) ---------- */
@@ -428,6 +450,7 @@ function runPortfolio(memberKeys, risk, tradesByMember, windowFrom, windowTo, wi
       marAnnual: mdd !== 0 ? r(cagr / -mdd) : null,
       marAnnualBar: mddBar !== null && mddBar !== 0 ? r(cagr / -mddBar) : null,
       perMonth: r(n / (days / 30)),
+      perWeek: r(n / (days / 7)),
       avgLev: n ? r(logByExit.reduce((s, l) => s + l.lev, 0) / n) : null,
       maxConcurrent,
       maxLossStreak,
@@ -609,6 +632,7 @@ function cmdRun() {
       atrMA100,
       sma20: sma(closes, 20),
       sma50: sma(closes, 50),
+      sma200: sma(closes, 200),
       macdLine: line,
       macdSig: signal,
       volMA: volMA(candles),
@@ -707,6 +731,22 @@ function cmdRun() {
   const gates = gateOf(headline);
   const gatesBySubset = Object.fromEntries(eligible.map((r0) => [r0.subset, gateOf(r0)]));
   const gatesByOverlay = Object.fromEntries(overlayRuns.map((r0) => [`${r0.overlay}-r${r0.risk}`, gateOf(r0)]));
+
+  // 주5회 회차 게이트 — 품질 5종 + 빈도(perWeek ≥ 5). swing9가 주 가설, swing8은 파일럿 의존도.
+  const swingRuns = runs.filter((r) =>
+    ["swing9", "swing8"].includes(r.subset) && r.window === "full" && r.funding && [2, 5].includes(r.risk));
+  for (const r0 of swingRuns) if (!r0.bootstrap) r0.bootstrap = blockBootstrap(r0._netPcts);
+  const swingGates = Object.fromEntries(swingRuns.map((r0) => {
+    const g = gateOf(r0);
+    g.perWeek = { target: ">=5", value: r0.stats.perWeek, pass: (r0.stats.perWeek ?? 0) >= 5 };
+    return [`${r0.subset}-${r0.overlay}-r${r0.risk}`, g];
+  }));
+  // 리포트용 — 리스크 2% swing 셀의 곡선을 남긴다.
+  for (const r0 of swingRuns) {
+    if (r0.risk === 2 && !r0.curve) {
+      r0.curve = r0._curve.filter((_, i, arr) => i % Math.ceil(arr.length / 240) === 0 || i === arr.length - 1);
+    }
+  }
   // 오버레이 중 게이트 전부 통과가 있으면 곡선을 남긴다 — 채택 후보 서술용.
   // 최다 게이트 통과 셀의 곡선을 남긴다 — "현재까지 최선 구성" 서술용.
   const gateCount = (g) => ["marAnnualBar", "mddBar", "positivePeriods", "bootstrapP20", "vsBench"].filter((k) => g[k].pass).length;
@@ -747,6 +787,7 @@ function cmdRun() {
     gates,
     gatesBySubset,
     gatesByOverlay,
+    swingGates,
     bestCell: bestCell ? { subset: bestCell.subset, overlay: bestCell.overlay, risk: bestCell.risk, gatesPassed: gateCount(gatesByOverlay[`${bestCell.overlay}-r${bestCell.risk}`]) } : null,
   };
 
@@ -778,6 +819,17 @@ function cmdRun() {
     console.log(
       `${r0.overlay.padEnd(9)} r${r0.risk} $${String(s.finalEquity).padEnd(7)} CAGR ${String(s.cagr).padStart(6)}% MDD봉 ${String(s.mddBar).padStart(7)}% MAR(봉) ${String(s.marAnnualBar).padStart(5)} ` +
       `구간 ${s.positivePeriods}/3 p20 $${String(r0.bootstrap?.finalEq.p20).padEnd(7)} 게이트 ${passed}/5${g.all ? " ★전부 통과" : ""}`,
+    );
+  }
+  console.log(`\n=== 주5회 격자 (swing9/swing8 · 전체 창 · 펀딩 포함) ===`);
+  for (const r0 of swingRuns) {
+    const s = r0.stats;
+    const g = swingGates[`${r0.subset}-${r0.overlay}-r${r0.risk}`];
+    const passed = ["marAnnualBar", "mddBar", "positivePeriods", "bootstrapP20", "vsBench"].filter((k) => g[k].pass).length;
+    console.log(
+      `${r0.subset} ${r0.overlay.padEnd(9)} r${r0.risk} 주${String(s.perWeek).padStart(5)}${g.perWeek.pass ? "✓" : "✗"} ` +
+      `$${String(s.finalEquity).padEnd(8)} CAGR ${String(s.cagr).padStart(6)}% MDD봉 ${String(s.mddBar).padStart(7)}% MAR ${String(s.marAnnualBar).padStart(5)} ` +
+      `구간 ${s.positivePeriods}/3 품질 ${passed}/5`,
     );
   }
   console.log(`저장: ${out}`);

@@ -1,0 +1,95 @@
+{
+  "note": "주5회 스윙 회차 — 소넷 렌즈 5개의 후보 20개에서 선정한 10개. 전부 1H(생존 공식의 봉). 선정 기준: 생존자(인사이드바+atr-quiet) 이웃 체계 탐색 4개, 빈도 부품(무필터 고빈도) 2개, 정합 숏 재도전 2개, 파일럿 개선 1개, atr-quiet 공식 이식 1개. 중복 제거: 인사이드바 하방+atr-quiet은 두 렌즈가 동일 제안 → 1개.",
+  "strategies": [
+    {
+      "key": "ibd1h-quiet",
+      "name": "1H 인사이드바 하방 이탈 숏 + 저변동",
+      "tf": "1H",
+      "base": "inside-bar-breakdown",
+      "filters": ["atr-quiet"],
+      "lens": "생존자 미러",
+      "rationale": "유일한 1H 통과 조합(인사이드바 돌파+atr-quiet)의 정확한 숏 미러 — 수축→확장 메커니즘은 방향 중립이므로 대칭 작동 여부가 이번 회차 최대 질문. 두 렌즈가 독립적으로 동일 제안."
+    },
+    {
+      "key": "ib1h-nofilter",
+      "name": "1H 인사이드바 돌파 (무필터)",
+      "tf": "1H",
+      "base": "inside-bar-breakout",
+      "filters": [],
+      "lens": "생존자 변형",
+      "rationale": "atr-quiet 필터가 통과의 필수 조건인지 분리 검증하는 대조군 — 인사이드바 자체가 수축 조건을 내장하므로 무필터로도 살 수 있다면 빈도가 두 배로 늘어난다."
+    },
+    {
+      "key": "ibd1h-nofilter",
+      "name": "1H 인사이드바 하방 이탈 숏 (무필터)",
+      "tf": "1H",
+      "base": "inside-bar-breakdown",
+      "filters": [],
+      "lens": "생존자 미러",
+      "rationale": "숏 미러의 무필터 대조군 — 하방 이탈은 패닉성 지속이 상방보다 급격해 무필터에서도 품질 방어 가능하다는 가설."
+    },
+    {
+      "key": "ibd1h-h4dn",
+      "name": "1H 인사이드바 하방 이탈 숏 + 4H 하락 정합",
+      "tf": "1H",
+      "base": "inside-bar-breakdown",
+      "filters": ["htf4h-down"],
+      "lens": "생존자 미러",
+      "rationale": "미러에 변동성축(atr-quiet) 대신 추세축(htf4h-down)을 얹은 두 번째 필터축 — '숏+하락필터 생존' 원칙의 인사이드바 적용."
+    },
+    {
+      "key": "rsi40-1h",
+      "name": "1H RSI 40 눌림 반등 (무필터)",
+      "tf": "1H",
+      "base": "rsi-40-bounce",
+      "filters": [],
+      "lens": "얕은 눌림",
+      "rationale": "빈도 우선 부품(월 15~25건 추정) — 얕은 눌림의 저품질은 와이드 기하가 흡수한다는 가설. 포트폴리오의 '많이 도는' 축 후보."
+    },
+    {
+      "key": "mapb1h-d1",
+      "name": "1H 추세 눌림목 + 일봉 상승 정합",
+      "tf": "1H",
+      "base": "ma-pullback",
+      "filters": ["htf1d-up"],
+      "lens": "얕은 눌림",
+      "rationale": "자체 추세 조건(SMA20>50·종가>SMA200) + 일봉 정합의 이중 정렬 눌림 — 15m판은 기각됐으나 1H 와이드 기하는 미검증."
+    },
+    {
+      "key": "rsif1h-d1dn",
+      "name": "1H RSI 과열 반락 숏 + 일봉 하락 정합",
+      "tf": "1H",
+      "base": "rsi-overbought-fade",
+      "filters": ["htf1d-down"],
+      "lens": "얕은 눌림(숏)",
+      "rationale": "하락 추세 속 얕은 반등을 파는 되돌림 숏 — 기각된 z-스코어·돈치안 숏과 다른 베이스(RSI)로 '숏+하락필터' 공식 재검증."
+    },
+    {
+      "key": "bigbar1h-h4up",
+      "name": "1H 장대양봉 추종 + 4H 상승 정합",
+      "tf": "1H",
+      "base": "big-bar-continuation",
+      "filters": ["htf4h-up"],
+      "lens": "모멘텀",
+      "rationale": "파일럿(무필터 +0.132%·표본 136)을 통과로 끌어올리는 실험 — 우호 추세 재확인 필터는 '롱 구제'가 아니라 정합이다."
+    },
+    {
+      "key": "macddn1h-quiet",
+      "name": "1H MACD 데드 교차 숏 + 저변동",
+      "tf": "1H",
+      "base": "macd-cross-down",
+      "filters": ["atr-quiet"],
+      "lens": "atr-quiet 이식",
+      "rationale": "통과 조합의 공통분모 '저변동 선행 후 전환'을 MACD 숏에 이식 — atr-quiet은 방향 중립 필터라 숏에도 원칙 위반이 아니다."
+    },
+    {
+      "key": "zrev1h-nofilter",
+      "name": "1H z-스코어 과이격 반등 (무필터)",
+      "tf": "1H",
+      "base": "zscore-revert-long",
+      "filters": [],
+      "lens": "이격 회귀",
+      "rationale": "고빈도 이격 회귀 롱 — 15m판은 기각됐으나 1H 와이드 기하는 미검증. 빈도 부품 후보 2호."
+    }
+  ]
+}

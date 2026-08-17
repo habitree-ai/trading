@@ -33,8 +33,14 @@ const RUIN_EQ = 1;
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const CACHE_TEN = join(repoRoot, "scripts", "backtest", ".cache", "ten-candles.json");
 const CACHE = join(repoRoot, "scripts", "backtest", ".cache", "short-tf-candles.json");
-const CONFIG = join(repoRoot, "scripts", "backtest", "short-tf.config.json");
-const OUTDIR = join(repoRoot, "docs", "backtest", "short");
+// --round <name> 이면 설정·출력을 그 라운드 경로로 분리 — 기본은 15m·1H 재도전 회차 경로 그대로.
+const roundIdx = process.argv.indexOf("--round");
+const ROUND = roundIdx >= 0 ? process.argv[roundIdx + 1] : null;
+const CONFIG = ROUND
+  ? join(repoRoot, "scripts", "backtest", `${ROUND}.config.json`)
+  : join(repoRoot, "scripts", "backtest", "short-tf.config.json");
+const OUTDIR = ROUND ? join(repoRoot, "docs", "backtest", ROUND) : join(repoRoot, "docs", "backtest", "short");
+const MERGE_TAG = ROUND ?? "short-tf";
 
 /** 대상 봉 — 일중 채널 룩백(bars/day)과 보유 시한이 봉마다 다르다. */
 const TFS = {
@@ -412,6 +418,15 @@ const BASES = {
         (b.o - b.c) / range >= 0.7 && b.c < c.candles[i - 1].l;
     },
   },
+  "inside-bar-breakdown": {
+    name: "인사이드바 하방 이탈 숏",
+    side: "short",
+    rule: "인사이드바 형성 후 종가가 모봉 저가 아래로 마감",
+    fn: (i, c) =>
+      i >= 2 &&
+      c.candles[i - 1].h < c.candles[i - 2].h && c.candles[i - 1].l > c.candles[i - 2].l &&
+      c.candles[i].c < c.candles[i - 2].l,
+  },
 };
 
 const FILTERS = {
@@ -581,9 +596,11 @@ function stats(allTrades, periodEdges, feePct) {
   });
 
   const r = (x) => (x === null ? null : Math.round(x * 1000) / 1000);
+  const spanDays = (periodEdges[periodEdges.length - 1] - periodEdges[0]) / 86400_000;
   return {
     fee: feePct,
     trades: n,
+    perWeek: r(n / (spanDays / 7)),
     wins: wins.length,
     winRate: n ? r((wins.length / n) * 100) : null,
     winRateLow95: r(winRateLow95),
@@ -873,7 +890,7 @@ function cmdMerge() {
     console.log("review.json 포함");
   }
   const kstDay = new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10);
-  const out = join(repoRoot, "docs", "backtest", `${kstDay}-short-tf.json`);
+  const out = join(repoRoot, "docs", "backtest", `${kstDay}-${MERGE_TAG}.json`);
   mkdirSync(dirname(out), { recursive: true });
   writeFileSync(out, JSON.stringify(merged));
   console.log(`전략 ${merged.strategies.length}개 병합 → ${out}`);

@@ -1,0 +1,370 @@
+/**
+ * 주5회 스윙 전방 검증 러너 — 주5회 스윙 회차(2026-08-17)의 "후보 2호"를
+ * 페이퍼 북("swing")에서 백테스트 스펙 그대로 재현한다.
+ *
+ *   node system-trading/bot/swing-paper.mjs          # 1회 실행
+ *   node system-trading/bot/swing-paper.mjs --loop   # 1H 마감마다 자동
+ *
+ * 구성(스펙 동결 2026-08-17, docs/backtest/2026-08-17-ensemble.json swing9·throttle·r2 근거):
+ *   멤버 9 = gc·ob·fade·dc·dch·mcv (기존 명세) + ib4(인사이드바 무필터 1H, 3/9×ATR)
+ *            + mp1(MA눌림+일봉상승 1H, 2/6×ATR) + rf1(RSI반락 숏+일봉하락 1H, 3/9×ATR)
+ *   ※ ibq는 ib4의 부분집합이라 제외(신호 이중 계상 방지).
+ *   드로다운 스로틀 = 유효 리스크 = 2% × clamp(잔고/피크, 0.25, 1). 레짐 게이트 없음(빈도 목표와 상충).
+ *   동시 상한 = 4개 · 리스크 합 8% · 레버 상한 10배
+ *   비용 = 왕복 0.1% + 펀딩(롱 0.03%/일 × 보유일)
+ *
+ * ens 북(후보 1호·품질 우선)과의 차이: 목표가 다르다 — ens는 "복리 품질 최우선"(레짐 포함,
+ * 주 ~2회), swing은 "주 5회+ 빈도"(레짐 제외, 백테스트 주 5.34회·CAGR 23.8%·MDD −36.9%).
+ * 이 러너는 주문 코드가 없다(공개 API만). 승격 게이트: 신규 40~60건 기대값>0 → 데모 검토.
+ */
+import { atr, macd, rollingLow, rsi, sma, volMA } from "./indicators.mjs";
+import { notify } from "./notify.mjs";
+import { OkxClient } from "./okx.mjs";
+import { exitLevels } from "./signals.mjs";
+import { appendLog, loadState, saveState } from "./state.mjs";
+
+const BOOK = "swing";
+const CFG = {
+  instId: "BTC-USDT-SWAP",
+  tfs: {
+    "1H": { ms: 3600_000, maxHold: 120 },
+    "4H": { ms: 4 * 3600_000, maxHold: 60 },
+    "1D": { ms: 24 * 3600_000, maxHold: 20 },
+  },
+  members: {
+    gc: { tf: "4H", name: "골든크로스", side: "long", exit: { type: "atr", sl: 1, tp: 3 } },
+    ob: { tf: "4H", name: "RSI 과매도 반등", side: "long", exit: { type: "atr", sl: 1, tp: 3 } },
+    fade: { tf: "4H", name: "RSI 과매수 반락", side: "short", exit: { type: "atr", sl: 2, tp: 4 } },
+    dc: { tf: "1D", name: "20봉 신저가 이탈", side: "short", exit: { type: "pct", sl: 2, tp: 4 } },
+    dch: { tf: "4H", name: "신저가 숏+일봉 하락", side: "short", exit: { type: "atr", sl: 1, tp: 3 } },
+    mcv: { tf: "4H", name: "MACD+거래량", side: "long", exit: { type: "atr", sl: 1, tp: 1 } },
+    ib4: { tf: "1H", name: "인사이드바 무필터", side: "long", exit: { type: "atr", sl: 3, tp: 9 } },
+    mp1: { tf: "1H", name: "MA눌림+일봉상승", side: "long", exit: { type: "atr", sl: 2, tp: 6 } },
+    rf1: { tf: "1H", name: "RSI반락 숏+일봉하락", side: "short", exit: { type: "atr", sl: 3, tp: 9 } },
+  },
+  baseRiskPct: 2,
+  throttleFloor: 0.25,
+  maxLev: 10,
+  feePct: 0.1,
+  fundLongPctPerDay: 0.03,
+  maxConcurrent: 4,
+  maxOpenRiskPct: 8,
+  dayMs: 24 * 3600_000,
+  candleLimit: 300, // 1H SMA200·MACD 시드·일봉 SMA50을 전부 덮는다.
+  startEquity: 100,
+};
+
+const r2 = (x) => Math.round(x * 100) / 100;
+const r3 = (x) => Math.round(x * 1000) / 1000;
+
+/* ---------- 판정 컨텍스트 ---------- */
+
+function buildCtx(tf, candles, daily) {
+  const closes = candles.map((c) => c.c);
+  const ctx = { candles, atr: atr(candles), daily, dailySma50: sma(daily.map((c) => c.c), 50) };
+  if (tf === "4H") {
+    const { line, signal } = macd(closes);
+    ctx.rsi = rsi(closes);
+    ctx.sma20 = sma(closes, 20);
+    ctx.sma50 = sma(closes, 50);
+    ctx.ll20 = rollingLow(candles, 20);
+    ctx.macdLine = line;
+    ctx.macdSig = signal;
+    ctx.volMA = volMA(candles);
+  }
+  if (tf === "1H") {
+    ctx.rsi = rsi(closes);
+    ctx.sma20 = sma(closes, 20);
+    ctx.sma50 = sma(closes, 50);
+    ctx.sma200 = sma(closes, 200);
+  }
+  if (tf === "1D") {
+    ctx.ll20 = rollingLow(candles, 20);
+  }
+  return ctx;
+}
+
+/** 하위봉 i 시점에 마감 완료된 최신 일봉 인덱스. */
+function htfIdx(i, c) {
+  let d = -1;
+  while (d + 1 < c.daily.length && c.daily[d + 1].t + CFG.dayMs <= c.candles[i].t) d += 1;
+  return d;
+}
+
+const SIGNALS = {
+  gc: (i, c) => c.sma20[i - 1] !== null && c.sma50[i - 1] !== null && c.sma20[i - 1] <= c.sma50[i - 1] && c.sma20[i] > c.sma50[i],
+  ob: (i, c) => c.rsi[i - 1] !== null && c.rsi[i - 1] < 30 && c.rsi[i] >= 30,
+  fade: (i, c) => c.rsi[i - 1] !== null && c.rsi[i - 1] > 70 && c.rsi[i] <= 70,
+  dc: (i, c) => c.ll20[i] !== null && c.candles[i].c < c.ll20[i],
+  dch: (i, c) => {
+    if (c.ll20[i] === null || c.candles[i].c >= c.ll20[i]) return false;
+    const d = htfIdx(i, c);
+    return d >= 0 && c.dailySma50[d] !== null && c.daily[d].c < c.dailySma50[d];
+  },
+  mcv: (i, c) =>
+    c.macdSig[i - 1] !== null && c.macdLine[i - 1] <= c.macdSig[i - 1] && c.macdLine[i] > c.macdSig[i] &&
+    c.volMA[i] !== null && c.candles[i].v >= 1.5 * c.volMA[i],
+  ib4: (i, c) =>
+    i >= 2 &&
+    c.candles[i - 1].h < c.candles[i - 2].h && c.candles[i - 1].l > c.candles[i - 2].l &&
+    c.candles[i].c > c.candles[i - 2].h,
+  mp1: (i, c) => {
+    if (c.sma200[i] === null || !(c.sma20[i] > c.sma50[i]) || !(c.candles[i].c > c.sma200[i])) return false;
+    if (!(c.candles[i].l <= c.sma20[i] && c.candles[i].c > c.sma20[i])) return false;
+    const d = htfIdx(i, c);
+    return d >= 0 && c.dailySma50[d] !== null && c.daily[d].c > c.dailySma50[d];
+  },
+  rf1: (i, c) => {
+    if (c.rsi[i - 1] === null || !(c.rsi[i - 1] > 70 && c.rsi[i] <= 70)) return false;
+    const d = htfIdx(i, c);
+    return d >= 0 && c.dailySma50[d] !== null && c.daily[d].c < c.dailySma50[d];
+  },
+};
+
+function snapshot(key, i, c) {
+  const r1 = (x) => (x === null || x === undefined ? null : Math.round(x * 10) / 10);
+  const d = htfIdx(i, c);
+  return {
+    close: c.candles[i].c,
+    atr: r1(c.atr[i]),
+    rsi: c.rsi ? r1(c.rsi[i]) : null,
+    dailyClose: d >= 0 ? c.daily[d].c : null,
+    dailySma50: d >= 0 && c.dailySma50[d] !== null ? r1(c.dailySma50[d]) : null,
+  };
+}
+
+/* ---------- 사이클 ---------- */
+
+async function runCycle(client, state) {
+  const summary = { actions: [], evaluated: [], stale: [] };
+
+  const candlesByTf = {};
+  for (const tf of ["1H", "4H", "1D"]) {
+    candlesByTf[tf] = await client.candles(CFG.instId, tf, CFG.candleLimit);
+  }
+  if (candlesByTf["1H"].length < 210 || candlesByTf["4H"].length < 60 || candlesByTf["1D"].length < 60) {
+    throw new Error(
+      `캔들 부족(1H ${candlesByTf["1H"].length}·4H ${candlesByTf["4H"].length}·1D ${candlesByTf["1D"].length}) — 1H SMA200에 210봉 필요`,
+    );
+  }
+  for (const tf of ["1H", "4H"]) {
+    const arr = candlesByTf[tf];
+    const last = arr[arr.length - 1];
+    if (Date.now() > last.t + 2 * CFG.tfs[tf].ms + 30_000) summary.stale.push(tf);
+  }
+  const daily = candlesByTf["1D"];
+  const ctxByTf = Object.fromEntries(["1H", "4H", "1D"].map((tf) => [tf, buildCtx(tf, candlesByTf[tf], daily)]));
+
+  // 열린 포지션 가상 체결 — 손절 우선·갭 시가·시한 청산, 펀딩 차감.
+  for (const [key, pos] of Object.entries({ ...state.positions })) {
+    const bars = candlesByTf[pos.tf].filter((c) => c.t >= pos.entryTs);
+    if (bars.length === 0) continue;
+    if (bars[0].t > pos.entryTs) {
+      appendLog(BOOK, "decisions", { member: key, warn: "진입 봉이 캔들 창 밖 — 수동 정리 필요(포지션 유지 중)" });
+      summary.actions.push(`경고: ${pos.name} 진입 봉이 조회 창 밖 — data/state-swing 수동 확인 필요`);
+      continue;
+    }
+    const dir = pos.side === "long" ? 1 : -1;
+    let closed = null;
+    for (let k = 0; k < bars.length; k += 1) {
+      const bar = bars[k];
+      const hitSl = dir === 1 ? bar.l <= pos.stop : bar.h >= pos.stop;
+      const hitTp = dir === 1 ? bar.h >= pos.target : bar.l <= pos.target;
+      if (hitSl) {
+        closed = { price: dir === 1 ? Math.min(pos.stop, bar.o) : Math.max(pos.stop, bar.o), type: "sl", ts: bar.t, held: k + 1 };
+        break;
+      }
+      if (hitTp) {
+        closed = { price: pos.target, type: "tp", ts: bar.t, held: k + 1 };
+        break;
+      }
+      if (k === pos.maxHold - 1) {
+        closed = { price: bar.c, type: "time", ts: bar.t, held: k + 1 };
+        break;
+      }
+    }
+    if (!closed) continue;
+
+    const grossPct = ((closed.price - pos.entryPrice) / pos.entryPrice) * dir * 100;
+    const holdDays = (closed.held * CFG.tfs[pos.tf].ms) / 86400_000;
+    const fundPct = pos.side === "long" ? CFG.fundLongPctPerDay * holdDays : 0;
+    const netPct = (grossPct - CFG.feePct - fundPct) * pos.lev;
+    state.equity = r2(state.equity + (pos.eqAtEntry * netPct) / 100);
+    state.peakEquity = Math.max(state.peakEquity ?? CFG.startEquity, state.equity);
+    delete state.positions[key];
+    saveState(state);
+    appendLog(BOOK, "trades", {
+      type: "close",
+      tradeId: `${key}-${pos.entryTs}`,
+      member: key,
+      name: pos.name,
+      side: pos.side,
+      entryTs: pos.entryTs,
+      exitTs: closed.ts,
+      entryPrice: pos.entryPrice,
+      exitPrice: r2(closed.price),
+      exitType: closed.type,
+      holdBars: closed.held,
+      fundPct: r3(fundPct),
+      stop: r2(pos.stop),
+      target: r2(pos.target),
+      signal: pos.signal,
+      lev: r2(pos.lev),
+      riskEff: pos.riskPct,
+      netPct: r3(netPct),
+      eqAtEntry: pos.eqAtEntry,
+      pnlUsd: r2((pos.eqAtEntry * netPct) / 100),
+      equityAfter: state.equity,
+    });
+    summary.actions.push(`청산 ${pos.name} ${closed.type} → 잔고 $${state.equity}`);
+  }
+
+  // 새 마감 봉 평가 — 레짐 게이트 없음(빈도 목표), 스로틀만.
+  for (const [key, m] of Object.entries(CFG.members)) {
+    const ctx = ctxByTf[m.tf];
+    const candles = ctx.candles;
+    const lastIdx = candles.length - 1;
+    const lastEval = state.lastBarTs[key] ?? candles[lastIdx - 1].t;
+    for (let i = 2; i <= lastIdx; i += 1) {
+      if (candles[i].t <= lastEval) continue;
+      const isLatest = i === lastIdx;
+      const fired = SIGNALS[key](i, ctx);
+      let action = "none";
+      let skip = null;
+      if (fired && !isLatest) {
+        action = "missed";
+        skip = "봇 정지 중 지나간 신호 — 진입하지 않음";
+      } else if (fired) {
+        state.peakEquity = Math.max(state.peakEquity ?? CFG.startEquity, state.equity);
+        const riskEff = r3(
+          CFG.baseRiskPct * Math.max(CFG.throttleFloor, Math.min(1, state.equity / state.peakEquity)),
+        );
+        const openCount = Object.keys(state.positions).length;
+        const openRisk = Object.values(state.positions).reduce((s, p) => s + p.riskPct, 0);
+        if (state.positions[key]) {
+          action = "skip";
+          skip = "이 기준의 포지션 보유 중";
+        } else if (openCount >= CFG.maxConcurrent) {
+          action = "skip";
+          skip = `동시 포지션 상한 ${CFG.maxConcurrent}개`;
+        } else if (openRisk + riskEff > CFG.maxOpenRiskPct) {
+          action = "skip";
+          skip = `동시 리스크 상한 ${CFG.maxOpenRiskPct}% 초과(현재 ${r2(openRisk)}%)`;
+        } else {
+          await enter(client, state, key, m, ctx, i, riskEff, summary);
+          action = "enter";
+        }
+      }
+      appendLog(BOOK, "decisions", {
+        member: key,
+        tf: m.tf,
+        barTs: candles[i].t,
+        fired,
+        action,
+        skip,
+        indicators: snapshot(key, i, ctx),
+      });
+      if (isLatest || fired) {
+        summary.evaluated.push(
+          `${key}@${new Date(candles[i].t).toISOString().slice(0, 16)} ${fired ? "신호" : "-"}${skip ? ` (${skip})` : ""}`,
+        );
+      }
+    }
+    state.lastBarTs[key] = candles[lastIdx].t;
+  }
+
+  appendLog(BOOK, "equity", { equity: state.equity, peak: state.peakEquity, open: Object.keys(state.positions) });
+  saveState(state);
+  summary.equity = state.equity;
+  summary.openPositions = Object.keys(state.positions);
+  return summary;
+}
+
+async function enter(client, state, key, m, ctx, i, riskEff, summary) {
+  const price = await client.lastPrice(CFG.instId);
+  const { stop, target, stopDistPct } = exitLevels(price, m.side, m.exit, ctx.atr[i]);
+  const lev = Math.min(CFG.maxLev, riskEff / (stopDistPct + CFG.feePct));
+
+  const pos = {
+    member: key,
+    name: m.name,
+    tf: m.tf,
+    side: m.side,
+    signalTs: ctx.candles[i].t,
+    entryTs: ctx.candles[i].t + CFG.tfs[m.tf].ms,
+    entryPrice: price,
+    stop,
+    target,
+    stopDistPct: r3(stopDistPct),
+    lev,
+    riskPct: riskEff,
+    eqAtEntry: r2(state.equity),
+    maxHold: CFG.tfs[m.tf].maxHold,
+    openedAt: Date.now(),
+    signal: snapshot(key, i, ctx),
+  };
+  state.positions[key] = pos;
+  saveState(state);
+  appendLog(BOOK, "trades", { type: "open", ...pos, lev: r2(lev) });
+  summary.actions.push(
+    `진입 ${m.name} ${m.side} @ ${price} (유효리스크 ${riskEff}%, 레버 ${r2(lev)}배, 손절 ${r2(stop)}, 목표 ${r2(target)})`,
+  );
+}
+
+/* ---------- 실행 ---------- */
+
+const loop = process.argv.includes("--loop");
+const client = new OkxClient("paper"); // 공개 API만 — 키 불필요, 주문 코드 없음.
+const state = loadState(BOOK, CFG.startEquity);
+if (state.equity === null || state.equity === undefined) state.equity = CFG.startEquity;
+if (state.peakEquity === undefined) state.peakEquity = state.equity;
+
+const TAG = "[SWING]";
+console.log(
+  `주5회 스윙 전방 검증 (페이퍼·주문 없음) — 멤버 ${Object.keys(CFG.members).length} · 스로틀 · 기본 리스크 ${CFG.baseRiskPct}% · 상한 ${CFG.maxConcurrent}개/${CFG.maxOpenRiskPct}% · 1H 주기`,
+);
+
+async function once() {
+  const started = new Date().toISOString();
+  try {
+    const s = await runCycle(client, state);
+    console.log(`[${started}] swing 사이클 완료 — 잔고 $${s.equity} · 열린 포지션 ${s.openPositions.join(", ") || "없음"}`);
+    for (const a of s.actions) console.log("  · " + a);
+    for (const e of s.evaluated) console.log("  평가 " + e);
+    if (s.actions.length) await notify(`${TAG} ${s.actions.join("\n")}`);
+    return s;
+  } catch (e) {
+    console.error(`[${started}] 사이클 실패:`, e.message);
+    await notify(`${TAG} 사이클 실패: ${e.message}`);
+    return null;
+  }
+}
+
+async function onceWithRetry() {
+  let s = await once();
+  for (let r = 0; r < 2 && s?.stale?.length; r += 1) {
+    console.log(`봉 확정 대기(${s.stale.join(",")}) — 2분 뒤 재시도`);
+    await new Promise((res) => setTimeout(res, 120_000));
+    s = await once();
+  }
+  if (s?.stale?.length) await notify(`${TAG} 봉 확정 지연(${s.stale.join(",")}) — 재시도 소진, 이 봉의 신호는 건너뛸 수 있음`);
+  return s;
+}
+
+function msToNext1hClose() {
+  const period = CFG.tfs["1H"].ms;
+  return period - (Date.now() % period) + 90_000;
+}
+
+await onceWithRetry();
+if (loop) {
+  const schedule = () => {
+    const wait = msToNext1hClose();
+    console.log(`다음 사이클: ${new Date(Date.now() + wait).toISOString()} (${Math.round(wait / 60000)}분 뒤)`);
+    setTimeout(async () => {
+      await onceWithRetry();
+      schedule();
+    }, wait);
+  };
+  schedule();
+}
