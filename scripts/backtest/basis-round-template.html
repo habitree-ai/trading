@@ -1,0 +1,368 @@
+<title>베이시스 발굴</title>
+<style>
+  /* 다크가 기본 — 트레이딩 앱·백테스트 시리즈와 같은 토큰. */
+  :root {
+    color-scheme: dark;
+    --bg: #0e1116;
+    --surface: #161a21;
+    --surface-2: #1e232c;
+    --border: #2a3039;
+    --ink: #e6e9ee;
+    --dim: #8b95a3;
+    --accent: #5b8cff;
+    --profit: #26c281;
+    --loss: #f0616d;
+    --bench: #c98500;
+    --grid: #232935;
+    --accent-soft: rgba(91, 140, 255, 0.14);
+  }
+  @media (prefers-color-scheme: light) {
+    :root:not([data-theme="dark"]) {
+      color-scheme: light;
+      --bg: #f7f8fa;
+      --surface: #ffffff;
+      --surface-2: #f1f3f6;
+      --border: #e2e5ea;
+      --ink: #14171c;
+      --dim: #666e7a;
+      --accent: #3b6ef5;
+      --profit: #0f9d58;
+      --loss: #dc3545;
+      --bench: #b06f00;
+      --grid: #eceef2;
+      --accent-soft: rgba(59, 110, 245, 0.10);
+    }
+  }
+  :root[data-theme="light"] {
+    color-scheme: light;
+    --bg: #f7f8fa;
+    --surface: #ffffff;
+    --surface-2: #f1f3f6;
+    --border: #e2e5ea;
+    --ink: #14171c;
+    --dim: #666e7a;
+    --accent: #3b6ef5;
+    --profit: #0f9d58;
+    --loss: #dc3545;
+    --bench: #b06f00;
+    --grid: #eceef2;
+    --accent-soft: rgba(59, 110, 245, 0.10);
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: ui-sans-serif, system-ui, "Pretendard", "Segoe UI", "Malgun Gothic", sans-serif;
+    font-size: 14px;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 1120px; margin: 0 auto; padding: 40px 20px 72px; }
+
+  header.masthead { display: flex; flex-wrap: wrap; align-items: baseline; gap: 10px 16px; padding-bottom: 18px; border-bottom: 1px solid var(--border); }
+  .masthead h1 { margin: 0; font-size: 24px; font-weight: 750; letter-spacing: -0.02em; }
+  .round-stamp { font-size: 12px; font-weight: 650; color: var(--accent); border: 1px solid var(--accent); border-radius: 999px; padding: 1px 10px; letter-spacing: 0.04em; white-space: nowrap; }
+  .masthead .meta { flex-basis: 100%; color: var(--dim); font-size: 12.5px; }
+  .masthead .meta b { color: var(--ink); font-weight: 600; }
+
+  section { margin-top: 44px; }
+  .eyebrow { font-size: 11px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; color: var(--dim); margin: 0 0 6px; }
+  h2 { margin: 0 0 14px; font-size: 18px; font-weight: 700; letter-spacing: -0.01em; text-wrap: balance; }
+  .note { color: var(--dim); font-size: 12.5px; }
+  .tnum { font-variant-numeric: tabular-nums; }
+  .up { color: var(--profit); }
+  .down { color: var(--loss); }
+
+  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px; margin-top: 18px; }
+  .tile { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px 12px; }
+  .tile .k { font-size: 11.5px; color: var(--dim); letter-spacing: 0.02em; }
+  .tile .v { font-size: 21px; font-weight: 700; letter-spacing: -0.01em; margin-top: 2px; line-height: 1.25; }
+  .tile .s { font-size: 11.5px; color: var(--dim); margin-top: 3px; }
+
+  .verdict { display: grid; gap: 8px; margin: 14px 0 0; padding: 0; list-style: none; }
+  .verdict li { background: var(--surface); border: 1px solid var(--border); border-left: 3px solid var(--accent); border-radius: 10px; padding: 10px 14px; font-size: 13px; }
+  .verdict li.win { border-left-color: var(--profit); }
+  .verdict li.lose { border-left-color: var(--loss); }
+  .verdict li.warn { border-left-color: var(--bench); }
+  .verdict b { font-weight: 650; }
+
+  .table-scroll { overflow-x: auto; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); }
+  table { border-collapse: collapse; width: 100%; font-size: 12.5px; }
+  th, td { padding: 8px 11px; text-align: right; white-space: nowrap; }
+  th { font-size: 11px; color: var(--dim); font-weight: 600; border-bottom: 1px solid var(--border); }
+  td { border-bottom: 1px solid var(--grid); font-variant-numeric: tabular-nums; }
+  tr:last-child td { border-bottom: none; }
+  th:first-child, td:first-child { text-align: left; }
+  tbody tr:hover td { background: var(--accent-soft); }
+  tr.hl td { background: var(--accent-soft); font-weight: 650; }
+
+  .hm { table-layout: fixed; min-width: 900px; }
+  .hm th:first-child, .hm td:first-child { width: 30%; overflow: hidden; text-overflow: ellipsis; }
+  .hm td .t { display: block; font-size: 10px; color: var(--dim); }
+  .hm td.gate { outline: 2px solid var(--profit); outline-offset: -2px; border-radius: 4px; }
+  .hm td.pilot { outline: 2px dashed var(--bench); outline-offset: -2px; border-radius: 4px; }
+  .hm td.na { opacity: 0.45; }
+  .hm-legend { display: flex; gap: 16px; flex-wrap: wrap; font-size: 11.5px; color: var(--dim); margin-top: 8px; align-items: center; }
+  .hm-legend .sw { display: inline-block; width: 12px; height: 12px; border-radius: 3px; vertical-align: -2px; margin-right: 5px; }
+  .hm-legend .sw.gate { outline: 2px solid var(--profit); outline-offset: -2px; background: transparent; border: 1px solid var(--border); }
+  .hm-legend .sw.pilot { outline: 2px dashed var(--bench); outline-offset: -2px; background: transparent; border: 1px solid var(--border); }
+
+  .gate-chip { display: inline-block; font-size: 10.5px; font-weight: 700; border-radius: 4px; padding: 0 6px; margin-left: 4px; }
+  .gate-chip.ok { color: var(--profit); border: 1px solid var(--profit); }
+  .gate-chip.no { color: var(--dim); border: 1px solid var(--border); }
+  .chip { font-size: 10.5px; font-weight: 700; border-radius: 4px; padding: 1px 7px; border: 1px solid var(--border); color: var(--dim); white-space: nowrap; }
+  .chip.long { color: var(--profit); border-color: var(--profit); }
+  .chip.short { color: var(--loss); border-color: var(--loss); }
+
+  .finding-box { margin-top: 12px; background: var(--surface); border: 1px solid var(--border); border-left: 3px solid var(--accent); border-radius: 10px; padding: 10px 14px; font-size: 13px; }
+  .finding-box.ok { border-left-color: var(--profit); }
+
+  .spark-wrap { position: relative; margin-top: 12px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 14px; }
+  .spark-wrap svg { display: block; width: 100%; height: 200px; }
+  .tip { position: absolute; pointer-events: none; display: none; background: var(--surface-2); border: 1px solid var(--border); border-radius: 6px; padding: 3px 8px; font-size: 11px; white-space: nowrap; font-variant-numeric: tabular-nums; transform: translate(-50%, -130%); z-index: 3; }
+  .spark-cap { font-size: 11.5px; color: var(--dim); margin-top: 6px; }
+
+  .criteria { counter-reset: cr; display: grid; gap: 8px; margin: 14px 0 0; padding: 0; list-style: none; }
+  .criteria li { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 10px 14px 10px 44px; position: relative; font-size: 13px; }
+  .criteria li::before { counter-increment: cr; content: counter(cr); position: absolute; left: 14px; top: 10px; width: 20px; height: 20px; display: grid; place-items: center; border-radius: 6px; background: var(--accent-soft); color: var(--accent); font-size: 11px; font-weight: 750; }
+
+  .guide { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 10px; margin-top: 14px; }
+  .guide-item { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; font-size: 12.5px; }
+  .guide-item b { font-weight: 650; }
+  .guide-item .note { margin-top: 3px; }
+
+  svg text { font-family: inherit; }
+
+  footer { margin-top: 56px; padding-top: 16px; border-top: 1px solid var(--border); color: var(--dim); font-size: 12px; line-height: 1.7; }
+  footer code { font-family: ui-monospace, "Cascadia Mono", monospace; font-size: 11.5px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 4px; padding: 1px 5px; }
+</style>
+
+<div class="wrap">
+  <header class="masthead">
+    <h1>베이시스 발굴</h1>
+    <span class="round-stamp" id="stamp"></span>
+    <p class="meta" id="meta"></p>
+  </header>
+
+  <section>
+    <p class="eyebrow">Summary</p>
+    <h2 id="headline"></h2>
+    <div class="tiles" id="tiles"></div>
+    <ul class="verdict" id="verdicts"></ul>
+  </section>
+
+  <section>
+    <p class="eyebrow">Adopted</p>
+    <h2 id="adopted-title">복리 후보 2.1 — 사전 등록 게이트 6/6</h2>
+    <p class="note" id="adopted-note"></p>
+    <div class="spark-wrap" id="adopted-curve"></div>
+    <div class="table-scroll" style="margin-top:12px"><table id="adopted-boot"></table></div>
+    <p class="note" id="adopted-members"></p>
+    <p class="note" id="bzc-corr"></p>
+  </section>
+
+  <section>
+    <p class="eyebrow">Screening</p>
+    <h2>베이시스 스크리닝 — 전략 10 × 청산 기하 (테이커 기대값 %)</h2>
+    <p class="note">셀: 테이커 기대값% (작은 글씨: t · 표본 · 주간 빈도). 판정은 g2(1.5/3)~g4(3/9)만 — 1/1은 직전 회차에서 제외 확정(흐리게 표시). 초록 실선 = 게이트 통과(기대값&gt;0 · PF≥1.1 · 구간 2/3+ · 표본 4H≥100/1H≥200), 주황 점선 = 파일럿(표본 미달).</p>
+    <div class="table-scroll"><table class="hm" id="scr-matrix"></table></div>
+    <div class="hm-legend">
+      <span><span class="sw" style="background:rgba(91,140,255,.32)"></span>기대값 플러스</span>
+      <span><span class="sw" style="background:rgba(240,97,109,.32)"></span>기대값 마이너스</span>
+      <span><span class="sw gate"></span>게이트 통과</span>
+      <span><span class="sw pilot"></span>파일럿 (표본 미달)</span>
+    </div>
+  </section>
+
+  <section>
+    <p class="eyebrow">Verification</p>
+    <h2>적대 검증 — t=3.5는 버그인가</h2>
+    <div class="finding-box ok" id="verify-repro"></div>
+    <div class="finding-box ok" id="verify-engine"></div>
+  </section>
+
+  <section>
+    <p class="eyebrow">Ensemble Uplift</p>
+    <h2>편입 격자 — bzc가 두 후보를 어떻게 바꾸나 (전체 창 · 펀딩 포함)</h2>
+    <div class="table-scroll"><table id="grid-table"></table></div>
+    <p class="note">swing10 = 후보 2호 + bzc · all8 = 후보 1호 + bzc. swing9/swing8은 직전 회차 참조행. 게이트 칩: 주5회 포함 6종.</p>
+  </section>
+
+  <section>
+    <p class="eyebrow">Playbook</p>
+    <h2>적용 기준 — 편입 후 체계</h2>
+    <ol class="criteria" id="criteria"></ol>
+  </section>
+
+  <section>
+    <p class="eyebrow">Method</p>
+    <h2>방법론 · 한계</h2>
+    <div class="guide" id="method"></div>
+  </section>
+
+  <footer id="foot"></footer>
+</div>
+
+<script>
+const DATA = __DATA_JSON__;
+
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+const kst = (t) => new Date(t + 9 * 3600_000).toISOString().slice(0, 10);
+const kstMin = (t) => new Date(t + 9 * 3600_000).toISOString().slice(0, 16).replace("T", " ");
+const n1 = (x) => (x === null || x === undefined ? "—" : x.toLocaleString("en-US", { maximumFractionDigits: 1 }));
+const n2 = (x) => (x === null || x === undefined ? "—" : x.toLocaleString("en-US", { maximumFractionDigits: 2 }));
+const n3 = (x) => (x === null || x === undefined ? "—" : x.toLocaleString("en-US", { maximumFractionDigits: 3 }));
+const signCls = (x) => (x > 0 ? "up" : x < 0 ? "down" : "");
+const sign = (x) => (x > 0 ? "+" : "");
+
+const synth = DATA.synthesis;
+const ad = DATA.ensemble.adopted;
+const GATE_KEYS = ["perWeek", "marAnnualBar", "mddBar", "positivePeriods", "bootstrapP20", "vsBench"];
+const GATE_LABELS = { perWeek: "주5회", marAnnualBar: "MAR≥1", mddBar: "MDD≥−40", positivePeriods: "3/3", bootstrapP20: "p20>100", vsBench: "vs BTC" };
+
+/* ---------- 마스트헤드 ---------- */
+$("stamp").textContent = "파생 검토 · " + kst(DATA.meta.generatedAt);
+$("meta").innerHTML =
+  `<b>${esc(DATA.meta.symbol)}</b> vs 현물 BTC-USDT · ${esc(DATA.meta.dataNote)} · ` +
+  `비용 테이커 ${DATA.meta.fees.taker}% + 펀딩(롱 0.03%/일) · ${esc(DATA.meta.gates)}`;
+
+/* ---------- 요약 ---------- */
+{
+  const s = ad.stats;
+  $("headline").textContent = synth.headline;
+  $("tiles").innerHTML = [
+    { k: "채택 구성 게이트", v: `${GATE_KEYS.filter((k) => ad.gates[k].pass).length} / 6`, s: "시리즈 최초 전부 통과 — swing10·스로틀·2%" },
+    { k: "MAR (연복리/|MDD|)", v: n2(s.marAnnualBar), s: `직전 후보 ${n2(DATA.ensemble.priorSwing.stats.marAnnualBar)} → 편입 후` },
+    { k: "bzc 단독 t값", v: "3.52", s: "시리즈 유일 t≥2.5 · 윌슨 하한>손익분기" },
+    { k: "주간 거래 · CAGR", v: `${n2(s.perWeek)}회 · ${n1(s.cagr)}%`, s: `MDD(봉) ${n1(s.mddBar)}% · 최근 3.2년 CAGR ${n1(DATA.ensemble.common.stats.cagr)}%` },
+  ].map((t) => `<div class="tile"><div class="k">${t.k}</div><div class="v tnum">${t.v}</div><div class="s">${t.s}</div></div>`).join("");
+  $("verdicts").innerHTML = (synth.verdicts ?? []).map((v) =>
+    `<li class="${esc(v.tone ?? "")}">${v.html ?? esc(v.text ?? v)}</li>`).join("");
+}
+
+/* ---------- 채택 구성 ---------- */
+{
+  $("adopted-note").textContent = synth.adoptedNote;
+  if (ad.curve) drawCurve($("adopted-curve"), ad.curve, "swing10 · 스로틀 · 리스크 2% — $100 복리 (실현 잔고 · 4.8년 · 펀딩 포함)");
+  if (ad.bootstrap) {
+    const b = ad.bootstrap;
+    $("adopted-boot").innerHTML =
+      `<thead><tr><th>블록 부트스트랩 (${b.iters}회·블록 ${b.block})</th><th>p5</th><th>p20</th><th>p50</th><th>p80</th><th>p95</th><th>손실 확률</th><th>반토막 확률</th></tr></thead>` +
+      `<tbody><tr><td>최종 자산($100 시작)</td>` +
+      ["p5", "p20", "p50", "p80", "p95"].map((p) => `<td class="${b.finalEq[p] >= 100 ? "up" : "down"}">$${n2(b.finalEq[p])}</td>`).join("") +
+      `<td>${n1(b.probLoss)}%</td><td>${n1(b.probRuinHalf)}%</td></tr></tbody>`;
+  }
+  const pnl = ad.stats.byMemberPnl;
+  $("adopted-members").innerHTML = `멤버 기여($): ` + Object.entries(pnl).map(([k, v]) =>
+    `${esc(DATA.ensemble.members[k]?.label ?? k)} <b class="${signCls(v)}">${sign(v)}${n2(v)}</b>`).join(" · ");
+  $("bzc-corr").innerHTML = `bzc 월수익 상관(솔로 5% 기준): ` + Object.entries(DATA.ensemble.bzcCorr)
+    .filter(([k]) => k !== "bzc")
+    .map(([k, v]) => `${k} <b class="tnum">${v === null ? "—" : n2(v)}</b>`).join(" · ") +
+    ` — 최대 0.21, <b>진짜 저상관 분산</b>. bzc 솔로(5%·펀딩): $${n2(DATA.ensemble.solos.bzc.finalEquity)} · CAGR ${n1(DATA.ensemble.solos.bzc.cagr)}% · MAR(봉) ${n2(DATA.ensemble.solos.bzc.marAnnualBar)} · 3/3구간.`;
+}
+
+/* ---------- 스크리닝 매트릭스 ---------- */
+{
+  const cellBg = (v) => {
+    if (v === null || v === undefined) return "transparent";
+    const t = Math.max(-1, Math.min(1, v / 0.8));
+    return t >= 0 ? `rgba(91,140,255,${0.06 + 0.3 * t})` : `rgba(240,97,109,${0.06 + 0.3 * -t})`;
+  };
+  const minOf = (key) => (key.includes("1h") ? 200 : 100);
+  let html = `<thead><tr><th>전략</th><th>방향</th><th>1/1×ATR (제외)</th><th>1.5/3×ATR</th><th>2/6×ATR</th><th>3/9×ATR</th></tr></thead><tbody>`;
+  for (const s of DATA.screening) {
+    html += `<tr><td>${esc(s.name)}</td><td><span class="chip ${s.side}">${s.side === "long" ? "롱" : "숏"}</span></td>`;
+    s.byExit.forEach((e, gi) => {
+      const t = e.taker;
+      const judged = gi > 0; // g1 판정 제외 (사전 등록)
+      const statOk = t.avgPnl > 0 && (t.profitFactor ?? 9) >= 1.1 && t.positivePeriods >= 2;
+      const cls = [judged && statOk ? (t.trades >= minOf(s.key) ? "gate" : "pilot") : "", judged ? "" : "na"].join(" ");
+      html += `<td class="${cls}" style="background:${judged ? cellBg(t.avgPnl) : "transparent"}">` +
+        `<b class="${signCls(t.avgPnl)}">${sign(t.avgPnl)}${n3(t.avgPnl)}%</b>` +
+        `<span class="t">t ${n2(t.tstat)} · ${t.trades}건</span><span class="t">주 ${n2(t.perWeek)} · PF ${n2(t.profitFactor)}</span></td>`;
+    });
+    html += `</tr>`;
+  }
+  $("scr-matrix").innerHTML = html + "</tbody>";
+}
+
+/* ---------- 검증 ---------- */
+$("verify-repro").innerHTML = `<b>독립 재현 (에이전트)</b> — ${esc(DATA.verification.repro)}`;
+$("verify-engine").innerHTML = `<b>엔진 정독 (에이전트)</b> — ${esc(DATA.verification.engine)}`;
+
+/* ---------- 편입 격자 ---------- */
+{
+  const ovName = { base: "base", throttle: "스로틀", regime: "레짐", both: "레짐+스로틀" };
+  const subOrder = ["swing10", "all8", "swing9", "swing8"];
+  const subName = { swing10: "swing10 (후보 2.1)", all8: "all8 (후보 1.1)", swing9: "swing9 (직전)", swing8: "swing8 (직전)" };
+  let html = `<thead><tr><th>조합</th><th>오버레이</th><th>리스크</th><th>주간</th><th>$100 →</th><th>CAGR</th><th>MDD(봉)</th><th>MAR</th><th>구간</th><th>게이트</th></tr></thead><tbody>`;
+  for (const sub of subOrder) {
+    for (const r of DATA.ensemble.rows.filter((x) => x.subset === sub)) {
+      const isAd = r.subset === "swing10" && r.overlay === "throttle" && r.risk === 2;
+      const chips = r.gates
+        ? GATE_KEYS.map((k) => `<span class="gate-chip ${r.gates[k].pass ? "ok" : "no"}">${GATE_LABELS[k]}</span>`).join("")
+        : "—";
+      html += `<tr${isAd ? ' class="hl"' : ""}><td>${subName[r.subset]}${isAd ? " ★채택" : ""}</td><td>${ovName[r.overlay]}</td><td>${r.risk}%</td>` +
+        `<td class="${(r.stats.perWeek ?? 0) >= 5 ? "up" : ""}">${n2(r.stats.perWeek)}</td>` +
+        `<td class="${r.stats.finalEquity >= 100 ? "up" : "down"}">$${n2(r.stats.finalEquity)}</td>` +
+        `<td>${n1(r.stats.cagr)}%</td><td>${n1(r.stats.mddBar)}%</td><td>${n2(r.stats.marAnnualBar)}</td>` +
+        `<td>${r.stats.positivePeriods}/3</td><td style="text-align:left">${chips}</td></tr>`;
+    }
+  }
+  $("grid-table").innerHTML = html + "</tbody>";
+}
+
+/* ---------- 곡선 ---------- */
+function drawCurve(host, curve, capText) {
+  const W = 1060, H = 200, P = 8;
+  const xs = curve.map((p) => p.at), ys = curve.map((p) => p.eq);
+  const x0 = xs[0], x1 = xs[xs.length - 1] || 1;
+  const yMin = Math.min(...ys), yMax = Math.max(...ys);
+  const X = (t) => P + ((t - x0) / Math.max(1, x1 - x0)) * (W - 2 * P);
+  const Y = (v) => H - P - ((v - yMin) / Math.max(1e-9, yMax - yMin)) * (H - 2 * P);
+  const pts = curve.map((p) => `${X(p.at).toFixed(1)},${Y(p.eq).toFixed(1)}`).join(" ");
+  const last = curve[curve.length - 1];
+  const base100 = yMin <= 100 && yMax >= 100 ? Y(100) : null;
+  host.innerHTML =
+    `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="에쿼티 곡선">` +
+    (base100 !== null ? `<line x1="${P}" y1="${base100}" x2="${W - P}" y2="${base100}" stroke="var(--grid)" stroke-dasharray="3 4"/>` : "") +
+    `<polyline points="${pts}" fill="none" stroke="var(--accent)" stroke-width="2" vector-effect="non-scaling-stroke"/>` +
+    `<circle cx="${X(last.at)}" cy="${Y(last.eq)}" r="4" fill="var(--${last.eq >= 100 ? "profit" : "loss"})"/>` +
+    `</svg><div class="tip"></div><div class="spark-cap">${esc(capText)} — 종점 <b class="${last.eq >= 100 ? "up" : "down"} tnum">$${n2(last.eq)}</b></div>`;
+  const svg = host.querySelector("svg");
+  const tip = host.querySelector(".tip");
+  svg.addEventListener("mousemove", (ev) => {
+    const r = svg.getBoundingClientRect();
+    const t = x0 + ((ev.clientX - r.left) / r.width) * (x1 - x0);
+    let lo = 0, hi = curve.length - 1;
+    while (lo < hi) { const m = (lo + hi) >> 1; if (curve[m].at < t) lo = m + 1; else hi = m; }
+    const p = lo > 0 && Math.abs(curve[lo - 1].at - t) < Math.abs(curve[lo].at - t) ? curve[lo - 1] : curve[lo];
+    tip.style.display = "block";
+    tip.style.left = `${(X(p.at) / W) * r.width + 14}px`;
+    tip.style.top = `${(Y(p.eq) / H) * 200 + 14}px`;
+    tip.textContent = `${kstMin(p.at)} · $${n2(p.eq)}`;
+  });
+  svg.addEventListener("mouseleave", () => { tip.style.display = "none"; });
+}
+
+/* ---------- 적용 기준 · 방법론 ---------- */
+$("criteria").innerHTML = (synth.criteria ?? []).map((c) => `<li>${c.html ?? esc(c)}</li>`).join("");
+{
+  const items = [
+    ["베이시스 정의", "베이시스% = (스왑 종가 / 같은 봉 현물 종가 − 1) × 100. z-스코어는 30일 창(4H=180봉·1H=720봉), 현재 봉 포함, 결측 10% 초과 시 무효. 두 종가 모두 봉 마감 시점 확정값 — 미래 참조 없음(정독 검증)."],
+    ["판정 규칙", "기하 g2~g4만 판정(1/1은 직전 회차 10전략 전멸로 제외 확정). 통계 게이트 기대값>0·PF≥1.1·구간 2/3+, 표본 게이트 4H≥100·1H≥200. 다중검정 눈높이 t≥2.5."],
+    ["앙상블 회계", "진입 시점 실현 잔고 사이징 · 청산 봉 마감 해제 · 동시 상한 강제 · 봉 단위 MDD(미실현 포함) · 블록 부트스트랩(순차 복리 근사) — 이전 회차 감사 통과 체계 그대로."],
+    ["선택 편향 경고", "bzc는 이 창에서 발굴된 인샘플 부품이고 앙상블 편입도 같은 창 — 모든 수치는 상한이다. 방어선: 사전 등록 게이트·t≥2.5·윌슨>분기·독립 재현·저상관(최대 0.21). 확정은 페이퍼 3북의 실측."],
+    ["한계", "단일 종목·거래소 · 펀딩/OI 실데이터 부재(베이시스로 대리) · 구간1은 +$1.47로 턱걸이 3/3 · rf1(파일럿) 잔존 · 봉 내 극값 미상."],
+  ];
+  $("method").innerHTML = items.map(([k, v]) => `<div class="guide-item"><b>${k}</b><div class="note">${esc(v)}</div></div>`).join("");
+}
+
+$("foot").innerHTML =
+  `생성 ${kstMin(DATA.meta.generatedAt)} KST · 원시 데이터 <code>__DATA_PATH__</code> (스크리닝 <code>docs/backtest/2026-08-17-basis.json</code> · 앙상블 <code>docs/backtest/2026-08-17-ensemble.json</code>) · ` +
+  `재실행 <code>node scripts/backtest/short-tf.mjs fetch-spot → run --all --round basis → merge --round basis</code> + <code>node scripts/backtest/ensemble.mjs run</code> · ` +
+  `본 문서는 투자 조언이 아니라 검증 기록이다.`;
+</script>

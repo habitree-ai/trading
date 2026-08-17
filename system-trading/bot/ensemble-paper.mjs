@@ -5,8 +5,10 @@
  *   node system-trading/bot/ensemble-paper.mjs          # 1회 실행
  *   node system-trading/bot/ensemble-paper.mjs --loop   # 1H 마감마다 자동
  *
+ * 개정 1.1 (2026-08-17, 거래 0건 상태 — 시계 리셋): 베이시스 회차의 bzc 편입(all8).
+ *   근거 all8·both·r2 = $302 · CAGR 25.8% · 봉 MDD −37.7% · MAR 0.68 · 3/3구간 (품질 4/5).
  * 구성(스펙 동결 2026-08-17, docs/backtest/2026-08-17-ensemble.json 근거):
- *   멤버 7 = 쿼드(gc·ob·fade·dc) + 후보(dch·mcv·ibq) — criteria.md 판정·청산 그대로
+ *   멤버 8 = 쿼드(gc·ob·fade·dc) + 후보(dch·mcv·ibq) + 베이시스(bzc) — criteria.md 판정·청산 그대로
  *   레짐 게이트 = 롱은 일봉 종가>일봉 SMA200일 때만, 숏은 <일 때만 (전 멤버 적용 — 백테스트와 동일)
  *   드로다운 스로틀 = 유효 리스크 = 2% × clamp(잔고/피크, 0.25, 1)
  *   동시 상한 = 3개 · 리스크 합 6% · 레버 상한 10배
@@ -16,7 +18,7 @@
  * ens는 조합+오버레이 검증이라 묻는 질문이 다르다. 승격 게이트: 신규 30~50건에서
  * 기대값>0 유지 시 데모 검토. 라이브 반영은 사용자 결정.
  */
-import { atr, macd, rollingLow, rsi, sma, volMA } from "./indicators.mjs";
+import { atr, basisSeries, macd, rollingLow, rollingZ, rsi, sma, volMA } from "./indicators.mjs";
 import { notify } from "./notify.mjs";
 import { OkxClient } from "./okx.mjs";
 import { exitLevels } from "./signals.mjs";
@@ -38,6 +40,7 @@ const CFG = {
     dch: { tf: "4H", name: "신저가 숏+일봉 하락", side: "short", exit: { type: "atr", sl: 1, tp: 3 } },
     mcv: { tf: "4H", name: "MACD+거래량", side: "long", exit: { type: "atr", sl: 1, tp: 1 } },
     ibq: { tf: "1H", name: "인사이드바+저변동", side: "long", exit: { type: "atr", sl: 2, tp: 6 } },
+    bzc: { tf: "4H", name: "베이시스 공포 복귀", side: "long", exit: { type: "atr", sl: 2, tp: 6 } },
   },
   baseRiskPct: 2,
   throttleFloor: 0.25,
@@ -56,7 +59,7 @@ const r3 = (x) => Math.round(x * 1000) / 1000;
 
 /* ---------- 판정 컨텍스트 ---------- */
 
-function buildCtx(tf, candles, daily) {
+function buildCtx(tf, candles, daily, spot4h = null) {
   const closes = candles.map((c) => c.c);
   const ctx = { candles, atr: atr(candles), daily };
   if (tf === "4H") {
@@ -77,6 +80,10 @@ function buildCtx(tf, candles, daily) {
   }
   if (tf === "1D") {
     ctx.ll20 = rollingLow(candles, 20);
+  }
+  if (tf === "4H" && spot4h?.length) {
+    ctx.basis = basisSeries(candles, spot4h);
+    ctx.basisZ = rollingZ(ctx.basis, 180);
   }
   ctx.dailySma200 = sma(daily.map((c) => c.c), 200);
   return ctx;
@@ -107,6 +114,7 @@ const SIGNALS = {
     c.candles[i - 1].h < c.candles[i - 2].h && c.candles[i - 1].l > c.candles[i - 2].l &&
     c.candles[i].c > c.candles[i - 2].h &&
     c.atr[i] !== null && c.atrMA100[i] !== null && c.atr[i] < c.atrMA100[i],
+  bzc: (i, c) => c.basisZ?.[i - 1] !== null && c.basisZ?.[i] !== null && c.basisZ[i - 1] <= -2 && c.basisZ[i] > -2,
 };
 
 /** 레짐 — 신호 봉 시가 이전에 마감된 일봉 종가 vs 일봉 SMA200. null이면 보수적으로 차단. */
@@ -147,8 +155,10 @@ async function runCycle(client, state) {
     const last = arr[arr.length - 1];
     if (tf !== "1D" && Date.now() > last.t + 2 * CFG.tfs[tf].ms + 30_000) summary.stale.push(tf);
   }
+  const spot4h = await client.candles("BTC-USDT", "4H", CFG.candleLimit); // 베이시스(bzc)용 현물.
+  if (spot4h.length < 200) throw new Error(`현물 4H 캔들 부족(${spot4h.length}) — 베이시스 z(180봉)에 200봉 필요`);
   const daily = candlesByTf["1D"];
-  const ctxByTf = Object.fromEntries(["1H", "4H", "1D"].map((tf) => [tf, buildCtx(tf, candlesByTf[tf], daily)]));
+  const ctxByTf = Object.fromEntries(["1H", "4H", "1D"].map((tf) => [tf, buildCtx(tf, candlesByTf[tf], daily, tf === "4H" ? spot4h : null)]));
 
   // 열린 포지션 가상 체결 — 손절 우선·갭 시가·시한 청산, 펀딩 차감.
   for (const [key, pos] of Object.entries({ ...state.positions })) {

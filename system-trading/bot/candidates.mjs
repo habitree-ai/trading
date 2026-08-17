@@ -20,7 +20,7 @@
  * 일봉 필터는 신호 봉 시가 이전에 마감 완료된 일봉만 본다(진행 중 일봉은 미래 참조).
  * 리스크는 승격 사다리 첫 칸 2%: L = min(10, 2% ÷ (손절폭% + 0.1%)).
  */
-import { atr, macd, rollingLow, sma, volMA } from "./indicators.mjs";
+import { atr, basisSeries, macd, rollingLow, rollingZ, sma, volMA } from "./indicators.mjs";
 import { notify } from "./notify.mjs";
 import { OkxClient } from "./okx.mjs";
 import { exitLevels } from "./signals.mjs";
@@ -56,12 +56,19 @@ const CFG = {
       exit: { type: "atr", sl: 2, tp: 6 },
       rule: "인사이드바 후 종가가 모봉 고가 돌파 마감 + ATR(14) < 직전 100봉 ATR 평균 (동결 2026-08-17)",
     },
+    bzc: {
+      tf: "4H",
+      name: "베이시스 공포 복귀",
+      side: "long",
+      exit: { type: "atr", sl: 2, tp: 6 },
+      rule: "베이시스(스왑−현물) z(180봉)가 −2 이탈 후 −2 위 복귀 마감 (동결 2026-08-17 — 베이시스 회차 t=3.52)",
+    },
   },
   riskPct: 2,
   maxLev: 10,
   feePct: 0.1,
-  maxConcurrent: 3, // 멤버 3개가 슬롯을 다투면 기록이 오염된다 — 멤버당 1슬롯.
-  maxOpenRiskPct: 6,
+  maxConcurrent: 4, // 멤버당 1슬롯 — 2026-08-17 bzc 편입으로 3→4.
+  maxOpenRiskPct: 8,
   dayMs: 24 * 3600_000,
   candleLimit: 300, // MACD 시드·ATR 100봉 평균(첫 114봉 무효)·SMA50 일봉을 전부 덮는다.
   startEquity: 100,
@@ -72,9 +79,10 @@ const r3 = (x) => Math.round(x * 1000) / 1000;
 
 /* ---------- 판정 컨텍스트 ---------- */
 
-function buildCtx4h(candles4h, daily) {
+function buildCtx4h(candles4h, daily, spot4h) {
   const closes = candles4h.map((c) => c.c);
   const { line, signal } = macd(closes);
+  const basis = spot4h?.length ? basisSeries(candles4h, spot4h) : new Array(candles4h.length).fill(null);
   return {
     candles: candles4h,
     atr: atr(candles4h),
@@ -84,6 +92,8 @@ function buildCtx4h(candles4h, daily) {
     volMA: volMA(candles4h),
     daily,
     dailySma50: sma(daily.map((c) => c.c), 50),
+    basis,
+    basisZ: rollingZ(basis, 180),
   };
 }
 
@@ -128,6 +138,9 @@ const SIGNALS = {
       c.atrMA100[i] !== null &&
       c.atr[i] < c.atrMA100[i],
   },
+  bzc: {
+    fire: (i, c) => c.basisZ[i - 1] !== null && c.basisZ[i] !== null && c.basisZ[i - 1] <= -2 && c.basisZ[i] > -2,
+  },
 };
 
 function snapshot(key, i, c) {
@@ -138,6 +151,15 @@ function snapshot(key, i, c) {
       atr: r1(c.atr[i]),
       atrMA100: r1(c.atrMA100[i]),
       motherHigh: i >= 2 ? c.candles[i - 2].h : null,
+    };
+  }
+  if (key === "bzc") {
+    return {
+      close: c.candles[i].c,
+      atr: r1(c.atr[i]),
+      basis: c.basis[i],
+      basisZ: c.basisZ[i] === null ? null : r2(c.basisZ[i]),
+      basisZPrev: c.basisZ[i - 1] === null ? null : r2(c.basisZ[i - 1]),
     };
   }
   const d = htfIdx(i, c);
@@ -161,15 +183,16 @@ async function runCycle(client, state) {
   const candles4h = await client.candles(CFG.instId, "4H", CFG.candleLimit);
   const candles1h = await client.candles(CFG.instId, "1H", CFG.candleLimit);
   const daily = await client.candles(CFG.instId, "1D", CFG.candleLimit);
-  if (candles4h.length < 60 || candles1h.length < 150 || daily.length < 60) {
-    throw new Error(`캔들 부족(4H ${candles4h.length}·1H ${candles1h.length}·1D ${daily.length}) — 데이터 응답 이상`);
+  const spot4h = await client.candles("BTC-USDT", "4H", CFG.candleLimit); // 베이시스(bzc)용 현물.
+  if (candles4h.length < 200 || candles1h.length < 150 || daily.length < 60 || spot4h.length < 200) {
+    throw new Error(`캔들 부족(4H ${candles4h.length}·1H ${candles1h.length}·1D ${daily.length}·현물4H ${spot4h.length}) — 베이시스 z(180봉)에 200봉 필요`);
   }
   for (const [tf, arr] of [["4H", candles4h], ["1H", candles1h]]) {
     const last = arr[arr.length - 1];
     if (Date.now() > last.t + 2 * CFG.tfs[tf].ms + 30_000) summary.stale.push(tf);
   }
 
-  const ctxByTf = { "4H": buildCtx4h(candles4h, daily), "1H": buildCtx1h(candles1h) };
+  const ctxByTf = { "4H": buildCtx4h(candles4h, daily, spot4h), "1H": buildCtx1h(candles1h) };
   const candlesByTf = { "4H": candles4h, "1H": candles1h };
 
   // 열린 포지션 가상 체결 — 엔진 페이퍼 경로와 같은 보수 규칙, 포지션의 봉으로 판정.

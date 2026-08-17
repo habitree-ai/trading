@@ -89,6 +89,46 @@ export function macd(closes, fast = 12, slow = 26, sig = 9) {
   return { line, signal };
 }
 
+/**
+ * 결측 건너뛰는 롤링 z-스코어 — 베이시스(스왑−현물 괴리) 표준화용.
+ * 창 [i-win+1, i](현재 포함), 유효 표본 90% 미만이면 null. 백테스트(short-tf.mjs)와 동일 수식.
+ */
+export function rollingZ(vals, win) {
+  const out = new Array(vals.length).fill(null);
+  let sum = 0;
+  let sq = 0;
+  let valid = 0;
+  for (let i = 0; i < vals.length; i += 1) {
+    const v = vals[i];
+    if (v !== null) {
+      sum += v;
+      sq += v * v;
+      valid += 1;
+    }
+    const j = i - win;
+    if (j >= 0 && vals[j] !== null) {
+      sum -= vals[j];
+      sq -= vals[j] * vals[j];
+      valid -= 1;
+    }
+    if (i >= win - 1 && valid >= win * 0.9 && vals[i] !== null) {
+      const mean = sum / valid;
+      const sd = Math.sqrt(Math.max(0, sq / valid - mean * mean));
+      out[i] = sd > 0 ? (vals[i] - mean) / sd : null;
+    }
+  }
+  return out;
+}
+
+/** 스왑·현물 캔들(같은 t 격자)에서 베이시스 % 시계열 — 현물 봉이 없으면 null. */
+export function basisSeries(swapCandles, spotCandles) {
+  const spotByT = new Map(spotCandles.map((c) => [c.t, c.c]));
+  return swapCandles.map((c) => {
+    const s = spotByT.get(c.t);
+    return s ? Math.round(((c.c / s - 1) * 100) * 10000) / 10000 : null;
+  });
+}
+
 /** 직전 n봉(현재 봉 제외)의 평균 거래량 — 거래량 확장 판정용. */
 export function volMA(candles, n = 20) {
   const out = new Array(candles.length).fill(null);

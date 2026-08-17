@@ -29,6 +29,7 @@ const WARMUP = { "1H": 260, "4H": 220, "1D": 220 }; // 각 봉의 시리즈 워�
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const CACHE = join(repoRoot, "scripts", "backtest", ".cache", "short-tf-candles.json");
+const CACHE_SPOT = join(repoRoot, "scripts", "backtest", ".cache", "spot-candles.json");
 
 const TFS = {
   "1H": { ms: 3600_000, maxHold: 120 },
@@ -49,6 +50,8 @@ const MEMBERS = {
   ib4: { tf: "1H", side: "long", exit: { type: "atr", sl: 3, tp: 9 }, label: "인사이드바 무필터 (1H·롱)", origin: "주5회 회차" },
   mp1: { tf: "1H", side: "long", exit: { type: "atr", sl: 2, tp: 6 }, label: "MA눌림+일봉상승 (1H·롱)", origin: "주5회 회차" },
   rf1: { tf: "1H", side: "short", exit: { type: "atr", sl: 3, tp: 9 }, label: "RSI반락 숏+일봉하락 (1H·숏)", origin: "주5회 회차(파일럿)" },
+  // 베이시스 회차(2026-08-17) — 시리즈 유일 t≥2.5 부품 (t=3.52, PF 2.27, 3/3구간, 윌슨 하한>분기).
+  bzc: { tf: "4H", side: "long", exit: { type: "atr", sl: 2, tp: 6 }, label: "베이시스 공포 복귀 (4H·롱)", origin: "베이시스 회차" },
 };
 
 /**
@@ -68,6 +71,9 @@ const SUBSETS = [
   // 주5회 회차 — ibq를 상위집합 ib4로 대체(신호 중복 방지), 신규 부품 편입. 상한은 멤버 수에 맞춰 4개.
   { key: "swing9", name: "스윙 9 (주5회 주 가설)", members: ["gc", "ob", "fade", "dc", "dch", "mcv", "ib4", "mp1", "rf1"], why: "주5회 회차 주 가설 — all7에서 ibq→ib4 대체 + mp1·rf1 편입", cap: { maxConcurrent: 4, xRisk: 4 } },
   { key: "swing8", name: "스윙 8 (파일럿 제외)", members: ["gc", "ob", "fade", "dc", "dch", "mcv", "ib4", "mp1"], why: "swing9에서 파일럿(rf1, 표본 103건) 제외 — 파일럿 의존도 측정", cap: { maxConcurrent: 4, xRisk: 4 } },
+  // 베이시스 회차 — bzc 편입 효과 측정.
+  { key: "all8", name: "전체 7 + 베이시스", members: ["gc", "ob", "fade", "dc", "dch", "mcv", "ibq", "bzc"], why: "품질 트랙(후보 1호)에 bzc 추가 — MAR 개선 측정", cap: { maxConcurrent: 3, xRisk: 3 } },
+  { key: "swing10", name: "스윙 9 + 베이시스", members: ["gc", "ob", "fade", "dc", "dch", "mcv", "ib4", "mp1", "rf1", "bzc"], why: "빈도 트랙(후보 2호)에 bzc 추가", cap: { maxConcurrent: 4, xRisk: 4 } },
 ];
 const PRIMARY_SUBSET = "all7";
 const RISKS = [2, 5, 10];
@@ -236,7 +242,36 @@ const SIGNALS = {
     const d = c.htf1dIdx[i];
     return d >= 0 && c.dailySma50[d] !== null && c.daily[d].c < c.dailySma50[d];
   },
+  bzc: (i, c) => c.basisZ?.[i - 1] !== null && c.basisZ?.[i] !== null && c.basisZ[i - 1] <= -2 && c.basisZ[i] > -2,
 };
+
+/** 베이시스 z — 결측 건너뛰는 롤링 표준화 (short-tf.mjs와 동일 수식, 창 내 유효 90% 미만 null). */
+function rollingZ(vals, win) {
+  const out = new Array(vals.length).fill(null);
+  let sum = 0;
+  let sq = 0;
+  let valid = 0;
+  for (let i = 0; i < vals.length; i += 1) {
+    const v = vals[i];
+    if (v !== null) {
+      sum += v;
+      sq += v * v;
+      valid += 1;
+    }
+    const j = i - win;
+    if (j >= 0 && vals[j] !== null) {
+      sum -= vals[j];
+      sq -= vals[j] * vals[j];
+      valid -= 1;
+    }
+    if (i >= win - 1 && valid >= win * 0.9 && vals[i] !== null) {
+      const mean = sum / valid;
+      const sd = Math.sqrt(Math.max(0, sq / valid - mean * mean));
+      out[i] = sd > 0 ? (vals[i] - mean) / sd : null;
+    }
+  }
+  return out;
+}
 
 /* ---------- 체결 — 시리즈 공통 (신호 봉 마감 → 다음 봉 시가, 손절 우선·갭 시가) ---------- */
 
@@ -616,6 +651,16 @@ function cmdRun() {
     process.exit(1);
   }
   const cache = JSON.parse(readFileSync(CACHE, "utf8"));
+  if (!existsSync(CACHE_SPOT)) {
+    console.error(`현물 캐시가 없다(bzc 멤버 필요): ${CACHE_SPOT} — 먼저 short-tf.mjs fetch-spot 을 실행하라.`);
+    process.exit(1);
+  }
+  const spotCache = JSON.parse(readFileSync(CACHE_SPOT, "utf8"));
+  const cacheGapH = Math.abs((spotCache.fetchedAt ?? 0) - (cache.fetchedAt ?? 0)) / 3600_000;
+  if (cacheGapH > 6) {
+    console.error(`스왑·현물 캐시 수집 시각이 ${Math.round(cacheGapH)}시간 어긋난다 — 같은 날 재수집하라.`);
+    process.exit(1);
+  }
   const daily = cache.data["1D"];
   const ctxByTf = {};
   for (const tf of ["1H", "4H", "1D"]) {
@@ -642,6 +687,16 @@ function cmdRun() {
       dailySma200: sma(daily.map((c) => c.c), 200),
       htf1dIdx: htfIndexMap(candles, daily, 86400_000),
     };
+    // 베이시스(4H 전용) — 같은 봉 시가 시각의 현물 종가 대비 괴리 %, z 창 30일=180봉.
+    if (tf === "4H" && spotCache.data["4H"]?.length) {
+      const spotByT = new Map(spotCache.data["4H"].map((c) => [c.t, c.c]));
+      const basis = candles.map((c) => {
+        const s = spotByT.get(c.t);
+        return s ? Math.round(((c.c / s - 1) * 100) * 10000) / 10000 : null;
+      });
+      ctxByTf[tf].basis = basis;
+      ctxByTf[tf].basisZ = rollingZ(basis, 180);
+    }
   }
 
   const tradesByMember = {};
@@ -734,7 +789,7 @@ function cmdRun() {
 
   // 주5회 회차 게이트 — 품질 5종 + 빈도(perWeek ≥ 5). swing9가 주 가설, swing8은 파일럿 의존도.
   const swingRuns = runs.filter((r) =>
-    ["swing9", "swing8"].includes(r.subset) && r.window === "full" && r.funding && [2, 5].includes(r.risk));
+    ["swing9", "swing8", "swing10", "all8"].includes(r.subset) && r.window === "full" && r.funding && [2, 5].includes(r.risk));
   for (const r0 of swingRuns) if (!r0.bootstrap) r0.bootstrap = blockBootstrap(r0._netPcts);
   const swingGates = Object.fromEntries(swingRuns.map((r0) => {
     const g = gateOf(r0);

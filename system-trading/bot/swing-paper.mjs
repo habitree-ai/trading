@@ -5,7 +5,10 @@
  *   node system-trading/bot/swing-paper.mjs          # 1회 실행
  *   node system-trading/bot/swing-paper.mjs --loop   # 1H 마감마다 자동
  *
- * 구성(스펙 동결 2026-08-17, docs/backtest/2026-08-17-ensemble.json swing9·throttle·r2 근거):
+ * 개정 2.1 (2026-08-17, 거래 0건 상태 — 시계 리셋): 베이시스 회차의 bzc 편입(swing10).
+ *   근거 swing10·throttle·r2 = 주 5.71회 · $672 · CAGR 48.4% · 봉 MDD −34.7% · MAR 1.39 ·
+ *   3/3구간 · 부트스트랩 p20 $325 — 사전 등록 게이트 6종 전부 통과(시리즈 최초).
+ * 구성(스펙 동결 2026-08-17, docs/backtest/2026-08-17-ensemble.json 근거):
  *   멤버 9 = gc·ob·fade·dc·dch·mcv (기존 명세) + ib4(인사이드바 무필터 1H, 3/9×ATR)
  *            + mp1(MA눌림+일봉상승 1H, 2/6×ATR) + rf1(RSI반락 숏+일봉하락 1H, 3/9×ATR)
  *   ※ ibq는 ib4의 부분집합이라 제외(신호 이중 계상 방지).
@@ -17,7 +20,7 @@
  * 주 ~2회), swing은 "주 5회+ 빈도"(레짐 제외, 백테스트 주 5.34회·CAGR 23.8%·MDD −36.9%).
  * 이 러너는 주문 코드가 없다(공개 API만). 승격 게이트: 신규 40~60건 기대값>0 → 데모 검토.
  */
-import { atr, macd, rollingLow, rsi, sma, volMA } from "./indicators.mjs";
+import { atr, basisSeries, macd, rollingLow, rollingZ, rsi, sma, volMA } from "./indicators.mjs";
 import { notify } from "./notify.mjs";
 import { OkxClient } from "./okx.mjs";
 import { exitLevels } from "./signals.mjs";
@@ -41,6 +44,7 @@ const CFG = {
     ib4: { tf: "1H", name: "인사이드바 무필터", side: "long", exit: { type: "atr", sl: 3, tp: 9 } },
     mp1: { tf: "1H", name: "MA눌림+일봉상승", side: "long", exit: { type: "atr", sl: 2, tp: 6 } },
     rf1: { tf: "1H", name: "RSI반락 숏+일봉하락", side: "short", exit: { type: "atr", sl: 3, tp: 9 } },
+    bzc: { tf: "4H", name: "베이시스 공포 복귀", side: "long", exit: { type: "atr", sl: 2, tp: 6 } },
   },
   baseRiskPct: 2,
   throttleFloor: 0.25,
@@ -59,7 +63,7 @@ const r3 = (x) => Math.round(x * 1000) / 1000;
 
 /* ---------- 판정 컨텍스트 ---------- */
 
-function buildCtx(tf, candles, daily) {
+function buildCtx(tf, candles, daily, spot4h = null) {
   const closes = candles.map((c) => c.c);
   const ctx = { candles, atr: atr(candles), daily, dailySma50: sma(daily.map((c) => c.c), 50) };
   if (tf === "4H") {
@@ -80,6 +84,10 @@ function buildCtx(tf, candles, daily) {
   }
   if (tf === "1D") {
     ctx.ll20 = rollingLow(candles, 20);
+  }
+  if (tf === "4H" && spot4h?.length) {
+    ctx.basis = basisSeries(candles, spot4h);
+    ctx.basisZ = rollingZ(ctx.basis, 180);
   }
   return ctx;
 }
@@ -119,6 +127,7 @@ const SIGNALS = {
     const d = htfIdx(i, c);
     return d >= 0 && c.dailySma50[d] !== null && c.daily[d].c < c.dailySma50[d];
   },
+  bzc: (i, c) => c.basisZ?.[i - 1] !== null && c.basisZ?.[i] !== null && c.basisZ[i - 1] <= -2 && c.basisZ[i] > -2,
 };
 
 function snapshot(key, i, c) {
@@ -152,8 +161,10 @@ async function runCycle(client, state) {
     const last = arr[arr.length - 1];
     if (Date.now() > last.t + 2 * CFG.tfs[tf].ms + 30_000) summary.stale.push(tf);
   }
+  const spot4h = await client.candles("BTC-USDT", "4H", CFG.candleLimit); // 베이시스(bzc)용 현물.
+  if (spot4h.length < 200) throw new Error(`현물 4H 캔들 부족(${spot4h.length}) — 베이시스 z(180봉)에 200봉 필요`);
   const daily = candlesByTf["1D"];
-  const ctxByTf = Object.fromEntries(["1H", "4H", "1D"].map((tf) => [tf, buildCtx(tf, candlesByTf[tf], daily)]));
+  const ctxByTf = Object.fromEntries(["1H", "4H", "1D"].map((tf) => [tf, buildCtx(tf, candlesByTf[tf], daily, tf === "4H" ? spot4h : null)]));
 
   // 열린 포지션 가상 체결 — 손절 우선·갭 시가·시한 청산, 펀딩 차감.
   for (const [key, pos] of Object.entries({ ...state.positions })) {

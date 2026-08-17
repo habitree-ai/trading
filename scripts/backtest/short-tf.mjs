@@ -33,6 +33,7 @@ const RUIN_EQ = 1;
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const CACHE_TEN = join(repoRoot, "scripts", "backtest", ".cache", "ten-candles.json");
 const CACHE = join(repoRoot, "scripts", "backtest", ".cache", "short-tf-candles.json");
+const CACHE_SPOT = join(repoRoot, "scripts", "backtest", ".cache", "spot-candles.json");
 // --round <name> 이면 설정·출력을 그 라운드 경로로 분리 — 기본은 15m·1H 재도전 회차 경로 그대로.
 const roundIdx = process.argv.indexOf("--round");
 const ROUND = roundIdx >= 0 ? process.argv[roundIdx + 1] : null;
@@ -46,6 +47,7 @@ const MERGE_TAG = ROUND ?? "short-tf";
 const TFS = {
   "15m": { bar: "15m", ms: 15 * 60_000, days: 730, maxHold: 288, dayBars: 96 }, // 시한 3일
   "1H": { bar: "1H", ms: 3600_000, days: 1200, maxHold: 120, dayBars: 24 }, // 시한 5일
+  "4H": { bar: "4H", ms: 4 * 3600_000, days: 1800, maxHold: 60, dayBars: 6 }, // 시한 10일 — 베이시스 회차부터
 };
 
 /** 청산 기하 4단계 — 폭 자체가 축이다. 넓을수록 보유가 길어져 비용이 상각된다. */
@@ -58,12 +60,12 @@ const EXITS = [
 
 /* ---------- 데이터 수집 — 15m만 새로, 나머지는 기존 캐시 재사용 ---------- */
 
-async function fetchPage(bar, after, attempt = 0) {
-  const url = `${BASE}/market/history-candles?instId=${INST}&bar=${bar}&after=${after}&limit=${PAGE}`;
+async function fetchPage(bar, after, attempt = 0, inst = INST) {
+  const url = `${BASE}/market/history-candles?instId=${inst}&bar=${bar}&after=${after}&limit=${PAGE}`;
   const res = await fetch(url, { headers: { accept: "application/json" } });
   if (res.status === 429 && attempt < 6) {
     await new Promise((r) => setTimeout(r, 3000 * (attempt + 1)));
-    return fetchPage(bar, after, attempt + 1);
+    return fetchPage(bar, after, attempt + 1, inst);
   }
   if (!res.ok) throw new Error(`OKX ${res.status}`);
   const json = await res.json();
@@ -71,7 +73,7 @@ async function fetchPage(bar, after, attempt = 0) {
   return json.data;
 }
 
-async function fetchCandles(bar, ms, days) {
+async function fetchCandles(bar, ms, days, inst = INST) {
   const to = Math.floor(Date.now() / ms) * ms;
   const from = to - days * 24 * 3600_000;
   const span = ms * PAGE;
@@ -79,7 +81,7 @@ async function fetchCandles(bar, ms, days) {
   const cursors = Array.from({ length: pages }, (_, i) => to - i * span);
   const out = new Map();
   for (let i = 0; i < cursors.length; i += 8) {
-    const batch = await Promise.all(cursors.slice(i, i + 8).map((c) => fetchPage(bar, c)));
+    const batch = await Promise.all(cursors.slice(i, i + 8).map((c) => fetchPage(bar, c, 0, inst)));
     for (const rows of batch) {
       for (const row of rows) {
         const t = Number(row[0]);
@@ -123,6 +125,19 @@ async function cmdFetch() {
   mkdirSync(dirname(CACHE), { recursive: true });
   writeFileSync(CACHE, JSON.stringify({ fetchedAt: Date.now(), tfFetchedAt, symbol: INST, data }));
   console.log(`저장: ${CACHE}`);
+}
+
+/** 현물(BTC-USDT) 캔들 수집 — 베이시스(스왑−현물 괴리) 계산용. 스왑 캐시 창과 같은 길이. */
+async function cmdFetchSpot() {
+  const data = {};
+  for (const tf of ["1H", "4H"]) {
+    data[tf] = await fetchCandles(TFS[tf].bar, TFS[tf].ms, TFS[tf].days, "BTC-USDT");
+    const span = data[tf].length ? Math.round((data[tf][data[tf].length - 1].t - data[tf][0].t) / 86400_000) : 0;
+    console.log(`현물 ${tf}: 캔들 ${data[tf].length}개, 실제 ${span}일`);
+  }
+  mkdirSync(dirname(CACHE_SPOT), { recursive: true });
+  writeFileSync(CACHE_SPOT, JSON.stringify({ fetchedAt: Date.now(), symbol: "BTC-USDT", data }));
+  console.log(`저장: ${CACHE_SPOT}`);
 }
 
 /* ---------- 지표 — 시리즈 공통(Wilder) + 이번 회차 신규 ---------- */
@@ -281,6 +296,37 @@ function squeezeFlags(bbw, win = 200, pctl = 0.2) {
   return out;
 }
 
+/**
+ * 베이시스 z-스코어 — 결측(현물 봉 부재)을 건너뛰는 롤링 표준화.
+ * 창 내 유효 표본이 90% 미만이면 null. 창은 [i-win+1, i] (현재 봉 포함 — BB 관례).
+ */
+function rollingZ(vals, win) {
+  const out = new Array(vals.length).fill(null);
+  let sum = 0;
+  let sq = 0;
+  let valid = 0;
+  for (let i = 0; i < vals.length; i += 1) {
+    const v = vals[i];
+    if (v !== null) {
+      sum += v;
+      sq += v * v;
+      valid += 1;
+    }
+    const j = i - win;
+    if (j >= 0 && vals[j] !== null) {
+      sum -= vals[j];
+      sq -= vals[j] * vals[j];
+      valid -= 1;
+    }
+    if (i >= win - 1 && valid >= win * 0.9 && vals[i] !== null) {
+      const mean = sum / valid;
+      const sd = Math.sqrt(Math.max(0, sq / valid - mean * mean));
+      out[i] = sd > 0 ? (vals[i] - mean) / sd : null;
+    }
+  }
+  return out;
+}
+
 /** 하위봉 i → 그 시점에 마감 완료된 상위봉 인덱스 (상위봉 마감시각 ≤ 하위봉 시가시각). */
 function htfIndexMap(candles, htf, htfMs) {
   const out = new Array(candles.length).fill(-1);
@@ -426,6 +472,45 @@ const BASES = {
       i >= 2 &&
       c.candles[i - 1].h < c.candles[i - 2].h && c.candles[i - 1].l > c.candles[i - 2].l &&
       c.candles[i].c < c.candles[i - 2].l,
+  },
+  /* 베이시스(스왑−현물 괴리) 계열 — 파생 회차 신규. z 창은 30일(1H=720봉·4H=180봉). */
+  "basis-rich-fade": {
+    name: "베이시스 과열 복귀 숏",
+    side: "short",
+    rule: "베이시스 z(30일) +2 이탈 후 +2 아래 복귀 마감 — 과밀 롱 프리미엄의 소멸",
+    fn: (i, c) => c.basisZ[i - 1] !== null && c.basisZ[i] !== null && c.basisZ[i - 1] >= 2 && c.basisZ[i] < 2,
+  },
+  "basis-cheap-long": {
+    name: "베이시스 공포 복귀 롱",
+    side: "long",
+    rule: "베이시스 z(30일) −2 이탈 후 −2 위 복귀 마감 — 공포 디스카운트의 해소",
+    fn: (i, c) => c.basisZ[i - 1] !== null && c.basisZ[i] !== null && c.basisZ[i - 1] <= -2 && c.basisZ[i] > -2,
+  },
+  "basis-flip-short": {
+    name: "베이시스 부호 전환 숏",
+    side: "short",
+    rule: "베이시스가 프리미엄(+)에서 디스카운트(−)로 전환 마감",
+    fn: (i, c) => c.basis[i - 1] !== null && c.basis[i] !== null && c.basis[i - 1] > 0 && c.basis[i] <= 0,
+  },
+  "basis-flip-long": {
+    name: "베이시스 부호 전환 롱",
+    side: "long",
+    rule: "베이시스가 디스카운트(−)에서 프리미엄(+)으로 전환 마감",
+    fn: (i, c) => c.basis[i - 1] !== null && c.basis[i] !== null && c.basis[i - 1] < 0 && c.basis[i] >= 0,
+  },
+  "basis-rich-breakdown": {
+    name: "과열 프리미엄 + 채널 붕괴 숏",
+    side: "short",
+    rule: "베이시스 z ≥ +1.5 상태에서 종가가 직전 1일 채널 최저가 아래로 마감",
+    fn: (i, c) => c.basisZ[i] !== null && c.basisZ[i] >= 1.5 && c.llDay[i] !== null && c.candles[i].c < c.llDay[i],
+  },
+  "basis-cheap-bounce": {
+    name: "공포 디스카운트 + RSI 반등 롱",
+    side: "long",
+    rule: "베이시스 z ≤ −1.5 상태에서 RSI(14) 30 복귀 마감",
+    fn: (i, c) =>
+      c.basisZ[i] !== null && c.basisZ[i] <= -1.5 &&
+      c.rsi[i - 1] !== null && c.rsi[i - 1] < 30 && c.rsi[i] >= 30,
   },
 };
 
@@ -690,7 +775,7 @@ function loadCache() {
   return JSON.parse(readFileSync(CACHE, "utf8"));
 }
 
-function buildCtx(candles, tfKey, h4, daily) {
+function buildCtx(candles, tfKey, h4, daily, spot = null) {
   const closes = candles.map((c) => c.c);
   const { line, signal } = macd(closes);
   const sma20v = sma(closes, 20);
@@ -730,6 +815,20 @@ function buildCtx(candles, tfKey, h4, daily) {
   };
   // atrMA100은 atr null 구간(앞 14봉)을 0으로 섞으므로 초기 100봉은 무효 처리.
   for (let i = 0; i < Math.min(114, ctx.atrMA100.length); i += 1) ctx.atrMA100[i] = null;
+  // 베이시스 — 같은 시가 시각의 현물 종가 대비 스왑 종가 괴리(%). 현물 봉이 없으면 null.
+  // 두 종가 모두 봉 i 마감 시점에 확정되는 값이라 미래 참조가 없다. z 창 = 30일.
+  if (spot) {
+    const spotByT = new Map(spot.map((c) => [c.t, c.c]));
+    ctx.basis = candles.map((c) => {
+      const s = spotByT.get(c.t);
+      return s ? Math.round(((c.c / s - 1) * 100) * 10000) / 10000 : null;
+    });
+    const zWin = tfKey === "1H" ? 720 : 180;
+    ctx.basisZ = rollingZ(ctx.basis, zWin);
+  } else {
+    ctx.basis = new Array(candles.length).fill(null);
+    ctx.basisZ = new Array(candles.length).fill(null);
+  }
   return ctx;
 }
 
@@ -738,7 +837,23 @@ function runStrategy(strat, cache) {
   if (!candles || candles.length <= WARMUP + 1) {
     throw new Error(`캔들 부족: ${strat.tf} — ${candles?.length ?? 0}개 (워밍업 ${WARMUP} 초과 필요). fetch를 다시 실행하라.`);
   }
-  const ctx = buildCtx(candles, strat.tf, cache.data["4H"] ?? [], cache.data["1D"] ?? []);
+  // 베이시스 계열이면 현물 캐시 필수 — 없으면 조용한 0거래가 아니라 명확히 죽는다.
+  const needsBasis = strat.base.startsWith("basis-");
+  let spot = null;
+  if (needsBasis) {
+    if (!existsSync(CACHE_SPOT)) {
+      throw new Error(`베이시스 전략(${strat.key})에는 현물 캐시가 필요하다 — 먼저 실행: node scripts/backtest/short-tf.mjs fetch-spot`);
+    }
+    const spotCache = JSON.parse(readFileSync(CACHE_SPOT, "utf8"));
+    // 수집 시각 교차 가드 — 스왑·현물 창이 어긋나면 최근 표본이 조용히 빠진다(검증 에이전트 지적).
+    const cacheGapH = Math.abs((spotCache.fetchedAt ?? 0) - (cache.fetchedAt ?? 0)) / 3600_000;
+    if (cacheGapH > 6) {
+      throw new Error(`스왑·현물 캐시 수집 시각이 ${Math.round(cacheGapH)}시간 어긋난다 — fetch와 fetch-spot을 같은 날 다시 실행하라.`);
+    }
+    spot = spotCache.data[strat.tf];
+    if (!spot?.length) throw new Error(`현물 캐시에 ${strat.tf} 데이터가 없다 — fetch-spot을 다시 실행하라.`);
+  }
+  const ctx = buildCtx(candles, strat.tf, cache.data["4H"] ?? [], cache.data["1D"] ?? [], spot);
   const t0 = candles[WARMUP].t;
   const t1 = candles[candles.length - 1].t;
   const periodEdges = [t0, t0 + (t1 - t0) / 3, t0 + (2 * (t1 - t0)) / 3, t1 + 1];
@@ -856,7 +971,7 @@ function cmdMerge() {
       exits: EXITS,
       startEq: START_EQ,
       tfs: Object.fromEntries(Object.entries(TFS).map(([k, v]) => [k, { days: v.days, maxHold: v.maxHold, dayBars: v.dayBars }])),
-      sampleGate: { "15m": 300, "1H": 200 },
+      sampleGate: { "15m": 300, "1H": 200, "4H": 100 },
       rules: {
         entry: "신호 봉 마감 → 다음 봉 시가 진입",
         exit: "청산 기하 4단계: 손절/목표 = 1/1 · 1.5/3 · 2/6 · 3/9 ×ATR(14) — 보유 시한 도달 시 종가 청산",
@@ -914,6 +1029,7 @@ function cmdReport() {
 
 const cmd = process.argv[2];
 if (cmd === "fetch") await cmdFetch();
+else if (cmd === "fetch-spot") await cmdFetchSpot();
 else if (cmd === "run") cmdRun(process.argv.slice(3));
 else if (cmd === "merge") cmdMerge();
 else if (cmd === "report") cmdReport();
