@@ -1,0 +1,131 @@
+{
+  "note": "백테스트 회차 레지스트리 — 아카이브(index.html)와 시스템 콘솔이 공유하는 정본 목록. 새 회차를 만들면 여기에 한 항목을 추가하고 build-archive.mjs를 다시 돌린다.",
+  "rounds": [
+    {
+      "key": "btc-1h",
+      "date": "2026-08-16",
+      "name": "BTC 1H 원장",
+      "question": "1시간봉 기술적 신호에 반복 가능한 엣지가 있는가 — 시리즈의 출발점",
+      "conclusion": "회차 누적 원장 체계 확립(회차 JSON → 리포트 재생성). 이후 모든 검토의 형식적 기반.",
+      "report": "btc-1h-report.html",
+      "data": "2026-08-16-btc-1h.json",
+      "artifact": null
+    },
+    {
+      "key": "swing-grid",
+      "date": "2026-08-16",
+      "name": "스윙 그리드 탐색",
+      "question": "신호 11종 × 청산 6종 × 4H·1D = 132조합 전수에서 무엇이 사는가",
+      "conclusion": "엣지는 4H에 — 골든크로스·RSI 반등 등 Top10 선별. 게이트(표본·PF·3구간)와 다중검정 눈높이 도입.",
+      "report": "swing-top10-report.html",
+      "data": "2026-08-16-swing-grid.json",
+      "artifact": null
+    },
+    {
+      "key": "sample200",
+      "date": "2026-08-16",
+      "name": "표본 200 검증",
+      "question": "15m·1H·4H에서 표본 200건 이상으로 보면 결론이 유지되는가",
+      "conclusion": "15m은 수수료 잠식으로 구조적 열위 확정(1차), 4H만 생존 — '봉 단축은 답이 아니다'의 시작.",
+      "report": "sample200-report.html",
+      "data": "2026-08-16-sample200.json",
+      "artifact": null
+    },
+    {
+      "key": "tp2-sl05",
+      "date": "2026-08-16",
+      "name": "손익비 1:4 고정%",
+      "question": "목표 +2% / 손절 −0.5% 고정 손익비는 성립하는가",
+      "conclusion": "손익분기 승률 대비 실현 승률의 여유를 윌슨 신뢰구간으로 판정하는 방법론 확립.",
+      "report": "tp2-sl05-report.html",
+      "data": "2026-08-16-tp2-sl05.json",
+      "artifact": null
+    },
+    {
+      "key": "leverage-sim",
+      "date": "2026-08-16",
+      "name": "레버리지 스윙 운용",
+      "question": "Top5 기준에 레버리지를 얹으면 복리가 사는가",
+      "conclusion": "리스크 기반 사이징 공식 확립: L = min(10, 리스크% ÷ (손절폭+0.1%)) — 이후 봇·백테스트 공통 규칙.",
+      "report": "leverage-swing-report.html",
+      "data": "2026-08-16-leverage-sim.json",
+      "artifact": null
+    },
+    {
+      "key": "top5-playbook",
+      "date": "2026-08-16",
+      "name": "Top5 플레이북",
+      "question": "선별된 5개 기준의 실전 명세는 무엇인가",
+      "conclusion": "기준별 판정 부등식·청산 폭·실패 모드 문서화 — criteria.md의 전신.",
+      "report": "top5-playbook.html",
+      "data": "2026-08-16-top5-samples.json",
+      "artifact": null
+    },
+    {
+      "key": "portfolio-sim",
+      "date": "2026-08-16",
+      "name": "복리 병행 5방식",
+      "question": "단기 복리는 봉을 줄여서인가, 병행해서인가",
+      "conclusion": "병행이 답 — 쿼드(롱2+숏2) 채택, 720일 $100→$996(인샘플 상한, MDD −72%). 병행 회계(진입 시점 실현 잔고) 감사 통과.",
+      "report": "portfolio-report.html",
+      "data": "2026-08-16-portfolio-sim.json",
+      "artifact": null
+    },
+    {
+      "key": "ten-strategies",
+      "date": "2026-08-17",
+      "name": "기획 10선 검증",
+      "question": "4봉 × 손익비 4단계 × 레버리지에서 신규 기획 10개 중 무엇이 사는가",
+      "conclusion": "확정된 것은 기각(15m·1H·1D 페이드) — 후보 3개(4H 골든크로스·신저가 숏+일봉필터·MACD+거래량)는 전방 검증행. '기대값 플러스 ≠ 복리 생존' 실증.",
+      "report": "ten-strategies-report.html",
+      "data": "2026-08-17-ten-strategies.json",
+      "artifact": "https://claude.ai/code/artifact/1a7bce72-93bb-492c-b040-33b52d8955b7"
+    },
+    {
+      "key": "short-tf",
+      "date": "2026-08-17",
+      "name": "15m·1H 재도전",
+      "question": "청산 기하 확장(1/1~3/9×ATR)과 메이커 비용이 짧은 봉을 구제하는가",
+      "conclusion": "15m 3차 전수 기각으로 종결. 기하는 엣지를 만들지 않고 드러낼 뿐 — 1H는 와이드 기하에서 인사이드바+저변동만 통과. 메이커 구제는 판정 변경 0건.",
+      "report": "short-tf-report.html",
+      "data": "2026-08-17-short-tf.json",
+      "artifact": "https://claude.ai/code/artifact/53a1cf8a-9e42-4960-bd95-35f81b3880c6"
+    },
+    {
+      "key": "ensemble",
+      "date": "2026-08-17",
+      "name": "복리 조합 탐색",
+      "question": "검증 계보 7전략 병행 + 리스크 오버레이로 복리 장기우상향이 되는가",
+      "conclusion": "고정 리스크 병행은 실패(게이트 1/5). 스로틀(6/6 MDD 개선)+레짐(5/6 MAR 개선)으로 후보 1호(게이트 4/5). 현행 라이브(쿼드·10%) 전체 창 재현 $18 경고.",
+      "report": "ensemble-report.html",
+      "data": "2026-08-17-ensemble.json",
+      "artifact": "https://claude.ai/code/artifact/1efb2f1c-71d1-4497-a2f1-a3bf993c86fc"
+    },
+    {
+      "key": "swing-round",
+      "date": "2026-08-17",
+      "name": "주5회 스윙",
+      "question": "주 5회 이상 거래하는 스윙 시스템이 품질을 지키며 가능한가",
+      "conclusion": "병행 확대가 답 — swing9·스로틀·2%로 주 5.34회(게이트 4/6). 인사이드바 무필터가 필터판을 이김(t=1.79). 숏 미러 전멸 — 수축→확장은 방향 중립이 아니다.",
+      "report": "swing-round-report.html",
+      "data": "2026-08-17-swing-round.json",
+      "artifact": "https://claude.ai/code/artifact/f21ea947-22ee-4e15-a0af-c2a6e4d0d720"
+    },
+    {
+      "key": "basis-round",
+      "date": "2026-08-17",
+      "name": "베이시스 발굴 ★게이트 6/6",
+      "question": "OHLCV 밖 데이터(베이시스 = 스왑−현물 괴리)가 잃어버린 엣지를 내는가",
+      "conclusion": "시리즈 유일 t≥2.5 부품(bzc: t=3.52·PF 2.27·3/3구간·윌슨>분기). 편입한 swing10·스로틀·2%가 사전 등록 게이트 6/6 전부 통과 — 주 5.71회·CAGR 48%·MDD −35%·MAR 1.39. 백테스트 개선은 여기서 중단(과적합 방지).",
+      "report": "basis-round-report.html",
+      "data": "2026-08-17-basis-round.json",
+      "artifact": "https://claude.ai/code/artifact/a6dc430f-df88-4960-afce-f8828d26e891"
+    }
+  ],
+  "adopted": [
+    { "name": "라이브 — 쿼드 공격형", "detail": "gc·ob·fade·dc · 리스크 10% · 실계좌. 경고: 4.8년 재현 $18 — 리스크 인하·레짐 검토 권고." },
+    { "name": "페이퍼 cand — 부품 단독", "detail": "dch·mcv·ibq·bzc 각 2% — 부품별 엣지 격리 추적." },
+    { "name": "페이퍼 ens — 복리 후보 1.1", "detail": "멤버 8 + 레짐+스로틀 · 2% — 품질 우선(MAR 0.68·3/3)." },
+    { "name": "페이퍼 swing — 주5회 후보 2.1", "detail": "멤버 10 + 스로틀 · 2% — 게이트 6/6(주 5.71회·MAR 1.39)." }
+  ]
+}

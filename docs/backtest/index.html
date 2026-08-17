@@ -1,0 +1,186 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>백테스트 아카이브</title>
+<style>
+  :root {
+    color-scheme: dark;
+    --bg:#0e1116; --surface:#161a21; --surface-2:#1e232c; --border:#2a3039;
+    --ink:#e6e9ee; --dim:#8b95a3; --accent:#5b8cff; --profit:#26c281; --loss:#f0616d; --bench:#c98500; --grid:#232935;
+  }
+  @media (prefers-color-scheme: light) {
+    :root:not([data-theme="dark"]) {
+      color-scheme: light;
+      --bg:#f7f8fa; --surface:#ffffff; --surface-2:#f1f3f6; --border:#e2e5ea;
+      --ink:#14171c; --dim:#666e7a; --accent:#3b6ef5; --profit:#0f9d58; --loss:#dc3545; --bench:#b06f00; --grid:#eceef2;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font:14px/1.6 ui-sans-serif, system-ui, "Pretendard", "Segoe UI", "Malgun Gothic", sans-serif; -webkit-font-smoothing:antialiased; }
+  .wrap { max-width: 900px; margin: 0 auto; padding: 44px 20px 72px; }
+  h1 { margin: 0; font-size: 24px; font-weight: 750; letter-spacing: -0.02em; }
+  .sub { color: var(--dim); font-size: 13px; margin-top: 6px; padding-bottom: 18px; border-bottom: 1px solid var(--border); }
+  .tnum { font-variant-numeric: tabular-nums; }
+  section { margin-top: 40px; }
+  .eyebrow { font-size: 11px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: var(--dim); margin: 0 0 10px; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-left: 3px solid var(--accent); border-radius: 12px; padding: 14px 18px; margin-top: 12px; }
+  .card.star { border-left-color: var(--profit); }
+  .card .head { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+  .card .date { color: var(--dim); font-size: 12px; }
+  .card h3 { margin: 0; font-size: 15px; font-weight: 750; }
+  .card .q { color: var(--dim); font-size: 12.5px; margin: 6px 0 4px; }
+  .card .c { font-size: 13px; margin: 0; }
+  .links { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+  .links a { color: var(--accent); font-size: 12px; text-decoration: none; border: 1px solid var(--border); border-radius: 999px; padding: 2px 11px; }
+  .links a:hover { border-color: var(--accent); }
+  ul.adopted { list-style: none; padding: 0; margin: 12px 0 0; display: grid; gap: 8px; }
+  ul.adopted li { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 10px 14px; font-size: 13px; }
+  .note { background: var(--surface); border: 1px solid var(--border); border-left: 3px solid var(--bench); border-radius: 10px; padding: 12px 16px; font-size: 12.5px; color: var(--dim); margin-top: 12px; }
+  .note b { color: var(--ink); }
+  code { font-family: ui-monospace, "Cascadia Mono", monospace; font-size: 11.5px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 4px; padding: 1px 5px; }
+  footer { margin-top: 48px; padding-top: 14px; border-top: 1px solid var(--border); color: var(--dim); font-size: 12px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>백테스트 아카이브</h1>
+  <p class="sub">BTC-USDT-SWAP · 회차 12개 · 계보: 그리드 탐색 → 표본 검증 → 기하·비용 축 → 조합·오버레이 → 파생 데이터 — 각 회차의 질문과 결론, 원자료 링크의 정본 목록.
+  갱신: <code>docs/backtest/rounds.json</code> 편집 후 <code>node scripts/backtest/build-archive.mjs</code></p>
+
+  <section>
+    <p class="eyebrow">Adopted Systems</p>
+    <ul class="adopted"><li><b>라이브 — 쿼드 공격형</b> — gc·ob·fade·dc · 리스크 10% · 실계좌. 경고: 4.8년 재현 $18 — 리스크 인하·레짐 검토 권고.</li><li><b>페이퍼 cand — 부품 단독</b> — dch·mcv·ibq·bzc 각 2% — 부품별 엣지 격리 추적.</li><li><b>페이퍼 ens — 복리 후보 1.1</b> — 멤버 8 + 레짐+스로틀 · 2% — 품질 우선(MAR 0.68·3/3).</li><li><b>페이퍼 swing — 주5회 후보 2.1</b> — 멤버 10 + 스로틀 · 2% — 게이트 6/6(주 5.71회·MAR 1.39).</li></ul>
+    <div class="note"><b>판정 정본은 criteria.md</b> — 이 아카이브는 "왜 그렇게 정했나"의 기록이다. 모든 백테스트 수치는 인샘플 상한이며, 최종 판정은 전방 검증(페이퍼 북 실측)이다. 본 문서는 투자 조언이 아니라 검증 기록이다.</div>
+  </section>
+
+  <section>
+    <p class="eyebrow">Rounds — 최신순</p>
+    
+  <article class="card star">
+    <div class="head"><span class="date tnum">2026-08-17</span><h3>베이시스 발굴 ★게이트 6/6</h3></div>
+    <p class="q">OHLCV 밖 데이터(베이시스 = 스왑−현물 괴리)가 잃어버린 엣지를 내는가</p>
+    <p class="c">시리즈 유일 t≥2.5 부품(bzc: t=3.52·PF 2.27·3/3구간·윌슨&gt;분기). 편입한 swing10·스로틀·2%가 사전 등록 게이트 6/6 전부 통과 — 주 5.71회·CAGR 48%·MDD −35%·MAR 1.39. 백테스트 개선은 여기서 중단(과적합 방지).</p>
+    <div class="links">
+      <a href="basis-round-report.html">리포트</a>
+      <a href="2026-08-17-basis-round.json">데이터 JSON</a>
+      <a href="https://claude.ai/code/artifact/a6dc430f-df88-4960-afce-f8828d26e891" target="_blank" rel="noopener">아티팩트 ↗</a>
+    </div>
+  </article>
+  <article class="card">
+    <div class="head"><span class="date tnum">2026-08-17</span><h3>주5회 스윙</h3></div>
+    <p class="q">주 5회 이상 거래하는 스윙 시스템이 품질을 지키며 가능한가</p>
+    <p class="c">병행 확대가 답 — swing9·스로틀·2%로 주 5.34회(게이트 4/6). 인사이드바 무필터가 필터판을 이김(t=1.79). 숏 미러 전멸 — 수축→확장은 방향 중립이 아니다.</p>
+    <div class="links">
+      <a href="swing-round-report.html">리포트</a>
+      <a href="2026-08-17-swing-round.json">데이터 JSON</a>
+      <a href="https://claude.ai/code/artifact/f21ea947-22ee-4e15-a0af-c2a6e4d0d720" target="_blank" rel="noopener">아티팩트 ↗</a>
+    </div>
+  </article>
+  <article class="card">
+    <div class="head"><span class="date tnum">2026-08-17</span><h3>복리 조합 탐색</h3></div>
+    <p class="q">검증 계보 7전략 병행 + 리스크 오버레이로 복리 장기우상향이 되는가</p>
+    <p class="c">고정 리스크 병행은 실패(게이트 1/5). 스로틀(6/6 MDD 개선)+레짐(5/6 MAR 개선)으로 후보 1호(게이트 4/5). 현행 라이브(쿼드·10%) 전체 창 재현 $18 경고.</p>
+    <div class="links">
+      <a href="ensemble-report.html">리포트</a>
+      <a href="2026-08-17-ensemble.json">데이터 JSON</a>
+      <a href="https://claude.ai/code/artifact/1efb2f1c-71d1-4497-a2f1-a3bf993c86fc" target="_blank" rel="noopener">아티팩트 ↗</a>
+    </div>
+  </article>
+  <article class="card">
+    <div class="head"><span class="date tnum">2026-08-17</span><h3>15m·1H 재도전</h3></div>
+    <p class="q">청산 기하 확장(1/1~3/9×ATR)과 메이커 비용이 짧은 봉을 구제하는가</p>
+    <p class="c">15m 3차 전수 기각으로 종결. 기하는 엣지를 만들지 않고 드러낼 뿐 — 1H는 와이드 기하에서 인사이드바+저변동만 통과. 메이커 구제는 판정 변경 0건.</p>
+    <div class="links">
+      <a href="short-tf-report.html">리포트</a>
+      <a href="2026-08-17-short-tf.json">데이터 JSON</a>
+      <a href="https://claude.ai/code/artifact/53a1cf8a-9e42-4960-bd95-35f81b3880c6" target="_blank" rel="noopener">아티팩트 ↗</a>
+    </div>
+  </article>
+  <article class="card">
+    <div class="head"><span class="date tnum">2026-08-17</span><h3>기획 10선 검증</h3></div>
+    <p class="q">4봉 × 손익비 4단계 × 레버리지에서 신규 기획 10개 중 무엇이 사는가</p>
+    <p class="c">확정된 것은 기각(15m·1H·1D 페이드) — 후보 3개(4H 골든크로스·신저가 숏+일봉필터·MACD+거래량)는 전방 검증행. '기대값 플러스 ≠ 복리 생존' 실증.</p>
+    <div class="links">
+      <a href="ten-strategies-report.html">리포트</a>
+      <a href="2026-08-17-ten-strategies.json">데이터 JSON</a>
+      <a href="https://claude.ai/code/artifact/1a7bce72-93bb-492c-b040-33b52d8955b7" target="_blank" rel="noopener">아티팩트 ↗</a>
+    </div>
+  </article>
+  <article class="card">
+    <div class="head"><span class="date tnum">2026-08-16</span><h3>복리 병행 5방식</h3></div>
+    <p class="q">단기 복리는 봉을 줄여서인가, 병행해서인가</p>
+    <p class="c">병행이 답 — 쿼드(롱2+숏2) 채택, 720일 $100→$996(인샘플 상한, MDD −72%). 병행 회계(진입 시점 실현 잔고) 감사 통과.</p>
+    <div class="links">
+      <a href="portfolio-report.html">리포트</a>
+      <a href="2026-08-16-portfolio-sim.json">데이터 JSON</a>
+      
+    </div>
+  </article>
+  <article class="card">
+    <div class="head"><span class="date tnum">2026-08-16</span><h3>Top5 플레이북</h3></div>
+    <p class="q">선별된 5개 기준의 실전 명세는 무엇인가</p>
+    <p class="c">기준별 판정 부등식·청산 폭·실패 모드 문서화 — criteria.md의 전신.</p>
+    <div class="links">
+      <a href="top5-playbook.html">리포트</a>
+      <a href="2026-08-16-top5-samples.json">데이터 JSON</a>
+      
+    </div>
+  </article>
+  <article class="card">
+    <div class="head"><span class="date tnum">2026-08-16</span><h3>레버리지 스윙 운용</h3></div>
+    <p class="q">Top5 기준에 레버리지를 얹으면 복리가 사는가</p>
+    <p class="c">리스크 기반 사이징 공식 확립: L = min(10, 리스크% ÷ (손절폭+0.1%)) — 이후 봇·백테스트 공통 규칙.</p>
+    <div class="links">
+      <a href="leverage-swing-report.html">리포트</a>
+      <a href="2026-08-16-leverage-sim.json">데이터 JSON</a>
+      
+    </div>
+  </article>
+  <article class="card">
+    <div class="head"><span class="date tnum">2026-08-16</span><h3>손익비 1:4 고정%</h3></div>
+    <p class="q">목표 +2% / 손절 −0.5% 고정 손익비는 성립하는가</p>
+    <p class="c">손익분기 승률 대비 실현 승률의 여유를 윌슨 신뢰구간으로 판정하는 방법론 확립.</p>
+    <div class="links">
+      <a href="tp2-sl05-report.html">리포트</a>
+      <a href="2026-08-16-tp2-sl05.json">데이터 JSON</a>
+      
+    </div>
+  </article>
+  <article class="card">
+    <div class="head"><span class="date tnum">2026-08-16</span><h3>표본 200 검증</h3></div>
+    <p class="q">15m·1H·4H에서 표본 200건 이상으로 보면 결론이 유지되는가</p>
+    <p class="c">15m은 수수료 잠식으로 구조적 열위 확정(1차), 4H만 생존 — '봉 단축은 답이 아니다'의 시작.</p>
+    <div class="links">
+      <a href="sample200-report.html">리포트</a>
+      <a href="2026-08-16-sample200.json">데이터 JSON</a>
+      
+    </div>
+  </article>
+  <article class="card">
+    <div class="head"><span class="date tnum">2026-08-16</span><h3>스윙 그리드 탐색</h3></div>
+    <p class="q">신호 11종 × 청산 6종 × 4H·1D = 132조합 전수에서 무엇이 사는가</p>
+    <p class="c">엣지는 4H에 — 골든크로스·RSI 반등 등 Top10 선별. 게이트(표본·PF·3구간)와 다중검정 눈높이 도입.</p>
+    <div class="links">
+      <a href="swing-top10-report.html">리포트</a>
+      <a href="2026-08-16-swing-grid.json">데이터 JSON</a>
+      
+    </div>
+  </article>
+  <article class="card">
+    <div class="head"><span class="date tnum">2026-08-16</span><h3>BTC 1H 원장</h3></div>
+    <p class="q">1시간봉 기술적 신호에 반복 가능한 엣지가 있는가 — 시리즈의 출발점</p>
+    <p class="c">회차 누적 원장 체계 확립(회차 JSON → 리포트 재생성). 이후 모든 검토의 형식적 기반.</p>
+    <div class="links">
+      <a href="btc-1h-report.html">리포트</a>
+      <a href="2026-08-16-btc-1h.json">데이터 JSON</a>
+      
+    </div>
+  </article>
+  </section>
+
+  <footer>생성: build-archive.mjs · 데이터·리포트는 같은 폴더(docs/backtest/)에 회차별로 보존 · 캔들 캐시는 scripts/backtest/.cache/ (재수집 가능)</footer>
+</div>
+</body>
+</html>

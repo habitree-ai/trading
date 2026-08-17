@@ -27,6 +27,12 @@ import { appendLog, loadState, saveState } from "./state.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const DATA = join(here, "..", "data");
+const BACKTEST_DIR = join(here, "..", "..", "docs", "backtest");
+const SB = {
+  base: process.env.NEXT_PUBLIC_SUPABASE_URL,
+  key: process.env.SUPABASE_SECRET_KEY,
+  uid: process.env.SYSTEM_BOT_USER_ID,
+};
 const PORT = 8899;
 const INST = "BTC-USDT-SWAP";
 const FEE_PCT = 0.1;
@@ -234,9 +240,94 @@ async function executeSignal({ member, barTs, riskPct }) {
   }
 }
 
+/* ---------- 거래 조회 · 진행 로그 ---------- */
+
+async function sbGet(path) {
+  if (!SB.base || !SB.key) return null;
+  const res = await fetch(`${SB.base}/rest/v1/${path}`, {
+    headers: { apikey: SB.key, authorization: `Bearer ${SB.key}` },
+  });
+  if (!res.ok) throw new Error(`Supabase HTTP ${res.status}`);
+  return res.json();
+}
+
+/** 북별 거래를 공통 형태로 정규화 — 파일(jsonl)과 DB(라이브)를 한 표로. */
+async function queryTrades(book, member, limit) {
+  const out = [];
+  const norm = (t, source) => ({
+    source,
+    book,
+    member: t.member,
+    name: t.name,
+    side: t.side,
+    mode: t.mode ?? null,
+    entryTs: t.entryTs ?? (t.entry_ts ? new Date(t.entry_ts).getTime() : null),
+    entryPrice: t.entryPrice ?? (t.entry_price != null ? Number(t.entry_price) : null),
+    exitTs: t.exitTs ?? (t.exit_ts ? new Date(t.exit_ts).getTime() : null),
+    exitPrice: t.exitPrice ?? (t.exit_price != null ? Number(t.exit_price) : null),
+    exitType: t.exitType ?? t.exit_type ?? null,
+    netPct: t.netPct ?? (t.net_pct != null ? Number(t.net_pct) : null),
+    pnlUsd: t.pnlUsd ?? (t.pnl_usd != null ? Number(t.pnl_usd) : null),
+    equityAfter: t.equityAfter ?? (t.equity_after != null ? Number(t.equity_after) : null),
+    lev: t.lev != null ? Number(t.lev) : null,
+    open: (t.exitType ?? t.exit_type) == null,
+  });
+  if (book === "live") {
+    // 신규(DB) + 과거(파일) — 상태 이전(2026-08-17) 전후의 기록을 합친다.
+    try {
+      const rows = (await sbGet(`system_trades?user_id=eq.${SB.uid}&mode=eq.live&select=*&order=entry_ts.desc&limit=${limit}`)) ?? [];
+      for (const r of rows) out.push(norm(r, "db"));
+    } catch (e) {
+      out.push({ source: "db", error: e.message });
+    }
+    const fileRecs = tailJsonl(join(DATA, "trades-live.jsonl"), 400);
+    const opens = new Map();
+    for (const t of fileRecs) {
+      if (t.type === "open") opens.set(`${t.member}-${t.entryTs}`, t);
+      if (t.type === "close") {
+        const o = opens.get(t.tradeId) ?? {};
+        out.push(norm({ ...o, ...t }, "file"));
+        opens.delete(t.tradeId);
+      }
+    }
+    for (const o of opens.values()) out.push(norm(o, "file"));
+  } else {
+    const recs = tailJsonl(join(DATA, `trades-${book}.jsonl`), 800);
+    const opens = new Map();
+    for (const t of recs) {
+      if (t.type === "open" || t.type === "manual-open") opens.set(`${t.member}-${t.entryTs ?? t.signalTs}`, t);
+      if (t.type === "close") {
+        const o = opens.get(t.tradeId) ?? {};
+        out.push(norm({ ...o, ...t }, "file"));
+        opens.delete(t.tradeId);
+      }
+    }
+    for (const o of opens.values()) out.push(norm(o, "file"));
+  }
+  return out
+    .filter((t) => !member || t.member === member)
+    .sort((a, b) => (b.entryTs ?? 0) - (a.entryTs ?? 0))
+    .slice(0, limit);
+}
+
+async function queryDecisions(book, limit) {
+  if (book === "live") {
+    try {
+      const rows = (await sbGet(`system_decisions?user_id=eq.${SB.uid}&mode=eq.live&select=member,tf,bar_ts,fired,action,skip,warn&order=at.desc&limit=${limit}`)) ?? [];
+      return rows.map((r) => ({ member: r.member, tf: r.tf, barTs: r.bar_ts ? new Date(r.bar_ts).getTime() : null, fired: r.fired, action: r.action, skip: r.skip, warn: r.warn }));
+    } catch (e) {
+      return [{ warn: `DB 조회 실패: ${e.message}` }];
+    }
+  }
+  return tailJsonl(join(DATA, `decisions-${book}.jsonl`), limit)
+    .reverse()
+    .map((d) => ({ member: d.member, tf: d.tf, barTs: d.barTs, fired: d.fired, action: d.action, skip: d.skip, warn: d.warn }));
+}
+
 /* ---------- 서버 ---------- */
 
 const html = readFileSync(join(here, "dashboard.html"), "utf8");
+const rounds = readJson(join(BACKTEST_DIR, "rounds.json"), { rounds: [], adopted: [] });
 
 async function liveSnapshot() {
   if (MODE === "off") return null;
@@ -256,6 +347,26 @@ const server = createServer(async (req, res) => {
   try {
     const url = new URL(req.url, "http://localhost");
     if (req.method === "GET" && url.pathname === "/") return send(200, html, "text/html");
+    // 백테스트 아카이브 정적 서빙 — docs/backtest 의 html·json만, 경로 탈출 차단.
+    if (req.method === "GET" && url.pathname.startsWith("/backtest/")) {
+      const name = decodeURIComponent(url.pathname.slice("/backtest/".length));
+      if (!/^[\w.\-]+\.(html|json)$/.test(name)) return send(400, { error: "허용되지 않는 경로" });
+      const p = join(BACKTEST_DIR, name);
+      if (!existsSync(p)) return send(404, { error: "없는 파일" });
+      return send(200, readFileSync(p, "utf8"), name.endsWith(".html") ? "text/html" : "application/json");
+    }
+    if (req.method === "GET" && url.pathname === "/api/trades") {
+      const book = url.searchParams.get("book") ?? "swing";
+      if (!["cand", "ens", "swing", "manual", "live"].includes(book)) return send(400, { error: "book" });
+      const trades = await queryTrades(book, url.searchParams.get("member") || null, Math.min(200, Number(url.searchParams.get("limit") ?? 50)));
+      return send(200, { book, trades });
+    }
+    if (req.method === "GET" && url.pathname === "/api/decisions") {
+      const book = url.searchParams.get("book") ?? "swing";
+      if (!["cand", "ens", "swing", "live"].includes(book)) return send(400, { error: "book" });
+      const decisions = await queryDecisions(book, Math.min(200, Number(url.searchParams.get("limit") ?? 60)));
+      return send(200, { book, decisions });
+    }
     if (req.method === "GET" && url.pathname === "/api/state") {
       const { books, signals } = collectState();
       return send(200, {
@@ -264,6 +375,7 @@ const server = createServer(async (req, res) => {
         specs: SPECS,
         tracks: TRACKS,
         artifacts: ARTIFACTS,
+        rounds: rounds.rounds,
         books,
         signals,
         live: await liveSnapshot(),

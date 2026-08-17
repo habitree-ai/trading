@@ -105,6 +105,12 @@
   </section>
 
   <section>
+    <p class="eyebrow">Backtest Archive</p>
+    <h2>백테스트 회차 내역 — 질문과 결론 <a href="/backtest/index.html" target="_blank" rel="noopener" style="font-size:12px;color:var(--accent);text-decoration:none;margin-left:8px">아카이브 전체 문서 ↗</a></h2>
+    <div class="table-scroll"><table id="rounds"></table></div>
+  </section>
+
+  <section>
     <p class="eyebrow">Members</p>
     <h2>멤버 명세 — 판정·청산·백테스트 근거 (정본: criteria.md)</h2>
     <div class="table-scroll"><table id="specs"></table></div>
@@ -114,6 +120,29 @@
     <p class="eyebrow">Books</p>
     <h2>북 상태 — 페이퍼 실측과 수동 체결 기록</h2>
     <div class="cards" id="books"></div>
+  </section>
+
+  <section>
+    <p class="eyebrow">Trades</p>
+    <h2>거래 조회 — 북·멤버별 전체 기록 (라이브는 DB+과거 파일 통합)</h2>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px">
+      <select id="tq-book"><option value="live">live (실계좌)</option><option value="swing" selected>swing</option><option value="ens">ens</option><option value="cand">cand</option><option value="manual">manual (수동)</option></select>
+      <select id="tq-member"><option value="">멤버 전체</option></select>
+      <select id="tq-limit"><option value="30">30건</option><option value="100">100건</option><option value="200">200건</option></select>
+      <button id="tq-go" class="primary">조회</button>
+      <span id="tq-summary" class="muted tnum"></span>
+    </div>
+    <div class="table-scroll"><table id="tq-table"></table></div>
+  </section>
+
+  <section>
+    <p class="eyebrow">Decisions</p>
+    <h2>진행 로그 — 봉마다 무엇을 보고 왜 그렇게 했나 (평가·신호·스킵 그대로)</h2>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px">
+      <select id="dq-book"><option value="live">live</option><option value="swing" selected>swing</option><option value="ens">ens</option><option value="cand">cand</option></select>
+      <button id="dq-go" class="primary">조회</button>
+    </div>
+    <div class="table-scroll"><table id="dq-table"></table></div>
   </section>
 
   <section id="sec-live" style="display:none">
@@ -194,6 +223,28 @@ function render() {
   $("tracks").innerHTML = d.tracks.map((t) => `<div class="card"><h3>${esc(t.name)}</h3><div class="desc">${esc(t.desc)}</div><div class="gate">승격 게이트: ${esc(t.gate)}</div></div>`).join("");
   $("artifacts").innerHTML = d.artifacts.map((a) => `<a href="${a.url}" target="_blank" rel="noopener">${esc(a.name)} ↗</a>`).join("");
 
+  // 백테스트 회차 내역
+  $("rounds").innerHTML = `<thead><tr><th>날짜</th><th>회차</th><th>질문</th><th>결론</th><th>링크</th></tr></thead><tbody>` +
+    (d.rounds ?? []).slice().reverse().map((r) =>
+      `<tr><td class="muted">${r.date}</td><td><b>${esc(r.name)}</b></td>` +
+      `<td style="text-align:left;white-space:normal;min-width:180px" class="muted">${esc(r.question)}</td>` +
+      `<td style="text-align:left;white-space:normal;min-width:280px">${esc(r.conclusion)}</td>` +
+      `<td style="text-align:left"><a href="/backtest/${r.report}" target="_blank" rel="noopener" style="color:var(--accent)">리포트</a>` +
+      ` · <a href="/backtest/${r.data}" target="_blank" rel="noopener" style="color:var(--accent)">데이터</a>` +
+      (r.artifact ? ` · <a href="${r.artifact}" target="_blank" rel="noopener" style="color:var(--accent)">아티팩트↗</a>` : "") +
+      `</td></tr>`).join("") + "</tbody>";
+
+  // 거래 조회 멤버 목록 채우기 (1회)
+  const tm = $("tq-member");
+  if (tm.options.length <= 1) {
+    for (const [k, s] of Object.entries(d.specs)) {
+      const o = document.createElement("option");
+      o.value = k;
+      o.textContent = `${s.name} (${k})`;
+      tm.appendChild(o);
+    }
+  }
+
   // 명세
   $("specs").innerHTML = `<thead><tr><th>멤버</th><th>봉</th><th>방향</th><th>판정</th><th>청산</th><th>트랙</th><th>백테스트 근거</th></tr></thead><tbody>` +
     Object.entries(d.specs).map(([k, s]) =>
@@ -237,7 +288,46 @@ function render() {
     `모의거래는 <code>DASH_TRADE_MODE=demo</code> (OKX 데모 키 필요). 서버는 127.0.0.1 전용.`;
 }
 
+async function loadTrades() {
+  const book = $("tq-book").value;
+  const member = $("tq-member").value;
+  const limit = $("tq-limit").value;
+  const r = await fetch(`/api/trades?book=${book}&member=${member}&limit=${limit}`);
+  const j = await r.json();
+  const ts = j.trades.filter((t) => !t.error);
+  const closed = ts.filter((t) => !t.open && t.netPct != null);
+  const sum = closed.reduce((s, t) => s + t.netPct, 0);
+  const wins = closed.filter((t) => t.netPct > 0).length;
+  $("tq-summary").textContent = closed.length
+    ? `청산 ${closed.length}건 · 승률 ${((wins / closed.length) * 100).toFixed(1)}% · 순손익 합 ${sum >= 0 ? "+" : ""}${sum.toFixed(2)}%`
+    : ts.length ? `미청산 ${ts.length}건` : "기록 없음";
+  $("tq-table").innerHTML = `<thead><tr><th>진입</th><th>멤버</th><th>방향</th><th>진입가</th><th>청산</th><th>청산가</th><th>유형</th><th>레버</th><th>손익%</th><th>손익$</th><th>잔고</th><th>출처</th></tr></thead><tbody>` +
+    (ts.length ? ts.map((t) =>
+      `<tr><td class="muted">${t.entryTs ? kstMin(t.entryTs) : "—"}</td><td><b>${esc(t.name ?? t.member ?? "—")}</b></td>` +
+      `<td><span class="chip ${t.side}">${t.side === "long" ? "롱" : t.side === "short" ? "숏" : "—"}</span></td>` +
+      `<td>${n2(t.entryPrice)}</td><td class="muted">${t.exitTs ? kstMin(t.exitTs) : "보유 중"}</td><td>${n2(t.exitPrice)}</td>` +
+      `<td>${esc(t.exitType ?? "—")}</td><td>${n2(t.lev)}</td>` +
+      `<td class="${t.netPct > 0 ? "up" : t.netPct < 0 ? "down" : ""}">${t.netPct != null ? (t.netPct > 0 ? "+" : "") + n2(t.netPct) + "%" : "—"}</td>` +
+      `<td class="${t.pnlUsd > 0 ? "up" : t.pnlUsd < 0 ? "down" : ""}">${t.pnlUsd != null ? n2(t.pnlUsd) : "—"}</td>` +
+      `<td>${n2(t.equityAfter)}</td><td class="muted">${t.source}</td></tr>`).join("")
+      : `<tr><td colspan="12" class="muted" style="text-align:center">기록 없음 — 페이퍼 북은 신호가 나야 첫 거래가 쌓인다</td></tr>`) + "</tbody>";
+}
+
+async function loadDecisions() {
+  const book = $("dq-book").value;
+  const r = await fetch(`/api/decisions?book=${book}&limit=60`);
+  const j = await r.json();
+  $("dq-table").innerHTML = `<thead><tr><th>봉 시각</th><th>멤버</th><th>봉</th><th>신호</th><th>행동</th><th>사유·경고</th></tr></thead><tbody>` +
+    (j.decisions.length ? j.decisions.map((x) =>
+      `<tr><td class="muted">${x.barTs ? kstMin(x.barTs) : "—"}</td><td><b>${esc(x.member ?? "—")}</b></td><td>${esc(x.tf ?? "—")}</td>` +
+      `<td>${x.fired ? '<b class="up">신호</b>' : x.fired === false ? '<span class="muted">—</span>' : ""}</td>` +
+      `<td>${esc(x.action ?? "")}</td><td style="text-align:left" class="muted">${esc(x.skip ?? x.warn ?? "")}</td></tr>`).join("")
+      : `<tr><td colspan="6" class="muted" style="text-align:center">기록 없음</td></tr>`) + "</tbody>";
+}
+
 document.addEventListener("click", async (ev) => {
+  if (ev.target.id === "tq-go") return loadTrades().catch((e) => toast("조회 실패: " + e.message, false));
+  if (ev.target.id === "dq-go") return loadDecisions().catch((e) => toast("조회 실패: " + e.message, false));
   const btn = ev.target.closest("button");
   if (!btn) return;
   if (btn.id === "btn-refresh") return load();
@@ -280,7 +370,10 @@ document.addEventListener("click", async (ev) => {
   load();
 });
 
-load();
+load().then(() => {
+  loadTrades().catch(() => {});
+  loadDecisions().catch(() => {});
+});
 setInterval(load, 30_000);
 </script>
 </body>
