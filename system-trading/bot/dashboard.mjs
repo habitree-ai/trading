@@ -24,6 +24,7 @@ import { notify } from "./notify.mjs";
 import { OkxClient } from "./okx.mjs";
 import { exitLevels } from "./signals.mjs";
 import { appendLog, loadState, saveState } from "./state.mjs";
+import { mirrorTradeOpen } from "./state-mirror.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const DATA = join(here, "..", "data");
@@ -229,6 +230,7 @@ async function executeSignal({ member, barTs, riskPct }) {
     manualExecuted.add(key);
     saveState(manualState);
     appendLog("manual", "trades", rec);
+    await mirrorTradeOpen("manual", { ...rec, entryTs: barTs + tfMs, riskPct: risk });
     await notify(
       `[DASH] 수동 체결(${MODE.toUpperCase()}) — ${spec.name} ${spec.side} @ ${price}\n` +
       `리스크 ${risk}% · 레버 ${rec.lev}배 · 손절 ${rec.stop} · 목표 ${rec.target} · sz ${sz}\n` +

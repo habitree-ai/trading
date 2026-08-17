@@ -20,6 +20,7 @@
  */
 import { atr, basisSeries, macd, rollingLow, rollingZ, rsi, sma, volMA } from "./indicators.mjs";
 import { notify } from "./notify.mjs";
+import { mirrorDecision, mirrorEquity, mirrorState, mirrorTradeClose, mirrorTradeOpen } from "./state-mirror.mjs";
 import { OkxClient } from "./okx.mjs";
 import { exitLevels } from "./signals.mjs";
 import { appendLog, loadState, saveState } from "./state.mjs";
@@ -274,6 +275,7 @@ async function runCycle(client, state) {
         skip,
         indicators: snapshot(key, i, ctx),
       });
+      if (fired) await mirrorDecision(BOOK, { member: key, tf: m.tf, barTs: candles[i].t, fired, action, skip });
       if (isLatest || fired) {
         summary.evaluated.push(
           `${key}@${new Date(candles[i].t).toISOString().slice(0, 16)} ${fired ? "신호" : "-"}${skip ? ` (${skip})` : ""}`,
@@ -284,6 +286,8 @@ async function runCycle(client, state) {
   }
 
   appendLog(BOOK, "equity", { equity: state.equity, peak: state.peakEquity, open: Object.keys(state.positions) });
+  await mirrorEquity(BOOK, state.equity, Object.keys(state.positions));
+  await mirrorState(BOOK, state);
   saveState(state);
   summary.equity = state.equity;
   summary.openPositions = Object.keys(state.positions);
@@ -316,6 +320,8 @@ async function enter(client, state, key, m, ctx, i, riskEff, summary) {
   state.positions[key] = pos;
   saveState(state);
   appendLog(BOOK, "trades", { type: "open", ...pos, lev: r2(lev) });
+  await mirrorTradeOpen(BOOK, pos);
+  await mirrorState(BOOK, state);
   summary.actions.push(
     `진입 ${m.name} ${m.side} @ ${price} (유효리스크 ${riskEff}%, 레버 ${r2(lev)}배, 손절 ${r2(stop)}, 목표 ${r2(target)})`,
   );
