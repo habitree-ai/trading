@@ -1,0 +1,558 @@
+<title>15m·1H 재도전</title>
+<style>
+  /* 다크가 기본 — 트레이딩 앱·백테스트 시리즈와 같은 토큰. */
+  :root {
+    color-scheme: dark;
+    --bg: #0e1116;
+    --surface: #161a21;
+    --surface-2: #1e232c;
+    --border: #2a3039;
+    --ink: #e6e9ee;
+    --dim: #8b95a3;
+    --accent: #5b8cff;
+    --profit: #26c281;
+    --loss: #f0616d;
+    --bench: #c98500;
+    --grid: #232935;
+    --accent-soft: rgba(91, 140, 255, 0.14);
+  }
+  @media (prefers-color-scheme: light) {
+    :root:not([data-theme="dark"]) {
+      color-scheme: light;
+      --bg: #f7f8fa;
+      --surface: #ffffff;
+      --surface-2: #f1f3f6;
+      --border: #e2e5ea;
+      --ink: #14171c;
+      --dim: #666e7a;
+      --accent: #3b6ef5;
+      --profit: #0f9d58;
+      --loss: #dc3545;
+      --bench: #b06f00;
+      --grid: #eceef2;
+      --accent-soft: rgba(59, 110, 245, 0.10);
+    }
+  }
+  :root[data-theme="light"] {
+    color-scheme: light;
+    --bg: #f7f8fa;
+    --surface: #ffffff;
+    --surface-2: #f1f3f6;
+    --border: #e2e5ea;
+    --ink: #14171c;
+    --dim: #666e7a;
+    --accent: #3b6ef5;
+    --profit: #0f9d58;
+    --loss: #dc3545;
+    --bench: #b06f00;
+    --grid: #eceef2;
+    --accent-soft: rgba(59, 110, 245, 0.10);
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: ui-sans-serif, system-ui, "Pretendard", "Segoe UI", "Malgun Gothic", sans-serif;
+    font-size: 14px;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 1120px; margin: 0 auto; padding: 40px 20px 72px; }
+
+  header.masthead { display: flex; flex-wrap: wrap; align-items: baseline; gap: 10px 16px; padding-bottom: 18px; border-bottom: 1px solid var(--border); }
+  .masthead h1 { margin: 0; font-size: 24px; font-weight: 750; letter-spacing: -0.02em; }
+  .round-stamp {
+    font-size: 12px; font-weight: 650; color: var(--accent);
+    border: 1px solid var(--accent); border-radius: 999px; padding: 1px 10px;
+    letter-spacing: 0.04em; white-space: nowrap;
+  }
+  .masthead .meta { flex-basis: 100%; color: var(--dim); font-size: 12.5px; }
+  .masthead .meta b { color: var(--ink); font-weight: 600; }
+
+  section { margin-top: 44px; }
+  .eyebrow { font-size: 11px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; color: var(--dim); margin: 0 0 6px; }
+  h2 { margin: 0 0 14px; font-size: 18px; font-weight: 700; letter-spacing: -0.01em; text-wrap: balance; }
+  h3 { margin: 0; font-size: 14px; font-weight: 650; }
+  .note { color: var(--dim); font-size: 12.5px; }
+  .tnum { font-variant-numeric: tabular-nums; }
+  .up { color: var(--profit); }
+  .down { color: var(--loss); }
+  .mk { color: var(--bench); }
+
+  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px; margin-top: 18px; }
+  .tile { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px 12px; }
+  .tile .k { font-size: 11.5px; color: var(--dim); letter-spacing: 0.02em; }
+  .tile .v { font-size: 21px; font-weight: 700; letter-spacing: -0.01em; margin-top: 2px; line-height: 1.25; }
+  .tile .s { font-size: 11.5px; color: var(--dim); margin-top: 3px; }
+
+  .verdict { display: grid; gap: 8px; margin: 14px 0 0; padding: 0; list-style: none; }
+  .verdict li { background: var(--surface); border: 1px solid var(--border); border-left: 3px solid var(--accent); border-radius: 10px; padding: 10px 14px; font-size: 13px; }
+  .verdict li.win { border-left-color: var(--profit); }
+  .verdict li.lose { border-left-color: var(--loss); }
+  .verdict li.warn { border-left-color: var(--bench); }
+  .verdict b { font-weight: 650; }
+
+  .table-scroll { overflow-x: auto; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); }
+  table { border-collapse: collapse; width: 100%; font-size: 12.5px; }
+  th, td { padding: 8px 11px; text-align: right; white-space: nowrap; }
+  th { font-size: 11px; color: var(--dim); font-weight: 600; border-bottom: 1px solid var(--border); }
+  td { border-bottom: 1px solid var(--grid); font-variant-numeric: tabular-nums; }
+  tr:last-child td { border-bottom: none; }
+  th:first-child, td:first-child { text-align: left; }
+  tbody tr:hover td { background: var(--accent-soft); }
+
+  /* 히트맵 — 파랑(플러스)↔빨강(마이너스), 수치 직접 표기라 색은 보조 인코딩. */
+  .hm { table-layout: fixed; min-width: 900px; }
+  .hm th:first-child, .hm td:first-child { width: 30%; overflow: hidden; text-overflow: ellipsis; }
+  .hm th:nth-child(2), .hm td:nth-child(2) { width: 56px; }
+  .hm td .t { display: block; font-size: 10px; color: var(--dim); }
+  .hm td.gate { outline: 2px solid var(--profit); outline-offset: -2px; border-radius: 4px; }
+  .hm td.pilot { outline: 2px dashed var(--bench); outline-offset: -2px; border-radius: 4px; }
+  .hm td.best b { text-decoration: underline; text-underline-offset: 3px; }
+  .hm-legend { display: flex; gap: 16px; flex-wrap: wrap; font-size: 11.5px; color: var(--dim); margin-top: 8px; align-items: center; }
+  .hm-legend .sw { display: inline-block; width: 12px; height: 12px; border-radius: 3px; vertical-align: -2px; margin-right: 5px; }
+  .hm-legend .sw.gate { outline: 2px solid var(--profit); outline-offset: -2px; background: transparent; border: 1px solid var(--border); }
+  .hm-legend .sw.pilot { outline: 2px dashed var(--bench); outline-offset: -2px; background: transparent; border: 1px solid var(--border); }
+
+  .cond { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 16px 18px; margin-top: 14px; }
+  .cond .head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+  .cond .no { font-size: 20px; font-weight: 750; color: var(--dim); }
+  .cond .name { font-size: 15px; font-weight: 750; }
+  .chip { font-size: 10.5px; font-weight: 700; border-radius: 4px; padding: 1px 7px; border: 1px solid var(--border); color: var(--dim); white-space: nowrap; }
+  .chip.tf { color: var(--accent); border-color: var(--accent); }
+  .chip.short { color: var(--loss); border-color: var(--loss); }
+  .chip.long { color: var(--profit); border-color: var(--profit); }
+  .badge { font-size: 11px; font-weight: 700; border-radius: 999px; padding: 2px 10px; margin-left: auto; white-space: nowrap; }
+  .badge.pass { background: var(--profit); color: #fff; }
+  .badge.borderline, .badge.pilot { background: var(--bench); color: #fff; }
+  .badge.fail { background: var(--surface-2); color: var(--dim); border: 1px solid var(--border); }
+  .cond .desc { color: var(--dim); font-size: 12.5px; margin-top: 6px; }
+  .cond .rule { font-size: 12.5px; margin-top: 6px; }
+  .cond .rule b { font-weight: 650; }
+  .cond .grid2 { display: grid; grid-template-columns: 1fr; gap: 14px; margin-top: 12px; }
+  @media (min-width: 800px) { .cond .grid2 { grid-template-columns: 1.6fr 1fr; } }
+
+  .lever-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(88px, 1fr)); gap: 6px; margin-top: 10px; }
+  .lt { background: var(--surface-2); border: 1px solid var(--border); border-radius: 8px; padding: 7px 9px; }
+  .lt .k { font-size: 10.5px; color: var(--dim); font-weight: 700; }
+  .lt .v { font-size: 13.5px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .lt .s { font-size: 10px; color: var(--dim); font-variant-numeric: tabular-nums; }
+  .lt.ruin { border-color: var(--loss); }
+  .lt.ruin .v { color: var(--loss); }
+
+  .spark-wrap { position: relative; margin-top: 10px; }
+  .spark-wrap svg { display: block; width: 100%; height: 88px; }
+  .spark-cap { font-size: 10.5px; color: var(--dim); margin-top: 2px; }
+  .tip {
+    position: absolute; pointer-events: none; display: none;
+    background: var(--surface-2); border: 1px solid var(--border); border-radius: 6px;
+    padding: 3px 8px; font-size: 11px; white-space: nowrap; font-variant-numeric: tabular-nums;
+    transform: translate(-50%, -120%); z-index: 3;
+  }
+
+  .agent-note { font-size: 12.5px; margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--grid); }
+  .agent-note .hl { font-weight: 650; }
+  .agent-note .an { color: var(--dim); margin-top: 4px; }
+  .agent-note .gv { margin-top: 6px; }
+  .agent-note .gv b { font-weight: 650; }
+  .warnings { margin: 8px 0 0; padding-left: 18px; font-size: 12px; color: var(--bench); }
+
+  details { margin-top: 10px; }
+  summary { cursor: pointer; color: var(--accent); font-weight: 600; font-size: 12.5px; padding: 4px 2px; border-radius: 6px; list-style-position: inside; }
+  summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .plan-doc { background: var(--surface-2); border: 1px solid var(--border); border-radius: 10px; padding: 12px 16px; margin-top: 8px; font-size: 12.5px; }
+  .plan-doc h4 { margin: 10px 0 4px; font-size: 12.5px; font-weight: 700; }
+  .plan-doc h4:first-child { margin-top: 0; }
+  .plan-doc ul { margin: 4px 0; padding-left: 18px; }
+  .plan-doc p { margin: 4px 0; }
+  .plan-doc code { font-family: ui-monospace, "Cascadia Mono", monospace; font-size: 11px; background: var(--surface); border: 1px solid var(--border); border-radius: 4px; padding: 0 4px; }
+
+  .finding-box { margin-top: 12px; background: var(--surface); border: 1px solid var(--border); border-left: 3px solid var(--accent); border-radius: 10px; padding: 10px 14px; font-size: 13px; }
+
+  .criteria { counter-reset: cr; display: grid; gap: 8px; margin: 14px 0 0; padding: 0; list-style: none; }
+  .criteria li { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 10px 14px 10px 44px; position: relative; font-size: 13px; }
+  .criteria li::before {
+    counter-increment: cr; content: counter(cr);
+    position: absolute; left: 14px; top: 10px; width: 20px; height: 20px;
+    display: grid; place-items: center; border-radius: 6px;
+    background: var(--accent-soft); color: var(--accent); font-size: 11px; font-weight: 750;
+  }
+
+  .guide { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 10px; margin-top: 14px; }
+  .guide-item { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; font-size: 12.5px; }
+  .guide-item b { font-weight: 650; }
+  .guide-item .note { margin-top: 3px; }
+
+  svg text { font-family: inherit; }
+
+  footer { margin-top: 56px; padding-top: 16px; border-top: 1px solid var(--border); color: var(--dim); font-size: 12px; line-height: 1.7; }
+  footer code { font-family: ui-monospace, "Cascadia Mono", monospace; font-size: 11.5px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 4px; padding: 1px 5px; }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .cond, .tile { transition: border-color 0.15s ease; }
+    .cond:hover, .tile:hover { border-color: var(--dim); }
+  }
+</style>
+
+<div class="wrap">
+  <header class="masthead">
+    <h1>15m·1H 재도전</h1>
+    <span class="round-stamp" id="stamp"></span>
+    <p class="meta" id="meta"></p>
+  </header>
+
+  <section id="sec-summary">
+    <p class="eyebrow">Summary</p>
+    <h2 id="headline"></h2>
+    <div class="tiles" id="tiles"></div>
+    <ul class="verdict" id="verdicts"></ul>
+  </section>
+
+  <section id="sec-matrix">
+    <p class="eyebrow">Matrix</p>
+    <h2>전략 10 × 청산 기하 4 — 거래당 기대값(%)</h2>
+    <p class="note">셀: 테이커 0.1% 기대값% (작은 글씨: 메이커 0.07% 기대값 · t값 · 표본수). 판정은 테이커 기준.
+      초록 실선 = 게이트 통과(기대값&gt;0 · PF≥1.1 · 구간 2/3+ · 표본 15m≥300/1H≥200), 주황 점선 = 통계 통과·표본 미달(파일럿). 밑줄 = 전략별 최선 기하.</p>
+    <div class="table-scroll"><table class="hm" id="matrix"></table></div>
+    <div class="hm-legend" id="matrix-legend"></div>
+  </section>
+
+  <section id="sec-geometry">
+    <p class="eyebrow">Geometry</p>
+    <h2>청산 기하 축 — 폭이 넓어지면 비용 잠식이 실제로 줄어드는가</h2>
+    <div class="table-scroll"><table id="geo-table"></table></div>
+    <div class="finding-box" id="geo-finding"></div>
+  </section>
+
+  <section id="sec-maker">
+    <p class="eyebrow">Maker</p>
+    <h2>메이커 체결 구제 — 비용을 0.1% → 0.07%로 낮추면</h2>
+    <div class="table-scroll"><table id="maker-table"></table></div>
+    <div class="finding-box" id="maker-finding"></div>
+  </section>
+
+  <section id="sec-cards">
+    <p class="eyebrow">Strategies</p>
+    <h2>전략별 상세 — 기획 · 성적 · 레버리지 내성</h2>
+    <div id="cards"></div>
+  </section>
+
+  <section id="sec-lever">
+    <p class="eyebrow">Leverage</p>
+    <h2>레버리지 내성 — $100 전액 격리·복리, 최선 기하·테이커 기준</h2>
+    <p class="note">셀: 최종 자산($) / 최대낙폭. <b class="down">파산</b> = $1 미만, ⚡ = 강제청산. 청산 문턱 = 역행 100/L − 0.5%.</p>
+    <div class="table-scroll"><table id="lever-table"></table></div>
+  </section>
+
+  <section id="sec-criteria">
+    <p class="eyebrow">Playbook</p>
+    <h2>시스템 트레이딩 적용 기준 — 15m·1H</h2>
+    <ol class="criteria" id="criteria"></ol>
+  </section>
+
+  <section id="sec-method">
+    <p class="eyebrow">Method</p>
+    <h2>방법론 · 한계</h2>
+    <div class="guide" id="method"></div>
+  </section>
+
+  <footer id="foot"></footer>
+</div>
+
+<script>
+const DATA = __DATA_JSON__;
+
+/* ---------- 헬퍼 ---------- */
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+const kst = (t) => new Date(t + 9 * 3600_000).toISOString().slice(0, 10);
+const kstMin = (t) => new Date(t + 9 * 3600_000).toISOString().slice(0, 16).replace("T", " ");
+const n1 = (x) => (x === null || x === undefined ? "—" : x.toLocaleString("en-US", { maximumFractionDigits: 1 }));
+const n2 = (x) => (x === null || x === undefined ? "—" : x.toLocaleString("en-US", { maximumFractionDigits: 2 }));
+const n3 = (x) => (x === null || x === undefined ? "—" : x.toLocaleString("en-US", { maximumFractionDigits: 3 }));
+const signCls = (x) => (x > 0 ? "up" : x < 0 ? "down" : "");
+const sign = (x) => (x > 0 ? "+" : "");
+
+const MIN_SAMPLE = DATA.meta.sampleGate ?? { "15m": 300, "1H": 200 };
+const statGate = (st) => st.avgPnl > 0 && (st.profitFactor ?? Infinity) >= 1.1 && st.positivePeriods >= 2;
+
+const review = DATA.review ?? {};
+const agentByKey = Object.fromEntries((review.results ?? []).map((r) => [r.key, r.result]));
+const synth = review.synthesis ?? {};
+
+function bestExitOf(s) {
+  return s.byExit.slice().sort((a, b) => (b.stats.taker.tstat ?? -9) - (a.stats.taker.tstat ?? -9))[0];
+}
+/** 판정 등급 — 테이커 통계 게이트 × 표본 게이트. */
+function verdictOf(s, e) {
+  const st = e.stats.taker;
+  const min = MIN_SAMPLE[s.frame.tf] ?? 200;
+  if (statGate(st)) return st.trades >= min ? "gate" : "pilot";
+  return "";
+}
+
+/* ---------- 마스트헤드 ---------- */
+$("stamp").textContent = "파생 검토 · " + kst(DATA.meta.generatedAt);
+{
+  const fr = DATA.strategies.reduce((m, s) => { m[s.frame.tf] = s.frame; return m; }, {});
+  const span = (f) => (f ? `${kst(f.from).slice(2)}~${kst(f.to).slice(2)}` : "—");
+  $("meta").innerHTML =
+    `<b>${esc(DATA.meta.symbol)}</b> · 비용 테이커 ${DATA.meta.fees.taker}% / 메이커 진입 ${DATA.meta.fees.maker}% (판정은 테이커) · ` +
+    `데이터 15m ${span(fr["15m"])} (2년) · 1H ${span(fr["1H"])} (3.3년) · ` +
+    `청산 기하 4단계(손절/목표 = 1/1 · 1.5/3 · 2/6 · 3/9 ×ATR) · 기획: 소넷 렌즈 5개 → 20 → 10 · 연산: 결정적 스크립트`;
+}
+
+/* ---------- 요약 ---------- */
+{
+  const combos = DATA.strategies.flatMap((s) => s.byExit.map((e) => ({ s, e })));
+  const gated = combos.filter(({ s, e }) => verdictOf(s, e) === "gate");
+  const pilots = combos.filter(({ s, e }) => verdictOf(s, e) === "pilot");
+  const rescued = combos.filter(({ e }) => e.stats.taker.avgPnl <= 0 && e.stats.maker.avgPnl > 0);
+  const best = combos.slice().sort((a, b) => (b.e.stats.taker.tstat ?? -9) - (a.e.stats.taker.tstat ?? -9))[0];
+  $("headline").textContent = synth.headline ?? "결과 요약";
+  $("tiles").innerHTML = [
+    { k: "게이트 통과", v: `${gated.length} / ${combos.length}`, s: "테이커 통계 + 표본 게이트" },
+    { k: "파일럿 (표본 미달)", v: `${pilots.length}개`, s: "통계 통과·표본 부족" },
+    { k: "최고 t값", v: n2(best.e.stats.taker.tstat), s: `${esc(best.s.strategy.name)} · ${best.e.exitName}` },
+    { k: "메이커 구제", v: `${rescued.length}개`, s: "테이커 마이너스 → 메이커 플러스" },
+  ].map((t) => `<div class="tile"><div class="k">${t.k}</div><div class="v tnum">${t.v}</div><div class="s">${t.s}</div></div>`).join("");
+  $("verdicts").innerHTML = (synth.verdicts ?? []).map((v) =>
+    `<li class="${esc(v.tone ?? "")}">${v.html ?? esc(v.text ?? v)}</li>`).join("");
+}
+
+/* ---------- 매트릭스 ---------- */
+{
+  const cellBg = (v) => {
+    if (v === null || v === undefined) return "transparent";
+    const t = Math.max(-1, Math.min(1, v / 0.3));
+    return t >= 0 ? `rgba(91,140,255,${0.06 + 0.3 * t})` : `rgba(240,97,109,${0.06 + 0.3 * -t})`;
+  };
+  const exits = DATA.meta.exits;
+  let html = `<thead><tr><th>전략</th><th>봉</th>${exits.map((e) => `<th>${e.sl}/${e.tp}×ATR</th>`).join("")}</tr></thead><tbody>`;
+  for (const s of DATA.strategies) {
+    const best = bestExitOf(s);
+    html += `<tr><td>${esc(s.strategy.name)}</td><td><span class="chip tf">${s.frame.tf}</span></td>`;
+    for (const ex of exits) {
+      const e = s.byExit.find((x) => x.exit === ex.key);
+      const t = e.stats.taker;
+      const m = e.stats.maker;
+      const cls = [verdictOf(s, e), e === best ? "best" : ""].join(" ");
+      html += `<td class="${cls}" style="background:${cellBg(t.avgPnl)}">` +
+        `<b class="${signCls(t.avgPnl)}">${sign(t.avgPnl)}${n3(t.avgPnl)}%</b>` +
+        `<span class="t">메 ${sign(m.avgPnl)}${n3(m.avgPnl)}%</span>` +
+        `<span class="t">t ${n2(t.tstat)} · ${t.trades}건</span></td>`;
+    }
+    html += `</tr>`;
+  }
+  $("matrix").innerHTML = html + "</tbody>";
+  $("matrix-legend").innerHTML =
+    `<span><span class="sw" style="background:rgba(91,140,255,.32)"></span>기대값 플러스</span>` +
+    `<span><span class="sw" style="background:rgba(240,97,109,.32)"></span>기대값 마이너스</span>` +
+    `<span><span class="sw gate"></span>게이트 통과</span>` +
+    `<span><span class="sw pilot"></span>파일럿 (표본 미달)</span>`;
+}
+
+/* ---------- 기하 축 종합 ---------- */
+{
+  const exits = DATA.meta.exits;
+  let html = `<thead><tr><th>기하 (손절/목표)</th>` +
+    `<th>15m 잠식률</th><th>15m 기대값(테)</th><th>15m 플러스</th>` +
+    `<th>1H 잠식률</th><th>1H 기대값(테)</th><th>1H 플러스</th><th>게이트+파일럿</th></tr></thead><tbody>`;
+  for (const ex of exits) {
+    const cells = (tf) => DATA.strategies.filter((s) => s.frame.tf === tf)
+      .map((s) => s.byExit.find((e) => e.exit === ex.key).stats.taker);
+    const avg = (arr, f) => (arr.length ? arr.reduce((t, c) => t + (f(c) ?? 0), 0) / arr.length : null);
+    const c15 = cells("15m"), c1h = cells("1H");
+    const passCount = DATA.strategies.filter((s) => {
+      const e = s.byExit.find((x) => x.exit === ex.key);
+      return verdictOf(s, e) !== "";
+    }).length;
+    html += `<tr><td>${ex.sl}/${ex.tp}×ATR (1:${ex.rr})</td>` +
+      `<td>${n1(avg(c15, (c) => c.feeShare))}%</td><td class="${signCls(avg(c15, (c) => c.avgPnl))}">${sign(avg(c15, (c) => c.avgPnl))}${n3(avg(c15, (c) => c.avgPnl))}%</td>` +
+      `<td>${c15.filter((c) => c.avgPnl > 0).length} / ${c15.length}</td>` +
+      `<td>${n1(avg(c1h, (c) => c.feeShare))}%</td><td class="${signCls(avg(c1h, (c) => c.avgPnl))}">${sign(avg(c1h, (c) => c.avgPnl))}${n3(avg(c1h, (c) => c.avgPnl))}%</td>` +
+      `<td>${c1h.filter((c) => c.avgPnl > 0).length} / ${c1h.length}</td>` +
+      `<td>${passCount} / ${DATA.strategies.length}</td></tr>`;
+  }
+  $("geo-table").innerHTML = html + "</tbody>";
+  $("geo-finding").innerHTML = `<b>판정</b> — ${esc(review.critic?.geometryFinding ?? "점검 결과 없음")}`;
+}
+
+/* ---------- 메이커 구제 ---------- */
+{
+  const rows = [];
+  for (const s of DATA.strategies) {
+    for (const e of s.byExit) {
+      const t = e.stats.taker, m = e.stats.maker;
+      if (t.avgPnl <= 0 && m.avgPnl > 0) {
+        rows.push(`<tr><td>${esc(s.strategy.name)}</td><td><span class="chip tf">${s.frame.tf}</span></td>` +
+          `<td>${e.sl}/${e.tp}×ATR</td><td class="down">${n3(t.avgPnl)}%</td><td class="up">+${n3(m.avgPnl)}%</td>` +
+          `<td>${n2(m.tstat)}</td><td>${n2(m.profitFactor)}</td><td>${m.positivePeriods}/3</td><td>${t.trades}</td></tr>`);
+      }
+    }
+  }
+  $("maker-table").innerHTML =
+    `<thead><tr><th>전략</th><th>봉</th><th>기하</th><th>테이커 기대값</th><th>메이커 기대값</th><th>메 t</th><th>메 PF</th><th>구간</th><th>표본</th></tr></thead>` +
+    `<tbody>${rows.join("") || '<tr><td colspan="9" style="text-align:center;color:var(--dim)">부호가 바뀌는 조합 없음</td></tr>'}</tbody>`;
+  $("maker-finding").innerHTML = `<b>판정</b> — ${esc(review.critic?.makerFinding ?? "점검 결과 없음")}`;
+}
+
+/* ---------- 스파크라인 ---------- */
+function spark(host, curve, capText) {
+  if (!curve || curve.length < 2) return;
+  const W = 560, H = 88, P = 6;
+  const xs = curve.map((p) => p.at), ys = curve.map((p) => p.eq);
+  const x0 = xs[0], x1 = xs[xs.length - 1] || 1;
+  const yMin = Math.min(...ys), yMax = Math.max(...ys);
+  const X = (t) => P + ((t - x0) / Math.max(1, x1 - x0)) * (W - 2 * P);
+  const Y = (v) => H - P - ((v - yMin) / Math.max(1e-9, yMax - yMin)) * (H - 2 * P);
+  const pts = curve.map((p) => `${X(p.at).toFixed(1)},${Y(p.eq).toFixed(1)}`).join(" ");
+  const last = curve[curve.length - 1];
+  const up = last.eq >= 100;
+  const base100 = yMin <= 100 && yMax >= 100 ? Y(100) : null;
+  const wrap = document.createElement("div");
+  wrap.className = "spark-wrap";
+  wrap.innerHTML =
+    `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="에쿼티 곡선">` +
+    (base100 !== null ? `<line x1="${P}" y1="${base100}" x2="${W - P}" y2="${base100}" stroke="var(--grid)" stroke-dasharray="3 4"/>` : "") +
+    `<polyline points="${pts}" fill="none" stroke="var(--accent)" stroke-width="2" vector-effect="non-scaling-stroke"/>` +
+    `<circle cx="${X(last.at)}" cy="${Y(last.eq)}" r="3.5" fill="var(--${up ? "profit" : "loss"})"/>` +
+    `</svg><div class="tip"></div><div class="spark-cap">${esc(capText)} — 종점 <b class="${up ? "up" : "down"} tnum">$${n2(last.eq)}</b></div>`;
+  const svg = wrap.querySelector("svg");
+  const tip = wrap.querySelector(".tip");
+  svg.addEventListener("mousemove", (ev) => {
+    const r = svg.getBoundingClientRect();
+    const t = x0 + ((ev.clientX - r.left) / r.width) * (x1 - x0);
+    let lo = 0, hi = curve.length - 1;
+    while (lo < hi) { const m = (lo + hi) >> 1; if (curve[m].at < t) lo = m + 1; else hi = m; }
+    const p = lo > 0 && Math.abs(curve[lo - 1].at - t) < Math.abs(curve[lo].at - t) ? curve[lo - 1] : curve[lo];
+    tip.style.display = "block";
+    tip.style.left = `${(X(p.at) / W) * r.width}px`;
+    tip.style.top = `${(Y(p.eq) / H) * r.height}px`;
+    tip.textContent = `${kstMin(p.at)} · $${n2(p.eq)}`;
+  });
+  svg.addEventListener("mouseleave", () => { tip.style.display = "none"; });
+  host.appendChild(wrap);
+}
+
+/* ---------- 기획서 마크다운 미니 렌더러 ---------- */
+function md(src) {
+  const lines = esc(src).split(/\r?\n/);
+  let out = "", inList = false;
+  const closeList = () => { if (inList) { out += "</ul>"; inList = false; } };
+  for (const ln of lines) {
+    if (/^#{1,4}\s/.test(ln)) { closeList(); out += `<h4>${ln.replace(/^#+\s*/, "")}</h4>`; }
+    else if (/^\s*[-*]\s/.test(ln)) { if (!inList) { out += "<ul>"; inList = true; } out += `<li>${ln.replace(/^\s*[-*]\s*/, "")}</li>`; }
+    else if (ln.trim() === "") closeList();
+    else { closeList(); out += `<p>${ln}</p>`; }
+  }
+  closeList();
+  return out.replace(/\*\*([^*]+)\*\*/g, "<b>$1</b>").replace(/`([^`]+)`/g, "<code>$1</code>");
+}
+
+/* ---------- 전략 카드 ---------- */
+{
+  const host = $("cards");
+  DATA.strategies.forEach((s, i) => {
+    const a = agentByKey[s.strategy.key] ?? {};
+    const best = bestExitOf(s);
+    const minN = MIN_SAMPLE[s.frame.tf] ?? 200;
+    let gate = a.gate ?? "fail";
+    // 에이전트 판정과 무관하게 표본 미달 pass는 파일럿으로 강등 — 게이트 정의의 일부다.
+    if (gate === "pass" && best.stats.taker.trades < minN) gate = "pilot";
+    const gateLabel = { pass: "게이트 통과", borderline: "경계선", pilot: "파일럿 · 표본 미달", fail: "게이트 미달" }[gate] ?? gate;
+
+    const rows = s.byExit.map((e) => {
+      const t = e.stats.taker, m = e.stats.maker;
+      const isBest = e === best;
+      return `<tr${isBest ? ' style="font-weight:650"' : ""}><td>${e.sl}/${e.tp}×${isBest ? " ★" : ""}</td>` +
+        `<td>${t.trades}${t.trades < minN ? '<span class="down">†</span>' : ""}</td>` +
+        `<td>${n1(t.winRate)}%</td>` +
+        `<td class="${signCls(t.avgPnl)}">${sign(t.avgPnl)}${n3(t.avgPnl)}%</td>` +
+        `<td class="mk">${sign(m.avgPnl)}${n3(m.avgPnl)}%</td>` +
+        `<td>${n2(t.tstat)}</td><td>${n2(t.profitFactor)}</td>` +
+        `<td>${t.positivePeriods}/3</td><td>${n1(t.feeShare)}%</td></tr>`;
+    }).join("");
+
+    const leverTiles = best.levers.map((l) => {
+      const bad = l.ruin || l.liqEvents > 0;
+      return `<div class="lt${bad ? " ruin" : ""}"><div class="k">${l.lev}×</div>` +
+        `<div class="v ${l.finalEq >= 100 ? "up" : "down"}">$${n2(l.finalEq)}</div>` +
+        `<div class="s">MDD ${n1(l.mddPct)}%${l.ruin ? " · 파산" : ""}${l.liqEvents ? " · ⚡" : ""}</div></div>`;
+    }).join("");
+
+    const card = document.createElement("article");
+    card.className = "cond";
+    card.innerHTML =
+      `<div class="head"><span class="no">${String(i + 1).padStart(2, "0")}</span>` +
+      `<span class="name">${esc(s.strategy.name)}</span>` +
+      `<span class="chip tf">${s.frame.tf}</span>` +
+      `<span class="chip ${s.side}">${s.side === "long" ? "롱" : "숏"}</span>` +
+      (s.filterNames.length ? s.filterNames.map((f) => `<span class="chip">${esc(f)}</span>`).join("") : "") +
+      `<span class="badge ${gate}">${gateLabel}</span></div>` +
+      `<p class="rule"><b>진입</b> ${esc(s.baseRule)}${s.filterNames.length ? ` + ${esc(s.filterNames.join(" + "))}` : ""} → 다음 봉 시가 · <b>청산</b> 기하 4단계 / ${s.frame.maxHold}봉 시한</p>` +
+      `<p class="desc">${esc(s.strategy.rationale ?? "")}</p>` +
+      `<div class="grid2"><div>` +
+      `<div class="table-scroll"><table><thead><tr><th>기하</th><th>표본</th><th>승률</th><th>기대값(테)</th><th>기대값(메)</th><th>t</th><th>PF</th><th>구간</th><th>잠식</th></tr></thead><tbody>${rows}</tbody></table></div>` +
+      `<p class="note" style="margin-top:6px">★ 최선 기하(테이커 t 기준) · † 표본 ${minN}건 미만 · 테=테이커 0.1% / 메=메이커 진입 0.07% · 잠식 = 수수료가 비용 전 총이익에서 차지한 비율</p>` +
+      `</div><div>` +
+      `<div class="note" style="font-weight:650">레버리지 내성 — 최선 기하 ${best.sl}/${best.tp}×ATR (테이커)</div>` +
+      `<div class="lever-tiles">${leverTiles}</div>` +
+      `<div class="spark-host"></div>` +
+      `</div></div>` +
+      (a.headline ? `<div class="agent-note"><div class="hl">${esc(a.headline)}</div><div class="an">${esc(a.analysis ?? "")}</div>` +
+        (a.geometryVerdict ? `<div class="gv"><b>기하 축</b> — ${esc(a.geometryVerdict)}</div>` : "") +
+        (a.makerRescue ? `<div class="gv"><b>메이커 구제</b> — ${esc(a.makerRescue)}</div>` : "") +
+        ((a.warnings ?? []).length ? `<ul class="warnings">${a.warnings.map((w) => `<li>${esc(w)}</li>`).join("")}</ul>` : "") +
+        `</div>` : "") +
+      (a.planDoc ? `<details><summary>실전 기획서 (에이전트 작성)</summary><div class="plan-doc">${md(a.planDoc)}</div></details>` : "");
+    host.appendChild(card);
+
+    const lv1 = best.levers.find((l) => l.lev === 1);
+    if (lv1?.curve) spark(card.querySelector(".spark-host"), lv1.curve, `${best.sl}/${best.tp}×ATR · 1×(무레버) · $100 복리 · 테이커`);
+  });
+}
+
+/* ---------- 레버리지 종합 ---------- */
+{
+  let html = `<thead><tr><th>전략</th><th>기하</th>${DATA.meta.levers.map((L) => `<th>${L}×</th>`).join("")}</tr></thead><tbody>`;
+  for (const s of DATA.strategies) {
+    const best = bestExitOf(s);
+    html += `<tr><td>${esc(s.strategy.name)}</td><td>${best.sl}/${best.tp}×</td>`;
+    for (const L of DATA.meta.levers) {
+      const l = best.levers.find((x) => x.lev === L);
+      html += `<td><b class="${l.finalEq >= 100 ? "up" : "down"}">$${n2(l.finalEq)}</b>` +
+        ` <span class="note tnum">${n1(l.mddPct)}%</span>${l.ruin ? ' <b class="down">파산</b>' : ""}${l.liqEvents ? " ⚡" : ""}</td>`;
+    }
+    html += `</tr>`;
+  }
+  $("lever-table").innerHTML = html + "</tbody>";
+}
+
+/* ---------- 적용 기준 ---------- */
+$("criteria").innerHTML = (synth.criteria ?? []).map((c) => `<li>${c.html ?? esc(c)}</li>`).join("");
+
+/* ---------- 방법론 ---------- */
+{
+  const r = DATA.meta.rules;
+  const items = [
+    ["체결", `${r.entry}. ${r.conflict}. ${r.lock}.`],
+    ["청산 기하", r.exit],
+    ["비용", `${r.fee}. 갭 처리: ${r.gap}.`],
+    ["레버리지 모델", `${r.leverage}. 유지증거금 ${DATA.meta.maintPct}% 가정. 파산 = $${DATA.meta.startEq} → $1 미만.`],
+    ["표본 게이트", `이번 회차부터 정식 포함 — 15m ≥${MIN_SAMPLE["15m"]}건 · 1H ≥${MIN_SAMPLE["1H"]}건. 통계 게이트를 넘어도 표본 미달이면 파일럿.`],
+    ["다중검정 경고", `10전략 × 기하 4단계 = 40조합 동시 비교 — t ≥ 2.5를 "단단"의 눈높이로 삼고, 통과 조합도 전방 검증 후보다.`],
+    ["직전 회차와의 관계", `직전 회차(기획 10선 검증)에서 15m·1H는 손절 1×ATR 기하·테이커 비용으로 전 조합 기각 — 이번 회차는 청산 기하와 비용 시나리오를 바꿔 "구조를 바꾸면 구제되는가"를 별도 신호군으로 재검증한 것이다.`],
+    ["한계", `펀딩비 제외(보유가 길수록 실제 비용 증가), 메이커 시나리오는 체결 성공을 가정(지정가 미체결 위험 미반영), OHLC 봉 내부 경로 미상, 단일 종목·거래소. 봉별 검증 창이 다르다(15m 2년·1H 3.3년) — 봉 간 절대 비교 금지.`],
+  ];
+  $("method").innerHTML = items.map(([k, v]) => `<div class="guide-item"><b>${k}</b><div class="note">${esc(v)}</div></div>`).join("");
+}
+
+$("foot").innerHTML =
+  `생성 ${kstMin(DATA.meta.generatedAt)} KST · 원시 데이터 <code>__DATA_PATH__</code> · ` +
+  `재실행 <code>node scripts/backtest/short-tf.mjs fetch → run --all → merge → report</code> · ` +
+  `기획 후보 20개 중 10개 선정(관점 렌즈 5개 × 소넷) · 백테스트 연산은 스크립트가, 해석은 전략당 에이전트 1명이 수행 · ` +
+  `본 문서는 투자 조언이 아니라 검증 기록이다.`;
+</script>
