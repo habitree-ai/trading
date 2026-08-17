@@ -1,0 +1,287 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>시스템 콘솔</title>
+<style>
+  :root {
+    color-scheme: dark;
+    --bg: #0e1116; --surface: #161a21; --surface-2: #1e232c; --border: #2a3039;
+    --ink: #e6e9ee; --dim: #8b95a3; --accent: #5b8cff; --profit: #26c281;
+    --loss: #f0616d; --bench: #c98500; --grid: #232935; --accent-soft: rgba(91,140,255,.14);
+  }
+  @media (prefers-color-scheme: light) {
+    :root:not([data-theme="dark"]) {
+      color-scheme: light;
+      --bg: #f7f8fa; --surface: #ffffff; --surface-2: #f1f3f6; --border: #e2e5ea;
+      --ink: #14171c; --dim: #666e7a; --accent: #3b6ef5; --profit: #0f9d58;
+      --loss: #dc3545; --bench: #b06f00; --grid: #eceef2; --accent-soft: rgba(59,110,245,.10);
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 14px/1.55 ui-sans-serif, system-ui, "Pretendard", "Segoe UI", "Malgun Gothic", sans-serif; -webkit-font-smoothing: antialiased; }
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 28px 20px 72px; }
+  header { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; padding-bottom: 14px; border-bottom: 1px solid var(--border); }
+  h1 { margin: 0; font-size: 21px; font-weight: 750; letter-spacing: -0.02em; }
+  .badge { font-size: 11px; font-weight: 750; border-radius: 999px; padding: 3px 12px; letter-spacing: .04em; }
+  .badge.off { background: var(--surface-2); color: var(--dim); border: 1px solid var(--border); }
+  .badge.demo { background: var(--bench); color: #fff; }
+  .badge.live { background: var(--loss); color: #fff; }
+  .spacer { flex: 1; }
+  .muted { color: var(--dim); font-size: 12.5px; }
+  .tnum { font-variant-numeric: tabular-nums; }
+  .up { color: var(--profit); } .down { color: var(--loss); }
+  button { font: inherit; cursor: pointer; border-radius: 8px; border: 1px solid var(--border); background: var(--surface-2); color: var(--ink); padding: 6px 12px; }
+  button:hover { border-color: var(--accent); }
+  button:disabled { opacity: .45; cursor: not-allowed; }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 650; }
+  button.danger { background: var(--loss); border-color: var(--loss); color: #fff; font-weight: 700; }
+  button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  select { font: inherit; background: var(--surface-2); color: var(--ink); border: 1px solid var(--border); border-radius: 8px; padding: 5px 8px; }
+
+  section { margin-top: 36px; }
+  .eyebrow { font-size: 11px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: var(--dim); margin: 0 0 6px; }
+  h2 { margin: 0 0 12px; font-size: 17px; font-weight: 700; letter-spacing: -0.01em; }
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 10px; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 13px 15px; }
+  .card h3 { margin: 0 0 6px; font-size: 13.5px; font-weight: 700; }
+  .card .desc { color: var(--dim); font-size: 12px; }
+  .card .gate { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--grid); font-size: 11.5px; color: var(--bench); }
+  .links { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+  .links a { color: var(--accent); font-size: 12px; text-decoration: none; border: 1px solid var(--border); border-radius: 999px; padding: 3px 12px; }
+  .links a:hover { border-color: var(--accent); }
+
+  .table-scroll { overflow-x: auto; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); }
+  table { border-collapse: collapse; width: 100%; font-size: 12.5px; }
+  th, td { padding: 7px 10px; text-align: right; white-space: nowrap; }
+  th { font-size: 10.5px; color: var(--dim); font-weight: 600; border-bottom: 1px solid var(--border); }
+  td { border-bottom: 1px solid var(--grid); font-variant-numeric: tabular-nums; }
+  tr:last-child td { border-bottom: none; }
+  th:first-child, td:first-child { text-align: left; }
+
+  .chip { font-size: 10px; font-weight: 700; border-radius: 4px; padding: 1px 6px; border: 1px solid var(--border); color: var(--dim); white-space: nowrap; }
+  .chip.long { color: var(--profit); border-color: var(--profit); }
+  .chip.short { color: var(--loss); border-color: var(--loss); }
+  .chip.tf { color: var(--accent); border-color: var(--accent); }
+  .chip.book { color: var(--bench); border-color: var(--bench); }
+
+  .sig { background: var(--surface); border: 1px solid var(--border); border-left: 3px solid var(--accent); border-radius: 10px; padding: 10px 14px; margin-top: 8px; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+  .sig.stale { opacity: .55; border-left-color: var(--border); }
+  .sig .name { font-weight: 700; }
+  .sig .when { color: var(--dim); font-size: 12px; }
+  .sig .exec { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+  .sig .status { font-size: 12px; color: var(--dim); }
+  .empty { color: var(--dim); font-size: 13px; padding: 14px; border: 1px dashed var(--border); border-radius: 10px; text-align: center; }
+  .note-box { margin-top: 10px; background: var(--surface); border: 1px solid var(--border); border-left: 3px solid var(--bench); border-radius: 10px; padding: 10px 14px; font-size: 12.5px; color: var(--dim); }
+  .note-box b { color: var(--ink); }
+  #toast { position: fixed; right: 16px; bottom: 16px; max-width: 420px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 10px; padding: 12px 16px; font-size: 13px; display: none; box-shadow: 0 8px 30px rgba(0,0,0,.35); white-space: pre-wrap; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>시스템 콘솔</h1>
+    <span id="mode-badge" class="badge off">…</span>
+    <span id="live-eq" class="muted tnum"></span>
+    <div class="spacer"></div>
+    <span id="clock" class="muted tnum"></span>
+    <button id="btn-refresh">새로고침</button>
+    <button id="btn-alert">알림 테스트</button>
+  </header>
+
+  <section>
+    <p class="eyebrow">Signals</p>
+    <h2>신호 — 수동 실행 (유효창: 신호 봉 마감 후 다음 봉 안)</h2>
+    <div id="signals"></div>
+    <div class="note-box"><b>실행 규칙</b> — 리스크 1~2%(승격 사다리) · 손절/목표는 브래킷 자동 · <b>시한 청산은 수동 관리</b>(알림의 시한 참고) · 같은 신호 재실행 차단 · 유효창 밖 신호는 잠김(늦은 진입은 검증된 전략이 아니다).</div>
+  </section>
+
+  <section>
+    <p class="eyebrow">Tracks</p>
+    <h2>운용 체계 — 검증 계보와 승격 게이트</h2>
+    <div class="cards" id="tracks"></div>
+    <div class="links" id="artifacts"></div>
+  </section>
+
+  <section>
+    <p class="eyebrow">Members</p>
+    <h2>멤버 명세 — 판정·청산·백테스트 근거 (정본: criteria.md)</h2>
+    <div class="table-scroll"><table id="specs"></table></div>
+  </section>
+
+  <section>
+    <p class="eyebrow">Books</p>
+    <h2>북 상태 — 페이퍼 실측과 수동 체결 기록</h2>
+    <div class="cards" id="books"></div>
+  </section>
+
+  <section id="sec-live" style="display:none">
+    <p class="eyebrow">Exchange</p>
+    <h2>거래소 실포지션</h2>
+    <div class="table-scroll"><table id="live-pos"></table></div>
+  </section>
+
+  <section>
+    <p class="eyebrow">Setup</p>
+    <h2>세팅 · 알람</h2>
+    <div class="note-box" id="setup-note"></div>
+  </section>
+</div>
+<div id="toast"></div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+const kstMin = (t) => new Date(t + 9 * 3600_000).toISOString().slice(5, 16).replace("T", " ");
+const n2 = (x) => (x === null || x === undefined ? "—" : Number(x).toLocaleString("en-US", { maximumFractionDigits: 2 }));
+let DATA = null;
+let armed = null; // {key, timer} — 2단계 확인.
+
+function toast(msg, ok = true) {
+  const t = $("toast");
+  t.textContent = msg;
+  t.style.borderColor = ok ? "var(--profit)" : "var(--loss)";
+  t.style.display = "block";
+  clearTimeout(toast._h);
+  toast._h = setTimeout(() => { t.style.display = "none"; }, 6000);
+}
+
+async function load() {
+  try {
+    const r = await fetch("/api/state");
+    DATA = await r.json();
+    render();
+  } catch (e) {
+    toast("상태 로드 실패: " + e.message, false);
+  }
+}
+
+function render() {
+  const d = DATA;
+  const mb = $("mode-badge");
+  mb.textContent = d.mode === "off" ? "실행 OFF (조회 전용)" : d.mode === "demo" ? "DEMO 실행" : "LIVE 실거래";
+  mb.className = "badge " + d.mode;
+  $("clock").textContent = kstMin(d.now) + " KST";
+  $("live-eq").textContent = d.live && !d.live.error && d.live.equity != null ? `거래소 잔고 $${n2(d.live.equity)}` : "";
+
+  // 신호
+  const sigHost = $("signals");
+  if (!d.signals.length) {
+    sigHost.innerHTML = '<div class="empty">최근 24시간 신호 없음 — 신호가 나면 디스코드 알림([CAND]/[ENS]/[SWING] 진입)이 먼저 도착한다.</div>';
+  } else {
+    sigHost.innerHTML = d.signals.map((s) => {
+      const key = `${s.member}-${s.barTs}`;
+      const leftMin = Math.max(0, Math.round((s.validUntil - d.now) / 60000));
+      const canExec = d.mode !== "off" && s.fresh && !s.executed;
+      const status = s.executed ? "실행됨" : s.fresh ? `유효 ${leftMin}분 남음` : "유효창 지남";
+      return `<div class="sig ${s.fresh && !s.executed ? "" : "stale"}" data-key="${key}">
+        <span class="name">${esc(s.name)}</span>
+        <span class="chip tf">${s.tf}</span>
+        <span class="chip ${s.side}">${s.side === "long" ? "롱" : "숏"}</span>
+        <span class="chip book">${s.book}</span>
+        <span class="when">신호봉 ${kstMin(s.barTs)}</span>
+        <span class="exec">
+          <span class="status">${status}</span>
+          <select data-risk="${key}" ${canExec ? "" : "disabled"}><option value="1">리스크 1%</option><option value="2" selected>리스크 2%</option></select>
+          <button class="primary" data-exec="${key}" data-member="${s.member}" data-barts="${s.barTs}" ${canExec ? "" : "disabled"}>매매 실행</button>
+        </span>
+      </div>`;
+    }).join("");
+  }
+
+  // 트랙
+  $("tracks").innerHTML = d.tracks.map((t) => `<div class="card"><h3>${esc(t.name)}</h3><div class="desc">${esc(t.desc)}</div><div class="gate">승격 게이트: ${esc(t.gate)}</div></div>`).join("");
+  $("artifacts").innerHTML = d.artifacts.map((a) => `<a href="${a.url}" target="_blank" rel="noopener">${esc(a.name)} ↗</a>`).join("");
+
+  // 명세
+  $("specs").innerHTML = `<thead><tr><th>멤버</th><th>봉</th><th>방향</th><th>판정</th><th>청산</th><th>트랙</th><th>백테스트 근거</th></tr></thead><tbody>` +
+    Object.entries(d.specs).map(([k, s]) =>
+      `<tr><td><b>${esc(s.name)}</b> <span class="muted">(${k})</span></td><td><span class="chip tf">${s.tf}</span></td>` +
+      `<td><span class="chip ${s.side}">${s.side === "long" ? "롱" : "숏"}</span></td>` +
+      `<td style="text-align:left">${esc(s.rule)}</td>` +
+      `<td>${s.exit.type === "atr" ? `손절${s.exit.sl}×/목표${s.exit.tp}×ATR` : `손절${s.exit.sl}%/목표${s.exit.tp}%`}</td>` +
+      `<td><span class="chip book">${s.book}</span> <span class="muted">${esc(s.origin)}</span></td>` +
+      `<td style="text-align:left" class="muted">${esc(s.verdict)}</td></tr>`).join("") + "</tbody>";
+
+  // 북
+  $("books").innerHTML = ["cand", "ens", "swing", "manual"].map((b) => {
+    const bk = d.books[b];
+    const st = bk?.state;
+    const pos = st?.positions ? Object.values(st.positions) : [];
+    const closes = (bk?.trades ?? []).filter((t) => t.type === "close").slice(-5).reverse();
+    const opens = (bk?.trades ?? []).filter((t) => t.type === "manual-open").slice(-5).reverse();
+    return `<div class="card"><h3>${b}${b === "manual" ? " (수동 체결)" : ""}</h3>
+      <div class="desc tnum">${st?.equity != null ? `잔고 $${n2(st.equity)}${st.peakEquity ? ` · 피크 $${n2(st.peakEquity)}` : ""}` : "기록 없음"}</div>
+      <div class="desc" style="margin-top:6px">열린 포지션: ${pos.length ? pos.map((p) => `${esc(p.name)} ${p.side === "long" ? "롱" : "숏"} @ ${n2(p.entryPrice)}`).join(" · ") : "없음"}</div>
+      ${closes.length ? `<div class="desc" style="margin-top:6px">최근 청산: ${closes.map((t) => `${esc(t.name)} ${t.exitType} <b class="${t.netPct > 0 ? "up" : "down"}">${t.netPct > 0 ? "+" : ""}${n2(t.netPct)}%</b>`).join(" · ")}</div>` : ""}
+      ${opens.length ? `<div class="desc" style="margin-top:6px">수동 진입: ${opens.map((t) => `${esc(t.name)} ${t.side} @ ${n2(t.entryPrice)} (${t.mode})`).join(" · ")}</div>` : ""}
+    </div>`;
+  }).join("");
+
+  // 거래소 포지션
+  const lp = d.live?.positions?.filter?.((p) => Number(p.pos) > 0) ?? [];
+  $("sec-live").style.display = d.mode !== "off" ? "" : "none";
+  if (lp.length) {
+    $("live-pos").innerHTML = `<thead><tr><th>방향</th><th>수량</th><th>평단</th><th>미실현</th></tr></thead><tbody>` +
+      lp.map((p) => `<tr><td>${p.posSide}</td><td>${p.pos}</td><td>${n2(Number(p.avgPx))}</td><td class="${Number(p.upl) >= 0 ? "up" : "down"}">${n2(Number(p.upl))}</td></tr>`).join("") + "</tbody>";
+  } else {
+    $("live-pos").innerHTML = `<tbody><tr><td class="muted">열린 포지션 없음</td></tr></tbody>`;
+  }
+
+  // 세팅 안내
+  $("setup-note").innerHTML =
+    `<b>알람</b> — 신호 발생(페이퍼 진입) 시 디스코드로 [CAND]/[ENS]/[SWING] 알림이 오고, 수동 체결 시 [DASH] 알림이 온다. 우측 상단 "알림 테스트"로 경로 확인.<br>` +
+    `<b>실행 모드 켜기</b> — 조회 전용(OFF)이 기본. 실거래 활성화는 본인 확인 후:<br>` +
+    `<code>DASH_TRADE_MODE=live LIVE_TRADING_ACK=I_UNDERSTAND_THE_RISK node --env-file=.env.local system-trading/bot/dashboard.mjs</code><br>` +
+    `모의거래는 <code>DASH_TRADE_MODE=demo</code> (OKX 데모 키 필요). 서버는 127.0.0.1 전용.`;
+}
+
+document.addEventListener("click", async (ev) => {
+  const btn = ev.target.closest("button");
+  if (!btn) return;
+  if (btn.id === "btn-refresh") return load();
+  if (btn.id === "btn-alert") {
+    try {
+      await fetch("/api/test-alert", { method: "POST" });
+      toast("알림 테스트 전송 — 디스코드를 확인하라.");
+    } catch (e) {
+      toast("전송 실패: " + e.message, false);
+    }
+    return;
+  }
+  const key = btn.dataset.exec;
+  if (!key) return;
+  // 2단계 확인 — 첫 클릭은 무장, 5초 내 재클릭만 실행.
+  if (!armed || armed.key !== key) {
+    if (armed) { armed.btn.textContent = "매매 실행"; armed.btn.classList.remove("danger"); clearTimeout(armed.timer); }
+    btn.textContent = "정말 실행? (재클릭)";
+    btn.classList.add("danger");
+    armed = { key, btn, timer: setTimeout(() => { btn.textContent = "매매 실행"; btn.classList.remove("danger"); armed = null; }, 5000) };
+    return;
+  }
+  clearTimeout(armed.timer);
+  armed = null;
+  btn.disabled = true;
+  btn.textContent = "실행 중…";
+  const risk = document.querySelector(`select[data-risk="${key}"]`)?.value ?? "2";
+  try {
+    const r = await fetch("/api/execute", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ member: btn.dataset.member, barTs: btn.dataset.barts, riskPct: Number(risk), confirm: "EXECUTE" }),
+    });
+    const j = await r.json();
+    if (!r.ok || j.error) throw new Error(j.error ?? r.status);
+    toast(`체결 완료 — ${j.rec.name} ${j.rec.side} @ ${j.rec.entryPrice}\n손절 ${j.rec.stop} · 목표 ${j.rec.target} · 레버 ${j.rec.lev}배`);
+  } catch (e) {
+    toast("실행 실패: " + e.message, false);
+  }
+  load();
+});
+
+load();
+setInterval(load, 30_000);
+</script>
+</body>
+</html>
