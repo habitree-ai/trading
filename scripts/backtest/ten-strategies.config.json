@@ -1,0 +1,95 @@
+{
+  "note": "기획 후보 20개(소넷 렌즈 5개 × 4개)에서 선정한 10개. 선정 기준: 4봉 커버리지, 관점 다양성(추세·평균회귀·모멘텀·돌파·패턴·MTF), 롱숏 균형, 직전 검토 상위 대조군 포함, 짝 실험(MACD 무필터 vs 거래량 필터) 유지.",
+  "strategies": [
+    {
+      "key": "gc4h-ctrl",
+      "name": "4H 골든크로스 (대조군)",
+      "tf": "4H",
+      "base": "golden-cross",
+      "filters": [],
+      "lens": "추세추종",
+      "rationale": "직전 검토(스윙 그리드·표본200)에서 유일하게 엣지가 확인된 조합 — 이번 회차의 기준선. 4H ATR(0.5~0.6%)이 왕복비용 0.1%의 5~6배라 비용 여유가 크고, 필터를 얹으면 추세 초입 포착력이 깎인다."
+    },
+    {
+      "key": "rsib4h-trend",
+      "name": "4H RSI 과매도 반등 + 상승장 필터",
+      "tf": "4H",
+      "base": "rsi-oversold-bounce",
+      "filters": ["trend-up"],
+      "lens": "평균회귀",
+      "rationale": "직전 상위였던 무필터 RSI 반등에 추세 정합(종가>SMA200)을 더한 개선 실험. 하락추세 중 데드캣 바운스를 걸러 승률을 끌어올리는지 검증한다."
+    },
+    {
+      "key": "macd4h-base",
+      "name": "4H MACD 골든 교차 (기준선)",
+      "tf": "4H",
+      "base": "macd-cross-up",
+      "filters": [],
+      "lens": "모멘텀",
+      "rationale": "짝 실험의 대조군 — 아래 macd4h-vol과 정확히 같은 베이스·봉에서 거래량 확인의 가치를 격리 측정한다."
+    },
+    {
+      "key": "macd4h-vol",
+      "name": "4H MACD 교차 + 거래량 확장",
+      "tf": "4H",
+      "base": "macd-cross-up",
+      "filters": ["vol-expand"],
+      "lens": "모멘텀",
+      "rationale": "짝 실험의 실험군 — 거래량 1.5배 이상을 동반한 MACD 교차만 남겨 휩쏘 손절 비율이 줄어드는지, 표본 축소 대비 질 개선이 남는지를 macd4h-base와 직접 비교한다."
+    },
+    {
+      "key": "dcdn4h-htf",
+      "name": "4H 20봉 신저가 이탈 숏 + 일봉 하락 필터",
+      "tf": "4H",
+      "base": "donchian20-breakdown",
+      "filters": ["htf-down"],
+      "lens": "돌파+MTF",
+      "rationale": "하방 이탈 숏을 일봉 추세(일봉<일봉SMA50)와 정합시켜, 상승장 중 일시 이탈(가짜 신호)을 거른다. 상위봉 필터가 숏 신호를 구제하는지 검증."
+    },
+    {
+      "key": "dcup1h-vol",
+      "name": "1H 20봉 신고가 돌파 + 거래량 확인",
+      "tf": "1H",
+      "base": "donchian20-breakout",
+      "filters": ["vol-expand"],
+      "lens": "돌파",
+      "rationale": "1H는 비용이 ATR의 40~65%인 경계 구간 — 거래량이 실린 돌파만 남겨 가짜 돌파를 걸러내면 경계선 비용 구조를 넘는지 검증. 표본 300건 목표에 가장 근접할 1H 후보."
+    },
+    {
+      "key": "div1h-htf",
+      "name": "1H RSI 상승 다이버전스 + 일봉 상승 필터",
+      "tf": "1H",
+      "base": "rsi-bull-divergence",
+      "filters": ["htf-up"],
+      "lens": "패턴+MTF",
+      "rationale": "다이버전스 단독은 떨어지는 칼날을 잡기 쉽다 — 일봉 상승추세 안의 눌림 반등만 남겨 반등 폭과 승률이 함께 개선되는지 검증."
+    },
+    {
+      "key": "tws15m-htf",
+      "name": "15m 3연속 양봉 + 일봉 상승 필터",
+      "tf": "15m",
+      "base": "three-white-soldiers",
+      "filters": ["htf-up"],
+      "lens": "캔들+MTF",
+      "rationale": "15m은 비용이 ATR의 ~2배인 구조적 열위 구간(직전 검토에서 전 조합 마이너스). 상위봉 필터가 하위봉 신호를 구제하는지를 가장 직접적으로 테스트 — 실패하면 15m 금지선을 재확인하는 증거가 된다. 표본은 가장 풍부(추정 1,500건+)."
+    },
+    {
+      "key": "rsif1d",
+      "name": "1D RSI 과매수 페이드 숏",
+      "tf": "1D",
+      "base": "rsi-overbought-fade",
+      "filters": [],
+      "lens": "평균회귀",
+      "rationale": "1D는 비용이 ATR의 1/15~1/25로 비용 우위가 가장 확실한 봉. 표본이 얇으므로 무필터로 신호 빈도를 최대 유지. 일봉 극단 되돌림 숏의 엣지를 검증."
+    },
+    {
+      "key": "dcdn1d",
+      "name": "1D 20봉 신저가 이탈 숏",
+      "tf": "1D",
+      "base": "donchian20-breakdown",
+      "filters": [],
+      "lens": "돌파",
+      "rationale": "직전 검토 Top 5에 들었던 조합의 재검증 — 이번 회차는 히스토리가 720일 → 약 2,400일로 길어지고 손익비·레버리지 축이 새로 붙는다. 짧은 창의 성과가 긴 창에서도 버티는지 확인."
+    }
+  ]
+}

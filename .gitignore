@@ -46,6 +46,9 @@ IMG/
 
 .vercel
 
+# 백테스트 캔들 캐시 — 수 MB 원시 데이터, 재수집 가능.
+scripts/backtest/.cache/
+
 # 시스템 트레이딩 런타임 데이터 — 로컬에 쌓인다. 스냅샷 커밋은 의도적으로만.
 system-trading/data/*
 !system-trading/data/.gitkeep
