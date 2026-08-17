@@ -59,6 +59,48 @@ export function sma(values, n) {
   return out;
 }
 
+/** EMA — SMA 시드 후 지수 갱신. scripts/backtest/ten-strategies.mjs 와 같은 계산. */
+export function ema(values, n) {
+  const out = new Array(values.length).fill(null);
+  if (values.length < n) return out;
+  let seed = 0;
+  for (let i = 0; i < n; i += 1) seed += values[i];
+  out[n - 1] = seed / n;
+  const k = 2 / (n + 1);
+  for (let i = n; i < values.length; i += 1) {
+    out[i] = values[i] * k + out[i - 1] * (1 - k);
+  }
+  return out;
+}
+
+/** MACD(12,26,9) — 시그널은 MACD가 서는 지점부터의 EMA. 기획 10선 검증 회차와 동일. */
+export function macd(closes, fast = 12, slow = 26, sig = 9) {
+  const emaFast = ema(closes, fast);
+  const emaSlow = ema(closes, slow);
+  const line = closes.map((_, i) =>
+    emaFast[i] !== null && emaSlow[i] !== null ? emaFast[i] - emaSlow[i] : null,
+  );
+  const start = line.findIndex((v) => v !== null);
+  const signal = new Array(closes.length).fill(null);
+  if (start >= 0) {
+    const seg = ema(line.slice(start), sig);
+    for (let i = 0; i < seg.length; i += 1) signal[start + i] = seg[i];
+  }
+  return { line, signal };
+}
+
+/** 직전 n봉(현재 봉 제외)의 평균 거래량 — 거래량 확장 판정용. */
+export function volMA(candles, n = 20) {
+  const out = new Array(candles.length).fill(null);
+  let sum = 0;
+  for (let i = 0; i < candles.length; i += 1) {
+    if (i >= n) out[i] = sum / n;
+    sum += candles[i].v;
+    if (i >= n) sum -= candles[i - n].v;
+  }
+  return out;
+}
+
 /** 직전 n봉(현재 봉 제외)의 최저가 — 신저가 이탈 판정용. */
 export function rollingLow(candles, n) {
   const out = new Array(candles.length).fill(null);
