@@ -416,3 +416,78 @@ export function PnlBars({ data, currency }: { data: PnlBar[]; currency: string }
     </ResponsiveContainer>
   );
 }
+
+/** 시스템(봇) 잔고 곡선의 한 점 — 사이클마다 남는 스냅샷 하나. */
+export interface SystemEquityPoint {
+  t: number;
+  label: string;
+  equity: number;
+  /** 그 시점 열려 있던 기준 이름 — 곡선이 꺾인 자리에 무엇이 물려 있었는지. */
+  open: string;
+}
+
+/**
+ * 시스템 잔고 곡선 — 봇이 사이클마다 남긴 실측 잔고를 그대로 잇는다.
+ *
+ * 수동 북의 자금 곡선(`EquityCurve`)과 나눠 둔 이유는 계열이 다르기 때문이다.
+ * 봇 계좌에는 입출금도 벤치마크 대조도 없고, 점이 찍히는 자리도 거래가 아니라
+ * 사이클이다 — 포지션이 없는 구간에도 점이 이어진다.
+ */
+export function SystemEquityCurve({
+  data,
+  start,
+  currency = "USDT",
+}: {
+  data: SystemEquityPoint[];
+  /** 기준선 — 관측 시작 시점의 잔고. 이 선 위/아래가 곧 성적이다. */
+  start: number;
+  currency?: string;
+}) {
+  return (
+    <ResponsiveContainer width="100%" height={200}>
+      <LineChart data={data} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
+        <CartesianGrid stroke={GRID} strokeDasharray="3 3" vertical={false} />
+        <XAxis {...TIME_AXIS} />
+        <YAxis
+          {...AXIS}
+          tickLine={false}
+          axisLine={false}
+          width={56}
+          domain={["auto", "auto"]}
+          tickFormatter={(v: number) => num(v, 0)}
+        />
+        <ReferenceLine
+          y={start}
+          stroke="var(--text-dim)"
+          strokeDasharray="4 4"
+          label={{ value: "시작", position: "insideTopLeft", fill: "var(--text-dim)", fontSize: 10 }}
+        />
+        <Tooltip
+          cursor={{ stroke: "var(--text-dim)", strokeDasharray: "3 3" }}
+          content={({ active, payload }) => {
+            if (!active || !payload?.length) return null;
+            const p = payload[0].payload as SystemEquityPoint;
+            return (
+              <TooltipBox
+                rows={[
+                  [p.label, ""],
+                  [`잔고 (${currency})`, num(p.equity, 2)],
+                  ["시작 대비", signed(p.equity - start, 2), pnlClass(p.equity - start)],
+                  ["열린 포지션", p.open || "없음"],
+                ]}
+              />
+            );
+          }}
+        />
+        <Line
+          type="stepAfter"
+          dataKey="equity"
+          stroke="var(--alpha)"
+          strokeWidth={2}
+          dot={false}
+          isAnimationActive={false}
+        />
+      </LineChart>
+    </ResponsiveContainer>
+  );
+}

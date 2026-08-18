@@ -10,7 +10,7 @@ import {
   SYSTEM_BOOK_NAMES,
   readSystemState,
   readSystemTrades,
-  type SystemMode,
+  type SystemBookMode,
 } from "@/lib/system-trading";
 
 const EXIT_LABEL: Record<string, string> = {
@@ -52,7 +52,7 @@ export interface SystemSyncState {
   message?: string;
 }
 
-const MODE_LABEL: Record<SystemMode, string> = { paper: "페이퍼", demo: "데모", live: "라이브" };
+const MODE_LABEL: Record<SystemBookMode, string> = { paper: "페이퍼", demo: "데모", live: "라이브" };
 
 /**
  * 시스템 북 생성 시 심는 매매 원칙 — 기준의 정본은 system-trading/docs/criteria.md 이고,
@@ -75,7 +75,7 @@ const SYSTEM_PRINCIPLES: { category: PrincipleCategory; title: string; detail: s
 async function syncMode(
   supabase: Awaited<ReturnType<typeof requireUser>>["supabase"],
   user: Awaited<ReturnType<typeof requireUser>>["user"],
-  mode: SystemMode,
+  mode: SystemBookMode,
 ): Promise<{ error?: string; message?: string }> {
   const state = await readSystemState(mode);
   if (!state) return {};

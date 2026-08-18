@@ -7,7 +7,6 @@ import { Layer, Note, worstTone } from "@/app/(app)/dashboard/layer";
 import { PerformanceSummary } from "@/app/(app)/dashboard/performance-summary";
 import { PnlPanel } from "@/app/(app)/dashboard/pnl-panel";
 import { RecentTrades } from "@/app/(app)/dashboard/recent-trades";
-import { SystemPanel } from "@/app/(app)/dashboard/system-panel";
 import { SyncAction } from "@/app/(app)/trades/okx-sync-button";
 import {
   DrawdownChart,
@@ -36,16 +35,10 @@ import {
   getLastSync,
   getLatestBalance,
   listAnnotationsByTrade,
-  listBooks,
   listCashFlows,
   listFillsByTrade,
   listTrades,
 } from "@/lib/queries";
-import {
-  SYSTEM_BOOK_NAMES,
-  readSystemState,
-  readSystemTrades,
-} from "@/lib/system-trading";
 import { reconcileEquity } from "@/lib/reconcile";
 import {
   readBalanceGap,
@@ -70,34 +63,6 @@ export default async function DashboardPage() {
     getLatestBalance(book.id),
     book.exchange_account_id ? getLastSync(book.id) : null,
   ]);
-
-  // 시스템 봇(자동매매)이 이 머신에서 돌고 있으면 그 상태와 가져오기 자리를 띄운다.
-  // 봇의 진실 원천은 파일이고, 시스템 북은 가져오기로 따라가는 별도 데이터 북이다.
-  // 페이퍼·라이브는 각자의 상태 파일과 북을 가진다 — 가상 성적과 실계좌를 섞지 않는다.
-  const systemBots: {
-    mode: string;
-    equity: number | null;
-    openPositions: string[];
-    lastEvalAt: number | null;
-    closedCount: number;
-    importedCount: number;
-  }[] = [];
-  {
-    const books = await listBooks();
-    for (const mode of ["paper", "live"] as const) {
-      const st = await readSystemState(mode);
-      if (!st) continue;
-      const sysBook = books.find((b) => b.name === SYSTEM_BOOK_NAMES[mode]);
-      systemBots.push({
-        mode,
-        equity: st.equity,
-        openPositions: Object.values(st.positions).map((p) => p.name),
-        lastEvalAt: Math.max(0, ...Object.values(st.lastBarTs)) || null,
-        closedCount: (await readSystemTrades(mode)).length,
-        importedCount: sysBook ? (await listTrades(sysBook.id)).length : 0,
-      });
-    }
-  }
 
   const derived = deriveTrades(book, trades, flows);
   const m = computeMetrics(book, derived, flows);
@@ -232,13 +197,6 @@ export default async function DashboardPage() {
           </Link>
         </div>
       </header>
-
-      {systemBots.length > 0 ? (
-        <SystemPanel
-          bots={systemBots}
-          isSystemBookActive={Object.values(SYSTEM_BOOK_NAMES).includes(book.name)}
-        />
-      ) : null}
 
       {derived.length === 0 ? (
         <p className="rounded-xl border border-dashed border-border p-10 text-center text-sm text-dim">

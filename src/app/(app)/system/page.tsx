@@ -1,287 +1,353 @@
 import Link from "next/link";
 
-import { signed, dateTime } from "@/lib/format";
-import { listBooks, listTrades } from "@/lib/queries";
+import { ModeTabs } from "@/app/(app)/system/mode-tabs";
+import { MEMBER_LABEL, resolveModes } from "@/app/(app)/system/shared";
+import { SystemEquityCurve, type SystemEquityPoint } from "@/components/charts";
+import { StatTile } from "@/components/stat-tile";
+import { DASH, dateTime, num, pct, pnlClass, signed, signedPct } from "@/lib/format";
+import { nowMs } from "@/lib/okx";
+import { listBooks } from "@/lib/queries";
 import {
   SYSTEM_BOOK_NAMES,
+  SYSTEM_MODE_META,
+  readSystemEquity,
   readSystemState,
-  readSystemTrades,
-  type SystemMode,
+  readSystemTradesAll,
+  readSystemDecisions,
+  summarizeSystem,
+  systemDrawdown,
 } from "@/lib/system-trading";
+import { readSample, readWinRate, readPayoff } from "@/lib/verdict";
 
 /**
- * 시스템 트레이딩 페이지 — 매매 기준과 자동화 체계의 정본을 화면으로.
+ * 시스템 운용 현황 — 봇이 남긴 정본(`system_*`)을 그대로 읽는다.
  *
- * 기준 수치의 정본은 system-trading/docs/criteria.md 이고 이 페이지는 그 사본이다 —
- * 어긋나면 문서가 옳다. 봇 실시간 상태는 봇이 도는 머신에서만 보이고(파일 읽기),
- * 배포 환경에서는 DB로 동기화된 시스템 북 데이터만 보인다.
+ * 수동 일지의 북을 거치지 않는다. 예전에는 봇 기록을 북으로 "가져와야" 성적이 보였고,
+ * 가져오기를 안 한 동안은 실제로 손실이 나고 있어도 화면이 0건이었다. 여기서는
+ * 봇이 쓴 그 표가 곧 화면이다 — 사람이 눌러야 보이는 단계가 없다.
  */
 
-const COMMON_RULES: { label: string; rule: string }[] = [
-  { label: "판정 시점", rule: "봉이 마감된 뒤에만 판정 (OKX confirm=1 캔들) — 미확정 봉의 신호는 신호가 아니다" },
-  { label: "진입", rule: "신호 봉 마감 직후 시장가 — 백테스트의 “다음 봉 시가”와 같은 자리" },
-  { label: "사이징", rule: "레버리지 L = min(10, 리스크% ÷ (손절폭% + 0.1%)) · 명목가 = 진입 시점 잔고 × L" },
-  { label: "리스크", rule: "거래당 손실 상한 = 리스크% (수수료 포함) · 쿼드 공격형 = 10%" },
-  { label: "동시 상한", rule: "열린 포지션 리스크 합 > 20% 면 새 신호 건너뜀 (백테스트 실측 동시 최대 2개)" },
-  { label: "중복 진입", rule: "한 기준 한 포지션 — 청산 봉 마감의 신호는 다음 봉 진입으로 유효" },
-  { label: "마진", rule: "격리(isolated) — 청산 리스크를 포지션 안에 가둔다" },
-];
+/** 봇이 사이클을 놓쳤는지 — 4H 기준 두 사이클(9시간)이 지나면 의심 구간이다. */
+const STALE_MS = 9 * 3600_000;
 
-const CRITERIA = [
-  {
-    key: "gc",
-    name: "① 골든크로스",
-    meta: "4시간봉 · 롱 · 추세추종",
-    rule: "SMA20[i-1] ≤ SMA50[i-1]  AND  SMA20[i] > SMA50[i]",
-    ruleDesc: "두 이동평균이 이번 봉에서 교차 마감했는가 — 판정 조건 1개.",
-    exit: "손절 E − 1×ATR · 목표 E + 3×ATR (손익비 1:3) · 시한 60봉(10일)",
-    stats: "45건 · 승률 37.8% · 기대값 +0.67%/건 · P/F 1.75 · 최대연패 10 · 평균보유 1.6일",
-    edge: "+12.0%p",
-    fail: "횡보장에서 교차가 반복되며 연속 손절 — 손익비 1:3이라 승률 37%로도 남지만 연패 구간을 견딜 리스크 관리가 전제.",
-  },
-  {
-    key: "ob",
-    name: "② RSI 과매도 반등",
-    meta: "4시간봉 · 롱 · 평균회귀",
-    rule: "RSI[i-1] < 30  AND  RSI[i] ≥ 30",
-    ruleDesc: "30선 아래로 갔다가 위로 복귀 마감한 순간 — 내려가는 중(떨어지는 칼)에는 잡지 않는다.",
-    exit: "손절 E − 1×ATR · 목표 E + 3×ATR (1:3) · 시한 60봉(10일)",
-    stats: "55건 · 승률 36.4% · 기대값 +0.58%/건 · P/F 1.51 · 3구간(상승·하락·급락) 모두 플러스 — 유일",
-    edge: "+8.9%p",
-    fail: "강한 하락 추세에서 30 복귀가 데드캣 바운스로 끝남. 좁은 손절(1×ATR)+넓은 목표(3×ATR) 조합에서만 사는 신호 — 청산 폭을 바꾸면 다른 전략이다.",
-  },
-  {
-    key: "fade",
-    name: "③ RSI 과매수 반락",
-    meta: "4시간봉 · 숏 · 평균회귀",
-    rule: "RSI[i-1] > 70  AND  RSI[i] ≤ 70",
-    ruleDesc: "70선 위로 갔다가 아래로 복귀 마감한 순간 — 과열의 꺾임을 파는 숏.",
-    exit: "손절 E + 2×ATR · 목표 E − 4×ATR (1:2) · 시한 60봉(10일)",
-    stats: "51건 · 승률 39.2% · 기대값 +0.23%/건 · P/F 1.14 · 최대연패 5 · 평균보유 3.0일",
-    edge: "+3.1%p",
-    fail: "여유분이 4개 중 가장 얇다 — 비용 가정이 어긋나면 가장 먼저 잠식. 전방 검증 최우선 관찰 대상.",
-  },
-  {
-    key: "dc",
-    name: "④ 20봉 신저가 이탈",
-    meta: "일봉 · 숏 · 추세추종",
-    rule: "종가[i] < min(저가[i-20 .. i-1])",
-    ruleDesc: "종가가 직전 20일 최저가 아래로 마감 — 돈치안 채널 하단 이탈.",
-    exit: "손절 E×1.02 · 목표 E×0.96 (고정 2%/4%, 1:2) · 시한 20봉(20일)",
-    stats: "20건 · 승률 40% · 기대값 +0.30%/건 · P/F 1.24 · 최대연패 6 · 평균보유 1.75일",
-    edge: "+5.0%p",
-    fail: "표본이 가장 얇다(20건). 바닥 이탈 직후 V자 반등(베어트랩)이 실패 모드 — 트레일 청산 전환이 고도화 1순위 후보.",
-  },
-];
+export default async function SystemPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ mode?: string }>;
+}) {
+  const { mode: requested } = await searchParams;
+  const selection = await resolveModes(requested);
 
-const OPERATIONS: { label: string; desc: string }[] = [
-  { label: "판정 주기", desc: "4H 봉 마감 +90초 — KST 01·05·09·13·17·21시. 1D 기준은 새 마감 봉 감지로 같은 사이클에서 처리" },
-  { label: "주문 방식", desc: "시장가 진입에 손절·목표 브래킷을 한 요청으로 원자 부착 — 무보호 창이 없고, 봇이 꺼져도 거래소가 집행" },
-  { label: "청산 경로", desc: "① 목표/손절 브래킷(거래소 자율) ② 보유 시한 초과 시 시장가 정리 ③ 수동 정리(버튼)" },
-  { label: "알림", desc: "진입·청산·경고·사이클 실패가 디스코드 #시스템-트레이딩 채널로 발송 (무사건 사이클은 조용)" },
-  { label: "기록", desc: "모든 판정·주문·청산이 Supabase(진실 원천)에 남는다 — 봇이 어느 머신에서 돌든 이 화면에서 보인다. 동기화로 모드별 시스템 북에 사본이 쌓인다" },
-  { label: "승격 사다리", desc: "페이퍼 → 데모 → 라이브 2% → 5% → 10%. 파라미터를 바꾸면 검증 시계를 리셋한다" },
-];
-
-const QUAD_SUMMARY: { label: string; value: string }[] = [
-  { label: "최종 (백테스트 720일, $100 시작)", value: "$996 (+896%) — 리스크 5%면 $511" },
-  { label: "최대낙폭", value: "−72.3% — 리스크 5%면 −46.4%" },
-  { label: "거래", value: "171건 · 월 7.5건 · 승률 38.0%" },
-  { label: "동시 포지션", value: "최대 2개 (리스크 합 20% 상한)" },
-  { label: "벤치마크", value: "같은 기간 BTC 보유 = $96" },
-];
-
-/** 모드별 시스템 북의 요약 — DB 사본 기준(배포에서도 보인다). */
-interface BookSummary {
-  mode: SystemMode;
-  bookName: string;
-  exists: boolean;
-  count: number;
-  wins: number;
-  losses: number;
-  netPnl: number;
-  lastExitAt: string | null;
-}
-
-/** 봇 파일 상태 — 봇이 도는 머신에서만 값이 있다. */
-interface BotStatus {
-  mode: SystemMode;
-  equity: number | null;
-  openPositions: string[];
-  lastEvalAt: number | null;
-  closedCount: number;
-}
-
-export default async function SystemPage() {
-  const books = await listBooks();
-  const summaries: BookSummary[] = [];
-  for (const mode of ["paper", "live"] as const) {
-    const book = books.find((b) => b.name === SYSTEM_BOOK_NAMES[mode]) ?? null;
-    if (!book) {
-      summaries.push({ mode, bookName: SYSTEM_BOOK_NAMES[mode], exists: false, count: 0, wins: 0, losses: 0, netPnl: 0, lastExitAt: null });
-      continue;
-    }
-    const trades = await listTrades(book.id);
-    summaries.push({
-      mode,
-      bookName: book.name,
-      exists: true,
-      count: trades.length,
-      wins: trades.filter((t) => t.result === "win").length,
-      losses: trades.filter((t) => t.result === "loss").length,
-      netPnl: trades.reduce((s, t) => s + (t.realized_pnl ?? t.pnl ?? 0), 0),
-      lastExitAt: trades.at(-1)?.exit_at ?? null,
-    });
+  if (!selection) {
+    return (
+      <div className="space-y-6">
+        <header>
+          <h1 className="text-xl font-semibold tracking-tight">시스템 운용 현황</h1>
+        </header>
+        <p className="rounded-xl border border-dashed border-border p-10 text-center text-sm text-dim">
+          봇이 아직 한 사이클도 돌지 않았습니다. 첫 사이클이 끝나면 잔고·포지션·판정이 여기에
+          나타납니다.
+          <br />
+          <Link href="/system/criteria" className="mt-2 inline-block text-alpha">
+            매매 기준 먼저 보기 →
+          </Link>
+        </p>
+      </div>
+    );
   }
 
-  // 봇 실시간 상태 — 봇이 Supabase 에 남긴 것을 읽는다. 어느 기기에서 보든 같다.
-  const bots: BotStatus[] = [];
-  for (const mode of ["paper", "live"] as const) {
-    const st = await readSystemState(mode);
-    if (!st) continue;
-    bots.push({
-      mode,
-      equity: st.equity,
-      openPositions: Object.values(st.positions).map((p) => `${p.name} ${p.side === "long" ? "롱" : "숏"}`),
-      lastEvalAt: Math.max(0, ...Object.values(st.lastBarTs)) || null,
-      closedCount: (await readSystemTrades(mode)).length,
-    });
-  }
+  const mode = selection.current;
+  const meta = SYSTEM_MODE_META[mode];
+
+  const [state, trades, equity, decisions, books] = await Promise.all([
+    readSystemState(mode),
+    readSystemTradesAll(mode),
+    readSystemEquity(mode),
+    readSystemDecisions(mode, 40),
+    listBooks(),
+  ]);
+
+  const summary = summarizeSystem(trades);
+  const dd = systemDrawdown(equity);
+  const openTrades = trades.filter((t) => t.open);
+
+  // 곡선의 기준선은 관측 첫 스냅샷 — 봇의 "시작 잔고"다.
+  const first = equity.find((p) => p.equity !== null)?.equity ?? null;
+  const latest = [...equity].reverse().find((p) => p.equity !== null)?.equity ?? state?.equity ?? null;
+  const curve: SystemEquityPoint[] = equity
+    .filter((p): p is typeof p & { equity: number } => p.equity !== null)
+    .map((p) => ({
+      t: p.at,
+      label: dateTime(new Date(p.at).toISOString()),
+      equity: p.equity,
+      open: p.openMembers.map((m) => MEMBER_LABEL[m] ?? m).join(", "),
+    }));
+
+  const lastEval = state ? Math.max(0, ...Object.values(state.lastBarTs)) || null : null;
+  const stale = state ? nowMs() - state.updatedAt > STALE_MS : false;
+  const warnings = decisions.filter((d) => d.warn);
+
+  // 북 사본과의 관계 — 이 화면은 정본을 읽지만, 북이 남아 있으면 어긋남이 눈에 보여야 한다.
+  const bookName = mode in SYSTEM_BOOK_NAMES ? SYSTEM_BOOK_NAMES[mode as keyof typeof SYSTEM_BOOK_NAMES] : null;
+  const book = bookName ? (books.find((b) => b.name === bookName) ?? null) : null;
+
+  const returnPct =
+    first !== null && latest !== null && first > 0 ? (latest - first) / first : null;
 
   return (
     <div className="space-y-6">
-      <header>
-        <h1 className="text-xl font-semibold tracking-tight">시스템 트레이딩 — 쿼드 공격형</h1>
-        <p className="mt-1 text-sm text-dim">
-          BTC-USDT-SWAP · 검증된 4개 기준의 병행 자동매매 · 기준 정본은{" "}
-          <code className="rounded bg-surface-2 px-1">system-trading/docs/criteria.md</code>
-        </p>
+      <header className="space-y-3">
+        <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+          <h1 className="text-xl font-semibold tracking-tight">시스템 운용 현황</h1>
+          <span
+            className={`rounded border px-1.5 py-0.5 text-[10px] font-semibold ${
+              meta.real ? "border-loss text-loss" : "border-alpha text-alpha"
+            }`}
+          >
+            {meta.real ? "실계좌" : "가상"}
+          </span>
+          <p className="text-sm text-dim">{meta.desc}</p>
+        </div>
+        <ModeTabs items={selection.items} current={mode} />
       </header>
 
       {/* ── 지금 상태 ─────────────────────────────── */}
       <section className="rounded-xl border border-border bg-surface p-4">
-        <h2 className="text-sm font-medium">지금 상태</h2>
-        {bots.length > 0 ? (
-          <div className="mt-2 space-y-1">
-            {bots.map((b) => (
-              <p key={b.mode} className="tnum text-[12px] text-dim">
-                <span className={`mr-1.5 rounded border px-1.5 py-0.5 text-[10px] font-semibold uppercase ${b.mode === "live" ? "border-loss text-loss" : "border-accent text-accent"}`}>
-                  {b.mode}
-                </span>
-                {b.equity !== null ? <>봇 잔고 <b className="text-text">${b.equity}</b> · </> : null}
-                포지션 <b className="text-text">{b.openPositions.length ? b.openPositions.join(", ") : "없음"}</b>
-                {" · "}완결 <b className="text-text">{b.closedCount}건</b>
-                {b.lastEvalAt !== null
-                  ? ` · 마지막 평가 ${new Date(b.lastEvalAt).toLocaleString("ko-KR", { timeZone: "Asia/Seoul", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" })}`
-                  : ""}
-              </p>
-            ))}
+        <div className="flex flex-wrap items-end gap-x-8 gap-y-3">
+          <div>
+            <div className="text-[11px] text-dim">현재 잔고 (USDT)</div>
+            <div className="tnum mt-0.5 text-3xl font-semibold">{num(latest, 2)}</div>
           </div>
-        ) : (
-          <p className="mt-2 text-[12px] text-dim">
-            아직 봇이 한 사이클도 돌지 않았습니다 — 첫 사이클이 끝나면 여기에 잔고와 포지션이 나옵니다.
-          </p>
-        )}
-
-        <div className="mt-3 grid gap-3 border-t border-border pt-3 sm:grid-cols-2">
-          {summaries.map((s) => (
-            <div key={s.mode} className="rounded-lg border border-border p-3">
-              <div className="text-[11px] text-dim">{s.bookName}</div>
-              {s.exists ? (
-                <p className="tnum mt-1 text-sm">
-                  <b>{s.count}건</b> · {s.wins}승 {s.losses}패 ·{" "}
-                  <b className={s.netPnl > 0 ? "text-profit" : s.netPnl < 0 ? "text-loss" : ""}>{signed(s.netPnl, 2)}</b>
-                  {s.lastExitAt ? <span className="text-dim"> · 마지막 청산 {dateTime(s.lastExitAt)}</span> : null}
-                </p>
-              ) : (
-                <p className="mt-1 text-sm text-dim">북 미생성 — 첫 동기화 때 만들어집니다</p>
-              )}
+          <div>
+            <div className="text-[11px] text-dim">관측 시작 대비</div>
+            <div className={`tnum mt-0.5 text-2xl font-semibold ${pnlClass(returnPct)}`}>
+              {returnPct === null ? DASH : signedPct(returnPct)}
             </div>
-          ))}
-        </div>
-        <p className="mt-2 text-[11px] text-dim">
-          거래 내역·차트는 상단 북 선택에서 시스템 북으로 바꾼 뒤 <Link href="/trades" className="text-accent">거래 목록</Link>에서,
-          기준 준수 체크는 <Link href="/principles" className="text-accent">원칙</Link>에서 봅니다.
-        </p>
-      </section>
-
-      {/* ── 공통 규칙 ─────────────────────────────── */}
-      <section className="rounded-xl border border-border bg-surface p-4">
-        <h2 className="text-sm font-medium">공통 규칙 <span className="font-normal text-dim">— 4개 기준 모두에 적용</span></h2>
-        <div className="mt-3 overflow-x-auto">
-          <table className="w-full text-[12.5px]">
-            <tbody>
-              {COMMON_RULES.map((r) => (
-                <tr key={r.label} className="border-t border-border first:border-t-0">
-                  <td className="w-24 py-2 pr-3 whitespace-nowrap text-dim">{r.label}</td>
-                  <td className="py-2">{r.rule}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </section>
-
-      {/* ── 4개 기준 ─────────────────────────────── */}
-      <section className="space-y-3">
-        <h2 className="text-sm font-medium">진입 기준 4개 <span className="font-normal text-dim">— 판정 조건은 각 1개, 심플함이 기준 선정의 조건이었다</span></h2>
-        <div className="grid gap-3 lg:grid-cols-2">
-          {CRITERIA.map((c) => (
-            <div key={c.key} className="rounded-xl border border-border bg-surface p-4">
-              <div className="flex items-baseline gap-2">
-                <h3 className="text-sm font-medium">{c.name}</h3>
-                <span className="text-[11px] text-dim">{c.meta}</span>
-                <span className="tnum ml-auto rounded border border-profit/40 px-1.5 py-0.5 text-[10px] font-semibold text-profit">여유 {c.edge}</span>
+          </div>
+          <div className="tnum text-[11px] leading-relaxed text-dim">
+            시작 {num(first, 2)} · 완결 {summary.closed}건 · 진행 {openTrades.length}건
+            <br />
+            마지막 사이클{" "}
+            {state ? (
+              <span className={stale ? "text-beta" : ""}>
+                {dateTime(new Date(state.updatedAt).toISOString())}
+                {stale ? " (지연 의심)" : ""}
+              </span>
+            ) : (
+              DASH
+            )}
+            {lastEval ? ` · 마지막 평가봉 ${dateTime(new Date(lastEval).toISOString())}` : ""}
+          </div>
+          {meta.real ? (
+            <div className="ml-auto text-right">
+              <div className="text-[11px] text-dim">킬스위치</div>
+              <div
+                className={`mt-0.5 text-sm font-semibold ${state?.liveEnabled ? "text-profit" : "text-dim"}`}
+              >
+                {state?.liveEnabled ? "실주문 허용" : "실주문 차단"}
               </div>
-              <pre className="tnum mt-2 overflow-x-auto rounded-lg bg-surface-2 px-3 py-2 text-[12px]">{c.rule}</pre>
-              <p className="mt-1.5 text-[12px] text-dim">{c.ruleDesc}</p>
-              <p className="mt-2 text-[12px]"><span className="text-dim">청산 </span>{c.exit}</p>
-              <p className="tnum mt-1 text-[12px]"><span className="text-dim">백테스트(720일) </span>{c.stats}</p>
-              <p className="mt-2 border-t border-border pt-2 text-[11.5px] text-dim">실패 모드 — {c.fail}</p>
             </div>
-          ))}
+          ) : null}
         </div>
-        <p className="text-[11px] text-dim">
-          “여유” = 실측 승률 − 손익분기 승률. 손익비 구조가 이미 비용을 이기고 있는 폭이다.
-        </p>
-      </section>
 
-      {/* ── 병행 전체 그림 ─────────────────────────── */}
-      <section className="rounded-xl border border-border bg-surface p-4">
-        <h2 className="text-sm font-medium">병행 시 전체 그림 <span className="font-normal text-dim">— 쿼드 공격형, 리스크 10%</span></h2>
-        <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-          {QUAD_SUMMARY.map((q) => (
-            <div key={q.label} className="rounded-lg border border-border p-3">
-              <div className="text-[11px] text-dim">{q.label}</div>
-              <div className="tnum mt-0.5 text-[13px]">{q.value}</div>
+        {stale ? (
+          <p className="mt-3 rounded-lg border border-beta/40 bg-surface-2 p-3 text-[12px] text-beta">
+            마지막 사이클이 9시간(4H 두 사이클)을 넘겼습니다 — 봇이 멈췄거나 스케줄러가 죽었을 수
+            있습니다. 열린 포지션의 손절·목표는 거래소 브래킷이 계속 지키지만, 시한 청산과 새 진입은
+            멈춰 있습니다.
+          </p>
+        ) : null}
+
+        {warnings.length > 0 ? (
+          <div className="mt-3 rounded-lg border border-loss/40 bg-surface-2 p-3">
+            <div className="text-[12px] font-medium text-loss">
+              사람 손이 필요한 경고 {warnings.length}건
             </div>
-          ))}
-        </div>
-        <p className="mt-3 rounded-lg border border-beta/40 bg-surface-2 p-3 text-[12px] text-dim">
-          <b className="text-text">이 수치는 인샘플 상한이다.</b> 신호·청산·구성을 모두 같은 2년에서 골랐고, 최고 t=1.74도
-          우연 기준선(≈1.9~2.5)을 넘지 못했다. 그래서 실전은 승격 사다리를 따른다 — 지금은 소액 라이브 검증 구간이며,
-          이 페이지의 성과 데이터가 그 전방 검증의 성적표다.
-        </p>
-      </section>
-
-      {/* ── 자동화 운영 체계 ────────────────────────── */}
-      <section className="rounded-xl border border-border bg-surface p-4">
-        <h2 className="text-sm font-medium">자동화 운영 체계</h2>
-        <div className="mt-3 overflow-x-auto">
-          <table className="w-full text-[12.5px]">
-            <tbody>
-              {OPERATIONS.map((o) => (
-                <tr key={o.label} className="border-t border-border first:border-t-0">
-                  <td className="w-24 py-2 pr-3 whitespace-nowrap text-dim">{o.label}</td>
-                  <td className="py-2">{o.desc}</td>
-                </tr>
+            <ul className="mt-1 space-y-0.5">
+              {warnings.slice(0, 3).map((w, i) => (
+                <li key={i} className="text-[11.5px] text-dim">
+                  {dateTime(new Date(w.at).toISOString())} · {w.warn}
+                </li>
               ))}
-            </tbody>
-          </table>
+            </ul>
+            <Link href={`/system/decisions?mode=${mode}`} className="mt-1 inline-block text-[11px] text-alpha">
+              판정 로그에서 전부 보기 →
+            </Link>
+          </div>
+        ) : null}
+      </section>
+
+      {/* ── 열린 포지션 ───────────────────────────── */}
+      <section className="space-y-2">
+        <h2 className="text-sm font-medium">
+          열린 포지션{" "}
+          <span className="font-normal text-dim">— 손절·목표는 거래소 브래킷이 지킨다</span>
+        </h2>
+        {openTrades.length === 0 && Object.keys(state?.positions ?? {}).length === 0 ? (
+          <p className="rounded-xl border border-dashed border-border p-6 text-center text-sm text-dim">
+            열린 포지션이 없습니다.
+          </p>
+        ) : (
+          <div className="grid gap-3 lg:grid-cols-2">
+            {openTrades.map((t) => {
+              const pos = state?.positions?.[t.member];
+              const risk = t.riskPct ?? pos?.riskPct ?? null;
+              return (
+                <div key={t.tradeId} className="rounded-xl border border-alpha/40 bg-surface p-4">
+                  <div className="flex items-baseline gap-2">
+                    <h3 className="text-sm font-medium">{t.name || MEMBER_LABEL[t.member] || t.member}</h3>
+                    <span
+                      className={`rounded border px-1.5 py-0.5 text-[10px] font-semibold ${
+                        t.side === "long" ? "border-profit text-profit" : "border-loss text-loss"
+                      }`}
+                    >
+                      {t.side === "long" ? "롱" : "숏"}
+                    </span>
+                    <span className="tnum ml-auto text-[11px] text-dim">
+                      {dateTime(new Date(t.entryTs).toISOString())} 진입
+                    </span>
+                  </div>
+                  <div className="tnum mt-2 grid grid-cols-3 gap-2 text-[12px]">
+                    <div>
+                      <div className="text-[10px] text-dim">진입가</div>
+                      {num(t.entryPrice, 1)}
+                    </div>
+                    <div>
+                      <div className="text-[10px] text-dim">손절</div>
+                      <span className="text-loss">{num(t.stop ?? pos?.stop ?? null, 1)}</span>
+                    </div>
+                    <div>
+                      <div className="text-[10px] text-dim">목표</div>
+                      <span className="text-profit">{num(t.target ?? pos?.target ?? null, 1)}</span>
+                    </div>
+                  </div>
+                  <p className="tnum mt-2 border-t border-border pt-2 text-[11px] text-dim">
+                    레버리지 {num(t.lev, 1)}× · 리스크 {risk === null ? DASH : `${num(risk, 0)}%`}
+                    {t.notionalUsd ? ` · 명목가 $${num(t.notionalUsd, 0)}` : ""}
+                    {t.eqAtEntry ? ` · 진입 시 잔고 $${num(t.eqAtEntry, 2)}` : ""}
+                  </p>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </section>
+
+      {/* ── 성적 ─────────────────────────────────── */}
+      <section className="space-y-3">
+        <h2 className="text-sm font-medium">
+          성적 <span className="font-normal text-dim">— 완결 {summary.closed}건 기준, 진행 중인 포지션은 빠진다</span>
+        </h2>
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+          <StatTile
+            label="누적 손익 (USDT)"
+            value={signed(summary.netPnlUsd, 2)}
+            valueClass={pnlClass(summary.netPnlUsd)}
+            sub={`수익 ${num(summary.grossProfit, 2)} · 손실 ${num(summary.grossLoss, 2)}`}
+            verdict={readSample(summary.closed)}
+          />
+          <StatTile
+            label="승률"
+            value={summary.winRate === null ? DASH : pct(summary.winRate)}
+            sub={`${summary.wins}승 ${summary.losses}패`}
+            verdict={readWinRate(summary.winRate, summary.payoff)}
+          />
+          <StatTile
+            label="손익비"
+            value={summary.payoff === null ? DASH : num(summary.payoff, 2)}
+            sub="평균수익 ÷ 평균손실"
+            verdict={readPayoff(summary.payoff)}
+          />
+          <StatTile
+            label="건당 기대"
+            value={summary.expectancyPct === null ? DASH : `${signed(summary.expectancyPct, 2)}%`}
+            valueClass={pnlClass(summary.expectancyPct)}
+            sub={
+              summary.expectancyUsd === null
+                ? "계좌 기준 손익률 평균"
+                : `${signed(summary.expectancyUsd, 2)} USDT/건`
+            }
+          />
         </div>
-        <p className="mt-2 text-[11px] text-dim">
-          검증 계보: 132조합 그리드(720일) → 플레이북 Top 5 → 청산 관리 25조합 → 복리 병행 5방식 → 실주문 배선 검증 → 라이브.
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+          <StatTile
+            label="최대 낙폭"
+            value={dd.maxDrawdownPct === 0 ? DASH : pct(dd.maxDrawdownPct)}
+            valueClass={dd.maxDrawdownPct < 0 ? "text-loss" : ""}
+            sub={
+              dd.peak === null
+                ? "잔고 스냅샷 기준"
+                : `고점 ${num(dd.peak, 2)} → 저점 ${num(dd.trough, 2)}`
+            }
+          />
+          <StatTile
+            label="연속"
+            value={
+              summary.currentStreak === 0
+                ? DASH
+                : summary.currentStreak > 0
+                  ? `${summary.currentStreak}연승`
+                  : `${-summary.currentStreak}연패`
+            }
+            valueClass={
+              summary.currentStreak > 0 ? "text-profit" : summary.currentStreak < 0 ? "text-loss" : ""
+            }
+            sub={`최다 ${summary.maxLossStreak}연패`}
+          />
+          <StatTile
+            label="마지막 청산"
+            value={
+              summary.lastExitAt === null
+                ? DASH
+                : dateTime(new Date(summary.lastExitAt).toISOString()).slice(5)
+            }
+            sub={summary.closed > 0 ? `완결 ${summary.closed}건` : "아직 없음"}
+          />
+          <StatTile
+            label="사이클 기록"
+            value={`${equity.length}회`}
+            sub={`판정 로그 ${decisions.length}줄 (최근분)`}
+          />
+        </div>
+      </section>
+
+      {/* ── 자금 곡선 ─────────────────────────────── */}
+      {curve.length > 1 ? (
+        <section className="rounded-xl border border-border bg-surface p-4">
+          <h2 className="text-sm font-medium">
+            잔고 곡선{" "}
+            <span className="font-normal text-dim">
+              — 사이클마다 남긴 실측 잔고. 거래가 없는 사이클에도 점이 찍힌다
+            </span>
+          </h2>
+          <div className="mt-3">
+            <SystemEquityCurve data={curve} start={first ?? curve[0].equity} />
+          </div>
+        </section>
+      ) : null}
+
+      {/* ── 데이터 위치 안내 ───────────────────────── */}
+      <section className="rounded-xl border border-border bg-surface p-4">
+        <h2 className="text-sm font-medium">이 화면의 데이터</h2>
+        <p className="mt-2 text-[12px] text-dim">
+          시스템 매매 기록은 <code className="rounded bg-surface-2 px-1">system_state</code>·
+          <code className="rounded bg-surface-2 px-1">system_trades</code>·
+          <code className="rounded bg-surface-2 px-1">system_equity</code>·
+          <code className="rounded bg-surface-2 px-1">system_decisions</code> 에만 있습니다. 수동매매
+          일지(북)와 표가 다르고 계산도 따로 돕니다 — 한쪽을 지워도 다른 쪽은 그대로입니다.
         </p>
+        {book ? (
+          <p className="mt-2 rounded-lg border border-beta/40 bg-surface-2 p-3 text-[12px] text-dim">
+            <b className="text-text">북 사본 “{book.name}” 이 남아 있습니다.</b> 예전 방식(봇 →
+            북으로 가져오기)의 잔재이고, 이 화면의 숫자와 무관합니다. 초기자본이{" "}
+            <span className="tnum">{num(book.initial_capital, 2)}</span> 로 잡혀 있어 그 북의 수익률은
+            실제와 어긋납니다 — 수동매매 영역의{" "}
+            <Link href="/books" className="text-accent">
+              북 관리
+            </Link>
+            에서 정리하거나 그대로 두어도 시스템 성적에는 영향이 없습니다.
+          </p>
+        ) : null}
       </section>
     </div>
   );
