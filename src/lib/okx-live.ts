@@ -5,9 +5,18 @@
  * 앱 버튼(수동 실주문)과 이후의 라이브 봇 제어가 이 한 벌을 같이 쓴다 —
  * 주문·브래킷·정리의 배선이 두 벌이면 한쪽만 고쳐지는 사고가 난다.
  *
- * 키는 환경변수(OKX_API_KEY/SECRET/PASSPHRASE)로만 읽는다. Next.js 가 .env.local 을
+ * 키는 환경변수(OKX_LIVE_API_KEY/SECRET/PASSPHRASE)로만 읽는다. Next.js 가 .env.local 을
  * 서버에서만 로드하므로 브라우저로는 흘러가지 않는다 — 이 파일을 클라이언트에서
  * import 하면 node:crypto 때문에 빌드가 깨진다(의도된 방어).
+ *
+ * 이름이 `OKX_API_*` 가 아니라 `OKX_LIVE_*` 인 것은 2026-08-19 사고에서 나왔다.
+ * 봇(system-trading/bot)도 `OKX_API_*` 를 읽는데, 봇은 로컬 PC 에서 돌고 이 코드는
+ * 배포 서버에서 돈다 — 이름이 같으니 코드는 옳은 채로 **실행 위치가 계좌를 정했다**.
+ * 배포된 실주문 버튼이 봇 서브계정이 아니라 주 매매계정을 향하고 있었고, 아무 신호도
+ * 없었다. 이름을 갈라 두면 두 경로가 우연히 같은 값을 물려받는 일이 없다.
+ *
+ * 폴백을 두지 않는 것도 의도다. `OKX_LIVE_*` 가 없을 때 `OKX_API_*` 로 흘러가면
+ * 정확히 그 사고가 조용히 되살아난다. 없으면 키가 없는 것으로 치고 화면이 닫힌다.
  */
 import { createHmac } from "node:crypto";
 
@@ -32,9 +41,9 @@ interface OkxRow {
 }
 
 function keys() {
-  const key = process.env.OKX_API_KEY;
-  const secret = process.env.OKX_API_SECRET;
-  const passphrase = process.env.OKX_API_PASSPHRASE;
+  const key = process.env.OKX_LIVE_API_KEY;
+  const secret = process.env.OKX_LIVE_API_SECRET;
+  const passphrase = process.env.OKX_LIVE_API_PASSPHRASE;
   if (!key || !secret || !passphrase) return null;
   return { key, secret, passphrase };
 }
@@ -52,7 +61,7 @@ async function publicGet(path: string): Promise<OkxRow[]> {
 
 async function privateCall(method: "GET" | "POST", path: string, body?: unknown): Promise<OkxRow[]> {
   const k = keys();
-  if (!k) throw new Error("OKX 키가 없습니다 (.env.local 확인)");
+  if (!k) throw new Error("OKX 실주문 키가 없습니다 — OKX_LIVE_API_KEY/SECRET/PASSPHRASE 를 확인하세요.");
   const ts = new Date().toISOString();
   const payload = body ? JSON.stringify(body) : "";
   const sign = createHmac("sha256", k.secret).update(ts + method + path + payload).digest("base64");
@@ -106,6 +115,18 @@ export async function equityUsd(): Promise<number> {
 export async function accountConfig(): Promise<OkxRow> {
   const [d] = await privateCall("GET", "/api/v5/account/config");
   return d;
+}
+
+/** 이 키가 실제로 붙는 계좌 — 화면이 "어디로 주문이 나가는지"를 숫자로 말할 수 있게. */
+export interface OkxAccountId {
+  uid: string;
+  /** 서브계정이면 상위 계정의 uid. 같으면 본인이 메인이다. */
+  mainUid: string | null;
+}
+
+export async function accountId(): Promise<OkxAccountId> {
+  const d = await accountConfig();
+  return { uid: d.uid ?? "", mainUid: d.mainUid ?? null };
 }
 
 export async function setLeverage(instId: string, lever: number, posSide: "long" | "short"): Promise<void> {

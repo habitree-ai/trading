@@ -67,6 +67,32 @@ if (mode !== "paper") {
     );
     process.exit(1);
   }
+
+  /*
+   * 어느 계좌에 붙었는지 — 이것이 없어서 2026-08-19 에 데었다.
+   *
+   * .env.local 에 OKX_API_KEY 가 두 번 적혀 있었다(주 매매계정 → 봇 서브계정). 나중
+   * 값이 이겨서 앞 블록은 조용히 죽어 있었는데, 순서가 바뀌거나 뒤 블록이 지워지면
+   * 봇은 아무 신호 없이 주 계정에 주문을 내기 시작한다 — 키가 유효하니 오류도 안 난다.
+   * uid 를 못 박아 두면 그 순간 사이클이 시작되지 않는다.
+   */
+  const sub = conf.mainUid && conf.mainUid !== conf.uid;
+  console.log(`계좌: uid ${conf.uid}${sub ? ` (서브 · 메인 ${conf.mainUid})` : " (메인)"}`);
+
+  const expectedUid = (process.env.OKX_EXPECTED_UID ?? "").trim();
+  if (expectedUid && expectedUid !== conf.uid) {
+    console.error(
+      `계좌가 다릅니다 — 기대한 uid ${expectedUid}, 실제 uid ${conf.uid}.\n` +
+      "OKX_API_KEY 계열 환경변수가 어느 계정 것인지 확인하세요. 주문을 내지 않고 멈춥니다.",
+    );
+    process.exit(1);
+  }
+  if (!expectedUid) {
+    console.warn(
+      "경고: OKX_EXPECTED_UID 가 없습니다 — 키가 바뀌어도 봇이 알아채지 못합니다.\n" +
+      `이 계좌가 맞다면 .env.local 에 OKX_EXPECTED_UID=${conf.uid} 를 넣어 두세요.`,
+    );
+  }
 }
 
 const TAG = `[${mode.toUpperCase()}]`;

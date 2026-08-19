@@ -3,6 +3,7 @@ import Link from "next/link";
 import { LiveTestPanel } from "@/app/(app)/system/live-test-panel";
 import {
   LIVE_TEST_LEV,
+  accountId,
   equityUsd,
   hasLiveKeys,
   instrument,
@@ -18,15 +19,22 @@ import {
  * 승격 사다리에서 "봇에게 실주문을 맡기기 전에 사람이 먼저 태워 보는" 단계다.
  */
 
-/** 패널에 넘길 계좌 상태 — 키가 없거나 조회가 막히면 그 사실만 전한다. */
+/**
+ * 패널에 넘길 계좌 상태 — 키가 없거나 조회가 막히면 그 사실만 전한다.
+ *
+ * uid 를 함께 읽는 것은 2026-08-19 사고 때문이다. 이 화면과 봇이 같은 이름의
+ * 환경변수를 읽던 시절, 배포된 버튼은 봇 서브계정이 아니라 주 매매계정을 향했고
+ * 화면 어디에도 그 사실이 없었다. 주문이 나갈 계좌는 숫자로 보여야 한다.
+ */
 async function readLiveStatus() {
   if (!hasLiveKeys()) return null;
   try {
-    const [eq, px, inst, open] = await Promise.all([
+    const [eq, px, inst, open, id] = await Promise.all([
       equityUsd(),
       lastPrice("BTC-USDT-SWAP"),
       instrument("BTC-USDT-SWAP"),
       positions("BTC-USDT-SWAP"),
+      accountId(),
     ]);
     const minNotional = inst.minSz * inst.ctVal * px;
     return {
@@ -36,6 +44,7 @@ async function readLiveStatus() {
       needBalance: (minNotional / LIVE_TEST_LEV) * 1.3 + 0.1,
       openPositions: open,
       statusError: null as string | null,
+      account: id,
     };
   } catch (e) {
     return {
@@ -45,6 +54,7 @@ async function readLiveStatus() {
       needBalance: null,
       openPositions: [],
       statusError: e instanceof Error ? e.message : "계좌 조회 실패",
+      account: null,
     };
   }
 }
@@ -63,10 +73,45 @@ export default async function SystemTestPage() {
       </header>
 
       {liveStatus ? (
-        <LiveTestPanel {...liveStatus} />
+        <>
+          <section className="rounded-xl border border-beta/40 bg-surface p-4">
+            <h2 className="text-sm font-medium">주문이 나갈 계좌</h2>
+            {liveStatus.account ? (
+              <p className="tnum mt-1 text-[13px]">
+                uid <b>{liveStatus.account.uid}</b>
+                {liveStatus.account.mainUid && liveStatus.account.mainUid !== liveStatus.account.uid ? (
+                  <span className="text-dim"> · 서브계정 (메인 {liveStatus.account.mainUid})</span>
+                ) : (
+                  <span className="text-dim"> · 메인 계정</span>
+                )}
+              </p>
+            ) : (
+              <p className="mt-1 text-[13px] text-dim">계좌를 확인하지 못했습니다.</p>
+            )}
+            <p className="mt-2 text-[11.5px] text-dim">
+              봇이 매매하는 계좌와 같아야 합니다 — 배선 검증의 뜻이 “봇에게 맡기기 전에 같은 길을
+              사람이 먼저 태워 본다”이기 때문입니다. 다르면{" "}
+              <code className="rounded bg-surface-2 px-1">OKX_LIVE_API_KEY</code> 계열 환경변수가
+              어느 계정 것인지 확인해 주세요.
+            </p>
+          </section>
+
+          {/* 계좌 정보는 위 카드가 쓰고 패널에는 넘기지 않는다 — 패널은 주문만 안다. */}
+          <LiveTestPanel
+            equity={liveStatus.equity}
+            price={liveStatus.price}
+            minNotional={liveStatus.minNotional}
+            needBalance={liveStatus.needBalance}
+            openPositions={liveStatus.openPositions}
+            statusError={liveStatus.statusError}
+          />
+        </>
       ) : (
         <p className="rounded-xl border border-dashed border-border p-10 text-center text-sm text-dim">
-          거래소 키가 설정돼 있지 않습니다 — 이 화면은 키가 있을 때만 동작합니다.
+          실주문 키(<code className="rounded bg-surface-2 px-1">OKX_LIVE_API_KEY</code> ·
+          <code className="rounded bg-surface-2 px-1">OKX_LIVE_API_SECRET</code> ·
+          <code className="rounded bg-surface-2 px-1">OKX_LIVE_API_PASSPHRASE</code>)가 설정돼 있지
+          않습니다 — 이 화면은 키가 있을 때만 동작합니다.
         </p>
       )}
 
