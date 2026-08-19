@@ -18,10 +18,12 @@ const DATA_DIR = join(process.cwd(), "system-trading", "data");
 /**
  * 봇의 매매 단위 — DB `system_mode` enum 이 정본이라 생성 타입에서 파생한다.
  *
- * 넓혀 쓰고 싶은 유혹이 있다(전방 검증 러너 cand·ens·swing 과 콘솔의 manual). 그러나
- * enum 에 없는 값으로 조회하면 Postgres 가 22P02 로 거절하고, 타입만 넓히면 그 실패가
- * 컴파일 시점에 안 보인다. 러너 모드를 켜는 것은 0020 마이그레이션을 DB 에 적용하고
- * 이 타입을 다시 생성하는 일이지, 여기 문자열을 더하는 일이 아니다.
+ * 손으로 넓히지 않는다. enum 에 없는 값으로 조회하면 Postgres 가 22P02 로 거절하는데,
+ * 타입만 넓혀 두면 그 실패가 컴파일 시점에 안 보인다. 모드를 늘리는 일은 마이그레이션을
+ * DB 에 적용하고 이 타입을 다시 생성하는 순서다.
+ *
+ * 앞의 셋은 승격 사다리의 계단이고, 뒤의 넷(cand·ens·swing·manual)은 전방 검증 러너와
+ * 시스템 콘솔의 수동 클릭이다 — 러너는 파일이 정본이고 DB 는 거울이다(state-mirror.mjs).
  */
 export type SystemMode = Database["public"]["Enums"]["system_mode"];
 
@@ -45,13 +47,7 @@ export interface SystemModeMeta {
   group: "ladder" | "runner" | "console";
 }
 
-/**
- * 모드 설명표 — 아직 DB enum 에 없는 모드까지 미리 적어 둔다.
- *
- * 키를 문자열로 연 것은 의도다. 0020 이 적용되면 `listActiveModes` 가 러너 모드를
- * 돌려주기 시작하는데, 그때 이 표에 항목이 없으면 화면에 코드값이 그대로 뜬다.
- */
-export const SYSTEM_MODE_META: Record<string, SystemModeMeta> = {
+export const SYSTEM_MODE_META: Record<SystemMode, SystemModeMeta> = {
   live: { label: "라이브", desc: "실계좌 — 쿼드 공격형 4기준", real: true, group: "ladder" },
   demo: { label: "데모", desc: "거래소 데모계정 — 주문 배선 검증", real: false, group: "ladder" },
   paper: { label: "페이퍼", desc: "가상 잔고 — 판정만 돌린다", real: false, group: "ladder" },
@@ -62,7 +58,7 @@ export const SYSTEM_MODE_META: Record<string, SystemModeMeta> = {
 };
 
 /** 화면에 나열하는 순서 — 실계좌가 맨 앞. 무엇이 진짜인지가 먼저 읽혀야 한다. */
-export const SYSTEM_MODE_ORDER: string[] = [
+export const SYSTEM_MODE_ORDER: SystemMode[] = [
   "live",
   "demo",
   "paper",
@@ -373,14 +369,11 @@ export async function listActiveModes(): Promise<SystemMode[]> {
     supabase.from("system_equity").select("mode"),
   ]);
 
-  const seen = new Set<string>();
+  const seen = new Set<SystemMode>();
   for (const res of [states, trades, equity]) {
     for (const row of (res.data ?? []) as { mode: SystemMode }[]) seen.add(row.mode);
   }
-  // 순서표에 없는 모드가 DB 에 생겨도 잃지 않는다 — 뒤에 붙여 둔다.
-  const known = SYSTEM_MODE_ORDER.filter((m) => seen.has(m)) as SystemMode[];
-  const extra = [...seen].filter((m) => !SYSTEM_MODE_ORDER.includes(m)) as SystemMode[];
-  return [...known, ...extra];
+  return SYSTEM_MODE_ORDER.filter((m) => seen.has(m));
 }
 
 /** 모드 하나의 성적표 — 완결 거래만으로 낸다. */

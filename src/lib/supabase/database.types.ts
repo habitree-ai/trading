@@ -1017,7 +1017,7 @@ export type Database = {
         | "social"
         | "macro"
         | "briefing"
-      system_mode: "paper" | "demo" | "live"
+      system_mode: "paper" | "demo" | "live" | "cand" | "ens" | "swing" | "manual"
       trade_result: "win" | "loss" | "be" | "open"
       trade_side: "long" | "short"
     }
@@ -1172,7 +1172,7 @@ export const Constants = {
         "macro",
         "briefing",
       ],
-      system_mode: ["paper", "demo", "live"],
+      system_mode: ["paper", "demo", "live", "cand", "ens", "swing", "manual"],
       trade_result: ["win", "loss", "be", "open"],
       trade_side: ["long", "short"],
     },
