@@ -69,6 +69,7 @@ export const AREAS: Area[] = [
       { href: "/system/trades", label: "자동 거래", icon: "🧾", hint: "봇의 진입·청산 전량" },
       { href: "/system/decisions", label: "판정 로그", icon: "🪵", hint: "안 들어간 이유까지" },
       { href: "/system/criteria", label: "매매 기준", icon: "📏", hint: "4개 기준과 운영 규칙" },
+      { href: "/system/test", label: "배선 검증", icon: "🔌", hint: "최소 수량 실주문" },
     ],
   },
   {

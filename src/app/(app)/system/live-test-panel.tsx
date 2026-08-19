@@ -6,7 +6,7 @@ import {
   closeLiveTestPosition,
   placeLiveTestOrder,
   type LiveTestState,
-} from "@/app/(app)/trades/live-test-actions";
+} from "@/app/(app)/system/live-test-actions";
 
 /**
  * 실주문 테스트 패널 — 진짜 돈이 나가는 버튼이다.
