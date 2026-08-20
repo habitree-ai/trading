@@ -22,6 +22,7 @@ import {
   openPositionPnl,
 } from "@/lib/okx/history";
 import {
+  isFullyClosed,
   matchPosition,
   positionKey,
   sideOf,
@@ -158,11 +159,15 @@ async function runSync(
   startedAt: number,
   startDate: string,
 ): Promise<SyncResult> {
-  const [ctVals, positions, open] = await Promise.all([
+  const [ctVals, history, open] = await Promise.all([
     fetchContractValues(),
     fetchPositionsHistory(creds, sinceMs),
     fetchOpenPositions(creds),
   ]);
+
+  // 부분청산은 포지션이 남는데도 이력에 행을 만든다 — 거래로 세면 그 몫이 최종청산의
+  // 실현손익 안에서 한 번 더 잡힌다. 열려 있는 동안은 미청산 행의 평가손익이 들고 있다.
+  const positions = history.filter(isFullyClosed);
 
   const since = new Date(sinceMs).toISOString();
   const until = new Date(startedAt).toISOString();

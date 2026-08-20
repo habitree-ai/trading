@@ -17,6 +17,7 @@ import {
 import {
   baseSymbol,
   fillRole,
+  isFullyClosed,
   openNetOf,
   openSideOf,
   positionKey,
@@ -422,5 +423,48 @@ describe("미청산 포지션", () => {
     expect(toCloseUpdate(row).unrealized_pnl).toBeNull();
     expect(toCloseUpdate(row).exit_at).toBe(row.exit_at);
     expect(toCloseUpdate(row).realized_pnl).toBe(row.realized_pnl);
+  });
+});
+
+/**
+ * 부분청산 — 포지션이 남아 있는데도 이력에 행이 생긴다.
+ *
+ * 실계좌에서 자금을 155 부풀린 원인이다. 같은 posId·같은 진입시각으로 부분청산 행이
+ * 거래로 저장되고, 그 몫이 최종청산 행의 `realizedPnl` 안에서 한 번 더 잡혔다.
+ */
+describe("isFullyClosed — 부분청산은 거래로 세지 않는다", () => {
+  it("부분청산(1)과 부분 강제청산(4)은 거래가 아니다", () => {
+    expect(isFullyClosed(position({ type: "1" }))).toBe(false);
+    expect(isFullyClosed(position({ type: "4" }))).toBe(false);
+  });
+
+  it("전량청산·강제청산·ADL은 거래로 센다", () => {
+    for (const type of ["2", "3", "5"]) {
+      expect(isFullyClosed(position({ type }))).toBe(true);
+    }
+  });
+
+  it("type이 없으면 통과시킨다 — 못 읽었다고 거래를 잃으면 안 된다", () => {
+    expect(isFullyClosed(position())).toBe(true);
+  });
+
+  /*
+   * 실계좌 재현 — posId 3279154956531326976.
+   * 08-19 07:19 진입 → 08-20 08:17 부분청산(+139.85), 포지션은 그대로 열려 있다.
+   * 이 행을 거래로 세면 미청산 행의 `openNetOf`(upl 67.44 + realizedPnl 139.85)와
+   * 겹쳐 139.85가 두 번 잡힌다.
+   */
+  it("실계좌 부분청산 행은 걸러진다", () => {
+    const partial = position({
+      posId: "3279154956531326976",
+      type: "1",
+      pnl: "142.4025167256637168",
+      realizedPnl: "139.8535039141899893",
+      cTime: "1787123944438",
+      uTime: "1787213863265",
+    });
+
+    expect(isFullyClosed(partial)).toBe(false);
+    expect([partial].filter(isFullyClosed)).toHaveLength(0);
   });
 });

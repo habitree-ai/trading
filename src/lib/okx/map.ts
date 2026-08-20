@@ -99,6 +99,26 @@ export interface TradeInsert {
   margin_mode: "cross" | "isolated" | null;
 }
 
+/** `positions-history`에서 포지션이 남는 청산 — 부분청산과 부분 강제청산. */
+const PARTIAL_CLOSE_TYPES = new Set(["1", "4"]);
+
+/**
+ * 이 이력 행이 거래 하나로 셀 수 있는 청산인가.
+ *
+ * 부분청산은 포지션을 남긴 채로도 이력에 행을 만든다. 그 행을 거래로 세면 같은 돈이
+ * 두 번 잡힌다 — 남은 포지션이 최종 청산될 때 오는 `realizedPnl`이 부분청산분까지
+ * 합친 값이기 때문이다(실계좌: 부분청산 +13.08을 따로 세는 바람에 그 몫이 최종청산
+ * +27.49 안에서 한 번 더 잡혀 자금이 41.82 부풀었다).
+ *
+ * 부분청산분은 포지션이 열려 있는 동안 `openNetOf`가 미실현으로 들고 있다가, 최종
+ * 청산되는 날 그 거래의 실현손익으로 한 번만 들어온다.
+ *
+ * 모르는 값은 통과시킨다 — 새 코드가 생겼다고 거래를 잃는 편이 더 나쁘다.
+ */
+export function isFullyClosed(pos: OkxPosition): boolean {
+  return pos.type === undefined || !PARTIAL_CLOSE_TYPES.has(pos.type);
+}
+
 /** 방향을 못 정하면 null — 승패·손익률이 통째로 뒤집히느니 건너뛰는 게 낫다. */
 export function toTradeInsert(input: {
   pos: OkxPosition;
