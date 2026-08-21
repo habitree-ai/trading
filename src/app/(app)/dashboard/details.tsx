@@ -25,7 +25,7 @@ export function Details({
         <span className="text-dim transition-transform group-open:rotate-90">▸</span>
         상세 지표
         <span className="font-normal text-dim">
-          — 비용 · 기간별 손익 · 낙폭 · 성과 요약 · 자본 점검
+          — 기간별 손익 · 낙폭 · 성과 요약 · 자본 점검
         </span>
         {tone === "warn" || tone === "bad" ? (
           <span

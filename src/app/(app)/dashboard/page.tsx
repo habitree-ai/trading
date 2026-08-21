@@ -2,7 +2,6 @@ import Link from "next/link";
 
 import { BalanceGap } from "@/app/(app)/dashboard/balance-gap";
 import { CapitalAudit } from "@/app/(app)/dashboard/capital-audit";
-import { CostPanel } from "@/app/(app)/dashboard/cost-panel";
 import { Details, Note, worstTone } from "@/app/(app)/dashboard/details";
 import { PerformanceSummary } from "@/app/(app)/dashboard/performance-summary";
 import { PnlPanel } from "@/app/(app)/dashboard/pnl-panel";
@@ -34,7 +33,6 @@ import {
 } from "@/lib/queries";
 import { reconcileEquity } from "@/lib/reconcile";
 import {
-  readCost,
   readDrawdown,
   readExpectancy,
   readLossStreak,
@@ -157,12 +155,6 @@ export default async function DashboardPage() {
     lastSyncAt: lastSync?.started_at ?? null,
     linked: Boolean(book.exchange_account_id),
   });
-  const cost = readCost({
-    pnlBeforeCost: m.pnlBeforeCost,
-    cost: m.fees + m.fundingFees,
-    netPnl: m.netPnl,
-    flipped: m.costFlippedCount,
-  });
   const winRate = readWinRate(m.winRate, m.payoffRatio);
   const payoff = readPayoff(m.payoffRatio);
   const expectancy = readExpectancy(m.expectancy);
@@ -173,7 +165,7 @@ export default async function DashboardPage() {
   const recovery = recoveryNeeded(m.maxDrawdownPct);
 
   // 접힌 상세를 열어 볼 이유 — 안쪽에서 가장 나쁜 판정.
-  const detailTone = worstTone([cost.tone, drawdown.tone, risk.tone, streak.tone, audit.tone]);
+  const detailTone = worstTone([drawdown.tone, risk.tone, streak.tone, audit.tone]);
   // 사람이 손대야 하는 자본 점검 경고만 접힌 상세 밖으로 꺼낸다.
   const alert = audit.notes.find((n) => n.tone === "bad") ?? audit.notes.find((n) => n.tone === "warn");
 
@@ -235,7 +227,7 @@ export default async function DashboardPage() {
             </div>
           </div>
           <div>
-            <div className="text-[11px] text-dim">누적 손익</div>
+            <div className="text-[11px] text-dim">누적 손익 (비용 반영)</div>
             <div className={`tnum mt-0.5 text-2xl font-semibold leading-none ${pnlClass(m.netPnl)}`}>
               {signed(m.netPnl, 2)}
             </div>
@@ -246,9 +238,9 @@ export default async function DashboardPage() {
             {openRealized !== 0 ? (
               <>
                 <br />
-                보유분 부분청산으로 확정{" "}
-                <span className={pnlClass(openRealized)}>{signed(openRealized, 2)}</span> — 이미
-                현금이라 현재자금에 들어 있습니다
+                보유분에서 이미 확정{" "}
+                <span className={pnlClass(openRealized)}>{signed(openRealized, 2)}</span> —
+                부분청산·수수료·펀딩비까지 현재자금에 들어 있습니다
               </>
             ) : null}
           </div>
@@ -338,8 +330,6 @@ export default async function DashboardPage() {
 
           {/* ── 5. 찾아볼 때만 여는 것 ─────────────── */}
           <Details tone={detailTone}>
-            <CostPanel m={m} currency={book.base_currency} />
-
             <PnlPanel daily={daily} monthly={monthly} currency={book.base_currency} />
 
             <section className="rounded-xl border border-border bg-surface-2 p-4">
