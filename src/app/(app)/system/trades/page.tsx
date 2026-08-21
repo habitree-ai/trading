@@ -70,7 +70,7 @@ export default async function SystemTradesPage({
           </Link>
         </p>
       ) : (
-        <div className="overflow-x-auto rounded-xl border border-border bg-surface">
+        <div className="scroll-x rounded-xl border border-border bg-surface">
           <table className="w-full min-w-[62rem] text-[12.5px]">
             <thead className="border-b border-border text-[11px] text-dim">
               <tr>

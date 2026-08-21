@@ -11,9 +11,9 @@ export default function QuadPage() {
     /*
      * 이 화면의 주인공은 차트 면적이다. (app) layout의 main 패딩(px-4 py-6)을 음수
      * 마진으로 되찾아 가장자리까지 쓴다 — layout을 고치면 모든 페이지가 영향을 받는다.
-     * 높이 뺄셈 값 = 헤더 + 남은 여백(모바일은 가로 네비 한 줄 추가) — 실측으로 보정한다.
+     * 세로 패딩은 -my-5로 되찾고 남는 0.5rem만 뺀다. 고정 껍데기 높이는 --app-chrome.
      */
-    <div className="-mx-3 -my-5 flex h-[calc(100dvh-7.5rem)] min-h-[480px] flex-col md:-mx-5 md:h-[calc(100dvh-4rem)]">
+    <div className="-mx-3 -my-5 flex h-[calc(100dvh_-_var(--app-chrome)_-_0.5rem)] min-h-[480px] flex-col md:-mx-5">
       <QuadChart now={nowMs()} />
     </div>
   );

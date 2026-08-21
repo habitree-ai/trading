@@ -71,7 +71,7 @@ export default async function ReviewPage() {
                 아직 원칙 준수를 판단한 거래가 없습니다. 거래를 열면 원칙 체크리스트가 뜹니다.
               </p>
             ) : (
-              <div className="mt-3 overflow-x-auto">
+              <div className="mt-3 scroll-x">
                 <table className="w-full min-w-[34rem] text-sm">
                   <thead className="text-xs text-dim">
                     <tr>
@@ -161,7 +161,7 @@ function LensTable({
         {title}
         {hint ? <span className="ml-2 font-normal text-xs text-dim">{hint}</span> : null}
       </h2>
-      <div className="mt-3 overflow-x-auto">
+      <div className="mt-3 scroll-x">
         <table className="w-full text-sm">
           <thead className="text-xs text-dim">
             <tr>

@@ -13,9 +13,10 @@ export default function ChartPage() {
     /*
      * 높이는 페이지가 스스로 잡는다. (app) layout의 main은 min-h 체인이라 h-full이
      * 내려오지 않고, layout을 고치면 모든 페이지에 영향이 가기 때문.
-     * 뺄셈 값 = 헤더 + main 상하 패딩(모바일은 가로 네비 한 줄 추가).
+     * 고정 껍데기 높이는 globals.css의 --app-chrome이 정본이고, 여기서는 main의
+     * 상하 패딩(py-6 = 3rem)만 더 뺀다.
      */
-    <div className="flex h-[calc(100dvh-13rem)] min-h-[420px] flex-col gap-3 md:h-[calc(100dvh-6.5rem)]">
+    <div className="flex h-[calc(100dvh_-_var(--app-chrome)_-_3rem)] min-h-[420px] flex-col gap-3">
       <header className="flex shrink-0 flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-xl font-semibold tracking-tight">실시간 차트</h1>

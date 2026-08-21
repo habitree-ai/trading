@@ -78,7 +78,7 @@ export function PerformanceSummary({
       </h2>
 
       {/* 좁은 화면에서 표가 눌리지 않도록 가로 스크롤을 표 안에 가둔다. */}
-      <div className="mt-3 overflow-x-auto">
+      <div className="mt-3 scroll-x">
         <table className="w-full min-w-[30rem] border-collapse text-sm">
           <thead>
             <tr className="border-b border-border text-[11px] text-dim">

@@ -67,3 +67,89 @@ body {
   font-variant-numeric: tabular-nums;
   font-family: var(--font-mono);
 }
+
+/*
+  ── 모바일 기초 ────────────────────────────────────────────────────────────
+  아래 규칙은 일부러 @layer 밖에 둔다. Tailwind 유틸리티도 레이어 안에 있어서,
+  레이어 밖 선언이 이긴다 — `text-sm` 이 붙은 입력칸에도 확실히 걸려야 한다.
+*/
+
+html {
+  /* 가로로 돌렸을 때 사파리가 글씨를 제멋대로 키우는 것을 막는다. */
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+body {
+  /* 탭할 때 뜨는 회색 사각형 — 앱 안에서는 방해만 된다. */
+  -webkit-tap-highlight-color: transparent;
+  /* 표 하나가 넘쳐도 문서 전체가 옆으로 밀리지 않게. */
+  overflow-x: hidden;
+}
+
+/*
+  iOS 사파리는 16px 미만 글씨의 입력칸에 포커스가 가면 화면을 확대한다.
+  확대된 화면은 저절로 돌아오지 않아, 값 하나 고칠 때마다 손으로 축소해야 했다.
+  손가락 입력일 때만 16px 바닥을 깐다 — 마우스 쓰는 화면의 촘촘함은 그대로 둔다.
+*/
+@media (pointer: coarse) {
+  input:not([type="checkbox"]):not([type="radio"]),
+  select,
+  textarea {
+    font-size: max(16px, 1em);
+  }
+
+  /* 손가락으로 누를 것들의 최소 높이 — 표 안의 잔 버튼이 특히 안 눌렸다. */
+  button,
+  select,
+  [role="button"] {
+    min-height: 2.5rem;
+  }
+}
+
+/*
+  가로로 스크롤하는 칸(넓은 표·코드 블록).
+
+  `overscroll-behavior-x: contain` 이 핵심이다 — 없으면 표 끝에서 한 번 더 밀 때
+  브라우저가 "뒤로 가기" 스와이프로 알아듣고 화면이 통째로 빠져나간다.
+*/
+.scroll-x {
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: thin;
+}
+
+/*
+  화면 위에 고정된 껍데기의 높이 — 헤더, 그리고 좁은 화면에서는 화면 목록 줄까지.
+
+  차트 화면들이 각자 `calc(100dvh - 13rem)` 처럼 상수를 적어 두고 있었다. 헤더가
+  한 줄 접히거나 손가락 입력이라 버튼이 커지기만 해도 어긋나던 값이다. 한 곳에서
+  정하고 화면들은 여기에 자기 여백만 더 뺀다.
+*/
+:root {
+  --app-chrome: 6.5rem;
+}
+
+@media (min-width: 768px) {
+  :root {
+    --app-chrome: 3.5rem;
+  }
+}
+
+/*
+  넓은 표에서 첫 칸을 붙잡아 둔다.
+
+  거래 목록은 칸이 열세 개라 좁은 화면에서는 어차피 옆으로 밀어야 한다. 그때 순번이
+  같이 밀려 나가면 지금 보는 숫자가 몇 번 거래의 것인지 알 수 없다. 배경색을 직접
+  칠하는 이유는, 붙잡힌 칸 뒤로 다른 칸이 지나가기 때문이다.
+*/
+.pin-col {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  background: var(--surface);
+}
+
+thead .pin-col {
+  background: var(--surface-2);
+}

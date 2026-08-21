@@ -264,7 +264,7 @@ export default async function ResearchPage({
             스냅샷 이력
             <span className="ml-2 text-xs font-normal text-dim">최근 {history.length}건</span>
           </h2>
-          <div className="mt-2 overflow-x-auto">
+          <div className="mt-2 scroll-x">
             <table className="w-full text-sm">
               <thead>
                 <tr className="text-left text-[11px] text-dim">

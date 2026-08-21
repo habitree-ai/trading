@@ -101,7 +101,7 @@ export default function SystemCriteriaPage() {
         <h2 className="text-sm font-medium">
           공통 규칙 <span className="font-normal text-dim">— 4개 기준 모두에 적용</span>
         </h2>
-        <div className="mt-3 overflow-x-auto">
+        <div className="mt-3 scroll-x">
           <table className="w-full text-[12.5px]">
             <tbody>
               {COMMON_RULES.map((r) => (
@@ -132,7 +132,7 @@ export default function SystemCriteriaPage() {
                   여유 {c.edge}
                 </span>
               </div>
-              <pre className="tnum mt-2 overflow-x-auto rounded-lg bg-surface-2 px-3 py-2 text-[12px]">
+              <pre className="tnum mt-2 scroll-x rounded-lg bg-surface-2 px-3 py-2 text-[12px]">
                 {c.rule}
               </pre>
               <p className="mt-1.5 text-[12px] text-dim">{c.ruleDesc}</p>
@@ -177,7 +177,7 @@ export default function SystemCriteriaPage() {
 
       <section className="rounded-xl border border-border bg-surface p-4">
         <h2 className="text-sm font-medium">자동화 운영 체계</h2>
-        <div className="mt-3 overflow-x-auto">
+        <div className="mt-3 scroll-x">
           <table className="w-full text-[12.5px]">
             <tbody>
               {OPERATIONS.map((o) => (

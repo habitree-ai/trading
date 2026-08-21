@@ -22,8 +22,10 @@ export function BookSwitcher({ books, activeId }: { books: Book[]; activeId: str
   if (!area?.usesBook || books.length === 0) return null;
 
   return (
+    // 좁은 화면에서는 "북" 글자를 떼고 폭을 묶는다 — 북 이름이 길면 헤더가 통째로
+    // 두 줄로 접혀 차트와 표가 그만큼 밀려 내려갔다.
     <label className="flex items-center gap-1.5 text-[11px] text-dim">
-      북
+      <span className="hidden sm:inline">북</span>
       <select
         aria-label="북 선택"
         value={activeId ?? ""}
@@ -34,7 +36,7 @@ export function BookSwitcher({ books, activeId }: { books: Book[]; activeId: str
             void switchBook(id);
           });
         }}
-        className="rounded-lg border border-border bg-surface px-2 py-1 text-xs text-text outline-none focus:border-accent disabled:opacity-50"
+        className="max-w-24 rounded-lg border border-border bg-surface px-2 py-1 text-xs text-text outline-none focus:border-accent disabled:opacity-50 sm:max-w-none"
       >
         {books.map((book) => (
           <option key={book.id} value={book.id}>
