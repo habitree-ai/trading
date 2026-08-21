@@ -1,5 +1,7 @@
 import Link from "next/link";
 
+import { HealthPanel, RunBadge } from "@/app/(app)/system/health-panel";
+import { KillSwitch } from "@/app/(app)/system/killswitch";
 import { ModeTabs } from "@/app/(app)/system/mode-tabs";
 import { MEMBER_LABEL, resolveModes } from "@/app/(app)/system/shared";
 import { SystemEquityCurve, type SystemEquityPoint } from "@/components/charts";
@@ -7,6 +9,7 @@ import { StatTile } from "@/components/stat-tile";
 import { DASH, dateTime, num, pct, pnlClass, signed, signedPct } from "@/lib/format";
 import { nowMs } from "@/lib/okx";
 import { listBooks } from "@/lib/queries";
+import { assessSystemHealth } from "@/lib/system-health";
 import {
   SYSTEM_BOOK_NAMES,
   SYSTEM_MODE_META,
@@ -26,9 +29,6 @@ import { readSample, readWinRate, readPayoff } from "@/lib/verdict";
  * 가져오기를 안 한 동안은 실제로 손실이 나고 있어도 화면이 0건이었다. 여기서는
  * 봇이 쓴 그 표가 곧 화면이다 — 사람이 눌러야 보이는 단계가 없다.
  */
-
-/** 봇이 사이클을 놓쳤는지 — 4H 기준 두 사이클(9시간)이 지나면 의심 구간이다. */
-const STALE_MS = 9 * 3600_000;
 
 export default async function SystemPage({
   searchParams,
@@ -83,9 +83,18 @@ export default async function SystemPage({
       open: p.openMembers.map((m) => MEMBER_LABEL[m] ?? m).join(", "),
     }));
 
-  const lastEval = state ? Math.max(0, ...Object.values(state.lastBarTs)) || null : null;
-  const stale = state ? nowMs() - state.updatedAt > STALE_MS : false;
   const warnings = decisions.filter((d) => d.warn);
+
+  // 봇이 도는지·점검이 통과하는지 — 성적을 읽기 전에 답해야 하는 질문이다.
+  const health = assessSystemHealth({
+    mode,
+    real: meta.real,
+    state,
+    equity,
+    decisions,
+    trades,
+    now: nowMs(),
+  });
 
   // 북 사본과의 관계 — 이 화면은 정본을 읽지만, 북이 남아 있으면 어긋남이 눈에 보여야 한다.
   const bookName = mode in SYSTEM_BOOK_NAMES ? SYSTEM_BOOK_NAMES[mode as keyof typeof SYSTEM_BOOK_NAMES] : null;
@@ -106,6 +115,7 @@ export default async function SystemPage({
           >
             {meta.real ? "실계좌" : "가상"}
           </span>
+          <RunBadge health={health} />
           <p className="text-sm text-dim">{meta.desc}</p>
         </div>
         <ModeTabs items={selection.items} current={mode} />
@@ -126,37 +136,10 @@ export default async function SystemPage({
           </div>
           <div className="tnum text-[11px] leading-relaxed text-dim">
             시작 {num(first, 2)} · 완결 {summary.closed}건 · 진행 {openTrades.length}건
-            <br />
-            마지막 사이클{" "}
-            {state ? (
-              <span className={stale ? "text-beta" : ""}>
-                {dateTime(new Date(state.updatedAt).toISOString())}
-                {stale ? " (지연 의심)" : ""}
-              </span>
-            ) : (
-              DASH
-            )}
-            {lastEval ? ` · 마지막 평가봉 ${dateTime(new Date(lastEval).toISOString())}` : ""}
           </div>
-          {meta.real ? (
-            <div className="ml-auto text-right">
-              <div className="text-[11px] text-dim">킬스위치</div>
-              <div
-                className={`mt-0.5 text-sm font-semibold ${state?.liveEnabled ? "text-profit" : "text-dim"}`}
-              >
-                {state?.liveEnabled ? "실주문 허용" : "실주문 차단"}
-              </div>
-            </div>
-          ) : null}
+          {/* 실계좌에만 둔다 — 가상 모드에는 잠글 주문이 없다. */}
+          {meta.real ? <KillSwitch mode={mode} enabled={state?.liveEnabled ?? false} /> : null}
         </div>
-
-        {stale ? (
-          <p className="mt-3 rounded-lg border border-beta/40 bg-surface-2 p-3 text-[12px] text-beta">
-            마지막 사이클이 9시간(4H 두 사이클)을 넘겼습니다 — 봇이 멈췄거나 스케줄러가 죽었을 수
-            있습니다. 열린 포지션의 손절·목표는 거래소 브래킷이 계속 지키지만, 시한 청산과 새 진입은
-            멈춰 있습니다.
-          </p>
-        ) : null}
 
         {warnings.length > 0 ? (
           <div className="mt-3 rounded-lg border border-loss/40 bg-surface-2 p-3">
@@ -176,6 +159,9 @@ export default async function SystemPage({
           </div>
         ) : null}
       </section>
+
+      {/* ── 운전 상태·점검 ────────────────────────── */}
+      <HealthPanel health={health} />
 
       {/* ── 열린 포지션 ───────────────────────────── */}
       <section className="space-y-2">

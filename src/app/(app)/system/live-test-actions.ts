@@ -9,6 +9,7 @@ import {
   algoDetails,
   cancelAlgo,
   closeMarket,
+  deployGuard,
   equityUsd,
   instrument,
   lastPrice,
@@ -30,18 +31,6 @@ const INST = "BTC-USDT-SWAP";
 const LEV = LIVE_TEST_LEV;
 const TP_PCT = LIVE_TEST_TP_PCT;
 const SL_PCT = LIVE_TEST_SL_PCT;
-
-/**
- * 배포 환경 불변식 — 허용목록 없이 실주문 액션을 열지 않는다.
- * allowlist 는 미설정 시 로컬 편의로 전체 허용(fail-open)이라, 키가 있는 배포에서
- * 이 변수를 빠뜨리면 구글 로그인만으로 누구나 주문할 수 있게 된다.
- */
-function deployGuard(): string | null {
-  if (process.env.NODE_ENV === "production" && !(process.env.ALLOWED_EMAILS ?? "").trim()) {
-    return "배포 환경에서는 ALLOWED_EMAILS 설정 없이 실주문을 열 수 없습니다.";
-  }
-  return null;
-}
 
 export interface LiveTestState {
   error?: string;
