@@ -67,6 +67,14 @@ export const fillSchema = z.object({
   fillSz: numeric,
   /** `buy` | `sell` */
   side: z.string(),
+  /**
+   * `long` | `short` | `net` — 롱숏 분리 계좌에서 어느 쪽 포지션의 체결인지.
+   *
+   * 아직 안 닫힌 포지션에 체결을 붙일 때 필요하다. 닫힌 포지션은 [개시, 청산] 구간으로
+   * 특정되지만, 열린 포지션은 끝이 없어 같은 종목의 롱·숏이 함께 열려 있으면 구간만으로
+   * 갈리지 않는다. 응답에 없으면 비워 둔다.
+   */
+  posSide: z.string().optional(),
   fee: numeric,
   ts: epochMs,
 });

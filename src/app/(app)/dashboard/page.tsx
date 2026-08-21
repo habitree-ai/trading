@@ -89,6 +89,12 @@ export default async function DashboardPage() {
 
   const recent = [...derived].reverse().slice(0, RECENT_COUNT);
 
+  // 들고 있는 포지션이 부분청산으로 이미 확정한 금액 — 미실현과 달리 시세로 흔들리지
+  // 않고, 이미 계좌의 현금이라 현재자금에 들어와 있다. 그 출처를 밝혀 둔다.
+  const openRealized = derived
+    .filter((d) => d.result === "open")
+    .reduce((a, d) => a + d.net, 0);
+
   // 같은 기간 시장이 어땠는지 — 못 받아 오면 null이고 그 선만 빠진다.
   const benchmark = lastAt ? await loadBenchmark(startedAt, lastAt) : null;
   const priceAt = (iso: string) => benchmark?.at(iso) ?? null;
@@ -237,6 +243,14 @@ export default async function DashboardPage() {
           <div className="tnum text-[11px] leading-relaxed text-dim">
             투입원금 {num(m.investedCapital, 0)} · 완결 {m.closedCount}건
             {m.openCount ? ` · 보유 ${m.openCount}건` : ""}
+            {openRealized !== 0 ? (
+              <>
+                <br />
+                보유분 부분청산으로 확정{" "}
+                <span className={pnlClass(openRealized)}>{signed(openRealized, 2)}</span> — 이미
+                현금이라 현재자금에 들어 있습니다
+              </>
+            ) : null}
           </div>
         </div>
 

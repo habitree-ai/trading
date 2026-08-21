@@ -23,7 +23,9 @@ import {
 } from "@/lib/okx/history";
 import {
   isFullyClosed,
+  matchOpenPosition,
   matchPosition,
+  openSideOf,
   positionKey,
   sideOf,
   toCloseUpdate,
@@ -89,6 +91,21 @@ function flowWindow(startDate: string): number {
   const floor = Date.now() - MAX_HISTORY_MS;
   const start = Date.parse(`${startDate}T00:00:00Z`);
   return Math.max(Number.isFinite(start) ? start : floor, floor);
+}
+
+/**
+ * 체결을 훑을 구간 — 들고 있는 포지션이 열린 시점까지 거슬러 올라간다.
+ *
+ * 커서만 따라가면 아직 안 닫힌 포지션의 체결은 영영 못 들어온다. 그 체결들은 열려
+ * 있는 동안 붙일 데가 없어 건너뛰어졌고, 커서는 그새 앞으로 밀렸기 때문이다.
+ * 부분청산이 그 자리에 있다 — 금액은 실현손익으로 들어와 있는데 근거가 비는 셈이다.
+ *
+ * 중복은 `okx_bill_id`로 걸러지므로 같은 구간을 다시 훑어도 값이 싸다.
+ */
+function fillWindow(sinceMs: number, open: readonly OkxOpenPosition[]): number {
+  const floor = Date.now() - MAX_HISTORY_MS;
+  const oldest = open.reduce((a, p) => Math.min(a, Number(p.cTime)), Number.POSITIVE_INFINITY);
+  return Math.max(Math.min(sinceMs, Number.isFinite(oldest) ? oldest : sinceMs), floor);
 }
 
 async function nextSeq(supabase: Db, bookId: string): Promise<number> {
@@ -176,10 +193,11 @@ async function runSync(
   const flowsAdded = await syncCashFlows(supabase, creds, userId, bookId, flowWindow(startDate));
 
   const counts = await syncTrades(supabase, userId, bookId, positions, open, ctVals);
+  // 닫힌 포지션이 없어도 들고 있는 포지션의 부분청산 체결은 들어와야 한다.
   const fillsAdded =
-    positions.length === 0
+    positions.length === 0 && open.length === 0
       ? 0
-      : await syncFills(supabase, creds, userId, positions, ctVals, sinceMs);
+      : await syncFills(supabase, creds, userId, positions, open, ctVals, fillWindow(sinceMs, open));
 
   await snapshotBalance(supabase, creds, userId, bookId, open);
 
@@ -336,11 +354,19 @@ async function syncCashFlows(
   return fresh.length;
 }
 
+/**
+ * 체결을 거래 행에 붙인다 — 닫힌 거래와 **아직 들고 있는 거래** 양쪽에.
+ *
+ * 열린 포지션의 체결까지 넣는 이유는 부분청산 때문이다. 부분청산은 포지션을 닫지
+ * 않으므로 거래 행이 생기지 않는데, 그 체결마저 버리면 "언제 얼마를 덜어냈나"가
+ * 어디에도 남지 않는다 — 금액은 그 행의 실현손익에 들어와 있는데 근거가 없는 셈이다.
+ */
 async function syncFills(
   supabase: Db,
   creds: OkxCredentials,
   userId: string,
   positions: Awaited<ReturnType<typeof fetchPositionsHistory>>,
+  openPositions: readonly OkxOpenPosition[],
   ctVals: Map<string, number | null>,
   sinceMs: number,
 ): Promise<number> {
@@ -351,12 +377,21 @@ async function syncFills(
   const { data: trades } = await supabase
     .from("trades")
     .select("id, okx_pos_id, exit_at, side")
-    .in("okx_pos_id", [...new Set(positions.map((p) => p.posId))]);
+    .in("okx_pos_id", [
+      ...new Set([...positions.map((p) => p.posId), ...openPositions.map((p) => p.posId)]),
+    ]);
 
   const tradeByPos = new Map(
     (trades ?? [])
       .filter((t) => t.okx_pos_id !== null && t.exit_at !== null)
       .map((t) => [positionKey(t.okx_pos_id!, Date.parse(t.exit_at!)), t]),
+  );
+
+  // 들고 있는 거래는 청산 시각이 없어 posId 하나로 특정된다.
+  const openTradeByPos = new Map(
+    (trades ?? [])
+      .filter((t) => t.okx_pos_id !== null && t.exit_at === null)
+      .map((t) => [t.okx_pos_id!, t]),
   );
 
   const { data: existing } = await supabase
@@ -370,11 +405,16 @@ async function syncFills(
   for (const fill of fills) {
     if (seen.has(fill.billId)) continue;
 
-    const pos = matchPosition(fill, positions);
-    if (!pos) continue; // 아직 안 닫힌 포지션의 체결 — 닫히는 날 같이 들어온다.
+    // 닫힌 포지션이 먼저다 — 구간이 정해져 있어 짝이 더 좁게 잡힌다.
+    const closedPos = matchPosition(fill, positions);
+    const openPos = closedPos ? null : matchOpenPosition(fill, openPositions);
 
-    const trade = tradeByPos.get(positionKey(pos.posId, Number(pos.uTime)));
-    const side = sideOf(pos);
+    const trade = closedPos
+      ? tradeByPos.get(positionKey(closedPos.posId, Number(closedPos.uTime)))
+      : openPos
+        ? openTradeByPos.get(openPos.posId)
+        : undefined;
+    const side = closedPos ? sideOf(closedPos) : openPos ? openSideOf(openPos) : null;
     if (!trade || !side) continue;
 
     const row = toFillInsert({

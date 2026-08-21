@@ -333,6 +333,31 @@ export function matchPosition(fill: OkxFill, positions: readonly OkxPosition[]):
   return best;
 }
 
+/**
+ * 아직 안 닫힌 포지션의 체결 — 부분청산이 여기로 들어온다.
+ *
+ * 닫힌 포지션과 달리 끝 시각이 없어 `[개시, 지금]`으로 본다. posId 는 종목·방향별
+ * 슬롯이라 재사용되므로(실계좌 100건에 6개뿐이었다) 개시 시각 이후만 인정한다 —
+ * 같은 posId 로 어제 닫힌 거래의 체결이 오늘 열린 포지션에 붙지 않게.
+ *
+ * 롱·숏이 같은 종목에 함께 열려 있을 수 있어 `posSide` 가 오면 그것까지 맞춘다.
+ */
+export function matchOpenPosition(
+  fill: OkxFill,
+  positions: readonly OkxOpenPosition[],
+): OkxOpenPosition | null {
+  const ts = Number(fill.ts);
+  let best: OkxOpenPosition | null = null;
+
+  for (const pos of positions) {
+    if (pos.instId !== fill.instId) continue;
+    if (ts < Number(pos.cTime) - BOUNDARY_MS) continue;
+    if (fill.posSide && pos.posSide !== "net" && fill.posSide !== pos.posSide) continue;
+    if (best === null || Number(pos.cTime) > Number(best.cTime)) best = pos;
+  }
+  return best;
+}
+
 export interface FillInsert {
   trade_id: string;
   user_id: string;

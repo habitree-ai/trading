@@ -18,6 +18,7 @@ import {
   baseSymbol,
   fillRole,
   isFullyClosed,
+  matchOpenPosition,
   openRealizedOf,
   openSideOf,
   positionKey,
@@ -217,6 +218,30 @@ describe("matchPosition", () => {
   it("경계 시각도 그 포지션에 넣는다", () => {
     expect(matchPosition(fill({ ts: "100000" }), all)?.posId).toBe("A");
     expect(matchPosition(fill({ ts: "400000" }), all)?.posId).toBe("B");
+  });
+});
+
+describe("matchOpenPosition", () => {
+  const held = () => openPosition({ posId: "OPEN", cTime: "300000", posSide: "long" });
+
+  it("개시 시각 뒤의 체결을 들고 있는 포지션에 붙인다", () => {
+    // 부분청산은 포지션을 닫지 않는다 — 이 체결이 버려지면 근거가 사라진다.
+    expect(matchOpenPosition(fill({ ts: "350000" }), [held()])?.posId).toBe("OPEN");
+  });
+
+  it("개시 전 체결은 붙이지 않는다 — posId 는 재사용된다", () => {
+    expect(matchOpenPosition(fill({ ts: "100000" }), [held()])).toBeNull();
+  });
+
+  it("종목이 다르면 붙이지 않는다", () => {
+    expect(matchOpenPosition(fill({ ts: "350000", instId: "ETH-USDT-SWAP" }), [held()])).toBeNull();
+  });
+
+  it("롱·숏이 함께 열려 있으면 posSide 로 가른다", () => {
+    const short = openPosition({ posId: "SHORT", cTime: "300000", posSide: "short" });
+    const both = [held(), short];
+    expect(matchOpenPosition(fill({ ts: "350000", posSide: "long" }), both)?.posId).toBe("OPEN");
+    expect(matchOpenPosition(fill({ ts: "350000", posSide: "short" }), both)?.posId).toBe("SHORT");
   });
 });
 
