@@ -1,19 +1,14 @@
 import Link from "next/link";
 
+import { BalanceGap } from "@/app/(app)/dashboard/balance-gap";
 import { CapitalAudit } from "@/app/(app)/dashboard/capital-audit";
-import { BalanceGap, CashFlowPanel } from "@/app/(app)/dashboard/cash-flow-panel";
 import { CostPanel } from "@/app/(app)/dashboard/cost-panel";
-import { Layer, Note, worstTone } from "@/app/(app)/dashboard/layer";
+import { Details, Note, worstTone } from "@/app/(app)/dashboard/details";
 import { PerformanceSummary } from "@/app/(app)/dashboard/performance-summary";
 import { PnlPanel } from "@/app/(app)/dashboard/pnl-panel";
 import { RecentTrades } from "@/app/(app)/dashboard/recent-trades";
 import { SyncAction } from "@/app/(app)/trades/okx-sync-button";
-import {
-  DrawdownChart,
-  EquityCurve,
-  WithdrawalChart,
-  type EquityPoint,
-} from "@/components/charts";
+import { DrawdownChart, EquityCurve, type EquityPoint } from "@/components/charts";
 import type { PnlBar } from "@/components/charts";
 import { EmptyBook } from "@/components/empty-book";
 import { StatTile } from "@/components/stat-tile";
@@ -34,14 +29,11 @@ import {
   getActiveBook,
   getLastSync,
   getLatestBalance,
-  listAnnotationsByTrade,
   listCashFlows,
-  listFillsByTrade,
   listTrades,
 } from "@/lib/queries";
 import { reconcileEquity } from "@/lib/reconcile";
 import {
-  readBalanceGap,
   readCost,
   readDrawdown,
   readExpectancy,
@@ -51,7 +43,23 @@ import {
   readSample,
   readWinRate,
   recoveryNeeded,
+  TONE_CLASS,
 } from "@/lib/verdict";
+
+/**
+ * 수동매매 대시보드 — 매일 보는 것만 위에, 나머지는 접는다.
+ *
+ * 예전 구조는 네 층(지금 상태 · 매매 성과 · 리스크 · 자금 흐름)을 전부 펼쳐 두어
+ * 차트 넷과 표 셋을 지나야 거래 기록에 닿았다. 실제로 매일 확인하는 것은 셋이다 —
+ * 지금 얼마인가, 그 방식이 남는가, 무엇을 했나. 그 셋을 위에서 끊기지 않게 두고
+ * 나머지는 상세로 내렸다. 입출금 내역은 통째로 뺐다: 이 화면이 답할 질문이 아니고,
+ * 이체가 성과를 흐리는 문제는 자본 점검이 이미 다룬다.
+ *
+ * 접었다고 놓치지는 않는다 — 자본 점검이 어긋나면 그 경고만 맨 위로 올라온다.
+ */
+
+/** 목록으로 건너뛰지 않고 대시보드에서 바로 훑을 거래 수. */
+const RECENT_COUNT = 12;
 
 export default async function DashboardPage() {
   const book = await getActiveBook();
@@ -74,11 +82,14 @@ export default async function DashboardPage() {
   const daily = toBars(dayKey, true);
   const monthly = toBars(monthKey, false);
 
-  // 같은 기간 시장이 어땠는지 — 못 받아 오면 null이고 그 선만 빠진다.
   // 구간 끝은 목록의 마지막이 아니라 가장 늦은 청산이다 — 겹치는 포지션이 들어와도
   // 마지막 거래가 시세 구간 밖으로 밀리지 않는다.
   const startedAt = `${book.start_date}T00:00:00Z`;
   const lastAt = lastActivityAt(derived);
+
+  const recent = [...derived].reverse().slice(0, RECENT_COUNT);
+
+  // 같은 기간 시장이 어땠는지 — 못 받아 오면 null이고 그 선만 빠진다.
   const benchmark = lastAt ? await loadBenchmark(startedAt, lastAt) : null;
   const priceAt = (iso: string) => benchmark?.at(iso) ?? null;
 
@@ -121,29 +132,9 @@ export default async function DashboardPage() {
       withdrawnStep: Math.max(0, p.withdrawn - (i === 0 ? 0 : points[i - 1].withdrawn)),
     })),
   ];
-  const hasWithdrawal = curve.some((p) => p.withdrawnStep > 0);
-
-  const recent = [...derived].reverse().slice(0, 8);
-  // 차트에 찍을 체결·메모는 펼쳐 볼 수 있는 8건만 넘긴다 — 전량을 보내면 페이로드가 헛되이 커진다.
-  const recentIds = new Set(recent.map((d) => d.trade.id));
-  const [allFills, allAnnotations] = await Promise.all([
-    listFillsByTrade(book.id),
-    listAnnotationsByTrade(book.id),
-  ]);
-  const recentFills = Object.fromEntries(
-    Object.entries(allFills).filter(([id]) => recentIds.has(id)),
-  );
-  const recentAnnotations = Object.fromEntries(
-    Object.entries(allAnnotations).filter(([id]) => recentIds.has(id)),
-  );
 
   /* ============ 해석 ============ */
 
-  const gap = readBalanceGap(
-    m.finalEquity,
-    balance?.equity ?? null,
-    balance?.unrealized_pnl ?? null,
-  );
   // 어긋났을 때 어느 항이 틀렸는지까지 가른다 — 경고만으로는 손댈 곳을 못 찾는다.
   const audit = reconcileEquity({
     initialCapital: m.initialCapital,
@@ -175,8 +166,13 @@ export default async function DashboardPage() {
   const streak = readLossStreak(m.maxLossStreak, m.avgRiskPct);
   const recovery = recoveryNeeded(m.maxDrawdownPct);
 
+  // 접힌 상세를 열어 볼 이유 — 안쪽에서 가장 나쁜 판정.
+  const detailTone = worstTone([cost.tone, drawdown.tone, risk.tone, streak.tone, audit.tone]);
+  // 사람이 손대야 하는 자본 점검 경고만 접힌 상세 밖으로 꺼낸다.
+  const alert = audit.notes.find((n) => n.tone === "bad") ?? audit.notes.find((n) => n.tone === "warn");
+
   return (
-    <div className="space-y-8">
+    <div className="space-y-5">
       <header className="flex flex-wrap items-center gap-3">
         <div>
           <h1 className="text-xl font-semibold tracking-tight">대시보드</h1>
@@ -204,60 +200,114 @@ export default async function DashboardPage() {
         </p>
       ) : null}
 
-      <Layer
-        index={1}
-        title="지금 상태"
-        question="계좌에 지금 얼마가 있고, 그 값이 맞는가"
-        tone={worstTone([gap.tone, audit.tone])}
-      >
-        <div className="rounded-xl border border-border bg-surface p-4">
-          <div className="flex flex-wrap items-end gap-x-8 gap-y-3">
-            <div>
-              <div className="text-[11px] text-dim">현재자금 ({book.base_currency})</div>
-              <div className="tnum mt-0.5 text-3xl font-semibold">{num(m.finalEquity, 2)}</div>
-            </div>
-            <div>
-              <div className="text-[11px] text-dim">수익율</div>
-              <div className={`tnum mt-0.5 text-2xl font-semibold ${pnlClass(m.returnPct)}`}>
-                {signedPct(m.returnPct)}
-              </div>
-            </div>
-            <div className="tnum text-[11px] leading-relaxed text-dim">
-              투입원금 {num(m.investedCapital, 0)} · 초기 {num(m.initialCapital, 0)} · 순이체{" "}
-              {signed(m.netTransfer, 0)}
-              <br />
-              매매로 번 돈 {signed(m.netChange, 0)} · 뽑아 간 돈{" "}
-              {num(m.withdrawnFromAccount, 0)}
+      {/* ── 손대야 하는 경고만 맨 위로 ───────────── */}
+      {alert ? (
+        <p
+          className={`rounded-xl border p-3 text-[12px] ${
+            alert.tone === "bad" ? "border-loss/40 bg-loss/5" : "border-beta/40 bg-beta/5"
+          }`}
+        >
+          <span className={TONE_CLASS[alert.tone]}>{alert.text}</span>
+          {alert.fix ? <span className="text-dim"> — {alert.fix}</span> : null}
+          <span className="text-dim"> (상세 지표 &gt; 자본 점검에서 맞출 수 있습니다)</span>
+        </p>
+      ) : null}
+
+      {/* ── 1. 지금 얼마인가 ──────────────────────── */}
+      <section className="rounded-xl border border-border bg-surface p-5">
+        <div className="flex flex-wrap items-end gap-x-10 gap-y-4">
+          <div>
+            <div className="text-[11px] text-dim">현재자금 ({book.base_currency})</div>
+            <div className="tnum mt-0.5 text-4xl font-semibold leading-none">
+              {num(m.finalEquity, 2)}
             </div>
           </div>
-
-          <div className="mt-3 border-t border-border pt-3">
-            <BalanceGap
-              computed={m.finalEquity}
-              actual={balance?.equity ?? null}
-              unrealizedPnl={balance?.unrealized_pnl ?? null}
-              at={balance?.at ?? null}
-              currency={book.base_currency}
-            />
+          <div>
+            <div className="text-[11px] text-dim">수익률</div>
+            <div className={`tnum mt-0.5 text-2xl font-semibold leading-none ${pnlClass(m.returnPct)}`}>
+              {signedPct(m.returnPct)}
+            </div>
+          </div>
+          <div>
+            <div className="text-[11px] text-dim">누적 손익</div>
+            <div className={`tnum mt-0.5 text-2xl font-semibold leading-none ${pnlClass(m.netPnl)}`}>
+              {signed(m.netPnl, 2)}
+            </div>
+          </div>
+          <div className="tnum text-[11px] leading-relaxed text-dim">
+            투입원금 {num(m.investedCapital, 0)} · 완결 {m.closedCount}건
+            {m.openCount ? ` · 보유 ${m.openCount}건` : ""}
           </div>
         </div>
 
-        <CapitalAudit
-          bookId={book.id}
-          startDate={book.start_date}
-          currency={book.base_currency}
-          report={audit}
-        />
+        <div className="mt-4 border-t border-border pt-3">
+          <BalanceGap
+            computed={m.finalEquity}
+            actual={balance?.equity ?? null}
+            unrealizedPnl={balance?.unrealized_pnl ?? null}
+            at={balance?.at ?? null}
+            currency={book.base_currency}
+          />
+        </div>
+      </section>
 
-        {derived.length > 0 ? (
+      {derived.length > 0 ? (
+        <>
+          {/* ── 2. 반복해도 남는 방식인가 ─────────── */}
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+            <StatTile
+              label="승률"
+              value={pct(m.winRate)}
+              sub={`${m.wins}승 ${m.losses}패${m.breakEvens ? ` ${m.breakEvens}본전` : ""}`}
+              verdict={winRate}
+            />
+            <StatTile
+              label="손익비"
+              value={num(m.payoffRatio, 2)}
+              sub={`평균수익 ${num(m.avgWin, 1)} / 평균손실 ${num(m.avgLoss, 1)}`}
+              verdict={payoff}
+            />
+            <StatTile
+              label="기대치"
+              value={m.expectancy === null ? DASH : `${signed(m.expectancy, 2)} R`}
+              valueClass={pnlClass(m.expectancy)}
+              sub={`완결 ${m.closedCount}건 기준`}
+              verdict={m.closedCount < 30 ? sample : expectancy}
+            />
+            <StatTile
+              label="MDD"
+              value={pct(m.maxDrawdownPct)}
+              valueClass={m.maxDrawdownPct < 0 ? "text-loss" : ""}
+              sub={recovery === null ? "최고점 대비 최대 낙폭" : `원금 복귀에 +${pct(recovery)} 필요`}
+              verdict={drawdown}
+            />
+          </div>
+
+          {/* ── 3. 무엇을 했나 ─────────────────────── */}
           <section className="rounded-xl border border-border bg-surface p-4">
-            <h3 className="text-sm font-medium">
+            <div className="flex items-center">
+              <h2 className="text-sm font-medium">
+                거래 내역{" "}
+                <span className="font-normal text-dim">
+                  — 최근 {recent.length}건, 누르면 그 자리에서 차트가 열립니다
+                </span>
+              </h2>
+              <Link href="/trades" className="ml-auto text-xs text-accent">
+                전체 보기 →
+              </Link>
+            </div>
+            <RecentTrades rows={recent} currency={book.base_currency} now={nowMs()} />
+          </section>
+
+          {/* ── 4. 어떻게 흘러왔나 ─────────────────── */}
+          <section className="rounded-xl border border-border bg-surface p-4">
+            <h2 className="text-sm font-medium">
               자금 곡선{" "}
               <span className="font-normal text-dim">
                 — 날짜순 실제 잔액과 매매 성과 ({book.base_currency})
                 {benchmark ? `, ${benchmark.symbol} 시세 대조` : ""}
               </span>
-            </h3>
+            </h2>
             <div className="mt-3">
               <EquityCurve
                 data={curve}
@@ -271,102 +321,49 @@ export default async function DashboardPage() {
               넓게 찍힙니다.
             </Note>
           </section>
-        ) : null}
-      </Layer>
 
-      {derived.length > 0 ? (
-        <>
-          <Layer
-            index={2}
-            title="매매 성과"
-            question="반복해도 남는 방식인가"
-            tone={worstTone([winRate.tone, payoff.tone, expectancy.tone, sample.tone, cost.tone])}
-          >
-            <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-              <StatTile
-                label="누적 PNL"
-                value={signed(m.netPnl, 2)}
-                valueClass={pnlClass(m.netPnl)}
-                sub={`수익 ${num(m.grossProfit, 0)} · 손실 ${num(m.grossLoss, 0)}`}
-                verdict={sample}
-              />
-              <StatTile
-                label="승률"
-                value={pct(m.winRate)}
-                sub={`${m.wins}승 ${m.losses}패${m.breakEvens ? ` ${m.breakEvens}본전` : ""}`}
-                verdict={winRate}
-              />
-              <StatTile
-                label="손익비"
-                value={num(m.payoffRatio, 2)}
-                sub={`평균수익 ${num(m.avgWin, 1)} / 평균손실 ${num(m.avgLoss, 1)}`}
-                verdict={payoff}
-              />
-              <StatTile
-                label="기대치값"
-                value={m.expectancy === null ? DASH : `${signed(m.expectancy, 2)} R`}
-                valueClass={pnlClass(m.expectancy)}
-                sub="승률 × 손익비 − 패률"
-                verdict={expectancy}
-              />
-            </div>
-
+          {/* ── 5. 찾아볼 때만 여는 것 ─────────────── */}
+          <Details tone={detailTone}>
             <CostPanel m={m} currency={book.base_currency} />
 
-            <PerformanceSummary summary={summary} currency={book.base_currency} />
-
             <PnlPanel daily={daily} monthly={monthly} currency={book.base_currency} />
-          </Layer>
 
-          <Layer
-            index={3}
-            title="리스크"
-            question="얼마나 깎였고, 얼마를 걸고 있는가"
-            tone={worstTone([drawdown.tone, risk.tone, streak.tone])}
-          >
-            <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-              <StatTile
-                label="MDD"
-                value={pct(m.maxDrawdownPct)}
-                valueClass={m.maxDrawdownPct < 0 ? "text-loss" : ""}
-                sub={`최고 ${num(m.peakEquity, 0)} · 최저 ${num(m.troughEquity, 0)}`}
-                verdict={drawdown}
-              />
-              <StatTile
-                label="회복 필요 수익률"
-                value={recovery === null ? DASH : `+${pct(recovery)}`}
-                sub="최대 낙폭 지점에서 원금까지"
-              />
-              <StatTile
-                label="연속"
-                value={
-                  m.currentStreak === 0
-                    ? DASH
-                    : m.currentStreak > 0
-                      ? `${m.currentStreak}연승`
-                      : `${-m.currentStreak}연패`
-                }
-                valueClass={
-                  m.currentStreak > 0 ? "text-profit" : m.currentStreak < 0 ? "text-loss" : ""
-                }
-                sub={`최다 ${m.maxWinStreak}연승 · ${m.maxLossStreak}연패`}
-                verdict={streak}
-              />
-              <StatTile
-                label="거래당 리스크"
-                value={pct(m.avgRiskPct, 2)}
-                sub="|진입가 − 손절가| ÷ 진입가 평균"
-                verdict={risk}
-              />
-            </div>
-
-            <section className="rounded-xl border border-border bg-surface p-4">
+            <section className="rounded-xl border border-border bg-surface-2 p-4">
               <h3 className="text-sm font-medium">
                 고점 대비 낙폭{" "}
                 <span className="font-normal text-dim">— 이체분은 고점에서 상쇄합니다</span>
               </h3>
               <div className="mt-3">
                 <DrawdownChart data={curve} />
+              </div>
+              <div className="mt-2 grid grid-cols-2 gap-3 lg:grid-cols-3">
+                <StatTile
+                  label="연속"
+                  value={
+                    m.currentStreak === 0
+                      ? DASH
+                      : m.currentStreak > 0
+                        ? `${m.currentStreak}연승`
+                        : `${-m.currentStreak}연패`
+                  }
+                  valueClass={
+                    m.currentStreak > 0 ? "text-profit" : m.currentStreak < 0 ? "text-loss" : ""
+                  }
+                  sub={`최다 ${m.maxWinStreak}연승 · ${m.maxLossStreak}연패`}
+                  verdict={streak}
+                />
+                <StatTile
+                  label="거래당 리스크"
+                  value={pct(m.avgRiskPct, 2)}
+                  sub="|진입가 − 손절가| ÷ 진입가 평균"
+                  verdict={risk}
+                />
+                <StatTile
+                  label="누적 손익 구성"
+                  value={signed(m.netPnl, 2)}
+                  valueClass={pnlClass(m.netPnl)}
+                  sub={`수익 ${num(m.grossProfit, 0)} · 손실 ${num(m.grossLoss, 0)}`}
+                />
               </div>
               {summary.maxDrawdown ? (
                 <Note tone={drawdown.tone}>
@@ -375,55 +372,16 @@ export default async function DashboardPage() {
                 </Note>
               ) : null}
             </section>
-          </Layer>
 
-          <Layer
-            index={4}
-            title="자금 흐름"
-            question="번 돈인가, 넣은 돈인가"
-            tone="neutral"
-          >
-            <CashFlowPanel
-              flows={flows}
+            <PerformanceSummary summary={summary} currency={book.base_currency} />
+
+            <CapitalAudit
+              bookId={book.id}
+              startDate={book.start_date}
               currency={book.base_currency}
-              deposits={m.deposits}
-              withdrawals={m.withdrawals}
-              netTransfer={m.netTransfer}
-              withdrawnFromAccount={m.withdrawnFromAccount}
+              report={audit}
             />
-
-            {hasWithdrawal ? (
-              <section className="rounded-xl border border-border bg-surface p-4">
-                <h3 className="text-sm font-medium">
-                  누적 출금{" "}
-                  <span className="font-normal text-dim">
-                    — 계좌에서 뽑아 간 돈. 매매 성과에서는 빠지지 않습니다
-                  </span>
-                </h3>
-                <div className="mt-3">
-                  <WithdrawalChart data={curve} currency={book.base_currency} />
-                </div>
-              </section>
-            ) : null}
-          </Layer>
-
-          <section className="rounded-xl border border-border bg-surface p-4">
-            <div className="flex items-center">
-              <h2 className="text-sm font-medium">
-                최근 거래 <span className="font-normal text-dim">— 누르면 차트가 열립니다</span>
-              </h2>
-              <Link href="/trades" className="ml-auto text-xs text-accent">
-                전체 보기
-              </Link>
-            </div>
-            <RecentTrades
-              rows={recent}
-              currency={book.base_currency}
-              now={nowMs()}
-              fillsByTrade={recentFills}
-              annotationsByTrade={recentAnnotations}
-            />
-          </section>
+          </Details>
         </>
       ) : null}
     </div>
