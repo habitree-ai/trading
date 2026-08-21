@@ -6,28 +6,22 @@ import { EmptyBook } from "@/components/empty-book";
 import { dateTime } from "@/lib/format";
 import { deriveTrades } from "@/lib/metrics";
 import { nowMs } from "@/lib/okx";
-import {
-  getActiveBook,
-  getLastSync,
-  listAnnotationsByTrade,
-  listCashFlows,
-  listFillsByTrade,
-  listTrades,
-} from "@/lib/queries";
+import { getActiveBook, getLastSync, listCashFlows, listTrades } from "@/lib/queries";
 
 export default async function TradesPage() {
   const book = await getActiveBook();
   if (!book) return <EmptyBook />;
 
-  const [trades, flows, fillsByTrade, annotationsByTrade] = await Promise.all([
+  // 체결·메모는 여기서 받지 않는다 — 차트를 펼친 거래만 자기 것을 읽는다.
+  const [trades, flows, lastSync] = await Promise.all([
     listTrades(book.id),
     listCashFlows(book.id),
-    listFillsByTrade(book.id),
-    listAnnotationsByTrade(book.id),
+    // 머리말의 "마지막 동기화" 한 줄 때문에 다른 조회를 다 받고 나서 한 번 더
+    // 기다리고 있었다. 서로 의존하지 않으므로 같이 띄운다.
+    book.exchange_account_id ? getLastSync(book.id) : null,
   ]);
   // 표의 `자금` 칸이 대시보드와 같은 값을 가리키도록 이체를 함께 넘긴다.
   const derived = deriveTrades(book, trades, flows);
-  const lastSync = book.exchange_account_id ? await getLastSync(book.id) : null;
 
   return (
     <div className="space-y-5">
@@ -57,13 +51,7 @@ export default async function TradesPage() {
           아직 거래가 없습니다. 첫 기록을 추가해 주세요.
         </p>
       ) : (
-        <TradeTable
-          rows={derived}
-          currency={book.base_currency}
-          now={nowMs()}
-          fillsByTrade={fillsByTrade}
-          annotationsByTrade={annotationsByTrade}
-        />
+        <TradeTable rows={derived} currency={book.base_currency} now={nowMs()} />
       )}
     </div>
   );

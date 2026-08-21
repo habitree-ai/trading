@@ -4,24 +4,17 @@ import { PrincipleChecklist } from "@/app/(app)/trades/[id]/principle-checklist"
 import { TradeForm } from "@/app/(app)/trades/trade-form";
 import { TradeChart } from "@/components/trade-chart";
 import { nowMs } from "@/lib/okx";
-import {
-  getTrade,
-  listAnnotations,
-  listFills,
-  listPrincipleChecks,
-  listPrinciples,
-} from "@/lib/queries";
+import { getTrade, listPrincipleChecks, listPrinciples } from "@/lib/queries";
 
 export default async function EditTradePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const trade = await getTrade(id);
   if (!trade) notFound();
 
-  const [fills, principles, checks, annotations] = await Promise.all([
-    listFills(trade.id),
+  // 체결·메모는 차트가 직접 읽는다 — 이 화면은 원칙 체크리스트만 챙기면 된다.
+  const [principles, checks] = await Promise.all([
     listPrinciples(trade.book_id),
     listPrincipleChecks(trade.id),
-    listAnnotations(trade.id),
   ]);
 
   // 접어 둔 원칙도 이미 판단이 남아 있으면 계속 보여 준다 — 그 기록을 지우거나 고칠
@@ -50,8 +43,6 @@ export default async function EditTradePage({ params }: { params: Promise<{ id: 
         targetPrice={trade.tp1_price}
         notional={trade.notional}
         now={nowMs()}
-        fills={fills}
-        annotations={annotations}
       />
 
       <section className="rounded-xl border border-border bg-surface p-4">

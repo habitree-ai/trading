@@ -162,6 +162,15 @@ export function annotationColors(theme: ReturnType<typeof readTheme>): Annotatio
   return { accent: theme.accent, profit: theme.up, loss: theme.down, beta: theme.beta };
 }
 
+/*
+ * 아직 못 받았거나 비어 있을 때 쓰는 빈 목록.
+ *
+ * 렌더마다 `[]`를 새로 만들면 아래 훅들의 의존성이 늘 달라져 포인터 처리기가
+ * 매번 붙었다 떨어진다 — 끌던 손이 끊긴다.
+ */
+const NO_FILLS: TradeFill[] = [];
+const NO_ANNOTATIONS: TradeAnnotation[] = [];
+
 interface MeasureState {
   from: MeasurePoint;
   to: MeasurePoint;
@@ -182,8 +191,6 @@ export function TradeChart({
   targetPrice = null,
   notional = null,
   now,
-  fills = [],
-  annotations = [],
 }: {
   /** 메모를 어느 거래에 붙일지 — 차트에서 바로 저장한다 */
   tradeId: string;
@@ -205,14 +212,6 @@ export function TradeChart({
    * 시계를 읽는 것 자체가 순수하지 않다. 그 사이 흐른 시간은 앞뒤 여유 봉이 덮는다.
    */
   now: number;
-  /**
-   * 낱개 체결. 분할 체결이면 `entryPrice`/`exitPrice`는 가중평균가라
-   * 어느 한 시점의 가격이 아니다 — 그대로 찍으면 캔들 밖으로 떠오른다.
-   * 체결이 있으면 실제 좌표에 찍고, 평균가는 가로 기준선으로만 표시한다.
-   */
-  fills?: TradeFill[];
-  /** 이 거래에 남긴 차트 메모 — 복기에서 그때 무엇을 봤는지 되짚는 자리다 */
-  annotations?: TradeAnnotation[];
 }) {
   const entryMs = Date.parse(entryAt);
   const exitMs = exitAt ? Date.parse(exitAt) : null;
@@ -247,6 +246,65 @@ export function TradeChart({
   const [color, setColor] = useState<AnnotationColor>("accent");
   const [noteError, setNoteError] = useState<string | null>(null);
   const [saving, startSaving] = useTransition();
+
+  /*
+   * ── 이 차트가 쓰는 자료는 차트가 직접 읽는다 ──────────────────────────────
+   *
+   * 예전에는 목록 화면이 북 **전량**의 체결·메모를 받아 넘겨줬다. 차트는 한 번에 한
+   * 줄만 펼치는데도 거래가 쌓이는 만큼 첫 화면이 무거워졌고, 모바일에서는 그 값을
+   * 다 내려받는 동안 목록 자체가 늦게 떴다.
+   *
+   * 낱개 체결: 분할 체결이면 `entryPrice`/`exitPrice`는 가중평균가라 어느 한 시점의
+   * 가격이 아니다 — 그대로 찍으면 캔들 밖으로 떠오른다. 체결이 있으면 실제 좌표에
+   * 찍고 평균가는 가로 기준선으로만 표시한다.
+   */
+  const [fills, setFills] = useState<TradeFill[]>(NO_FILLS);
+  const [annotations, setAnnotations] = useState<TradeAnnotation[]>(NO_ANNOTATIONS);
+  const [detailError, setDetailError] = useState<string | null>(null);
+
+  /** 저장이 끝날 때마다 하나씩 오른다 — 서버가 가진 값으로 다시 맞추는 신호다. */
+  const [reload, setReload] = useState(0);
+  const wasSaving = useRef(false);
+
+  useEffect(() => {
+    // 저장이 **끝난** 순간에만 다시 읽는다. `saving`을 그대로 의존성에 넣으면
+    // 저장이 시작될 때도 한 번 나가서, 아직 반영되지 않은 값을 받아 온다.
+    if (wasSaving.current && !saving) setReload((n) => n + 1);
+    wasSaving.current = saving;
+  }, [saving]);
+
+  useEffect(() => {
+    let alive = true;
+
+    void (async () => {
+      try {
+        const res = await fetch(`/api/trades/${tradeId}/detail`, { cache: "no-store" });
+        const body: unknown = await res.json();
+        if (!alive) return;
+
+        if (!res.ok) {
+          setDetailError(
+            typeof body === "object" && body !== null && "error" in body
+              ? String((body as { error: unknown }).error)
+              : "차트 자료를 가져오지 못했습니다.",
+          );
+          return;
+        }
+
+        const next = body as { fills: TradeFill[]; annotations: TradeAnnotation[] };
+        setDetailError(null);
+        // 비어 있으면 상수로 바꿔 둔다 — 위 주석 참고.
+        setFills(next.fills.length > 0 ? next.fills : NO_FILLS);
+        setAnnotations(next.annotations.length > 0 ? next.annotations : NO_ANNOTATIONS);
+      } catch {
+        if (alive) setDetailError("차트 자료를 가져오지 못했습니다.");
+      }
+    })();
+
+    return () => {
+      alive = false;
+    };
+  }, [tradeId, reload]);
 
   /** 끌어서 옮기는 중인 메모의 새 좌표 — 놓을 때까지 화면에만 반영한다. */
   const [moving, setMoving] = useState<{ id: string; points: ChartPoint[] } | null>(null);
@@ -851,6 +909,16 @@ export function TradeChart({
         if (result.error) {
           setNoteError(result.error);
         } else {
+          /*
+           * 받아 준 좌표를 그 자리에서 목록에도 넣는다.
+           *
+           * 화면에 그리는 값은 `moving`(끌고 있는 좌표)이 덮고 있고, 아래에서 그것을
+           * 지운다. 서버에서 다시 읽어 올 때까지 목록이 옛 좌표를 들고 있으면 손을 뗀
+           * 순간 메모가 원래 자리로 튀었다가 돌아온다.
+           */
+          setAnnotations((list) =>
+            list.map((a) => (a.id === d.hit.id ? { ...a, points } : a)),
+          );
           record({ type: "move", id: d.hit.id, kind: d.kind, before: d.origin });
         }
         setMoving(null);
@@ -1109,7 +1177,7 @@ export function TradeChart({
    * 골라 둔 메모의 색·굵기·선 종류를 고친다 — 4분할과 같은 스타일 편집.
    *
    * 화면을 먼저 바꾼다. 버튼의 눌림 표시가 서버 왕복을 기다리면 굼뜨게 느껴지고,
-   * 실패하면 오류 문구가 알려 준다(revalidate가 원래 값으로 되돌린다).
+   * 실패하면 오류 문구가 알려 준다(저장이 끝나면 다시 읽어 와 원래 값으로 돌아온다).
    */
   const applyStyle = (style: {
     color?: AnnotationColor;
@@ -1596,6 +1664,8 @@ export function TradeChart({
       ) : notice ? (
         <p className="mt-1 text-[11px] text-dim">{notice}</p>
       ) : null}
+
+      {detailError ? <p className="mt-1 text-[11px] text-loss">{detailError}</p> : null}
 
       <AnnotationList annotations={annotations} onChange={record} />
     </section>

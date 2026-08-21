@@ -5,13 +5,7 @@ import { Fragment, useEffect, useMemo, useRef, useState, useTransition } from "r
 
 import { deleteTrade } from "@/app/(app)/trades/actions";
 import { TradeChart } from "@/components/trade-chart";
-import {
-  RESULT_LABEL,
-  SIDE_LABEL,
-  type TradeAnnotation,
-  type TradeFill,
-  type TradeResult,
-} from "@/lib/domain";
+import { RESULT_LABEL, SIDE_LABEL, type TradeResult } from "@/lib/domain";
 import { dateTime, num, pct, pnlClass, signed, signedPct } from "@/lib/format";
 import type { TradeDerived } from "@/lib/metrics";
 
@@ -31,17 +25,11 @@ export function TradeTable({
   rows,
   currency,
   now,
-  fillsByTrade = {},
-  annotationsByTrade = {},
 }: {
   rows: TradeDerived[];
   currency: string;
   /** 페이지를 그린 시각 — 아직 들고 있는 거래의 차트를 여기까지 그린다 */
   now: number;
-  /** 거래 id → 낱개 체결. 차트가 평균가 대신 실제 좌표를 찍는 데 쓴다. */
-  fillsByTrade?: Record<string, TradeFill[]>;
-  /** 거래 id → 차트 메모. 펼친 차트에 그대로 그려진다. */
-  annotationsByTrade?: Record<string, TradeAnnotation[]>;
 }) {
   const [pending, startTransition] = useTransition();
   const [result, setResult] = useState<ResultFilter>("all");
@@ -151,12 +139,17 @@ export function TradeTable({
         <span className="ml-auto text-xs text-dim">{visible.length}건 표시</span>
       </div>
 
-      <div ref={scrollRef} className="overflow-x-auto rounded-xl border border-border">
+      <div ref={scrollRef} className="scroll-x rounded-xl border border-border">
         <table className="w-full min-w-[1100px] text-sm">
           <thead className="bg-surface-2 text-xs text-dim">
             <tr>
-              {columns.map((h) => (
-                <th key={h} className="px-3 py-2 text-left font-medium whitespace-nowrap">
+              {columns.map((h, i) => (
+                <th
+                  key={h}
+                  className={`px-3 py-2 text-left font-medium whitespace-nowrap ${
+                    i === 0 ? "pin-col" : ""
+                  }`}
+                >
                   {h}
                 </th>
               ))}
@@ -168,7 +161,7 @@ export function TradeTable({
               return (
               <Fragment key={trade.id}>
                 <tr className="border-t border-border hover:bg-surface-2/60">
-                <td className="tnum px-3 py-2 text-dim">{trade.seq}</td>
+                <td className="tnum pin-col px-3 py-2 text-dim">{trade.seq}</td>
                 <td className="px-3 py-2">
                   <span className={trade.side === "long" ? "text-profit" : "text-loss"}>
                     {SIDE_LABEL[trade.side]}
@@ -268,8 +261,6 @@ export function TradeTable({
                           targetPrice={trade.tp1_price}
                           notional={trade.notional}
                           now={now}
-                          fills={fillsByTrade[trade.id] ?? []}
-                          annotations={annotationsByTrade[trade.id] ?? []}
                         />
                       </div>
                     </td>

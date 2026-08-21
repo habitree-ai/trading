@@ -1,7 +1,5 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
-
 import {
   isAnnotationColor,
   isAnnotationKind,
@@ -79,7 +77,6 @@ export async function createAnnotation(input: {
 
   if (error) return { error: error.message };
 
-  revalidatePath("/", "layout");
   return { id: data.id };
 }
 
@@ -110,7 +107,6 @@ export async function restoreAnnotation(
 
   if (error) return { error: error.message };
 
-  revalidatePath("/", "layout");
   return {};
 }
 
@@ -139,7 +135,6 @@ export async function updateAnnotationText(
     .eq("id", id);
   if (error) return { error: error.message };
 
-  revalidatePath("/", "layout");
   return {};
 }
 
@@ -180,7 +175,6 @@ export async function updateAnnotationPoints(
     .eq("id", id);
   if (error) return { error: error.message };
 
-  revalidatePath("/", "layout");
   return {};
 }
 
@@ -221,7 +215,6 @@ export async function updateAnnotationStyle(
   const { error } = await supabase.from("trade_annotations").update(patch).eq("id", id);
   if (error) return { error: error.message };
 
-  revalidatePath("/", "layout");
   return {};
 }
 
@@ -241,7 +234,6 @@ export async function setAnnotationLocked(
   const { error } = await supabase.from("trade_annotations").update({ locked }).eq("id", id);
   if (error) return { error: error.message };
 
-  revalidatePath("/", "layout");
   return {};
 }
 
@@ -252,6 +244,5 @@ export async function deleteAnnotation(id: string): Promise<AnnotationResult> {
   const { error } = await supabase.from("trade_annotations").delete().eq("id", id);
   if (error) return { error: error.message };
 
-  revalidatePath("/", "layout");
   return {};
 }

@@ -1,4 +1,5 @@
 import { cookies } from "next/headers";
+import { cache } from "react";
 
 import { toAnnotation, type AnnotationRow } from "@/lib/annotations";
 import { isAllowedEmail } from "@/lib/auth/allowlist";
@@ -23,7 +24,15 @@ import { createClient } from "@/lib/supabase/server";
 /** 어떤 북을 보고 있는지는 쿠키로 기억한다 — URL을 오염시키지 않기 위해. */
 export const ACTIVE_BOOK_COOKIE = "active_book";
 
-export async function requireUser() {
+/**
+ * 로그인한 사용자 — 요청 한 번에 한 번만 확인한다.
+ *
+ * `auth.getUser()` 는 토큰을 Supabase 인증 서버에 물어보는 **네트워크 호출**이다.
+ * 화면 하나가 표를 예닐곱 개 읽으면 그만큼 왕복이 쌓여, 실제로 대시보드 한 장에
+ * 아홉 번까지 나갔다. React `cache` 로 묶어 렌더 한 번에 한 번으로 줄인다.
+ * 요청 사이에는 공유되지 않으므로 세션이 끊긴 다음 요청은 그대로 막힌다.
+ */
+export const requireUser = cache(async () => {
   const supabase = await createClient();
   const {
     data: { user },
@@ -33,7 +42,7 @@ export async function requireUser() {
   // 경로로도 불릴 수 있고, 데이터에 닿기 직전이 마지막 방어선이다.
   if (!isAllowedEmail(user.email)) throw new Error("이 앱을 쓸 수 있는 계정이 아닙니다.");
   return { supabase, user };
-}
+});
 
 /**
  * 내 거래소 계정 — 사용자당 거래소별 하나다.
@@ -90,26 +99,6 @@ export async function getTrade(id: string): Promise<Trade | null> {
   return data;
 }
 
-/** 북 안의 모든 체결 — 거래 id로 묶어 돌려준다(목록에서 거래마다 다시 묻지 않도록). */
-export async function listFillsByTrade(bookId: string): Promise<Record<string, TradeFill[]>> {
-  const { supabase } = await requireUser();
-  const { data, error } = await supabase
-    .from("trade_fills")
-    .select("*, trades!inner(book_id)")
-    .eq("trades.book_id", bookId)
-    .order("filled_at", { ascending: true });
-  if (error) throw new Error(error.message);
-
-  const grouped: Record<string, TradeFill[]> = {};
-  for (const row of data) {
-    // 조인용으로 딸려 온 `trades` 키는 버리고 체결 행만 남긴다.
-    const fill = { ...(row as TradeFill & { trades?: unknown }) };
-    delete fill.trades;
-    (grouped[fill.trade_id] ??= []).push(fill);
-  }
-  return grouped;
-}
-
 export async function listFills(tradeId: string): Promise<TradeFill[]> {
   const { supabase } = await requireUser();
   const { data, error } = await supabase
@@ -139,27 +128,6 @@ export async function listAnnotations(tradeId: string): Promise<TradeAnnotation[
   return (data as AnnotationRow[])
     .map(toAnnotation)
     .filter((a): a is TradeAnnotation => a !== null);
-}
-
-/** 북 안의 모든 차트 메모 — 거래 id로 묶어 돌려준다(목록에서 거래마다 다시 묻지 않도록). */
-export async function listAnnotationsByTrade(
-  bookId: string,
-): Promise<Record<string, TradeAnnotation[]>> {
-  const { supabase } = await requireUser();
-  const { data, error } = await supabase
-    .from("trade_annotations")
-    .select("*, trades!inner(book_id)")
-    .eq("trades.book_id", bookId)
-    .order("created_at", { ascending: true });
-  if (error) throw new Error(error.message);
-
-  const grouped: Record<string, TradeAnnotation[]> = {};
-  for (const row of data as AnnotationRow[]) {
-    const annotation = toAnnotation(row);
-    if (annotation === null) continue;
-    (grouped[annotation.trade_id] ??= []).push(annotation);
-  }
-  return grouped;
 }
 
 /** 북에 잡힌 입금·출금·이체 — 오래된 것부터. 자금 곡선이 시간순으로 이어 붙인다. */
