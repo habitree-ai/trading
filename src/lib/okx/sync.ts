@@ -426,7 +426,8 @@ async function snapshotBalance(
     user_id: userId,
     at: balance.at,
     equity: balance.equity,
-    unrealized_pnl: open.pnl,
+    // 순수 평가손익만 — 부분청산으로 확정된 몫은 거래 행의 실현손익으로 들어간다.
+    unrealized_pnl: open.unrealized,
     source: "okx",
   });
 }

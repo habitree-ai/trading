@@ -18,7 +18,7 @@ import {
   baseSymbol,
   fillRole,
   isFullyClosed,
-  openNetOf,
+  openRealizedOf,
   openSideOf,
   positionKey,
   matchPosition,
@@ -370,18 +370,22 @@ describe("미청산 포지션", () => {
     expect(openSideOf(openPosition({ posSide: "net", pos: "0" }))).toBeNull();
   });
 
-  it("평가손익은 미실현에 이미 낸 비용까지 더한다", () => {
-    expect(openNetOf(openPosition())).toBeCloseTo(1.3, 10);
+  it("확정분은 미실현과 갈라 읽는다 — 시세로 흔들리는 건 upl 뿐이다", () => {
+    expect(openRealizedOf(openPosition())).toBeCloseTo(-0.2, 10);
+    // realizedPnl 이 비면 세 항으로 되짚는다.
+    const derivedOnly = openPosition({ realizedPnl: "", pnl: "3", fee: "-0.5", fundingFee: "-0.1" });
+    expect(openRealizedOf(derivedOnly)).toBeCloseTo(2.4, 10);
   });
 
-  it("손익 칸은 비우고 평가손익만 채운다 — 확정된 게 없다", () => {
+  it("평가손익 칸에는 미실현만, 확정된 몫은 실현손익 칸에 담는다", () => {
     const row = toOpenTradeInsert({ pos: openPosition(), ctVal: 0.01, ...owner, seq: 7 });
 
     expect(row?.result).toBe("open");
     expect(row?.entry_price).toBe(29783.9);
     expect(row?.notional).toBeCloseTo(29783.9, 10); // 29783.9 × 100 × 0.01
-    expect(row?.unrealized_pnl).toBeCloseTo(1.3, 10);
-    expect(row).not.toHaveProperty("pnl");
+    // 섞어 담으면 확정된 돈이 장부 어디에도 없는 돈이 된다.
+    expect(row?.unrealized_pnl).toBeCloseTo(1.5, 10);
+    expect(row?.realized_pnl).toBeCloseTo(-0.2, 10);
     expect(row).not.toHaveProperty("exit_at");
   });
 
@@ -398,7 +402,9 @@ describe("미청산 포지션", () => {
     expect(update).not.toHaveProperty("user_id");
     expect(update).not.toHaveProperty("seq");
     expect(update).not.toHaveProperty("okx_pos_id");
-    expect(update.unrealized_pnl).toBeCloseTo(1.3, 10);
+    expect(update.unrealized_pnl).toBeCloseTo(1.5, 10);
+    // 확정분도 매 사이클 갱신돼야 한다 — 부분청산이 또 나면 이 값이 늘어난다.
+    expect(update.realized_pnl).toBeCloseTo(-0.2, 10);
   });
 
   /*
@@ -451,7 +457,7 @@ describe("isFullyClosed — 부분청산은 거래로 세지 않는다", () => {
   /*
    * 실계좌 재현 — posId 3279154956531326976.
    * 08-19 07:19 진입 → 08-20 08:17 부분청산(+139.85), 포지션은 그대로 열려 있다.
-   * 이 행을 거래로 세면 미청산 행의 `openNetOf`(upl 67.44 + realizedPnl 139.85)와
+   * 이 행을 거래로 세면 미청산 행이 이미 들고 있는 확정분(realizedPnl 139.85)과
    * 겹쳐 139.85가 두 번 잡힌다.
    */
   it("실계좌 부분청산 행은 걸러진다", () => {

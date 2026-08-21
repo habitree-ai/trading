@@ -167,9 +167,19 @@ export function openSideOf(pos: OkxOpenPosition): Side | null {
   return pos.pos > 0 ? "long" : "short";
 }
 
-/** 미청산 포지션이 지금까지 계좌에 남긴 순손익 — 미실현 + 이미 확정된 비용. */
-export function openNetOf(pos: OkxOpenPosition): number {
-  return (pos.upl ?? 0) + (pos.realizedPnl ?? 0);
+/**
+ * 미청산 포지션이 지금까지 **확정한** 손익 — 부분청산 손익·수수료·펀딩비.
+ *
+ * 미실현(`upl`)과 갈라야 하는 이유: 이 몫은 이미 계좌의 현금이라 그대로 이체·출금에
+ * 쓸 수 있다. 둘을 합쳐 '미실현'으로 담아 두면 장부에 없는 돈이 되고, 그 돈을 옮기는
+ * 순간 계산 자금이 음수로 내려간다(2026-08-21 실계좌: 현금 178.09인데 화면은 −53.04).
+ *
+ * 시세를 따라 흔들리지 않는다 — 움직이는 건 `upl` 뿐이다.
+ */
+export function openRealizedOf(pos: OkxOpenPosition): number | null {
+  if (pos.realizedPnl !== null) return pos.realizedPnl;
+  if (pos.pnl === undefined && pos.fee === undefined && pos.fundingFee === undefined) return null;
+  return (pos.pnl ?? 0) + (pos.fee ?? 0) + (pos.fundingFee ?? 0);
 }
 
 export interface OpenTradeInsert {
@@ -185,7 +195,13 @@ export interface OpenTradeInsert {
   notional: number | null;
   leverage: number | null;
   margin_mode: "cross" | "isolated" | null;
-  unrealized_pnl: number;
+  /** 순수 평가손익 — 시세를 따라 흔들리는 몫만 */
+  unrealized_pnl: number | null;
+  /** 아래 넷은 부분청산으로 **이미 확정된** 몫이다 — 시세와 무관하게 고정이다 */
+  pnl: number | null;
+  fee: number | null;
+  funding_fee: number | null;
+  realized_pnl: number | null;
 }
 
 /**
@@ -224,7 +240,11 @@ export function toOpenTradeInsert(input: {
     notional,
     leverage: pos.lever,
     margin_mode: marginModeOf(pos.mgnMode),
-    unrealized_pnl: openNetOf(pos),
+    unrealized_pnl: pos.upl,
+    pnl: pos.pnl ?? null,
+    fee: pos.fee ?? null,
+    funding_fee: pos.fundingFee ?? null,
+    realized_pnl: openRealizedOf(pos),
   };
 }
 
@@ -239,6 +259,10 @@ export function toOpenUpdate(row: OpenTradeInsert) {
     leverage: row.leverage,
     margin_mode: row.margin_mode,
     unrealized_pnl: row.unrealized_pnl,
+    pnl: row.pnl,
+    fee: row.fee,
+    funding_fee: row.funding_fee,
+    realized_pnl: row.realized_pnl,
   };
 }
 

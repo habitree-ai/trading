@@ -151,8 +151,19 @@ export const openPositionSchema = z.object({
   /** 평균 진입가 */
   avgPx: numeric,
   lever: numeric,
+  /** 미실현 손익 — 시세를 따라 매 순간 흔들리는 유일한 값이다 */
   upl: numeric,
+  /**
+   * 이 포지션이 지금까지 **확정한** 손익 — 부분청산 손익 + 수수료 + 펀딩비.
+   *
+   * 시세와 무관하게 고정된 값이고, 이미 계좌의 현금이다. `pnl + fee + fundingFee`
+   * 와 같다(실계좌 확인: 234.12 − 2.59 − 0.52 = 231.01).
+   */
   realizedPnl: numeric,
+  /** 청산된 몫의 가격 손익 — 비용 이전 */
+  pnl: numeric.optional(),
+  fee: numeric.optional(),
+  fundingFee: numeric.optional(),
   /** 포지션을 연 시각 */
   cTime: epochMs,
 });

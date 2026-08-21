@@ -6,6 +6,7 @@
  *   fills-history     : `after` = billId
  */
 
+import { openRealizedOf } from "@/lib/okx/map";
 import { okxPrivateGet, okxPublicGet, type OkxCredentials } from "@/lib/okx/private";
 import {
   accountBillSchema,
@@ -222,17 +223,26 @@ export async function fetchOpenPositions(creds: OkxCredentials): Promise<OkxOpen
 }
 
 /**
- * 미청산 포지션이 잔고에 남긴 순손익 — 미실현 가격손익 + 이미 확정된 비용.
+ * 미청산 포지션이 잔고에 남긴 금액 — 확정된 몫과 아직 아닌 몫을 갈라서 준다.
  *
- * 계좌 잔고에는 이 금액이 이미 들어 있지만 거래 목록에는 아직 없다. 그대로 두고 대조하면
- * 포지션을 들고 있는 내내 자금이 어긋나 보인다. 청산되는 날 이 값이 그 거래의
- * `realizedPnl`이 되어 들어오므로, 그때 자연히 상쇄된다.
+ * 둘을 합쳐 쓰면 안 되는 이유: `realized`(부분청산 손익·수수료·펀딩비)는 이미 계좌의
+ * 현금이라 그대로 이체·출금에 쓸 수 있다. 그걸 '미실현'으로 묶어 두면 장부에 없는 돈이
+ * 되고, 옮기는 순간 계산 자금이 음수로 내려간다(2026-08-21 실계좌: 현금 178.09인데
+ * 화면은 −53.04, 차이가 정확히 그 몫 231.01이었다).
+ *
+ * 잔고 대조는 `unrealized`만 걷어낸다 — 그래야 남는 값이 거래소의 실제 현금이 된다.
+ * 확정분은 거래 행의 실현손익으로 들어가 계산 자금 쪽에서 만난다.
  */
-export function openPositionPnl(
-  positions: readonly OkxOpenPosition[],
-): { pnl: number; count: number } {
+export function openPositionPnl(positions: readonly OkxOpenPosition[]): {
+  /** 시세를 따라 흔들리는 몫 */
+  unrealized: number;
+  /** 이미 현금이 된 몫 */
+  realized: number;
+  count: number;
+} {
   return {
-    pnl: positions.reduce((a, p) => a + (p.upl ?? 0) + (p.realizedPnl ?? 0), 0),
+    unrealized: positions.reduce((a, p) => a + (p.upl ?? 0), 0),
+    realized: positions.reduce((a, p) => a + (openRealizedOf(p) ?? 0), 0),
     count: positions.length,
   };
 }
