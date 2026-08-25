@@ -10,6 +10,9 @@ import type { ExtractedFill } from "@/lib/extract/types";
 import { checkTpSplit } from "@/lib/exit-plan";
 import { toLocalInput } from "@/lib/format";
 import { crossCheckPnl, type PnlCrossCheck } from "@/lib/metrics";
+import type { FieldSuggestions } from "@/lib/queries";
+
+const NO_SUGGESTIONS: FieldSuggestions = { setup: [], rationale: [], emotion: [], review: [] };
 
 function numberField(data: FormData, key: string): number | null {
   const raw = String(data.get(key) ?? "").trim().replace(/,/g, "");
@@ -86,6 +89,128 @@ function Field({
   );
 }
 
+/** 칩으로 보여 줄 최대 개수 — 그 뒤는 자동완성 목록에만 남는다. */
+const CHIP_LIMIT = 8;
+
+/**
+ * 한 줄 입력 + 이전 값 칩 — 감정·기준처럼 같은 말이 반복되는 칸.
+ *
+ * 복기 분석은 같은 문자열끼리 묶어 센다. "불안"과 "불안함"이 다른 줄로 갈리지 않으려면
+ * 새로 치는 것보다 골라 넣는 편이 낫다. 자동완성 목록은 칩에 없는 값까지 담는다.
+ */
+function SuggestField({
+  name,
+  label,
+  hint,
+  defaultValue,
+  options,
+}: {
+  name: string;
+  label: string;
+  hint?: string;
+  defaultValue?: string;
+  options: string[];
+}) {
+  const [value, setValue] = useState(defaultValue ?? "");
+  const listId = `dl-${name}`;
+  return (
+    <div>
+      <label className={LABEL} htmlFor={`f-${name}`}>
+        {label}
+        {hint ? <span className="ml-1 text-dim/70">{hint}</span> : null}
+      </label>
+      <input
+        id={`f-${name}`}
+        name={name}
+        list={listId}
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        className={INPUT}
+      />
+      <datalist id={listId}>
+        {options.map((o) => (
+          <option key={o} value={o} />
+        ))}
+      </datalist>
+      {options.length > 0 ? (
+        <div className="mt-1.5 flex flex-wrap gap-1">
+          {options.slice(0, CHIP_LIMIT).map((o) => (
+            <button
+              key={o}
+              type="button"
+              onClick={() => setValue(o)}
+              aria-pressed={value === o}
+              className={`rounded-full border px-2 py-0.5 text-[11px] ${
+                value === o ? "border-accent text-accent" : "border-border text-dim"
+              }`}
+            >
+              {o}
+            </button>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+/**
+ * 여러 줄 입력 + 이전 글 불러오기 — 근거·복기.
+ *
+ * 골라 넣을 때 비어 있으면 그대로 두고, 이미 적은 게 있으면 줄을 바꿔 덧붙인다 —
+ * 쓰던 글이 조용히 지워지면 안 된다.
+ */
+function SuggestTextarea({
+  name,
+  label,
+  rows,
+  defaultValue,
+  options,
+}: {
+  name: string;
+  label: string;
+  rows: number;
+  defaultValue?: string;
+  options: string[];
+}) {
+  const [value, setValue] = useState(defaultValue ?? "");
+  return (
+    <div className="sm:col-span-3">
+      <div className="mb-1 flex items-baseline gap-2">
+        <label className="text-xs text-dim" htmlFor={`f-${name}`}>
+          {label}
+        </label>
+        {options.length > 0 ? (
+          <select
+            aria-label={`이전 ${label} 불러오기`}
+            value=""
+            onChange={(e) => {
+              const picked = e.target.value;
+              if (!picked) return;
+              setValue((cur) => (cur.trim() === "" ? picked : `${cur.trimEnd()}\n${picked}`));
+            }}
+            className="ml-auto max-w-[60%] rounded-lg border border-border bg-surface px-2 py-1 text-xs outline-none focus:border-accent"
+          >
+            <option value="">이전 {label}에서 불러오기…</option>
+            {options.map((o) => (
+              <option key={o} value={o}>
+                {o.length > 60 ? `${o.slice(0, 60)}…` : o}
+              </option>
+            ))}
+          </select>
+        ) : null}
+      </div>
+      <textarea
+        id={`f-${name}`}
+        name={name}
+        rows={rows}
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        className={INPUT}
+      />
+    </div>
+  );
+}
+
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <fieldset className="rounded-xl border border-border bg-surface p-4">
@@ -115,10 +240,13 @@ export function TradeForm({
   suspectFields = [],
   imageIds = [],
   fills,
+  suggestions = NO_SUGGESTIONS,
 }: {
   bookId: string;
   trade?: Trade;
   prefill?: Prefill;
+  /** 이 북에서 전에 적었던 기준·근거·감정·복기 — 골라 넣을 선택지. */
+  suggestions?: FieldSuggestions;
   /** 값이 채워졌어도 사람이 확인해야 하는 칸 — 테두리로 표시한다. */
   suspectFields?: string[];
   /** 저장 시 이 거래에 연결할 캡쳐 이미지들. */
@@ -320,21 +448,33 @@ export function TradeForm({
       </Section>
 
       <Section title="복기">
-        <Field name="setup" label="기준 (셋업)" defaultValue={v("setup")} />
-        <Field name="rationale" label="근거" defaultValue={v("rationale")} />
-        <Field name="emotion" label="감정" defaultValue={v("emotion")} />
-        <div className="sm:col-span-3">
-          <label className={LABEL} htmlFor="f-review">
-            복기
-          </label>
-          <textarea
-            id="f-review"
-            name="review"
-            rows={3}
-            defaultValue={v("review")}
-            className={INPUT}
-          />
-        </div>
+        <SuggestField
+          name="setup"
+          label="기준 (셋업)"
+          defaultValue={v("setup")}
+          options={suggestions.setup}
+        />
+        <SuggestField
+          name="emotion"
+          label="감정"
+          hint="같은 말로 적어야 감정별 통계가 묶인다"
+          defaultValue={v("emotion")}
+          options={suggestions.emotion}
+        />
+        <SuggestTextarea
+          name="rationale"
+          label="근거"
+          rows={3}
+          defaultValue={v("rationale")}
+          options={suggestions.rationale}
+        />
+        <SuggestTextarea
+          name="review"
+          label="복기"
+          rows={4}
+          defaultValue={v("review")}
+          options={suggestions.review}
+        />
         <div className="sm:col-span-3">
           <label className={LABEL} htmlFor="f-note">
             비고

@@ -1,7 +1,7 @@
 import Link from "next/link";
 
 import { CapturePanel } from "@/app/(app)/trades/new/capture-panel";
-import { getActiveBook, nextSeq, requireUser } from "@/lib/queries";
+import { getActiveBook, listFieldSuggestions, nextSeq, requireUser } from "@/lib/queries";
 
 export default async function NewTradePage() {
   const { user } = await requireUser();
@@ -21,7 +21,7 @@ export default async function NewTradePage() {
     );
   }
 
-  const seq = await nextSeq(book.id);
+  const [seq, suggestions] = await Promise.all([nextSeq(book.id), listFieldSuggestions(book.id)]);
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">
@@ -32,7 +32,7 @@ export default async function NewTradePage() {
         </p>
       </header>
 
-      <CapturePanel bookId={book.id} userId={user.id} />
+      <CapturePanel bookId={book.id} userId={user.id} suggestions={suggestions} />
     </div>
   );
 }

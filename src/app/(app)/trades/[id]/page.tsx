@@ -3,23 +3,30 @@ import { notFound } from "next/navigation";
 import { ExitPlanCard } from "@/app/(app)/trades/[id]/exit-plan-card";
 import { PrincipleChecklist } from "@/app/(app)/trades/[id]/principle-checklist";
 import { TradeForm } from "@/app/(app)/trades/trade-form";
-import { TradeChart } from "@/components/trade-chart";
-import { activeTargetPrices, summarizeExits } from "@/lib/exit-plan";
+import { summarizeExits } from "@/lib/exit-plan";
 import { isOpenTrade } from "@/lib/metrics";
-import { nowMs } from "@/lib/okx";
-import { getTrade, listFills, listPrincipleChecks, listPrinciples } from "@/lib/queries";
+import {
+  getTrade,
+  listFieldSuggestions,
+  listFills,
+  listPrincipleChecks,
+  listPrinciples,
+} from "@/lib/queries";
 
+/**
+ * 거래 수정 — 차트는 여기 없다. 목록 행에서 펼치는 것으로 충분하고, 위를 차트가 차지하면
+ * 정작 고치려는 폼이 아래로 밀린다. 이 화면의 일은 단계 확인·원칙 판단·복기 기록이다.
+ */
 export default async function EditTradePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const trade = await getTrade(id);
   if (!trade) notFound();
 
-  // 메모는 차트가 직접 읽는다. 체결은 청산 실적 카드 때문에 여기서도 한 번 읽는다 — 차트가
-  // 같은 것을 다시 받지만 한 거래분이라 감수한다(목록이 북 전량을 싣지 않는 결정과는 무관).
-  const [principles, checks, fills] = await Promise.all([
+  const [principles, checks, fills, suggestions] = await Promise.all([
     listPrinciples(trade.book_id),
     listPrincipleChecks(trade.id),
     listFills(trade.id),
+    listFieldSuggestions(trade.book_id),
   ]);
   const exits = summarizeExits(trade, fills, isOpenTrade(trade));
 
@@ -39,21 +46,6 @@ export default async function EditTradePage({ params }: { params: Promise<{ id: 
 
       <ExitPlanCard trade={trade} summary={exits} />
 
-      {/* 기준선은 거래소에 걸려 있던 값이 먼저다 — 손 입력은 계획이라 실제와 다를 수 있다. */}
-      <TradeChart
-        tradeId={trade.id}
-        symbol={trade.symbol}
-        side={trade.side}
-        entryAt={trade.entry_at}
-        exitAt={trade.exit_at}
-        entryPrice={trade.entry_price}
-        exitPrice={trade.exit_price}
-        stopPrice={trade.okx_stop_price ?? trade.stop_price}
-        targets={activeTargetPrices(trade)}
-        notional={trade.notional}
-        now={nowMs()}
-      />
-
       <section className="rounded-xl border border-border bg-surface p-4">
         <h2 className="text-sm font-medium">
           원칙 준수{" "}
@@ -64,7 +56,7 @@ export default async function EditTradePage({ params }: { params: Promise<{ id: 
         </div>
       </section>
 
-      <TradeForm bookId={trade.book_id} trade={trade} />
+      <TradeForm bookId={trade.book_id} trade={trade} suggestions={suggestions} />
     </div>
   );
 }

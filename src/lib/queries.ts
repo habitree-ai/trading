@@ -110,6 +110,54 @@ export async function listFills(tradeId: string): Promise<TradeFill[]> {
   return data;
 }
 
+/** 이 북에서 전에 적었던 기준·근거·감정·복기 — 폼이 골라 넣을 선택지. */
+export interface FieldSuggestions {
+  setup: string[];
+  rationale: string[];
+  emotion: string[];
+  review: string[];
+}
+
+/**
+ * 자주 쓴 순, 같으면 최근 순.
+ *
+ * 따로 저장하는 표가 없다. 거래에 적어 저장하는 순간 다음 거래의 선택지가 된다 — 그래서
+ * "자동 저장"이고, 지우고 싶으면 그 값을 쓴 거래를 고치면 된다. 복기 분석(review/page.tsx)이
+ * 같은 문자열을 묶어 세므로, 새로 타이핑하는 대신 골라 넣는 편이 통계에도 좋다.
+ */
+export async function listFieldSuggestions(bookId: string): Promise<FieldSuggestions> {
+  const { supabase } = await requireUser();
+  const { data, error } = await supabase
+    .from("trades")
+    .select("setup, rationale, emotion, review")
+    .eq("book_id", bookId)
+    .order("updated_at", { ascending: false })
+    .limit(300);
+  if (error) throw new Error(error.message);
+
+  const rank = (key: keyof FieldSuggestions): string[] => {
+    const seen = new Map<string, { count: number; first: number }>();
+    data.forEach((row, i) => {
+      const value = (row[key] ?? "").trim();
+      if (!value) return;
+      const entry = seen.get(value);
+      if (entry) entry.count += 1;
+      else seen.set(value, { count: 1, first: i });
+    });
+    return [...seen.entries()]
+      .sort((a, b) => b[1].count - a[1].count || a[1].first - b[1].first)
+      .map(([value]) => value)
+      .slice(0, 30);
+  };
+
+  return {
+    setup: rank("setup"),
+    rationale: rank("rationale"),
+    emotion: rank("emotion"),
+    review: rank("review"),
+  };
+}
+
 /**
  * 여러 거래의 체결을 한 번에 — 거래 id 로 묶어 돌려준다.
  *

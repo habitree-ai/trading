@@ -8,6 +8,7 @@ import { AI_FALLBACK_THRESHOLD, extractFromText } from "@/lib/extract";
 import { runOcr } from "@/lib/extract/ocr";
 import { fromAi, toPrefill, type AiExtraction, type Prefill } from "@/lib/extract/to-prefill";
 import type { ExtractedFields, ExtractedFill } from "@/lib/extract/types";
+import type { FieldSuggestions } from "@/lib/queries";
 import { createClient } from "@/lib/supabase/client";
 import type { Json } from "@/lib/supabase/database.types";
 
@@ -29,7 +30,16 @@ const STAGE_LABEL: Record<Stage, string> = {
   error: "",
 };
 
-export function CapturePanel({ bookId, userId }: { bookId: string; userId: string }) {
+export function CapturePanel({
+  bookId,
+  userId,
+  suggestions,
+}: {
+  bookId: string;
+  userId: string;
+  /** 이전 거래에서 적었던 기준·근거·감정·복기 — 폼에 그대로 넘긴다 */
+  suggestions: FieldSuggestions;
+}) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [kind, setKind] = useState<CaptureKind>("position");
   const [stage, setStage] = useState<Stage>("idle");
@@ -239,6 +249,7 @@ export function CapturePanel({ bookId, userId }: { bookId: string; userId: strin
         suspectFields={suspect}
         imageIds={attached.map((a) => a.id)}
         fills={fills}
+        suggestions={suggestions}
       />
     </div>
   );
