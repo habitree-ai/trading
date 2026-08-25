@@ -189,6 +189,68 @@ export function readLossStreak(maxLossStreak: number, avgRiskPct: number | null)
   };
 }
 
+/**
+ * 켈리 비율 — 한 거래에서 잃어도 되는 자금 비율의 상한.
+ *
+ * 켈리는 승률·손익비의 추정 오차를 그대로 키운다(둘 다 표본이 얇으면 크게 흔들린다).
+ * 그래서 표본 경고를 다른 지표보다 앞에 두고, 실전 상한은 절반 켈리로 말한다 —
+ * 문헌은 절반 켈리가 성장의 약 75%를 절반의 변동으로 얻는다고 본다.
+ */
+export function readKelly(kelly: number | null, closedCount: number): Verdict {
+  if (kelly === null) return { tone: 'neutral', text: '승·패가 모두 있어야 계산됩니다.' };
+  if (kelly <= 0) {
+    return {
+      tone: 'bad',
+      text: '기대치가 0 이하라 켈리로는 걸 수 있는 폭이 없습니다 — 크기보다 방식을 먼저 고쳐야 합니다.',
+    };
+  }
+  if (closedCount < RELIABLE_SAMPLE) {
+    return {
+      tone: 'warn',
+      text: `청산 ${closedCount}건 — 켈리는 승률·손익비 오차를 그대로 키우는 지표라 ${RELIABLE_SAMPLE}건 전에는 상한 참고로만 봅니다.`,
+    };
+  }
+  return {
+    tone: 'good',
+    text: `한 거래에서 자금의 ${pct(kelly, 1)}까지 잃어도 장기 성장이 최대입니다 — 실전 상한은 절반인 ${pct(kelly / 2, 1)}로 봅니다.`,
+  };
+}
+
+/**
+ * 실제로 잃어 온 폭을 켈리와 견준다.
+ *
+ * 켈리를 넘기면 거는 만큼 성장률이 깎이고, 2배를 넘기면 기대치가 양수여도 자금이 준다.
+ * 절반 켈리까지가 추정이 어긋나도 버티는 폭이다.
+ */
+export function readKellyFit(kelly: number | null, avgLossPctOfEquity: number | null): Verdict {
+  if (kelly === null || avgLossPctOfEquity === null) {
+    return { tone: 'neutral', text: '잃은 폭과 켈리가 모두 있어야 견줄 수 있습니다.' };
+  }
+  const actual = pct(avgLossPctOfEquity, 1);
+  if (kelly <= 0) {
+    return {
+      tone: 'bad',
+      text: `켈리가 0 이하인데 한 번에 ${actual}씩 잃고 있습니다 — 걸수록 줄어드는 구간입니다.`,
+    };
+  }
+  if (avgLossPctOfEquity > kelly) {
+    return {
+      tone: 'bad',
+      text: `실제로 잃는 폭 ${actual}가 켈리 상한 ${pct(kelly, 1)}를 넘습니다 — 거는 만큼 성장률이 오히려 깎입니다.`,
+    };
+  }
+  if (avgLossPctOfEquity > kelly / 2) {
+    return {
+      tone: 'warn',
+      text: `절반 켈리 ${pct(kelly / 2, 1)}를 넘습니다 — 승률·손익비가 조금만 나빠져도 상한 밖입니다.`,
+    };
+  }
+  return {
+    tone: 'good',
+    text: `절반 켈리 ${pct(kelly / 2, 1)} 안쪽입니다 — 추정이 어긋나도 여유가 있습니다.`,
+  };
+}
+
 /*
  * 비용이 성적을 정하는 경계 — 손실의 절반.
  *

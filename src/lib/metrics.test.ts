@@ -9,6 +9,7 @@ import {
   dayKey,
   deriveTrades,
   groupPerformance,
+  kellyFraction,
   lastActivityAt,
   monthKey,
   summarizePerformance,
@@ -906,6 +907,99 @@ describe('집계 헬퍼', () => {
     expect(groups[0].netPnl).toBe(-50);
     expect(groups.at(-1)?.key).toBe('계획대로');
     expect(groups.find((g) => g.key === '(미기재)')?.count).toBe(1);
+  });
+
+  it('묶음마다 손익비와 켈리를 따로 낸다 — 승·패가 다 있어야 정의된다', () => {
+    seq = 0;
+    const derived = deriveTrades(book, [
+      trade({ pnl: 20, result: 'win', setup: 'A' }),
+      trade({ pnl: 20, result: 'win', setup: 'A' }),
+      trade({ pnl: -10, result: 'loss', setup: 'A' }),
+      trade({ pnl: 5, result: 'win', setup: 'B' }),
+    ]);
+    const groups = groupPerformance(derived, 'setup');
+    const a = groups.find((g) => g.key === 'A')!;
+    const b = groups.find((g) => g.key === 'B')!;
+
+    // A: 승률 2/3, 손익비 20/10 = 2 → f* = 2/3 − (1/3)/2 = 0.5
+    expect(a.payoffRatio).toBeCloseTo(2, 10);
+    expect(a.kelly).toBeCloseTo(0.5, 10);
+    // B: 패가 없어 손익비·켈리 모두 없음
+    expect(b.payoffRatio).toBeNull();
+    expect(b.kelly).toBeNull();
+  });
+});
+
+describe('kellyFraction — 한 거래에서 잃어도 되는 자금 비율', () => {
+  it('f* = W − (1 − W) / b', () => {
+    // 승률 60%, 손익비 2 → 0.6 − 0.4/2 = 0.4
+    expect(kellyFraction(0.6, 2)).toBeCloseTo(0.4, 10);
+  });
+
+  it('본전 지점(승률 50%·손익비 1)에서 0', () => {
+    expect(kellyFraction(0.5, 1)).toBeCloseTo(0, 10);
+  });
+
+  it('기대치가 음수면 켈리도 음수 — 0으로 뭉개지 않는다', () => {
+    expect(kellyFraction(0.3, 1)).toBeCloseTo(-0.4, 10);
+  });
+
+  it('승률이나 손익비가 없으면 정의되지 않는다', () => {
+    expect(kellyFraction(null, 2)).toBeNull();
+    expect(kellyFraction(0.6, null)).toBeNull();
+    expect(kellyFraction(0.6, 0)).toBeNull();
+  });
+});
+
+describe('computeMetrics — 켈리와 실제로 잃은 폭', () => {
+  it('켈리는 KPI 승률·손익비에서 그대로 나온다', () => {
+    seq = 0;
+    const derived = deriveTrades(book, [
+      trade({ pnl: 20, result: 'win' }),
+      trade({ pnl: -10, result: 'loss' }),
+      trade({ pnl: 20, result: 'win' }),
+      trade({ pnl: -10, result: 'loss' }),
+      trade({ pnl: 20, result: 'win' }),
+    ]);
+    const m = computeMetrics(book, derived);
+
+    expect(m.winRate).toBeCloseTo(0.6, 10);
+    expect(m.payoffRatio).toBeCloseTo(2, 10);
+    expect(m.kelly).toBeCloseTo(0.4, 10);
+  });
+
+  it('실제로 잃은 폭은 손실 거래의 |손익| ÷ 진입 직전 자금 평균이다', () => {
+    seq = 0;
+    // 자금 100 → 120 → 110 → 130 → 120. 손실은 120에서 10, 130에서 10.
+    const derived = deriveTrades(book, [
+      trade({ pnl: 20, result: 'win' }),
+      trade({ pnl: -10, result: 'loss' }),
+      trade({ pnl: 20, result: 'win' }),
+      trade({ pnl: -10, result: 'loss' }),
+    ]);
+    const m = computeMetrics(book, derived);
+
+    expect(m.avgLossPctOfEquity).toBeCloseTo((10 / 120 + 10 / 130) / 2, 10);
+  });
+
+  it('손실이 없으면 잃은 폭도, 켈리도 없다', () => {
+    seq = 0;
+    const m = computeMetrics(book, deriveTrades(book, [trade({ pnl: 20, result: 'win' })]));
+
+    expect(m.avgLossPctOfEquity).toBeNull();
+    expect(m.kelly).toBeNull();
+  });
+
+  it('자금이 0 이하일 때 난 손실은 비율에서 뺀다', () => {
+    seq = 0;
+    // 100 → −20(자금 0 이하) → 그 뒤 손실은 분모가 없다.
+    const derived = deriveTrades(book, [
+      trade({ pnl: -120, result: 'loss' }),
+      trade({ pnl: -10, result: 'loss' }),
+    ]);
+    const m = computeMetrics(book, derived);
+
+    expect(m.avgLossPctOfEquity).toBeCloseTo(1.2, 10);
   });
 });
 

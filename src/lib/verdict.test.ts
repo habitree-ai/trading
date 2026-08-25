@@ -6,6 +6,8 @@ import {
   readCost,
   readDrawdown,
   readExpectancy,
+  readKelly,
+  readKellyFit,
   readLossStreak,
   readRisk,
   readSample,
@@ -109,6 +111,49 @@ describe('readSample', () => {
 
   it('30건부터는 믿고 볼 만하다', () => {
     expect(readSample(30).tone).toBe('neutral');
+  });
+});
+
+describe('readKelly', () => {
+  it('승·패가 다 없으면 판단하지 않는다', () => {
+    expect(readKelly(null, 50).tone).toBe('neutral');
+  });
+
+  it('켈리가 0 이하면 크기가 아니라 방식의 문제다', () => {
+    expect(readKelly(-0.1, 50).tone).toBe('bad');
+  });
+
+  it('표본이 얇으면 켈리가 양수여도 경고한다 — 오차를 키우는 지표라서', () => {
+    expect(readKelly(0.2, 12).tone).toBe('warn');
+  });
+
+  it('표본이 충분하면 절반 켈리를 실전 상한으로 말한다', () => {
+    const v = readKelly(0.2, 40);
+    expect(v.tone).toBe('good');
+    expect(v.text).toContain('10.0%');
+  });
+});
+
+describe('readKellyFit', () => {
+  it('둘 중 하나라도 없으면 견줄 수 없다', () => {
+    expect(readKellyFit(null, 0.02).tone).toBe('neutral');
+    expect(readKellyFit(0.2, null).tone).toBe('neutral');
+  });
+
+  it('켈리를 넘기면 나쁨', () => {
+    expect(readKellyFit(0.2, 0.25).tone).toBe('bad');
+  });
+
+  it('절반 켈리와 켈리 사이면 주의', () => {
+    expect(readKellyFit(0.2, 0.15).tone).toBe('warn');
+  });
+
+  it('절반 켈리 안쪽이면 좋음', () => {
+    expect(readKellyFit(0.2, 0.05).tone).toBe('good');
+  });
+
+  it('켈리가 0 이하인데 잃고 있으면 걸수록 줄어드는 구간이다', () => {
+    expect(readKellyFit(-0.1, 0.05).tone).toBe('bad');
   });
 });
 

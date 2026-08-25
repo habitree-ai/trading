@@ -344,6 +344,24 @@ export function crossCheckPnl(input: {
   return { expected, actual: pnl, deviation, signFlipped, ok: !signFlipped && deviation <= tolerance };
 }
 
+/**
+ * 켈리 비율 — 장기 성장률을 최대로 하는 "한 거래에서 잃어도 되는 자금 비율".
+ *
+ *   f* = W − (1 − W) / b    (W 승률, b 손익비 = 평균수익 ÷ 평균손실)
+ *
+ * 손익비를 금액(실현손익)으로 재므로 f* 도 금액 기준이다 — 견줄 상대는 손절폭이 아니라
+ * 손실 거래에서 실제로 빠져나간 자금 비율(`avgLossPctOfEquity`)이다.
+ * `backtest-lab/compound/lib/sizing.mjs` 의 `kellyFrac` 과 같은 식이다.
+ *
+ * 기대치가 0 이하면 음수가 나온다 — 그대로 돌려준다. "걸지 말라"는 답이라 0 으로 뭉개면
+ * 얼마나 모자란지가 지워진다.
+ */
+export function kellyFraction(winRate: Maybe, payoffRatio: Maybe): Maybe {
+  if (winRate === null || payoffRatio === null) return null;
+  if (!Number.isFinite(winRate) || !Number.isFinite(payoffRatio) || payoffRatio <= 0) return null;
+  return winRate - (1 - winRate) / payoffRatio;
+}
+
 /** 시트의 `n차수익율` — 손절폭을 1R로 본 익절가까지의 R 배수. */
 function rrFor(trade: Trade, target: number | null): Maybe {
   const { entry_price: entry, stop_price: stop } = trade;
@@ -442,6 +460,15 @@ export interface BookMetrics {
   maxDrawdownPct: number;
   /** 평균 거래당 리스크 */
   avgRiskPct: Maybe;
+  /** 켈리 비율 f* — 승률·손익비로 추정. 기대치가 0 이하면 음수 */
+  kelly: Maybe;
+  /**
+   * 손실 거래에서 실제로 빠져나간 자금 비율의 평균 — |실현손익| ÷ 진입 직전 자금.
+   *
+   * 켈리와 같은 단위라 바로 견줄 수 있다. 손절폭(`avgRiskPct`)은 가격 기준이라
+   * 레버리지를 모르면 자금 비율로 옮겨지지 않는다.
+   */
+  avgLossPctOfEquity: Maybe;
 }
 
 export function computeMetrics(
@@ -529,6 +556,10 @@ export function computeMetrics(
   const peaks = [book.initial_capital, ...curve.map((p) => p.peak)];
   const balances = [book.initial_capital, ...curve.map((p) => p.equity)];
   const riskPcts = derived.map((d) => d.riskPct).filter((v): v is number => v !== null);
+  // 자금이 0 이하인 상태에서 난 손실은 비율이 정의되지 않는다 — 건너뛴다.
+  const lossPctsOfEquity = losses
+    .filter((d) => d.equityBefore > 0)
+    .map((d) => Math.abs(d.net) / d.equityBefore);
 
   return {
     closedCount: closed.length,
@@ -573,6 +604,8 @@ export function computeMetrics(
     troughEquity: Math.min(...balances),
     maxDrawdownPct: curve.reduce((min, p) => Math.min(min, p.drawdownPct), 0),
     avgRiskPct: mean(riskPcts),
+    kelly: kellyFraction(winRate, payoffRatio),
+    avgLossPctOfEquity: mean(lossPctsOfEquity),
   };
 }
 
@@ -918,6 +951,10 @@ export interface GroupPerformance {
   winRate: Maybe;
   netPnl: number;
   avgPnl: Maybe;
+  /** 평균수익 ÷ 평균손실 — 승·패가 모두 있어야 정의된다 */
+  payoffRatio: Maybe;
+  /** 이 묶음만의 켈리 비율 — 어느 셋업에 더 걸어도 되는지를 가른다 */
+  kelly: Maybe;
 }
 
 export function groupPerformance(
@@ -936,18 +973,27 @@ export function groupPerformance(
 
   return [...map.entries()]
     .map(([key, list]) => {
-      const wins = list.filter((d) => d.result === 'win').length;
-      const losses = list.filter((d) => d.result === 'loss').length;
+      const winList = list.filter((d) => d.result === 'win');
+      const lossList = list.filter((d) => d.result === 'loss');
+      const wins = winList.length;
+      const losses = lossList.length;
       const pnls = list.map((d) => d.net);
       const netPnl = pnls.reduce((a, b) => a + b, 0);
+      const winRate = ratio(wins, wins + losses);
+      // 전체 지표와 같은 식 — 승·패 평균은 실현손익으로 잰다.
+      const avgWin = mean(winList.map((d) => d.net));
+      const avgLoss = mean(lossList.map((d) => Math.abs(d.net)));
+      const payoffRatio = avgWin !== null && avgLoss !== null ? ratio(avgWin, avgLoss) : null;
       return {
         key,
         count: list.length,
         wins,
         losses,
-        winRate: ratio(wins, wins + losses),
+        winRate,
         netPnl,
         avgPnl: mean(pnls),
+        payoffRatio,
+        kelly: kellyFraction(winRate, payoffRatio),
       };
     })
     .sort((a, b) => a.netPnl - b.netPnl);

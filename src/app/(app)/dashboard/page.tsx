@@ -37,6 +37,8 @@ import { reconcileEquity } from "@/lib/reconcile";
 import {
   readDrawdown,
   readExpectancy,
+  readKelly,
+  readKellyFit,
   readLossStreak,
   readPayoff,
   readRisk,
@@ -159,6 +161,12 @@ export default async function DashboardPage() {
   const risk = readRisk(m.avgRiskPct);
   const streak = readLossStreak(m.maxLossStreak, m.avgRiskPct);
   const recovery = recoveryNeeded(m.maxDrawdownPct);
+  const kelly = readKelly(m.kelly, m.closedCount);
+  const kellyFit = readKellyFit(m.kelly, m.avgLossPctOfEquity);
+  // 실전 상한은 절반 켈리 — 켈리가 0 이하면 걸 폭이 없다.
+  const halfKelly = m.kelly === null ? null : Math.max(m.kelly, 0) / 2;
+  const halfKellyAmount =
+    halfKelly === null || m.finalEquity <= 0 ? null : halfKelly * m.finalEquity;
 
   // 접힌 상세를 열어 볼 이유 — 안쪽에서 가장 나쁜 판정.
   const detailTone = worstTone([drawdown.tone, risk.tone, streak.tone, audit.tone]);
@@ -284,6 +292,47 @@ export default async function DashboardPage() {
               verdict={drawdown}
             />
           </div>
+
+          {/* ── 2-1. 그럼 얼마나 걸어야 하나 ─────── */}
+          <section className="rounded-xl border border-border bg-surface p-4">
+            <h2 className="text-sm font-medium">
+              다음 거래에 걸 폭{" "}
+              <span className="font-normal text-dim">
+                — 청산 {m.closedCount}건의 승률·손익비로 추정한 켈리 비율
+              </span>
+            </h2>
+            <div className="mt-3 grid grid-cols-2 gap-3 lg:grid-cols-3">
+              <StatTile
+                label="켈리 비율 (f*)"
+                value={signedPct(m.kelly)}
+                valueClass={pnlClass(m.kelly)}
+                sub={`승률 ${pct(m.winRate)} − 패률 ÷ 손익비 ${num(m.payoffRatio, 2)}`}
+                verdict={kelly}
+              />
+              <StatTile
+                label="권장 상한 (½ 켈리)"
+                value={pct(halfKelly)}
+                sub={
+                  halfKellyAmount === null
+                    ? "현재자금 기준 한 거래 손실 한도"
+                    : `현재자금 기준 한 거래 손실 한도 ≈ ${num(halfKellyAmount, 2)} ${book.base_currency}`
+                }
+              />
+              <StatTile
+                label="실제로 잃어 온 폭"
+                value={pct(m.avgLossPctOfEquity)}
+                sub="손실 거래의 |손익| ÷ 진입 직전 자금 평균"
+                verdict={kellyFit}
+              />
+            </div>
+            <div className="mt-2">
+              <Note>
+                켈리 비율은 &ldquo;한 거래에서 잃어도 되는 자금의 비율&rdquo;입니다 — 손절에 걸렸을 때 빠져나가는
+                금액을 현재자금으로 나눈 값과 견줍니다. 승률·손익비가 바뀌면 같이 움직이므로
+                고정 규칙이 아니라 상한으로 읽습니다.
+              </Note>
+            </div>
+          </section>
 
           {/* ── 3. 무엇을 했나 ─────────────────────── */}
           <section className="rounded-xl border border-border bg-surface p-4">
