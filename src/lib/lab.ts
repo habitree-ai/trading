@@ -101,6 +101,13 @@ const CATALOG: LabEntry[] = [
     path: "backtest-lab/out/report.html",
   },
   {
+    key: "bt-oneway",
+    group: "backtest",
+    title: "일방향 임펄스 원장 — 되돌리지 않고 간 구간",
+    desc: "1m·5m·15m 전 구간에서 도중 되돌림 없이 1~10% 간 구간을 전수로 세고, 그 시작점의 차트·지표·시간대를 정리한 시장 구조 조사. 손익이 아니라 시장이 준 폭의 상한을 잰다",
+    path: "docs/backtest/oneway-report.html",
+  },
+  {
     key: "doc-status",
     group: "doc",
     title: "시스템 상태 콘솔",

@@ -1,0 +1,725 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>일방향 임펄스 원장 — BTC 단기봉</title>
+<style>
+  :root {
+    color-scheme: dark;
+    --bg:#0e1116; --surface:#161a21; --surface-2:#1e232c; --border:#2a3039;
+    --ink:#e6e9ee; --dim:#8b95a3; --accent:#5b8cff;
+    --up:#26c281; --dn:#f0616d; --warn:#c98500; --grid:#232935;
+  }
+  @media (prefers-color-scheme: light) {
+    :root:not([data-theme="dark"]) {
+      color-scheme: light;
+      --bg:#f7f8fa; --surface:#ffffff; --surface-2:#f1f3f6; --border:#e2e5ea;
+      --ink:#14171c; --dim:#666e7a; --accent:#3b6ef5;
+      --up:#0f9d58; --dn:#dc3545; --warn:#b06f00; --grid:#eceef2;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin:0; background:var(--bg); color:var(--ink);
+    font:14px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans KR", sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap { max-width:1240px; margin:0 auto; padding:28px 20px 80px; }
+  .tnum { font-variant-numeric: tabular-nums; }
+  h1 { font-size:22px; margin:0 0 6px; letter-spacing:-.01em; }
+  h2 { font-size:16px; margin:36px 0 10px; letter-spacing:-.01em; }
+  h3 { font-size:13.5px; margin:0 0 6px; }
+  p { margin:0 0 10px; }
+  .lede { color:var(--dim); font-size:13px; max-width:74ch; }
+  .sub { color:var(--dim); font-size:12px; }
+  code { background:var(--surface-2); border-radius:4px; padding:1px 5px; font-size:12px; }
+  a { color:var(--accent); }
+
+  .panel { background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:16px; }
+  .grid { display:grid; gap:12px; }
+  .g2 { grid-template-columns:repeat(auto-fit,minmax(320px,1fr)); }
+  .g3 { grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); }
+  .g4 { grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); }
+
+  .kpi { background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:14px 16px; }
+  .kpi .label { color:var(--dim); font-size:11.5px; }
+  .kpi .value { font-size:24px; font-weight:600; margin-top:2px; letter-spacing:-.02em; }
+  .kpi .note { color:var(--dim); font-size:11px; margin-top:2px; }
+
+  table { width:100%; border-collapse:collapse; font-size:12.5px; }
+  th, td { padding:6px 8px; text-align:right; border-bottom:1px solid var(--border); white-space:nowrap; }
+  th { color:var(--dim); font-weight:500; font-size:11.5px; position:sticky; top:0; background:var(--surface); }
+  th:first-child, td:first-child { text-align:left; }
+  tbody tr:hover { background:var(--surface-2); }
+  .scroll { overflow-x:auto; }
+  .tall { max-height:520px; overflow-y:auto; }
+
+  .up { color:var(--up); }
+  .dn { color:var(--dn); }
+  .muted { color:var(--dim); }
+
+  .controls { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin:14px 0 18px;
+    position:sticky; top:0; z-index:20; background:var(--bg); padding:10px 0; border-bottom:1px solid var(--border); }
+  .seg { display:inline-flex; border:1px solid var(--border); border-radius:9px; overflow:hidden; }
+  .seg button {
+    background:var(--surface); color:var(--dim); border:0; padding:6px 13px; font-size:12.5px;
+    cursor:pointer; font-family:inherit; border-right:1px solid var(--border);
+  }
+  .seg button:last-child { border-right:0; }
+  .seg button[aria-pressed="true"] { background:var(--accent); color:#fff; }
+  .ctl-label { color:var(--dim); font-size:11.5px; margin-right:2px; }
+
+  .bar { height:7px; border-radius:4px; background:var(--surface-2); overflow:hidden; }
+  .bar > i { display:block; height:100%; background:var(--accent); }
+  .liftcell { position:relative; }
+
+  .card { background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:14px; }
+  .card .hd { display:flex; justify-content:space-between; align-items:baseline; gap:10px; margin-bottom:8px; }
+  .tags { display:flex; flex-wrap:wrap; gap:5px; margin-top:8px; }
+  .tag { font-size:10.5px; color:var(--dim); border:1px solid var(--border); border-radius:5px; padding:1px 6px; }
+  .chart { width:100%; height:180px; display:block; }
+
+  .callout { border-left:3px solid var(--warn); background:var(--surface); border-radius:0 10px 10px 0;
+    padding:12px 14px; font-size:12.5px; color:var(--dim); }
+  .callout b { color:var(--ink); }
+  ul.tight { margin:6px 0 0; padding-left:18px; }
+  ul.tight li { margin-bottom:5px; }
+  .foot { margin-top:48px; padding-top:16px; border-top:1px solid var(--border); color:var(--dim); font-size:11.5px; }
+  .heat { display:grid; grid-template-columns:repeat(24,1fr); gap:2px; }
+  .heat div { aspect-ratio:1; border-radius:3px; font-size:0; }
+  .hrow { display:grid; grid-template-columns:64px 1fr; gap:8px; align-items:center; margin-bottom:4px; }
+  .hrow .lb { font-size:11px; color:var(--dim); }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>일방향 임펄스 원장 — BTC 단기봉</h1>
+<p class="lede" id="lede"></p>
+
+<div class="callout" style="margin:14px 0 0">
+  <b>이 회차가 재는 것과 재지 않는 것.</b>
+  재는 것은 <b>시장이 준 폭</b>이다 — 되돌리지 않고 한 방향으로 간 구간의 빈도·크기·지속·그때의 차트.
+  재지 않는 것은 <b>손익</b>이다. 수수료·슬리피지·펀딩·체결 지연이 하나도 들어 있지 않다.
+  아래 빈도는 얻을 수 있었던 것의 <b>상한</b>이지 기대 수익이 아니다.
+</div>
+
+<h2>정의 — 무엇을 "한 방향"으로 셌는가</h2>
+<div class="panel">
+  <div id="defs"></div>
+</div>
+
+<div class="controls">
+  <span class="ctl-label">봉</span>
+  <span class="seg" id="tfSeg"></span>
+  <span class="ctl-label" style="margin-left:8px">되돌림 임계 R</span>
+  <span class="seg" id="rSeg"></span>
+  <span class="ctl-label" style="margin-left:8px">크기</span>
+  <span class="seg" id="bSeg"></span>
+</div>
+
+<h2>한눈에</h2>
+<div class="grid g4" id="kpis"></div>
+
+<h2>이 조합이 말하는 것</h2>
+<p class="sub">아래 문장은 손으로 쓴 요약이 아니라 선택한 봉·임계·크기에서 그때그때 계산된다. 컨트롤을 바꾸면 문장도 바뀐다.</p>
+<div class="panel"><ul class="tight" id="findings"></ul></div>
+
+<h2>봉 × 되돌림 임계 매트릭스</h2>
+<p class="sub">선택한 크기 기준(<span id="mxB"></span> 이상) 임펄스의 <b>연간 발생 횟수</b>. 임계가 좁을수록 구간이 잘게 끊겨 큰 임펄스는 드물어진다.</p>
+<div class="panel scroll"><table id="matrix"></table></div>
+
+<h2 id="alignHead">봉 해상도는 답을 바꾸는가 — 같은 구간에서</h2>
+<p class="sub">
+  위 매트릭스는 봉마다 구간이 달라(1분봉 540일 · 나머지 2,400일) 해상도의 효과와 시기의 효과가 섞인다.
+  여기서는 가장 짧은 봉의 구간에 나머지를 맞춰 다시 셌다. <b>여기서 갈리는 만큼이 순수하게 해상도의 몫이다.</b>
+</p>
+<p class="sub" id="alignNote"></p>
+<div class="panel scroll"><table id="aligned"></table></div>
+
+<h2>크기 분포</h2>
+<p class="sub">전체 leg 를 이동폭 구간으로 나눈 것. 상승·하락을 함께 쌓았다.</p>
+<div class="panel scroll"><table id="hist"></table></div>
+
+<h2>지속과 속도</h2>
+<p class="sub">
+  크기 버킷별로 얼마나 오래, 얼마나 빠르게 갔는가.
+  <b>되돌림</b>은 구간 진행 중 갱신된 극값 대비 최대 되밀림 — 정의상 R 미만이지만, 그 안에서 얼마나 깔끔하게 갔는지가 여기 남는다.
+  <b>MAE</b>는 구간 시작가 대비 최대 역행폭이다. 시작점이 곧 극값이라 0 근처인 것이 정상이며, 그 자체가 답이다 —
+  출발선에 정확히 서 있었다면 견딜 것이 거의 없었다는 뜻이고, 문제는 그 자리를 미리 알 수 없다는 데 있다.
+</p>
+<div class="panel scroll"><table id="dur"></table></div>
+
+<h2>언제 나오는가</h2>
+<div class="grid g2">
+  <div class="panel">
+    <h3>KST 시간대별 집중도</h3>
+    <p class="sub">리프트 = 그 시간대 임펄스 비중 ÷ 봉 비중. 1보다 크면 그 시간에 몰린다.</p>
+    <div id="hourHeat" style="margin-top:10px"></div>
+  </div>
+  <div class="panel">
+    <h3>세션·요일</h3>
+    <div class="scroll" style="margin-top:8px"><table id="sess"></table></div>
+  </div>
+</div>
+
+<div class="panel" style="margin-top:12px">
+  <h3>연도별 빈도</h3>
+  <p class="sub">해마다 같은 시장이 아니었다. 임펄스가 몰린 해와 말라붙은 해를 갈라 본다.</p>
+  <div class="scroll" style="margin-top:8px"><table id="year"></table></div>
+</div>
+
+<h2>그때 차트는 어떤 모습이었나</h2>
+<p class="sub">
+  임펄스가 <b>시작된 봉</b>에서 각 조건이 켜져 있던 비율을, 전체 봉에서 켜진 비율과 비교한다.
+  리프트가 1보다 크면 그 모습에서 임펄스가 더 자주 출발했다는 뜻이다 — 동시 발생이지 인과가 아니고,
+  시작점은 사후에만 확정된다. 이 표만으로는 매매할 수 없다.
+</p>
+<div class="panel scroll tall"><table id="profile"></table></div>
+
+<h2>그 모습에서 출발했다면 — 조건부 도달률</h2>
+<p class="sub">
+  위 표의 뒤집힌 질문이자, 이 회차에서 <b>시점에 서서 쓸 수 있는 유일한 숫자</b>다.
+  조건이 켜진 모든 봉의 종가에서 출발했다고 두고, R% 역행이 나오기 전에 목표폭에 닿은 비율을 센다.
+  괄호 안은 전체 봉 기준선 대비 배수.
+</p>
+<div class="panel scroll tall"><table id="cond"></table></div>
+
+<h2>대표 사례</h2>
+<p class="sub">
+  이동폭 상위만 뽑으면 플래시 크래시류만 남아 "차트 모습"에 답하지 못한다. 그래서 네 축으로 나눠 골랐다 —
+  가장 큰 것, 가장 오래 간 것, 되돌림이 가장 얕았던 것, 그리고 중앙값에 가장 가까운 전형. 음영이 임펄스 구간이고 앞뒤 여백을 함께 그렸다.
+</p>
+<div class="grid g2" id="samples"></div>
+
+<h2>남는 주의</h2>
+<div class="panel"><ul class="tight" id="caveats"></ul></div>
+
+<h2>데이터 재고</h2>
+<div class="panel scroll"><table id="fetch"></table></div>
+
+<div class="foot">
+  <span id="footMeta"></span><br>
+  재생성: <code>node scripts/backtest/oneway-fetch.mjs</code> → <code>node --max-old-space-size=8192 scripts/backtest/oneway.mjs run</code> → <code>node scripts/backtest/oneway-report.mjs</code>
+</div>
+</div>
+
+<script id="data" type="application/json">__DATA_JSON__</script>
+<script>
+(function () {
+  "use strict";
+  var D = JSON.parse(document.getElementById("data").textContent);
+
+  var state = {
+    tf: D.tfs[0].tf,
+    r: String(D.axes.retracements[D.axes.retracements.length - 1]),
+    b: 1,
+  };
+
+  var el = function (id) { return document.getElementById(id); };
+  var esc = function (s) { return String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); };
+  var n0 = function (v) { return (v == null ? 0 : v).toLocaleString(undefined, { maximumFractionDigits: 0 }); };
+  var n1 = function (v) { return (v == null ? 0 : v).toFixed(1); };
+  var n2 = function (v) { return (v == null ? 0 : v).toFixed(2); };
+  var DOW = ["일", "월", "화", "수", "목", "금", "토"];
+
+  function tfData(tf) {
+    for (var i = 0; i < D.tfs.length; i += 1) if (D.tfs[i].tf === tf) return D.tfs[i];
+    return D.tfs[0];
+  }
+  function cur() { return tfData(state.tf).byR[state.r]; }
+  function bucketOf(rd, b) {
+    for (var i = 0; i < rd.buckets.length; i += 1) if (rd.buckets[i].bucket === b) return rd.buckets[i];
+    return rd.buckets[0];
+  }
+
+  /* ---------- 머리말 ---------- */
+  el("lede").textContent = D.question + " — " + D.inst + ", " + D.tfs.map(function (t) {
+    return t.label + " " + n0(t.bars) + "봉/" + n0(t.spanDays) + "일";
+  }).join(" · ") + ".";
+
+  var dl = "";
+  var order = ["leg", "exclusion", "intrabar", "overlap", "reach"];
+  var names = { leg: "임펄스 구간", exclusion: "요청 정의", intrabar: "봉내 순서 가정", overlap: "겹침", reach: "도달률" };
+  order.forEach(function (k) {
+    if (!D.definition[k]) return;
+    dl += '<div style="display:grid;grid-template-columns:110px 1fr;gap:10px;padding:6px 0;border-bottom:1px solid var(--border)">' +
+      '<div class="sub" style="padding-top:1px">' + esc(names[k]) + "</div><div style=\"font-size:12.5px\">" + esc(D.definition[k]) + "</div></div>";
+  });
+  el("defs").innerHTML = dl;
+
+  el("caveats").innerHTML = D.caveats.map(function (c) { return "<li>" + esc(c) + "</li>"; }).join("");
+  el("footMeta").textContent = "생성 " + new Date(D.generatedAt).toLocaleString("ko-KR") +
+    " · 조건 " + D.conditions.length + "종 · 봉 " + D.tfs.length + "종 × 임계 " + D.axes.retracements.length + "단";
+
+  el("fetch").innerHTML =
+    "<thead><tr><th>봉</th><th>봉 수</th><th>실제 일수</th><th>결측률</th><th>단조 위반</th></tr></thead><tbody>" +
+    D.fetch.map(function (f) {
+      return "<tr><td>" + esc(f.tf) + '</td><td class="tnum">' + n0(f.bars) + '</td><td class="tnum">' + n0(f.spanDays) +
+        '</td><td class="tnum">' + n2(f.missPct) + '%</td><td class="tnum">' + f.nonMono + "</td></tr>";
+    }).join("") + "</tbody>";
+
+  /* ---------- 컨트롤 ---------- */
+  function seg(host, items, get, set) {
+    host.innerHTML = items.map(function (it) {
+      return '<button type="button" data-v="' + esc(it.v) + '" aria-pressed="' + (String(get()) === String(it.v)) + '">' + esc(it.t) + "</button>";
+    }).join("");
+    host.onclick = function (e) {
+      var b = e.target.closest("button");
+      if (!b) return;
+      set(b.getAttribute("data-v"));
+      render();
+    };
+  }
+
+  function renderControls() {
+    seg(el("tfSeg"), D.tfs.map(function (t) { return { v: t.tf, t: t.label }; }),
+      function () { return state.tf; }, function (v) { state.tf = v; });
+    seg(el("rSeg"), D.axes.retracements.map(function (r) { return { v: String(r), t: (r * 100).toFixed(1) + "%" }; }),
+      function () { return state.r; }, function (v) { state.r = v; });
+    seg(el("bSeg"), D.axes.buckets.map(function (b) { return { v: String(b), t: "≥" + b + "%" }; }),
+      function () { return state.b; }, function (v) { state.b = Number(v); });
+  }
+
+  /* ---------- 한눈에 ---------- */
+  function renderKpis() {
+    var rd = cur();
+    var bk = bucketOf(rd, state.b);
+    var both = bk.both, up = bk.up, dn = bk.down;
+    var td = tfData(state.tf);
+    var items = [
+      { label: "≥" + state.b + "% 임펄스", value: n0(both.count) + "회", note: td.spanDays + "일 전 구간" },
+      { label: "연간 발생", value: n1(both.perYear) + "회", note: "월 " + n1(both.perMonth) + "회" },
+      { label: "평균 이동폭", value: (both.move ? n2(both.move.avg) : "0") + "%", note: both.move ? "중앙 " + n2(both.move.p50) + "% · 최대 " + n2(both.move.max) + "%" : "" },
+      { label: "평균 지속", value: both.hours ? n1(both.hours.avg) + "시간" : "-", note: both.bars ? "중앙 " + n0(both.bars.p50) + "봉" : "" },
+      { label: "상승 비중", value: n1(both.upShare) + "%", note: "상승 " + n0(up.count) + " · 하락 " + n0(dn.count) },
+      { label: "구간 내 되돌림", value: both.retr ? n2(both.retr.p50) + "%" : "-", note: both.retr ? "중앙값 · p90 " + n2(both.retr.p90) + "%" : "" },
+      { label: "평균 속도", value: both.speed ? n2(both.speed.avg) + "%/h" : "-", note: both.speed ? "중앙 " + n2(both.speed.p50) + "%/h" : "" },
+      { label: "전체 leg", value: n0(rd.legs) + "개", note: "임계 " + (rd.r * 100).toFixed(1) + "% 로 자른 전 구간" },
+    ];
+    el("kpis").innerHTML = items.map(function (k) {
+      return '<div class="kpi"><div class="label">' + esc(k.label) + '</div><div class="value tnum">' + esc(k.value) +
+        '</div><div class="note tnum">' + esc(k.note) + "</div></div>";
+    }).join("");
+  }
+
+  /* ---------- 매트릭스 ---------- */
+  function renderMatrix() {
+    el("mxB").textContent = state.b + "%";
+    var rs = D.axes.retracements;
+    var head = "<thead><tr><th>봉</th>" + rs.map(function (r) {
+      return "<th>R=" + (r * 100).toFixed(1) + "%</th>";
+    }).join("") + "<th>구간</th></tr></thead>";
+    var body = D.tfs.map(function (t) {
+      var cells = rs.map(function (r) {
+        var rd = t.byR[String(r)];
+        if (!rd) return '<td class="muted">-</td>';
+        var bk = bucketOf(rd, state.b);
+        var sel = (t.tf === state.tf && String(r) === state.r) ? ' style="background:var(--surface-2);font-weight:600"' : "";
+        return "<td" + sel + ' class="tnum">' + n1(bk.both.perYear) + '회/년<br><span class="sub tnum">' + n0(bk.both.count) + "회</span></td>";
+      }).join("");
+      return "<tr><td>" + esc(t.label) + "</td>" + cells + '<td class="sub tnum">' + n0(t.spanDays) + "일</td></tr>";
+    }).join("");
+    el("matrix").innerHTML = head + "<tbody>" + body + "</tbody>";
+  }
+
+  /* ---------- 같은 구간에서의 해상도 비교 ---------- */
+  function renderAligned() {
+    if (!D.aligned || !D.aligned.rows.length) {
+      document.getElementById("alignHead").style.display = "none";
+      el("alignNote").style.display = "none";
+      el("aligned").closest(".panel").style.display = "none";
+      return;
+    }
+    const tfs = D.tfs.map(function (t) { return t.tf; });
+    const get = function (tf, r, b) {
+      for (let i = 0; i < D.aligned.rows.length; i += 1) {
+        const x = D.aligned.rows[i];
+        if (x.tf === tf && x.r === r && x.bucket === b) return x;
+      }
+      return null;
+    };
+    // 기준은 가장 촘촘한 봉 — 되돌림을 가장 잘 보는 쪽이 참값에 가깝다.
+    const finest = tfs[0];
+
+    let html = "<thead><tr><th>되돌림 임계</th><th>크기</th>" +
+      tfs.map(function (tf) { return "<th>" + esc(tfData(tf).label) + "</th>"; }).join("") +
+      "<th>가장 촘촘한 봉 대비</th></tr></thead><tbody>";
+
+    D.axes.retracements.forEach(function (r) {
+      D.axes.buckets.forEach(function (b) {
+        const cells = tfs.map(function (tf) {
+          const x = get(tf, r, b);
+          return x ? x.count : null;
+        });
+        if (!cells.some(function (c) { return c && c >= 10; })) return;
+        const baseVal = cells[0];
+        const worst = cells.reduce(function (m, c) {
+          if (c == null || !baseVal) return m;
+          const ratio = c / baseVal;
+          return Math.abs(ratio - 1) > Math.abs(m - 1) ? ratio : m;
+        }, 1);
+        const drift = Math.abs(worst - 1);
+        const cls = drift >= 0.5 ? "dn" : drift >= 0.2 ? "" : "up";
+        const word = drift >= 0.5 ? "크게 갈린다" : drift >= 0.2 ? "다소 갈린다" : "거의 같다";
+        html += "<tr><td>" + (r * 100).toFixed(1) + "%</td><td>≥" + b + "%</td>" +
+          cells.map(function (c) { return '<td class="tnum">' + (c == null ? "-" : n0(c)) + "</td>"; }).join("") +
+          '<td class="tnum ' + cls + '">' + n2(worst) + "배 · " + word + "</td></tr>";
+      });
+    });
+    html += "</tbody>";
+    el("aligned").innerHTML = html;
+    el("alignNote").textContent = "공통 구간: " + D.aligned.from + " 이후 · 기준 봉 " + tfData(finest).label;
+  }
+
+  /* ---------- 크기 분포 ---------- */
+  function renderHist() {
+    var rd = cur();
+    var max = 0;
+    rd.hist.forEach(function (h) { if (h.total > max) max = h.total; });
+    el("hist").innerHTML =
+      "<thead><tr><th>이동폭</th><th>합계</th><th>상승</th><th>하락</th><th style=\"width:45%\">분포</th></tr></thead><tbody>" +
+      rd.hist.map(function (h) {
+        var w = max ? (h.total / max) * 100 : 0;
+        var upw = h.total ? (h.up / h.total) * 100 : 0;
+        return "<tr><td>" + esc(h.range) + '%</td><td class="tnum">' + n0(h.total) + '</td><td class="tnum up">' + n0(h.up) +
+          '</td><td class="tnum dn">' + n0(h.dn) + '</td><td><div class="bar" style="width:' + n1(w) + '%">' +
+          '<i style="width:' + n1(upw) + '%;background:var(--up)"></i></div></td></tr>';
+      }).join("") + "</tbody>";
+  }
+
+  /* ---------- 지속·속도 ---------- */
+  function renderDur() {
+    var rd = cur();
+    var head = "<thead><tr><th>크기</th><th>건수</th><th>연간</th><th>평균폭</th><th>중앙폭</th><th>최대폭</th>" +
+      "<th>중앙 지속</th><th>중앙 봉수</th><th>중앙 되돌림</th><th>되돌림 p90</th><th>평균 MAE</th><th>중앙 속도</th><th>상승비중</th></tr></thead>";
+    var body = rd.buckets.map(function (bk) {
+      var s = bk.both;
+      if (!s.count) return "<tr><td>≥" + bk.bucket + '%</td><td colspan="12" class="muted">표본 없음</td></tr>';
+      var selRow = bk.bucket === state.b ? ' style="background:var(--surface-2)"' : "";
+      return "<tr" + selRow + "><td>≥" + bk.bucket + '%</td><td class="tnum">' + n0(s.count) + '</td><td class="tnum">' + n1(s.perYear) +
+        '</td><td class="tnum">' + n2(s.move.avg) + '%</td><td class="tnum">' + n2(s.move.p50) + '%</td><td class="tnum">' + n2(s.move.max) +
+        '%</td><td class="tnum">' + n1(s.hours.p50) + 'h</td><td class="tnum">' + n0(s.bars.p50) + '</td><td class="tnum">' + n2(s.retr.p50) +
+        '%</td><td class="tnum">' + n2(s.retr.p90) + '%</td><td class="tnum">' + n2(s.mae.avg) +
+        '%</td><td class="tnum">' + n2(s.speed.p50) + '%/h</td><td class="tnum">' + n1(s.upShare) + "%</td></tr>";
+    }).join("");
+    el("dur").innerHTML = head + "<tbody>" + body + "</tbody>";
+  }
+
+  /* ---------- 시간 ---------- */
+  /**
+   * 집중도 색 — 초록·빨강을 쓰지 않는다.
+   *
+   * 이 리포트에서 초록·빨강은 이미 상승·하락을 뜻한다. 같은 색으로 "임펄스가 몰린
+   * 시간대"를 칠하면 몰린 것인지 오른 것인지 읽는 사람이 구분할 수 없다. 그래서
+   * 강조색 한 가지의 농도로만 표현하고, 평균 이하는 색을 빼서 뒤로 물린다.
+   */
+  function heatColor(lift) {
+    if (!lift) return "var(--surface-2)";
+    var d = Math.max(-1, Math.min(1, (lift - 1) * 2.2));
+    return d >= 0
+      ? "rgba(91,140,255," + (0.12 + d * 0.76).toFixed(3) + ")"
+      : "rgba(139,149,163," + (0.08 + Math.abs(d) * 0.30).toFixed(3) + ")";
+  }
+
+  function renderTime() {
+    var rd = cur();
+    var tb = rd.time[state.b];
+    var lbl = "≥" + state.b + "%";
+
+    var cells = tb.byHour.map(function (h) {
+      return '<div title="KST ' + h.hour + "시 · " + h.total + "회 · 리프트 " + n2(h.lift) +
+        '" style="background:' + heatColor(h.lift) + '"></div>';
+    }).join("");
+    var ticks = "";
+    for (var i = 0; i < 24; i += 1) ticks += '<div style="font-size:9px;color:var(--dim);text-align:center;aspect-ratio:auto">' + (i % 3 === 0 ? i : "") + "</div>";
+    el("hourHeat").innerHTML =
+      '<div class="sub" style="margin-bottom:6px">' + lbl + " 임펄스 · 총 " + n0(tb.total) + "회</div>" +
+      '<div class="heat">' + cells + "</div>" +
+      '<div class="heat" style="margin-top:3px">' + ticks + "</div>";
+
+    var sessRows = tb.bySession.map(function (s) {
+      return "<tr><td>" + esc(s.name) + '</td><td class="tnum">' + n0(s.total) + '</td><td class="tnum up">' + n0(s.up) +
+        '</td><td class="tnum dn">' + n0(s.dn) + "</td></tr>";
+    }).join("");
+    var dowRows = tb.byDow.map(function (d) {
+      return "<tr><td>" + DOW[d.dow] + '요일</td><td class="tnum">' + n0(d.total) + '</td><td class="tnum">' + n2(d.lift) +
+        '×</td><td><div class="bar"><i style="width:' + n1(Math.min(100, d.lift * 50)) + '%"></i></div></td></tr>';
+    }).join("");
+    el("sess").innerHTML =
+      "<thead><tr><th>세션</th><th>합계</th><th>상승</th><th>하락</th></tr></thead><tbody>" + sessRows + "</tbody>" +
+      '<thead><tr><th style="padding-top:14px">요일</th><th style="padding-top:14px">합계</th>' +
+      '<th style="padding-top:14px">리프트</th><th style="padding-top:14px"></th></tr></thead><tbody>' + dowRows + "</tbody>";
+
+    var maxY = 0;
+    tb.byYear.forEach(function (y) { if (y.total > maxY) maxY = y.total; });
+    el("year").innerHTML =
+      "<thead><tr><th>연도</th><th>합계</th><th>상승</th><th>하락</th><th>상승비중</th><th style=\"width:40%\"></th></tr></thead><tbody>" +
+      tb.byYear.map(function (y) {
+        var share = y.total ? (y.up / y.total) * 100 : 0;
+        return "<tr><td>" + y.year + '</td><td class="tnum">' + n0(y.total) + '</td><td class="tnum up">' + n0(y.up) +
+          '</td><td class="tnum dn">' + n0(y.dn) + '</td><td class="tnum">' + n1(share) +
+          '%</td><td><div class="bar" style="width:' + n1(maxY ? (y.total / maxY) * 100 : 0) + '%"><i style="width:' +
+          n1(share) + '%;background:var(--up)"></i></div></td></tr>';
+      }).join("") + "</tbody>";
+  }
+
+  /* ---------- 지표 프로파일 ---------- */
+  function renderProfile() {
+    var rd = cur();
+    var rows = rd.profile[state.b];
+    var lbl = "≥" + state.b + "%";
+    if (!rows || !rows.length) {
+      el("profile").innerHTML = '<tbody><tr><td class="muted">표본이 30건 미만이라 프로파일을 내지 않았다.</td></tr></tbody>';
+      return;
+    }
+    var maxLift = 0;
+    rows.forEach(function (r) { if (r.lift > maxLift) maxLift = r.lift; });
+    el("profile").innerHTML =
+      "<thead><tr><th>조건 (" + lbl + " 임펄스 시작 봉)</th><th>분류</th><th>전체 봉</th><th>임펄스 시작</th><th>리프트</th>" +
+      "<th>상승</th><th>하락</th><th style=\"width:22%\"></th></tr></thead><tbody>" +
+      rows.map(function (r) {
+        var cls = r.lift >= 1.15 ? "up" : r.lift <= 0.85 ? "dn" : "";
+        return "<tr><td>" + esc(r.name) + '</td><td class="sub">' + esc(r.group) + '</td><td class="tnum sub">' + n1(r.basePct) +
+          '%</td><td class="tnum">' + n1(r.legPct) + '%</td><td class="tnum ' + cls + '">' + n2(r.lift) +
+          '×</td><td class="tnum up">' + n0(r.nUp) + '</td><td class="tnum dn">' + n0(r.nDn) +
+          '</td><td><div class="bar"><i style="width:' + n1(maxLift ? (r.lift / maxLift) * 100 : 0) +
+          '%;background:' + (r.lift >= 1 ? "var(--up)" : "var(--dn)") + '"></i></div></td></tr>';
+      }).join("") + "</tbody>";
+  }
+
+  /* ---------- 조건부 도달률 ---------- */
+  function renderCond() {
+    var rd = cur();
+    var rows = rd.conditional;
+    var ts = D.axes.targets;
+    var base = rows[0];
+    var head = "<thead><tr><th>조건</th><th>봉 수</th>" +
+      ts.map(function (x) { return "<th>↑" + x + "%</th>"; }).join("") +
+      ts.map(function (x) { return "<th>↓" + x + "%</th>"; }).join("") + "</tr></thead>";
+    var body = rows.map(function (r) {
+      var isBase = r.key === "__all";
+      var cells = ts.map(function (x) {
+        var v = r["up" + x], lift = r["upLift" + x];
+        return '<td class="tnum">' + n1(v) + "%" + (isBase ? "" : ' <span class="sub">(' + n2(lift) + "×)</span>") + "</td>";
+      }).join("") + ts.map(function (x) {
+        var v = r["dn" + x], lift = r["dnLift" + x];
+        return '<td class="tnum">' + n1(v) + "%" + (isBase ? "" : ' <span class="sub">(' + n2(lift) + "×)</span>") + "</td>";
+      }).join("");
+      return "<tr" + (isBase ? ' style="background:var(--surface-2);font-weight:600"' : "") + "><td>" + esc(r.name) +
+        '</td><td class="tnum sub">' + n0(r.n) + "</td>" + cells + "</tr>";
+    }).join("");
+    el("cond").innerHTML = head + "<tbody>" + body + "</tbody>";
+    void base;
+  }
+
+  /* ---------- 대표 사례 캔들 ---------- */
+  function candleSvg(s) {
+    var cs = s.candles;
+    if (!cs.length) return "";
+    var W = 560, Hh = 180, padT = 8, padB = 14, padL = 4, padR = 46;
+    var lo = Infinity, hi = -Infinity;
+    for (var i = 0; i < cs.length; i += 1) { if (cs[i][3] < lo) lo = cs[i][3]; if (cs[i][2] > hi) hi = cs[i][2]; }
+    var span = (hi - lo) || 1;
+    lo -= span * 0.04; hi += span * 0.04; span = hi - lo;
+    var cw = (W - padL - padR) / cs.length;
+    var x = function (i) { return padL + i * cw; };
+    var y = function (p) { return padT + (1 - (p - lo) / span) * (Hh - padT - padB); };
+
+    var parts = [];
+    parts.push('<rect x="' + n1(x(s.si)) + '" y="' + padT + '" width="' + n1(Math.max(1, (s.ei - s.si) * cw)) +
+      '" height="' + (Hh - padT - padB) + '" fill="' + (s.dir === 1 ? "var(--up)" : "var(--dn)") + '" opacity="0.10"/>');
+
+    for (var k = 0; k < cs.length; k += 1) {
+      var c = cs[k];
+      var col = c[4] >= c[1] ? "var(--up)" : "var(--dn)";
+      var cx = x(k) + cw / 2;
+      parts.push('<line x1="' + n1(cx) + '" y1="' + n1(y(c[2])) + '" x2="' + n1(cx) + '" y2="' + n1(y(c[3])) +
+        '" stroke="' + col + '" stroke-width="0.7" opacity="0.85"/>');
+      var top = y(Math.max(c[1], c[4])), bot = y(Math.min(c[1], c[4]));
+      parts.push('<rect x="' + n1(x(k) + cw * 0.15) + '" y="' + n1(top) + '" width="' + n1(Math.max(0.6, cw * 0.7)) +
+        '" height="' + n1(Math.max(0.7, bot - top)) + '" fill="' + col + '" opacity="0.9"/>');
+    }
+    // 시작·끝 가격선
+    parts.push('<line x1="' + padL + '" y1="' + n1(y(s.sp)) + '" x2="' + (W - padR) + '" y2="' + n1(y(s.sp)) +
+      '" stroke="var(--dim)" stroke-width="0.6" stroke-dasharray="3 3" opacity="0.7"/>');
+    parts.push('<line x1="' + padL + '" y1="' + n1(y(s.ep)) + '" x2="' + (W - padR) + '" y2="' + n1(y(s.ep)) +
+      '" stroke="' + (s.dir === 1 ? "var(--up)" : "var(--dn)") + '" stroke-width="0.6" stroke-dasharray="3 3" opacity="0.8"/>');
+    parts.push('<text x="' + (W - padR + 4) + '" y="' + n1(y(s.ep) + 3) + '" font-size="9" fill="var(--dim)">' + n0(s.ep) + "</text>");
+    parts.push('<text x="' + (W - padR + 4) + '" y="' + n1(y(s.sp) + 3) + '" font-size="9" fill="var(--dim)">' + n0(s.sp) + "</text>");
+
+    return '<svg class="chart" viewBox="0 0 ' + W + " " + Hh + '" preserveAspectRatio="none">' + parts.join("") + "</svg>";
+  }
+
+  function stackLabel(v) { return v === 1 ? "정배열" : v === -1 ? "역배열" : "혼조"; }
+  function alignLabel(v) { return v === 1 ? "상승" : v === -1 ? "하락" : "중립"; }
+
+  function renderSamples() {
+    var rd = cur();
+    var list = rd.samples || [];
+    if (!list.length) { el("samples").innerHTML = '<p class="muted">표본 없음</p>'; return; }
+    el("samples").innerHTML = list.map(function (s) {
+      var t = s.ta;
+      var tags = [
+        "RSI " + n0(t.rsi),
+        "%b " + n2(t.bbPb),
+        "밴드폭 " + n0(t.bbWPct * 100) + "%ile",
+        "ATR " + n0(t.atrPctile * 100) + "%ile",
+        "이평 " + stackLabel(t.stack),
+        "4H " + alignLabel(t.h4),
+        "1D " + alignLabel(t.d1),
+        "거래량 " + n1(t.volR) + "배",
+        "채널 " + n0(t.dcPos * 100) + "%",
+        "EMA200 이격 " + n1(t.distE200) + "%",
+        "KST " + t.hourKst + "시 " + DOW[t.dow],
+      ];
+      return '<div class="card"><div class="hd"><h3>' + esc(s.startLabel) + '</h3><span class="tnum ' + (s.dir === 1 ? "up" : "dn") +
+        '" style="font-weight:600">' + (s.dir === 1 ? "+" : "") + n2(s.movePct) + "%</span></div>" +
+        '<div class="sub"><span class="tag" style="margin-right:6px">' + esc(s.why) + "</span>" +
+        '<span class="tnum">' + n0(s.bars) + "봉 · " + n1(s.hours) + "시간 · 되돌림 " + n2(s.retrPct) + "% · " +
+        n0(s.sp) + " → " + n0(s.ep) + (s.step > 1 ? " · " + s.step + "봉 묶음" : "") + "</span></div>" +
+        candleSvg(s) +
+        '<div class="tags">' + tags.map(function (g) { return '<span class="tag">' + esc(g) + "</span>"; }).join("") + "</div></div>";
+    }).join("");
+  }
+
+  /**
+   * 핵심 발견 — 고른 조합에서 직접 계산한다.
+   *
+   * 손으로 쓴 요약을 박아 두면 다음 회차에 데이터가 바뀌어도 문장이 남아 거짓말이 된다.
+   * 여기서는 문장의 뼈대만 두고 숫자와 방향은 전부 지금 데이터에서 읽는다.
+   */
+  function renderFindings() {
+    const rd = cur();
+    const td = tfData(state.tf);
+    const bk = bucketOf(rd, state.b);
+    const s = bk.both;
+    const out = [];
+
+    if (!s.count) {
+      el("findings").innerHTML = "<li>이 조합에는 표본이 없다.</li>";
+      return;
+    }
+
+    const perDay = s.perYear / 365.25;
+    out.push(
+      "<b>빈도</b> — " + td.label + " · 되돌림 임계 " + (rd.r * 100).toFixed(1) + "% 기준으로 ≥" + state.b +
+      "% 일방향 구간은 " + n0(td.spanDays) + "일 동안 " + n0(s.count) + "회, 연 " + n1(s.perYear) + "회 · " +
+      (perDay >= 1 ? "하루 " + n1(perDay) + "회" : n1(1 / perDay) + "일에 한 번") + " 꼴이다.",
+    );
+
+    out.push(
+      "<b>모양</b> — 평균 " + n2(s.move.avg) + "%(중앙 " + n2(s.move.p50) + "%)를 중앙값 " + n0(s.bars.p50) +
+      "봉 · " + n1(s.hours.p50) + "시간에 걸쳐 간다. 그 안에서 되돌림은 중앙값 " + n2(s.retr.p50) +
+      "%(p90 " + n2(s.retr.p90) + "%)로, 임계 " + (rd.r * 100).toFixed(1) + "% 에 " +
+      (s.retr.p90 / (rd.r * 100) > 0.8 ? "거의 붙어" : "여유를 두고") + " 있다.",
+    );
+
+    const dirWord = s.upShare > 55 ? "상승 쪽이 뚜렷이 많다" : s.upShare < 45 ? "하락 쪽이 뚜렷이 많다" : "상승·하락이 거의 반반이다";
+    out.push("<b>방향</b> — " + dirWord + " (상승 " + n1(s.upShare) + "% · " + n0(bk.up.count) + "회 대 " + n0(bk.down.count) + "회).");
+
+    // 예측 가능성 — 배수만 보면 기저가 작은 칸이 이긴다(0.8% → 1.4% 도 1.75배다).
+    // 그래서 배수 최고와 절대 차이(%p) 최고를 함께 집어 둘을 나란히 읽게 한다.
+    const base = rd.conditional[0];
+    let byLift = null, byGap = null;
+    rd.conditional.slice(1).forEach(function (row) {
+      D.axes.targets.forEach(function (x) {
+        [["up", "상방"], ["dn", "하방"]].forEach(function (p) {
+          const lift = row[p[0] + "Lift" + x];
+          const val = row[p[0] + x], b = base[p[0] + x];
+          if (val == null || b == null) return;
+          const cand = { lift: lift, gap: val - b, name: row.name, x: x, side: p[1], val: val, base: b, n: row.n };
+          if (lift && (!byLift || lift > byLift.lift)) byLift = cand;
+          if (!byGap || cand.gap > byGap.gap) byGap = cand;
+        });
+      });
+    });
+    if (byLift && byGap) {
+      // 실질적 의미의 문턱: 배수만도 %p 만도 아닌 둘 다. 어느 쪽도 넘지 못하면 신호가 없는 것이다.
+      const strong = byGap.gap >= 5 && byGap.lift >= 1.3;
+      out.push(
+        "<b>미리 알아볼 수 있는가</b> — 조건 " + D.conditions.length + "종 × 목표 " + D.axes.targets.length +
+        "단을 전부 걸었을 때, 배수로 가장 앞선 칸은 <b>" + esc(byLift.name) + "</b>의 " + byLift.side + " " + byLift.x +
+        "% (" + n1(byLift.val) + "% 대 기준선 " + n1(byLift.base) + "% · " + n2(byLift.lift) + "배)이고, " +
+        "실제 폭으로 가장 앞선 칸은 <b>" + esc(byGap.name) + "</b>의 " + byGap.side + " " + byGap.x +
+        "% (" + n1(byGap.val) + "% 대 " + n1(byGap.base) + "% · " + (byGap.gap >= 0 ? "+" : "") + n1(byGap.gap) + "%p)다. " +
+        (strong
+          ? "이 정도 격차는 따로 검증해 볼 값이 있다 — 다만 여기에는 비용이 하나도 반영돼 있지 않다."
+          : "배수가 큰 칸은 기저가 작아서 그렇고(" + n1(byLift.base) + "% → " + n1(byLift.val) +
+            "%), 폭이 큰 칸도 " + n1(byGap.gap) + "%p 에 그친다 — 이 지표들만으로 일방향 구간의 시작을 골라내기는 어렵다는 뜻이고, " +
+            "수수료를 얹으면 그 차이는 더 줄어든다."),
+      );
+    }
+
+    // 시간 — 봉 수로 정규화한 리프트 기준.
+    const tb = rd.time[state.b];
+    const hs = tb.byHour.filter(function (h) { return h.total >= 20; }).slice().sort(function (a, b) { return b.lift - a.lift; });
+    if (hs.length >= 4) {
+      out.push(
+        "<b>시간</b> — KST " + hs[0].hour + "시가 가장 몰리고(" + n2(hs[0].lift) + "배 · " + n0(hs[0].total) + "회), " +
+        hs[hs.length - 1].hour + "시가 가장 비었다(" + n2(hs[hs.length - 1].lift) + "배). 세션으로 보면 " +
+        tb.bySession.slice().sort(function (a, b) { return b.total - a.total; })[0].name + "에 가장 많다.",
+      );
+    }
+
+    // 연도 — 처음과 끝을 비교하되, 진행 중인 해는 연 환산해서 견준다.
+    const ys = tb.byYear.filter(function (y) { return y.total > 0; });
+    if (ys.length >= 3) {
+      const peak = ys.slice().sort(function (a, b) { return b.total - a.total; })[0];
+      const last = ys[ys.length - 1];
+      const ratio = peak.total > 0 ? last.total / peak.total : 0;
+      out.push(
+        "<b>해마다</b> — 가장 많았던 해는 " + peak.year + "년 " + n0(peak.total) + "회, 가장 최근 " + last.year + "년은 " +
+        n0(last.total) + "회로 " + (ratio < 0.6 ? "그때의 " + Math.round(ratio * 100) + "% 수준이다. 같은 폭의 일방향 구간이 해가 갈수록 드물어졌다" : "비슷한 수준을 지킨다") +
+        ". 한 해의 결론을 다른 해에 그대로 옮길 수 없다는 뜻이다.",
+      );
+    }
+
+    // 해상도 — 같은 구간 비교가 있을 때만. 이 회차에서 방법론적으로 가장 값이 나가는 줄이다.
+    if (D.aligned && D.aligned.rows.length) {
+      const tfList = D.tfs.map(function (t) { return t.tf; });
+      const pick = function (tf) {
+        for (let i = 0; i < D.aligned.rows.length; i += 1) {
+          const x = D.aligned.rows[i];
+          if (x.tf === tf && x.r === rd.r && x.bucket === state.b) return x.count;
+        }
+        return null;
+      };
+      const fine = pick(tfList[0]), coarse = pick(tfList[tfList.length - 1]);
+      if (fine && coarse && fine >= 10) {
+        const ratio = coarse / fine;
+        out.push(
+          "<b>해상도</b> — 같은 구간(" + esc(D.aligned.from.slice(0, 10)) + " 이후)에서 세면 " +
+          tfData(tfList[0]).label + " " + n0(fine) + "회 대 " + tfData(tfList[tfList.length - 1]).label + " " + n0(coarse) +
+          "회(" + n2(ratio) + "배)다. " +
+          (Math.abs(ratio - 1) < 0.2
+            ? "임계 " + (rd.r * 100).toFixed(1) + "% 에서는 어떤 단기봉으로 세도 같은 답이 나온다 — 봉을 더 잘게 쪼갤 이유가 없다."
+            : "임계 " + (rd.r * 100).toFixed(1) + "% 에서는 성긴 봉이 되돌림을 놓쳐 " + n2(ratio) +
+              "배로 부풀린다 — 이 임계를 쓰려면 더 촘촘한 봉이어야 한다."),
+        );
+      }
+    }
+
+    el("findings").innerHTML = out.map(function (t) { return "<li>" + t + "</li>"; }).join("");
+  }
+
+  function render() {
+    renderControls();
+    renderKpis();
+    renderFindings();
+    renderMatrix();
+    renderAligned();
+    renderHist();
+    renderDur();
+    renderTime();
+    renderProfile();
+    renderCond();
+    renderSamples();
+  }
+
+  render();
+})();
+</script>
+</body>
+</html>

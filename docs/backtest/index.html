@@ -46,7 +46,7 @@
 <body>
 <div class="wrap">
   <h1>백테스트 아카이브</h1>
-  <p class="sub">BTC-USDT-SWAP · 회차 12개 · 계보: 그리드 탐색 → 표본 검증 → 기하·비용 축 → 조합·오버레이 → 파생 데이터 — 각 회차의 질문과 결론, 원자료 링크의 정본 목록.
+  <p class="sub">BTC-USDT-SWAP · 회차 13개 · 계보: 그리드 탐색 → 표본 검증 → 기하·비용 축 → 조합·오버레이 → 파생 데이터 — 각 회차의 질문과 결론, 원자료 링크의 정본 목록.
   갱신: <code>docs/backtest/rounds.json</code> 편집 후 <code>node scripts/backtest/build-archive.mjs</code></p>
 
   <section>
@@ -58,6 +58,16 @@
   <section>
     <p class="eyebrow">Rounds — 최신순</p>
     
+  <article class="card">
+    <div class="head"><span class="date tnum">2026-08-25</span><h3>일방향 임펄스 원장</h3></div>
+    <p class="q">도중 되돌리지 않고 1~10% 한 방향으로 가는 구간이 얼마나 자주 나오며, 그 시작점의 차트로 미리 알아볼 수 있는가</p>
+    <p class="c">빈도는 넉넉하다 — 되돌림 1% 기준 5분봉에서 3% 이상 임펄스가 연 529회(중앙 1.9시간·23봉). 그러나 시작점은 못 고른다: 지표 25종 × 목표 4단 전부에서 기준선 대비 최대 +1.9%p, 그나마 비용 반영 전 수치다. 부산물 둘 — (1) 임계 1%면 1m·5m·15m이 같은 답(0.95~1.08배)이지만 임계 0.3%면 15m이 3.06배 부풀린다. (2) 3% 임펄스가 2021년 1,117회 → 2026년 174회로 말랐다.</p>
+    <div class="links">
+      <a href="oneway-report.html">리포트</a>
+      <a href="2026-08-25-oneway.json">데이터 JSON</a>
+      
+    </div>
+  </article>
   <article class="card star">
     <div class="head"><span class="date tnum">2026-08-17</span><h3>베이시스 발굴 ★게이트 6/6</h3></div>
     <p class="q">OHLCV 밖 데이터(베이시스 = 스왑−현물 괴리)가 잃어버린 엣지를 내는가</p>
