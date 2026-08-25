@@ -2,15 +2,19 @@ import { describe, expect, it } from "vitest";
 
 import {
   accountBillSchema,
+  algoOrderSchema,
   depositSchema,
   fillSchema,
   openPositionSchema,
+  orderSchema,
   positionSchema,
   withdrawalSchema,
   type OkxAccountBill,
+  type OkxAlgoOrder,
   type OkxDeposit,
   type OkxFill,
   type OkxOpenPosition,
+  type OkxOrder,
   type OkxPosition,
   type OkxWithdrawal,
 } from "@/lib/okx/schema";
@@ -35,6 +39,9 @@ import {
   toTradeInsert,
   toTransferInsert,
   toWithdrawalInsert,
+  spanOfClosed,
+  spanOfOpen,
+  stopTargetOf,
 } from "@/lib/okx/map";
 
 /** OKX 문서 예시를 본뜬 응답 — 모든 수치가 문자열로 온다. */
@@ -44,6 +51,7 @@ function position(over: Record<string, string> = {}): OkxPosition {
     instId: "BTC-USDT-SWAP",
     mgnMode: "cross",
     direction: "long",
+    posSide: "long",
     lever: "10",
     openAvgPx: "29783.9",
     closeAvgPx: "29786.6",
@@ -497,5 +505,206 @@ describe("isFullyClosed — 부분청산은 거래로 세지 않는다", () => {
 
     expect(isFullyClosed(partial)).toBe(false);
     expect([partial].filter(isFullyClosed)).toHaveLength(0);
+  });
+});
+
+
+/** `GET /api/v5/trade/orders-algo-history` 응답을 본뜬 손절 예약. */
+function algo(over: Record<string, string> = {}): OkxAlgoOrder {
+  return algoOrderSchema.parse({
+    algoId: "3859466405197860864",
+    instId: "BTC-USDT-SWAP",
+    posSide: "long",
+    slTriggerPx: "29000",
+    tpTriggerPx: "",
+    cTime: "1695359710000",
+    ...over,
+  });
+}
+
+/** `GET /api/v5/trade/orders-history-archive` 응답을 본뜬 진입 주문. */
+function order(over: Record<string, unknown> = {}): OkxOrder {
+  return orderSchema.parse({
+    ordId: "ORD-1",
+    instId: "BTC-USDT-SWAP",
+    slTriggerPx: "",
+    tpTriggerPx: "",
+    attachAlgoOrds: [],
+    cTime: "1695359700000",
+    ...over,
+  });
+}
+
+const NO_ORDERS = new Map<string, OkxOrder>();
+
+describe("stopTargetOf — 거래소에 걸려 있던 손절·익절", () => {
+  it("진입 주문에 부착돼 있으면 그걸 쓴다 — ordId가 일치하니 추정이 아니다", () => {
+    const pos = position();
+    const span = spanOfClosed(pos);
+    const orders = new Map([
+      ["ORD-1", order({ attachAlgoOrds: [{ slTriggerPx: "28500", tpTriggerPx: "31000" }] })],
+    ]);
+
+    expect(
+      stopTargetOf({ span, entryOrdIds: ["ORD-1"], orders, algos: [], siblings: [span] }),
+    ).toEqual({ okx_stop_price: 28500, okx_tp_price: 31000, okx_sl_source: "attached" });
+  });
+
+  it("부착이 없으면 알고 주문을 시각으로 되짚는다", () => {
+    const pos = position({ posSide: "long" });
+    const span = spanOfClosed(pos);
+
+    expect(
+      stopTargetOf({
+        span,
+        entryOrdIds: [],
+        orders: NO_ORDERS,
+        algos: [algo({ slTriggerPx: "29100" })],
+        siblings: [span],
+      }),
+    ).toEqual({ okx_stop_price: 29100, okx_tp_price: null, okx_sl_source: "algo" });
+  });
+
+  /*
+   * 손절을 옮기면 예약이 여러 건 남는다. 무엇을 남길지는 기획에서 정한 값이다 —
+   * **마지막에 등록된 것**이다. 진입 시점 값이 아니다(REQ-0004 결정 2).
+   */
+  it("손절을 여러 번 옮겼으면 마지막에 등록한 값을 쓴다", () => {
+    const pos = position();
+    const span = spanOfClosed(pos);
+    const algos = [
+      algo({ algoId: "A1", slTriggerPx: "29000", cTime: "1695359710000" }),
+      algo({ algoId: "A3", slTriggerPx: "29500", cTime: "1695359900000" }),
+      algo({ algoId: "A2", slTriggerPx: "29200", cTime: "1695359800000" }),
+    ];
+
+    expect(
+      stopTargetOf({ span, entryOrdIds: [], orders: NO_ORDERS, algos, siblings: [span] })
+        .okx_stop_price,
+    ).toBe(29500);
+  });
+
+  it("손절과 익절을 따로 걸었으면 각각의 마지막 값을 살린다", () => {
+    const pos = position();
+    const span = spanOfClosed(pos);
+    const algos = [
+      algo({ algoId: "SL", slTriggerPx: "29000", tpTriggerPx: "", cTime: "1695359710000" }),
+      algo({ algoId: "TP", slTriggerPx: "", tpTriggerPx: "31000", cTime: "1695359800000" }),
+    ];
+
+    expect(
+      stopTargetOf({ span, entryOrdIds: [], orders: NO_ORDERS, algos, siblings: [span] }),
+    ).toEqual({ okx_stop_price: 29000, okx_tp_price: 31000, okx_sl_source: "algo" });
+  });
+
+  /*
+   * 알고 주문에는 posId가 없다. 같은 종목·같은 방향 포지션이 겹쳐 있으면 그 예약이
+   * 어느 쪽 것인지 가릴 방법이 없다 — 절반의 확률로 남의 손절가를 적어 넣게 된다.
+   */
+  it("같은 종목·방향 포지션이 겹치면 추정을 포기하고 비운다", () => {
+    const mine = spanOfClosed(position({ cTime: "1695359700000", uTime: "1695360000000" }));
+    const other = spanOfClosed(
+      position({ posId: "OTHER", cTime: "1695359800000", uTime: "1695360100000" }),
+    );
+
+    expect(
+      stopTargetOf({
+        span: mine,
+        entryOrdIds: [],
+        orders: NO_ORDERS,
+        algos: [algo()],
+        siblings: [mine, other],
+      }),
+    ).toEqual({ okx_stop_price: null, okx_tp_price: null, okx_sl_source: null });
+  });
+
+  it("겹쳐도 부착 주문은 살아남는다 — 그쪽은 ordId로 특정되니 헷갈릴 일이 없다", () => {
+    const mine = spanOfClosed(position({ cTime: "1695359700000", uTime: "1695360000000" }));
+    const other = spanOfClosed(
+      position({ posId: "OTHER", cTime: "1695359800000", uTime: "1695360100000" }),
+    );
+    const orders = new Map([
+      ["ORD-1", order({ attachAlgoOrds: [{ slTriggerPx: "28500", tpTriggerPx: "" }] })],
+    ]);
+
+    expect(
+      stopTargetOf({
+        span: mine,
+        entryOrdIds: ["ORD-1"],
+        orders,
+        algos: [],
+        siblings: [mine, other],
+      }).okx_stop_price,
+    ).toBe(28500);
+  });
+
+  it("방향이 다른 포지션이 겹치는 것은 헷갈릴 일이 아니다", () => {
+    const mine = spanOfClosed(position({ posSide: "long" }));
+    const other = spanOfClosed(position({ posId: "OTHER", posSide: "short" }));
+
+    expect(
+      stopTargetOf({
+        span: mine,
+        entryOrdIds: [],
+        orders: NO_ORDERS,
+        algos: [algo({ posSide: "long", slTriggerPx: "29100" })],
+        siblings: [mine, other],
+      }).okx_stop_price,
+    ).toBe(29100);
+  });
+
+  it("구간 밖에 걸린 예약은 남의 것이다", () => {
+    const span = spanOfClosed(position({ cTime: "1695359700000", uTime: "1695360000000" }));
+
+    expect(
+      stopTargetOf({
+        span,
+        entryOrdIds: [],
+        orders: NO_ORDERS,
+        // 청산보다 2분 늦게 걸린 예약 — 여유(60초)를 넘어선다
+        algos: [algo({ cTime: "1695360120000" })],
+        siblings: [span],
+      }).okx_sl_source,
+    ).toBeNull();
+  });
+
+  it("아무 데서도 못 찾으면 셋 다 비운다 — 0이나 추정치를 넣지 않는다", () => {
+    const span = spanOfClosed(position());
+
+    expect(
+      stopTargetOf({ span, entryOrdIds: [], orders: NO_ORDERS, algos: [], siblings: [span] }),
+    ).toEqual({ okx_stop_price: null, okx_tp_price: null, okx_sl_source: null });
+  });
+
+  /*
+   * 익절을 걸지 않은 포지션에 거래소는 `tpTriggerPx: "0"`을 실어 준다(실계좌 확인).
+   * 이걸 값으로 읽으면 "0원에 익절 예약"이라는 거짓이 화면에 뜬다.
+   */
+  it("들고 있는 포지션은 지금 걸려 있는 예약을 읽고, 0은 없는 값으로 접는다", () => {
+    const held = openPosition();
+    const span = spanOfOpen(held);
+
+    expect(
+      stopTargetOf({
+        span,
+        entryOrdIds: [],
+        orders: NO_ORDERS,
+        algos: [],
+        siblings: [span],
+        closeOrderAlgo: openPositionSchema.parse({
+          posId: "1752922805906812928",
+          instId: "BTC-USDT-SWAP",
+          mgnMode: "cross",
+          posSide: "long",
+          pos: "100",
+          avgPx: "29783.9",
+          lever: "10",
+          upl: "1.5",
+          realizedPnl: "-0.2",
+          cTime: "1695359700000",
+          closeOrderAlgo: [{ slTriggerPx: "28480", tpTriggerPx: "0" }],
+        }).closeOrderAlgo,
+      }),
+    ).toEqual({ okx_stop_price: 28480, okx_tp_price: null, okx_sl_source: "position" });
   });
 });

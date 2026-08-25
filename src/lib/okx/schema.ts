@@ -16,6 +16,22 @@ const numeric = z.string().transform((raw) => {
   return Number.isFinite(n) ? n : null;
 });
 
+/**
+ * 손절·익절 트리거가 — `""`뿐 아니라 `"0"`도 '설정 안 함'이다.
+ *
+ * `closeOrderAlgo`는 익절을 걸지 않은 포지션에 `tpTriggerPx: "0"`을 실어 준다(실계좌 확인).
+ * 그냥 `numeric`으로 읽으면 0이 값으로 남아 "0원에 익절 예약"이라는 거짓이 화면에 뜬다.
+ * 트리거가가 0인 주문은 존재할 수 없으므로 0은 없는 값으로 접는다.
+ */
+const triggerPx = z
+  .string()
+  .optional()
+  .transform((raw) => {
+    if (!raw) return null;
+    const n = Number(raw);
+    return Number.isFinite(n) && n !== 0 ? n : null;
+  });
+
 /** 시각은 항상 있어야 하는 값이라 없으면 그 레코드를 버린다. */
 const epochMs = z.string().refine((raw) => Number.isFinite(Number(raw)) && raw !== "", {
   message: "시각이 비어 있음",
@@ -28,6 +44,13 @@ export const positionSchema = z.object({
   mgnMode: z.string(),
   /** `long` | `short` — 넷 모드에서는 `net`으로 올 수 있다. */
   direction: z.string(),
+  /**
+   * 알고 주문과 방향을 맞출 때 쓴다 — 그쪽도 같은 이름으로 온다.
+   *
+   * `direction`을 그대로 쓰지 않는 이유는 넷 모드에서 둘이 갈리기 때문이다.
+   * 손익으로 되짚은 `sideOf`와 달리 이건 거래소가 준 값 그대로다.
+   */
+  posSide: z.string().optional().default(""),
   lever: numeric,
   openAvgPx: numeric,
   closeAvgPx: numeric,
@@ -172,11 +195,66 @@ export const openPositionSchema = z.object({
   pnl: numeric.optional(),
   fee: numeric.optional(),
   fundingFee: numeric.optional(),
+  /**
+   * 이 포지션에 지금 걸려 있는 청산 예약 — 손절·익절이 여기 담긴다.
+   *
+   * 들고 있는 동안에만 존재한다. 닫히고 나면 `positions-history`에는 남지 않아
+   * 알고 주문 이력에서 되찾아야 한다(`toStopTarget`).
+   */
+  closeOrderAlgo: z
+    .array(
+      z.object({
+        slTriggerPx: triggerPx,
+        tpTriggerPx: triggerPx,
+      }),
+    )
+    .optional()
+    .default([]),
   /** 포지션을 연 시각 */
   cTime: epochMs,
 });
 
 export type OkxOpenPosition = z.infer<typeof openPositionSchema>;
+
+/**
+ * `GET /api/v5/trade/orders-algo-history` — 손절·익절 예약 주문 1건.
+ *
+ * **`posId`가 없다**(실계좌 확인). 그래서 어느 포지션의 손절인지는 종목·방향·시각으로
+ * 되짚어야 한다 — 추정이며, 가릴 수 없으면 버린다(`map.ts`의 `matchAlgoOrder`).
+ */
+export const algoOrderSchema = z.object({
+  algoId: z.string(),
+  instId: z.string(),
+  /** `long` | `short` — 넷 모드에서는 `net` */
+  posSide: z.string().optional().default(""),
+  slTriggerPx: triggerPx,
+  tpTriggerPx: triggerPx,
+  /** 예약을 건 시각. 포지션 구간 안에 들어오는지로 짝을 찾는다 */
+  cTime: epochMs,
+});
+
+export type OkxAlgoOrder = z.infer<typeof algoOrderSchema>;
+
+/**
+ * `GET /api/v5/trade/orders-history-archive` — 일반 주문 1건.
+ *
+ * 손절·익절을 **진입 주문에 부착**한 경우 `attachAlgoOrds`에 담겨 온다. 시스템 봇이
+ * 이 방식으로 브래킷을 건다. 진입 체결의 `ordId`로 이어지므로 추정이 아니라 사실이다.
+ * 구식 부착 방식은 최상위 `slTriggerPx`에 실리므로 그쪽도 함께 읽는다.
+ */
+export const orderSchema = z.object({
+  ordId: z.string(),
+  instId: z.string(),
+  slTriggerPx: triggerPx,
+  tpTriggerPx: triggerPx,
+  attachAlgoOrds: z
+    .array(z.object({ slTriggerPx: triggerPx, tpTriggerPx: triggerPx }))
+    .optional()
+    .default([]),
+  cTime: epochMs,
+});
+
+export type OkxOrder = z.infer<typeof orderSchema>;
 
 /**
  * 배열을 항목별로 검증하고, 형태가 깨진 항목만 버린다.

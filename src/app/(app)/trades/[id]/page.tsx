@@ -31,6 +31,7 @@ export default async function EditTradePage({ params }: { params: Promise<{ id: 
         </p>
       </header>
 
+      {/* 기준선은 거래소에 걸려 있던 값이 먼저다 — 손 입력은 계획이라 실제와 다를 수 있다. */}
       <TradeChart
         tradeId={trade.id}
         symbol={trade.symbol}
@@ -39,8 +40,8 @@ export default async function EditTradePage({ params }: { params: Promise<{ id: 
         exitAt={trade.exit_at}
         entryPrice={trade.entry_price}
         exitPrice={trade.exit_price}
-        stopPrice={trade.stop_price}
-        targetPrice={trade.tp1_price}
+        stopPrice={trade.okx_stop_price ?? trade.stop_price}
+        targetPrice={trade.okx_tp_price ?? trade.tp1_price}
         notional={trade.notional}
         now={nowMs()}
       />

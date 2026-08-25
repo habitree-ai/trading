@@ -32,6 +32,8 @@ const LIVE_POSITION: OkxOpenPosition = {
   pnl: 234.12,
   fee: -2.59,
   fundingFee: -0.52,
+  // 이 테스트는 잔고 대조만 본다 — 손절 예약 유무와 무관하다.
+  closeOrderAlgo: [],
   cTime: "1787233383415",
 };
 

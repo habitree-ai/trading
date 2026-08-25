@@ -7,9 +7,11 @@
 import type { CashFlowKind, Side, TradeResult } from "@/lib/domain";
 import type {
   OkxAccountBill,
+  OkxAlgoOrder,
   OkxDeposit,
   OkxFill,
   OkxOpenPosition,
+  OkxOrder,
   OkxPosition,
   OkxWithdrawal,
 } from "@/lib/okx/schema";
@@ -78,7 +80,7 @@ export function notionalOf(pos: OkxPosition, ctVal: number | null): number | nul
   return pos.openAvgPx * pos.closeTotalPos * ctVal;
 }
 
-export interface TradeInsert {
+export interface TradeInsert extends StopTarget {
   book_id: string;
   user_id: string;
   seq: number;
@@ -126,12 +128,15 @@ export function toTradeInsert(input: {
   bookId: string;
   userId: string;
   seq: number;
+  /** 거래소에 걸려 있던 손절·익절. 못 찾았으면 비워 둔 채로 들어온다 */
+  stopTarget?: StopTarget;
 }): TradeInsert | null {
-  const { pos, ctVal, bookId, userId, seq } = input;
+  const { pos, ctVal, bookId, userId, seq, stopTarget } = input;
   const side = sideOf(pos);
   if (side === null) return null;
 
   return {
+    ...(stopTarget ?? NO_STOP_TARGET),
     book_id: bookId,
     user_id: userId,
     seq,
@@ -182,7 +187,7 @@ export function openRealizedOf(pos: OkxOpenPosition): number | null {
   return (pos.pnl ?? 0) + (pos.fee ?? 0) + (pos.fundingFee ?? 0);
 }
 
-export interface OpenTradeInsert {
+export interface OpenTradeInsert extends StopTarget {
   book_id: string;
   user_id: string;
   seq: number;
@@ -217,8 +222,10 @@ export function toOpenTradeInsert(input: {
   bookId: string;
   userId: string;
   seq: number;
+  /** 지금 걸려 있는 손절·익절 */
+  stopTarget?: StopTarget;
 }): OpenTradeInsert | null {
-  const { pos, ctVal, bookId, userId, seq } = input;
+  const { pos, ctVal, bookId, userId, seq, stopTarget } = input;
   const side = openSideOf(pos);
   if (side === null) return null;
 
@@ -228,6 +235,7 @@ export function toOpenTradeInsert(input: {
       : pos.avgPx * Math.abs(pos.pos) * ctVal;
 
   return {
+    ...(stopTarget ?? NO_STOP_TARGET),
     book_id: bookId,
     user_id: userId,
     seq,
@@ -248,9 +256,26 @@ export function toOpenTradeInsert(input: {
   };
 }
 
+/**
+ * 손절·익절을 덮어쓸지 정한다 — **못 찾았으면 칸을 통째로 뺀다.**
+ *
+ * 한 번 확인한 사실을 나중의 추정 실패로 지우지 않기 위해서다. 들고 있는 동안에는
+ * `closeOrderAlgo`로 정확히 읽히던 값이, 닫히고 나면 겹치는 포지션 때문에 추정을
+ * 포기해 null이 될 수 있다. 그때 그대로 덮어쓰면 알고 있던 손절가가 사라진다.
+ */
+function stopTargetUpdate(row: StopTarget): Partial<StopTarget> {
+  if (row.okx_stop_price === null && row.okx_tp_price === null) return {};
+  return {
+    okx_stop_price: row.okx_stop_price,
+    okx_tp_price: row.okx_tp_price,
+    okx_sl_source: row.okx_sl_source,
+  };
+}
+
 /** 이미 있는 미청산 행에 덮어쓸 칸만 — 북·사용자·순번과 손으로 적은 칸은 건드리지 않는다. */
 export function toOpenUpdate(row: OpenTradeInsert) {
   return {
+    ...stopTargetUpdate(row),
     side: row.side,
     symbol: row.symbol,
     entry_at: row.entry_at,
@@ -275,6 +300,7 @@ export function toOpenUpdate(row: OpenTradeInsert) {
  */
 export function toCloseUpdate(row: TradeInsert) {
   return {
+    ...stopTargetUpdate(row),
     side: row.side,
     symbol: row.symbol,
     entry_at: row.entry_at,
@@ -292,6 +318,178 @@ export function toCloseUpdate(row: TradeInsert) {
     // 확정됐으니 평가손익은 지운다 — 남겨 두면 같은 금액이 두 칸에서 잡힌다.
     unrealized_pnl: null,
   };
+}
+
+/* ── 손절·익절 ───────────────────────────────────────────────────────────── */
+
+/** 값을 어느 경로로 얻었는지. `algo`만 추정이고 나머지 둘은 식별자가 일치한 사실이다. */
+export type StopTargetSource = "attached" | "position" | "algo";
+
+/** 거래 행에 실을 손절·익절 한 쌍. 못 찾았으면 셋 다 null 이다. */
+export interface StopTarget {
+  okx_stop_price: number | null;
+  okx_tp_price: number | null;
+  okx_sl_source: StopTargetSource | null;
+}
+
+export const NO_STOP_TARGET: StopTarget = {
+  okx_stop_price: null,
+  okx_tp_price: null,
+  okx_sl_source: null,
+};
+
+/** 트리거가를 담은 것이면 무엇이든 — 부착 주문·청산 예약·알고 주문이 같은 모양이다. */
+interface TriggerPair {
+  slTriggerPx: number | null;
+  tpTriggerPx: number | null;
+}
+
+/**
+ * 포지션이 살아 있던 구간 — 알고 주문을 되짚을 때 짝을 좁히는 데 쓴다.
+ *
+ * `to`가 null이면 아직 들고 있다는 뜻이라 끝이 열려 있다.
+ */
+export interface PositionSpan {
+  posId: string;
+  instId: string;
+  posSide: string;
+  from: number;
+  to: number | null;
+}
+
+export function spanOfClosed(pos: OkxPosition): PositionSpan {
+  return {
+    posId: pos.posId,
+    instId: pos.instId,
+    // 롱숏 분리 계좌에서 둘은 같은 값이다. `posSide`가 빠진 응답만 `direction`으로 받는다.
+    posSide: pos.posSide || pos.direction,
+    from: Number(pos.cTime),
+    to: Number(pos.uTime),
+  };
+}
+
+export function spanOfOpen(pos: OkxOpenPosition): PositionSpan {
+  return {
+    posId: pos.posId,
+    instId: pos.instId,
+    posSide: pos.posSide,
+    from: Number(pos.cTime),
+    to: null,
+  };
+}
+
+/**
+ * 예약을 건 시각이 포지션 구간에서 얼마나 벗어나도 같은 포지션의 것으로 볼지.
+ *
+ * 진입과 예약 등록 사이에는 늘 틈이 있다 — 실계좌에서 중앙값 15초, 90%가 49초였다.
+ * 그 틈이 포지션 구간 밖으로 삐져나오는 경우를 담기 위한 여유다.
+ */
+export const ALGO_WINDOW_MS = 60_000;
+
+/** 두 구간이 한 순간이라도 겹치는가. 끝이 열려 있으면(`to === null`) 지금도 이어진다. */
+function overlaps(a: PositionSpan, b: PositionSpan): boolean {
+  return a.from <= (b.to ?? Number.POSITIVE_INFINITY) && b.from <= (a.to ?? Number.POSITIVE_INFINITY);
+}
+
+/** 트리거가가 하나라도 있는 쌍만 값으로 친다 — 둘 다 비었으면 예약이 아니다. */
+function hasTrigger(t: TriggerPair): boolean {
+  return t.slTriggerPx !== null || t.tpTriggerPx !== null;
+}
+
+/**
+ * 손절과 익절을 **따로** 고른다 — 각각 마지막에 등록된 값이다.
+ *
+ * 한 레코드만 보면 안 되는 이유: 손절과 익절을 따로 걸면 예약이 두 건으로 나뉜다.
+ * 최신 한 건만 취하면 먼저 건 쪽이 통째로 사라진다. 입력은 시각 오름차순이어야 한다.
+ */
+function pickLatest(pairs: readonly TriggerPair[], source: StopTargetSource): StopTarget | null {
+  let stop: number | null = null;
+  let target: number | null = null;
+  for (const p of pairs) {
+    if (p.slTriggerPx !== null) stop = p.slTriggerPx;
+    if (p.tpTriggerPx !== null) target = p.tpTriggerPx;
+  }
+  if (stop === null && target === null) return null;
+  return { okx_stop_price: stop, okx_tp_price: target, okx_sl_source: source };
+}
+
+/**
+ * 진입 주문에 부착돼 있던 손절·익절.
+ *
+ * `ordId`가 일치하므로 추정이 아니다. 시스템 봇처럼 브래킷을 원자 부착하는 경로는
+ * 여기서 정확히 잡힌다. 구식 부착은 주문 최상위에 실리므로 그쪽도 본다.
+ */
+function fromAttached(
+  entryOrdIds: readonly string[],
+  orders: ReadonlyMap<string, OkxOrder>,
+): StopTarget | null {
+  const pairs: TriggerPair[] = [];
+  for (const ordId of entryOrdIds) {
+    const order = orders.get(ordId);
+    if (!order) continue;
+    pairs.push(...order.attachAlgoOrds.filter(hasTrigger));
+    if (hasTrigger(order)) pairs.push(order);
+  }
+  return pickLatest(pairs, "attached");
+}
+
+/**
+ * 알고 주문 이력에서 되짚는다 — **추정이다.**
+ *
+ * 응답에 `posId`가 없어 종목·방향·시각으로만 짝을 찾는다. 같은 종목·같은 방향
+ * 포지션이 시간상 겹치는 구간에서는 어느 쪽 예약인지 가릴 수 없으므로 **비워 둔다.**
+ * 잘못된 손절가를 보여 주는 것이 아무것도 안 보여 주는 것보다 나쁘다.
+ */
+function fromAlgo(
+  span: PositionSpan,
+  algos: readonly OkxAlgoOrder[],
+  siblings: readonly PositionSpan[],
+): StopTarget | null {
+  const ambiguous = siblings.some(
+    (s) =>
+      !(s.posId === span.posId && s.from === span.from) &&
+      s.instId === span.instId &&
+      s.posSide === span.posSide &&
+      overlaps(s, span),
+  );
+  if (ambiguous) return null;
+
+  const from = span.from - ALGO_WINDOW_MS;
+  const to = (span.to ?? Number.POSITIVE_INFINITY) + ALGO_WINDOW_MS;
+
+  const inWindow = algos
+    .filter((a) => a.instId === span.instId && a.posSide === span.posSide && hasTrigger(a))
+    .filter((a) => Number(a.cTime) >= from && Number(a.cTime) <= to)
+    .sort((x, y) => Number(x.cTime) - Number(y.cTime));
+
+  return pickLatest(inWindow, "algo");
+}
+
+/**
+ * 거래소에 걸려 있던 손절·익절을 찾는다.
+ *
+ * 세 경로를 정확한 순서로 시도한다 — 식별자가 일치하는 것(`attached`, `position`)이
+ * 먼저고, 시각으로 되짚는 추정(`algo`)이 마지막이다. 아무것도 못 찾으면 비워 둔다.
+ */
+export function stopTargetOf(input: {
+  span: PositionSpan;
+  /** 이 포지션을 연 체결들의 주문번호 */
+  entryOrdIds: readonly string[];
+  orders: ReadonlyMap<string, OkxOrder>;
+  algos: readonly OkxAlgoOrder[];
+  /** 이번에 함께 다루는 포지션 전부 — 구간이 겹치면 추정을 포기한다 */
+  siblings: readonly PositionSpan[];
+  /** 아직 들고 있는 포지션이면 지금 걸려 있는 청산 예약 */
+  closeOrderAlgo?: readonly TriggerPair[];
+}): StopTarget {
+  const { span, entryOrdIds, orders, algos, siblings, closeOrderAlgo } = input;
+
+  return (
+    fromAttached(entryOrdIds, orders) ??
+    pickLatest((closeOrderAlgo ?? []).filter(hasTrigger), "position") ??
+    fromAlgo(span, algos, siblings) ??
+    NO_STOP_TARGET
+  );
 }
 
 /**

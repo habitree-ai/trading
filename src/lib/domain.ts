@@ -103,12 +103,29 @@ export interface Trade {
   unrealized_pnl: number | null;
   /** 교차/격리 — 청산 위험이 달라 복기 축이 된다 */
   margin_mode: 'cross' | 'isolated' | null;
-  /** 시트의 `손절가` */
+  /** 시트의 `손절가` — **손으로 적는 계획값.** 동기화는 이 칸을 건드리지 않는다 */
   stop_price: number | null;
-  /** 시트의 `TP1`~`TP3` (익절1~3) */
+  /** 시트의 `TP1`~`TP3` (익절1~3) — 여기도 손 입력 전용 */
   tp1_price: number | null;
   tp2_price: number | null;
   tp3_price: number | null;
+  /**
+   * 거래소에 **실제로 걸려 있던** 손절 트리거가.
+   *
+   * 위 `stop_price`가 "얼마에 끊으려 했나"(계획)라면 이쪽은 "얼마가 걸려 있었나"(사실)다.
+   * 한 포지션에 손절이 여러 번 걸렸으면 **마지막에 등록된 값**이지 진입 시점 값이 아니다.
+   * 어느 포지션의 예약인지 가릴 수 없으면 비운다 — 틀린 값을 적느니 비우는 게 낫다.
+   */
+  okx_stop_price: number | null;
+  /** 거래소에 걸려 있던 익절 트리거가. 익절을 걸지 않은 거래가 대부분이라 보통 null */
+  okx_tp_price: number | null;
+  /**
+   * 위 두 값을 어느 경로로 얻었는지.
+   *
+   * `attached`·`position`은 식별자가 일치한 사실이고, `algo`는 종목·방향·시각으로
+   * 되짚은 추정이다. 숫자가 이상하면 여기부터 의심한다.
+   */
+  okx_sl_source: 'attached' | 'position' | 'algo' | null;
   /** 시트의 `기준` — 진입 셋업 */
   setup: string | null;
   /** 시트의 `근거` */

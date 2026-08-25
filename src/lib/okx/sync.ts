@@ -12,22 +12,29 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import {
   fetchAccountTransfers,
+  fetchAlgoOrders,
   fetchContractValues,
   fetchDeposits,
   fetchFillsHistory,
   fetchOpenPositions,
+  fetchOrders,
   fetchPositionsHistory,
   fetchTotalEquity,
   fetchWithdrawals,
   openPositionPnl,
 } from "@/lib/okx/history";
 import {
+  ALGO_WINDOW_MS,
+  fillRole,
   isFullyClosed,
   matchOpenPosition,
   matchPosition,
   openSideOf,
   positionKey,
   sideOf,
+  spanOfClosed,
+  spanOfOpen,
+  stopTargetOf,
   toCloseUpdate,
   toDepositInsert,
   toFillInsert,
@@ -37,9 +44,10 @@ import {
   toTransferInsert,
   toWithdrawalInsert,
   type CashFlowInsert,
+  type PositionSpan,
 } from "@/lib/okx/map";
 import { MAX_HISTORY_MS, type OkxCredentials } from "@/lib/okx/private";
-import type { OkxOpenPosition } from "@/lib/okx/schema";
+import type { OkxAlgoOrder, OkxFill, OkxOpenPosition, OkxOrder } from "@/lib/okx/schema";
 import type { Database } from "@/lib/supabase/database.types";
 
 type Db = SupabaseClient<Database>;
@@ -107,6 +115,74 @@ function fillWindow(sinceMs: number, open: readonly OkxOpenPosition[]): number {
   const oldest = open.reduce((a, p) => Math.min(a, Number(p.cTime)), Number.POSITIVE_INFINITY);
   return Math.max(Math.min(sinceMs, Number.isFinite(oldest) ? oldest : sinceMs), floor);
 }
+
+/**
+ * 손절·익절을 훑을 구간 — 이번에 다루는 포지션이 열린 시점까지 거슬러 올라간다.
+ *
+ * 커서(`sinceMs`)를 그대로 쓰면 안 된다. 그건 **청산** 시각 기준이라, 오래 들고 있다
+ * 어제 닫은 포지션의 손절은 훨씬 이전에 걸려 있어 구간 밖으로 떨어진다.
+ * 예약이 진입보다 조금 이를 수 있어 `ALGO_WINDOW_MS`만큼 더 여유를 둔다.
+ */
+function stopWindow(
+  positions: readonly { cTime: string }[],
+  open: readonly { cTime: string }[],
+): number {
+  const floor = Date.now() - MAX_HISTORY_MS;
+  const oldest = [...positions, ...open].reduce(
+    (a, p) => Math.min(a, Number(p.cTime)),
+    Number.POSITIVE_INFINITY,
+  );
+  if (!Number.isFinite(oldest)) return floor;
+  return Math.max(oldest - ALGO_WINDOW_MS, floor);
+}
+
+/**
+ * 포지션을 **연** 체결의 주문번호를 포지션별로 모은다.
+ *
+ * 진입 주문에 부착된 브래킷을 되찾는 열쇠다. 청산 체결의 주문번호로는 안 된다 —
+ * 거기엔 부착 예약이 실리지 않는다. 닫힌 포지션은 `positionKey`로, 들고 있는
+ * 포지션은 `posId`로 갈린다(`syncFills`와 같은 규칙).
+ */
+function entryOrdIds(
+  fills: readonly OkxFill[],
+  positions: readonly Awaited<ReturnType<typeof fetchPositionsHistory>>[number][],
+  open: readonly OkxOpenPosition[],
+): Map<string, string[]> {
+  const out = new Map<string, string[]>();
+
+  for (const fill of fills) {
+    const closedPos = matchPosition(fill, positions);
+    const openPos = closedPos ? null : matchOpenPosition(fill, open);
+
+    const side = closedPos ? sideOf(closedPos) : openPos ? openSideOf(openPos) : null;
+    if (side === null || fillRole(fill.side, side) !== "open") continue;
+
+    const key = closedPos
+      ? positionKey(closedPos.posId, Number(closedPos.uTime))
+      : openPos!.posId;
+    const list = out.get(key);
+    if (list) list.push(fill.ordId);
+    else out.set(key, [fill.ordId]);
+  }
+
+  return out;
+}
+
+/** 손절·익절을 되짚는 데 필요한 재료 한 묶음. */
+interface StopSources {
+  algos: readonly OkxAlgoOrder[];
+  orders: ReadonlyMap<string, OkxOrder>;
+  entryOrdIds: ReadonlyMap<string, string[]>;
+  /** 이번에 다루는 포지션 전부 — 구간이 겹치면 추정을 포기한다 */
+  siblings: readonly PositionSpan[];
+}
+
+const NO_STOP_SOURCES: StopSources = {
+  algos: [],
+  orders: new Map(),
+  entryOrdIds: new Map(),
+  siblings: [],
+};
 
 async function nextSeq(supabase: Db, bookId: string): Promise<number> {
   const { data } = await supabase
@@ -192,16 +268,56 @@ async function runSync(
   // 입출금은 거래가 없어도 잔고를 움직인다 — 포지션 유무와 무관하게 훑는다.
   const flowsAdded = await syncCashFlows(supabase, creds, userId, bookId, flowWindow(startDate));
 
-  const counts = await syncTrades(supabase, userId, bookId, positions, open, ctVals);
   // 닫힌 포지션이 없어도 들고 있는 포지션의 부분청산 체결은 들어와야 한다.
-  const fillsAdded =
-    positions.length === 0 && open.length === 0
-      ? 0
-      : await syncFills(supabase, creds, userId, positions, open, ctVals, fillWindow(sinceMs, open));
+  const hasPositions = positions.length > 0 || open.length > 0;
+
+  /*
+   * 체결을 여기서 받는 이유는 거래 쪽도 이걸 봐야 하기 때문이다 — 진입 체결의
+   * 주문번호가 있어야 진입 주문에 부착된 손절·익절을 되찾는다. 두 번 부르지 않는다.
+   */
+  const fills = hasPositions
+    ? await fetchFillsHistory(creds, fillWindow(sinceMs, open))
+    : [];
+
+  const stops = hasPositions
+    ? await collectStops(creds, positions, open, fills)
+    : NO_STOP_SOURCES;
+
+  const counts = await syncTrades(supabase, userId, bookId, positions, open, ctVals, stops);
+  const fillsAdded = hasPositions
+    ? await syncFills(supabase, userId, positions, open, ctVals, fills)
+    : 0;
 
   await snapshotBalance(supabase, creds, userId, bookId, open);
 
   return { ...counts, fillsAdded, flowsAdded, since, until };
+}
+
+/**
+ * 거래소에 걸려 있던 손절·익절을 되짚을 재료를 모은다.
+ *
+ * 알고 주문 이력과 주문 이력을 함께 부른다 — 앞의 것은 나중에 따로 건 예약을,
+ * 뒤의 것은 진입 주문에 부착된 브래킷을 담는다. 어느 쪽도 `posId`를 주지 않아
+ * 짝짓기는 `map.ts`가 한다.
+ */
+async function collectStops(
+  creds: OkxCredentials,
+  positions: Awaited<ReturnType<typeof fetchPositionsHistory>>,
+  open: readonly OkxOpenPosition[],
+  fills: readonly OkxFill[],
+): Promise<StopSources> {
+  const since = stopWindow(positions, open);
+  const [algos, orders] = await Promise.all([
+    fetchAlgoOrders(creds, since),
+    fetchOrders(creds, since),
+  ]);
+
+  return {
+    algos,
+    orders: new Map(orders.map((o) => [o.ordId, o])),
+    entryOrdIds: entryOrdIds(fills, positions, open),
+    siblings: [...positions.map(spanOfClosed), ...open.map(spanOfOpen)],
+  };
 }
 
 /**
@@ -220,6 +336,7 @@ async function syncTrades(
   positions: Awaited<ReturnType<typeof fetchPositionsHistory>>,
   open: readonly OkxOpenPosition[],
   ctVals: Map<string, number | null>,
+  stops: StopSources,
 ): Promise<{ tradesAdded: number; tradesClosed: number; openCount: number }> {
   const posIds = [...new Set([...positions, ...open].map((p) => p.posId))];
   if (posIds.length === 0) return { tradesAdded: 0, tradesClosed: 0, openCount: 0 };
@@ -261,7 +378,14 @@ async function syncTrades(
     closed.add(key);
 
     const ctVal = ctVals.get(pos.instId) ?? null;
-    const row = toTradeInsert({ pos, ctVal, bookId, userId, seq });
+    const stopTarget = stopTargetOf({
+      span: spanOfClosed(pos),
+      entryOrdIds: stops.entryOrdIds.get(key) ?? [],
+      orders: stops.orders,
+      algos: stops.algos,
+      siblings: stops.siblings,
+    });
+    const row = toTradeInsert({ pos, ctVal, bookId, userId, seq, stopTarget });
     if (row === null) continue;
 
     const holdingId = holding.get(pos.posId);
@@ -284,7 +408,15 @@ async function syncTrades(
   let openCount = 0;
   for (const pos of [...open].sort((a, b) => Number(a.cTime) - Number(b.cTime))) {
     const ctVal = ctVals.get(pos.instId) ?? null;
-    const row = toOpenTradeInsert({ pos, ctVal, bookId, userId, seq });
+    const stopTarget = stopTargetOf({
+      span: spanOfOpen(pos),
+      entryOrdIds: stops.entryOrdIds.get(pos.posId) ?? [],
+      orders: stops.orders,
+      algos: stops.algos,
+      siblings: stops.siblings,
+      closeOrderAlgo: pos.closeOrderAlgo,
+    });
+    const row = toOpenTradeInsert({ pos, ctVal, bookId, userId, seq, stopTarget });
     if (row === null) continue;
     openCount += 1;
 
@@ -363,14 +495,12 @@ async function syncCashFlows(
  */
 async function syncFills(
   supabase: Db,
-  creds: OkxCredentials,
   userId: string,
   positions: Awaited<ReturnType<typeof fetchPositionsHistory>>,
   openPositions: readonly OkxOpenPosition[],
   ctVals: Map<string, number | null>,
-  sinceMs: number,
+  fills: readonly OkxFill[],
 ): Promise<number> {
-  const fills = await fetchFillsHistory(creds, sinceMs);
   if (fills.length === 0) return 0;
 
   // 거래를 방금 넣었으므로 여기서 다시 읽어야 id를 알 수 있다.

@@ -10,18 +10,22 @@ import { openRealizedOf } from "@/lib/okx/map";
 import { okxPrivateGet, okxPublicGet, type OkxCredentials } from "@/lib/okx/private";
 import {
   accountBillSchema,
+  algoOrderSchema,
   balanceSchema,
   depositSchema,
   fillSchema,
   instrumentSchema,
   openPositionSchema,
+  orderSchema,
   parseList,
   positionSchema,
   withdrawalSchema,
   type OkxAccountBill,
+  type OkxAlgoOrder,
   type OkxDeposit,
   type OkxFill,
   type OkxOpenPosition,
+  type OkxOrder,
   type OkxPosition,
   type OkxWithdrawal,
 } from "@/lib/okx/schema";
@@ -186,6 +190,70 @@ export function fetchWithdrawals(
     sinceMs,
     tsOf: (w) => Number(w.ts),
     cursorOf: (w) => w.ts,
+  });
+}
+
+/**
+ * 손절·익절이 실리는 알고 주문 종류.
+ *
+ * `conditional`(단일 SL 또는 TP)과 `oco`(둘 다) 뿐이다. `move_order_stop`(트레일링)은
+ * 값을 `moveTriggerPx`에 실어 성격이 다르고, `trigger`는 진입용이라 청산 예약이 아니다.
+ */
+const SLTP_ALGO_TYPES = ["conditional", "oco"] as const;
+
+/**
+ * 훑을 주문 상태.
+ *
+ * `effective`는 발동돼 청산까지 간 예약, `canceled`는 걸려 있다가 다른 경로로 청산돼
+ * 거둬진 예약이다. 둘 다 "그때 실제로 걸려 있었다"는 뜻이라 함께 본다.
+ * `order_failed`는 등록 자체가 실패해 걸려 있던 적이 없으므로 뺀다.
+ */
+const SLTP_ALGO_STATES = ["effective", "canceled"] as const;
+
+/**
+ * 손절·익절 예약 이력 — 어느 포지션의 것인지는 여기서 알 수 없다.
+ *
+ * 응답에 `posId`가 없어(실계좌 확인) 종목·방향·시각으로 되짚어야 한다. 그 일은
+ * `map.ts`가 하고, 여기서는 구간 안의 예약을 전부 걷어 오기만 한다.
+ */
+export async function fetchAlgoOrders(
+  creds: OkxCredentials,
+  sinceMs: number,
+): Promise<OkxAlgoOrder[]> {
+  const out: OkxAlgoOrder[] = [];
+  for (const ordType of SLTP_ALGO_TYPES) {
+    for (const state of SLTP_ALGO_STATES) {
+      out.push(
+        ...(await collectSince({
+          path: "/api/v5/trade/orders-algo-history",
+          params: { ordType, state },
+          creds,
+          schema: algoOrderSchema,
+          sinceMs,
+          tsOf: (a) => Number(a.cTime),
+          cursorOf: (a) => a.algoId,
+        })),
+      );
+    }
+  }
+  return out;
+}
+
+/**
+ * 주문 이력 — 진입 주문에 부착된 손절·익절을 꺼내려고 읽는다.
+ *
+ * 이쪽은 `ordId`로 체결과 이어지므로 추정이 아니다. 시스템 봇처럼 브래킷을 원자
+ * 부착하는 경로는 여기서 정확히 잡힌다.
+ */
+export function fetchOrders(creds: OkxCredentials, sinceMs: number): Promise<OkxOrder[]> {
+  return collectSince({
+    path: "/api/v5/trade/orders-history-archive",
+    params: { instType: INST_TYPE },
+    creds,
+    schema: orderSchema,
+    sinceMs,
+    tsOf: (o) => Number(o.cTime),
+    cursorOf: (o) => o.ordId,
   });
 }
 
