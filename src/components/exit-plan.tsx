@@ -54,6 +54,9 @@ function StopLine({ stop }: { stop: StopLeg | null }) {
   );
 }
 
+/** 세 자리는 늘 보인다 — 비어 있는 단이 어느 것인지 알아야 채울 수 있다. */
+const TP_SLOTS = [1, 2, 3] as const;
+
 function PlanLine({ step }: { step: PlanStep }) {
   return (
     <div className="flex flex-wrap items-baseline gap-x-1.5">
@@ -92,13 +95,16 @@ export function ExitPlanLines({ summary }: { summary: ExitSummary }) {
   const planBlock = (
     <>
       <StopLine stop={plan.stop} />
-      {plan.steps.length > 0 ? (
-        plan.steps.map((s) => <PlanLine key={s.n} step={s} />)
-      ) : (
-        <div className="text-dim">
-          <span className={TP_BADGE}>TP</span> {DASH}
-        </div>
-      )}
+      {TP_SLOTS.map((n) => {
+        const step = plan.steps.find((s) => s.n === n);
+        return step ? (
+          <PlanLine key={n} step={step} />
+        ) : (
+          <div key={n} className="text-dim">
+            <span className={TP_BADGE}>TP{n}</span> {DASH}
+          </div>
+        );
+      })}
     </>
   );
   const actualBlock =
@@ -151,14 +157,22 @@ export function PlanTable({ plan, hideTotal }: { plan: ExitPlan; hideTotal: bool
         </tr>
       </thead>
       <tbody>
-        {plan.steps.length === 0 ? (
-          <tr className="border-t border-border">
-            <td colSpan={7} className="py-2 text-dim">
-              목표 {DASH}
-            </td>
-          </tr>
-        ) : (
-          plan.steps.map((s) => (
+        {TP_SLOTS.map((n) => {
+          const s = plan.steps.find((step) => step.n === n);
+          if (!s) {
+            return (
+              <tr key={n} className="border-t border-border text-dim">
+                <td className="py-1.5 whitespace-nowrap">
+                  <span className={TP_BADGE}>TP{n}</span>
+                </td>
+                <td className="py-1.5 text-right">{DASH}</td>
+                <td colSpan={5} className="py-1.5 text-right text-[11px]">
+                  거래 수정에서 가격을 적으면 채워집니다
+                </td>
+              </tr>
+            );
+          }
+          return (
             <tr key={s.n} className="border-t border-border">
               <td className="py-1.5 whitespace-nowrap">
                 <span className={TP_BADGE}>TP{s.n}</span> <Warn text={s.problem} />
@@ -180,8 +194,8 @@ export function PlanTable({ plan, hideTotal }: { plan: ExitPlan; hideTotal: bool
               <td className={`py-1.5 text-right ${pnlClass(s.returnPct)}`}>{signedPct(s.returnPct)}</td>
               <RCell r={s.r} />
             </tr>
-          ))
-        )}
+          );
+        })}
       </tbody>
       {/* 합이 100 이 아닐 때의 합계는 그 물량 기준이라 "이 거래 최대" 로 읽힌다 — 숨긴다. */}
       {plan.steps.length > 0 && !hideTotal ? (
