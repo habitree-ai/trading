@@ -111,6 +111,29 @@ export async function listFills(tradeId: string): Promise<TradeFill[]> {
 }
 
 /**
+ * 여러 거래의 체결을 한 번에 — 거래 id 로 묶어 돌려준다.
+ *
+ * 목록·대시보드가 **들고 있는 거래**의 체결만 읽는 용도다. 부분청산이 얼마나 됐는지는
+ * 체결에만 있어서, 이게 없으면 살아 있는 거래의 청산 단계가 청산가 한 점으로 뭉개진다.
+ * 북 전량을 싣지 않는 결정(c68dc4b)은 그대로다 — 열린 거래는 손에 꼽는다.
+ */
+export async function listFillsByTrade(
+  tradeIds: readonly string[],
+): Promise<Record<string, TradeFill[]>> {
+  if (tradeIds.length === 0) return {};
+  const { supabase } = await requireUser();
+  const { data, error } = await supabase
+    .from("trade_fills")
+    .select("*")
+    .in("trade_id", [...tradeIds])
+    .order("filled_at", { ascending: true });
+  if (error) throw new Error(error.message);
+  const out: Record<string, TradeFill[]> = {};
+  for (const fill of data) (out[fill.trade_id] ??= []).push(fill);
+  return out;
+}
+
+/**
  * 거래 1건에 남긴 차트 메모 — 오래된 것부터.
  *
  * 형태가 깨진 행은 그 건만 버린다. 좌표 하나 때문에 차트에서 메모가 통째로 사라지면

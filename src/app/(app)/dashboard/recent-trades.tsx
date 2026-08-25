@@ -9,7 +9,7 @@ import { activeTargetPrices, summarizeExits } from "@/lib/exit-plan";
 import { dateTime, num, pnlClass, signed, signedPct } from "@/lib/format";
 import type { TradeDerived } from "@/lib/metrics";
 
-/** 대시보드는 체결을 읽지 않는다 — 실적은 거래 행의 청산가 한 점으로만 되짚는다. */
+/** 닫힌 거래의 체결은 대시보드가 읽지 않는다 — 실적은 청산가 한 점으로 되짚는다. */
 const NO_FILLS: TradeFill[] = [];
 
 /**
@@ -21,10 +21,13 @@ const NO_FILLS: TradeFill[] = [];
  */
 export function RecentTrades({
   rows,
+  fills,
   currency,
   now,
 }: {
   rows: TradeDerived[];
+  /** 들고 있는 거래의 체결 — 거래 id 로 묶여 온다 */
+  fills: Record<string, TradeFill[]>;
   currency: string;
   /** 페이지를 그린 시각 — 아직 들고 있는 거래의 차트를 여기까지 그린다 */
   now: number;
@@ -96,7 +99,9 @@ export function RecentTrades({
                     * 손으로 적은 계획은 옆에 붙는다. 닫힌 거래는 청산가 한 점의 실적이 먼저다.
                     */}
                   <Item label="손절 · 목표" className="col-span-2">
-                    <ExitPlanLines summary={summarizeExits(trade, NO_FILLS, result === "open")} />
+                    <ExitPlanLines
+                      summary={summarizeExits(trade, fills[trade.id] ?? NO_FILLS, result === "open")}
+                    />
                   </Item>
                   <Item label={result === "open" ? `평가손익 (${currency})` : `실현손익 (${currency})`}>
                     {result === "open" ? (

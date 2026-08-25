@@ -4,9 +4,15 @@ import { SyncAction } from "@/app/(app)/trades/okx-sync-button";
 import { TradeTable } from "@/app/(app)/trades/trade-table";
 import { EmptyBook } from "@/components/empty-book";
 import { dateTime } from "@/lib/format";
-import { deriveTrades } from "@/lib/metrics";
+import { deriveTrades, isOpenTrade } from "@/lib/metrics";
 import { nowMs } from "@/lib/okx";
-import { getActiveBook, getLastSync, listCashFlows, listTrades } from "@/lib/queries";
+import {
+  getActiveBook,
+  getLastSync,
+  listCashFlows,
+  listFillsByTrade,
+  listTrades,
+} from "@/lib/queries";
 
 export default async function TradesPage() {
   const book = await getActiveBook();
@@ -20,6 +26,8 @@ export default async function TradesPage() {
     // 기다리고 있었다. 서로 의존하지 않으므로 같이 띄운다.
     book.exchange_account_id ? getLastSync(book.id) : null,
   ]);
+  // 들고 있는 거래의 체결만 읽는다 — 부분청산이 얼마나 됐는지는 체결에만 있다.
+  const openFills = await listFillsByTrade(trades.filter(isOpenTrade).map((t) => t.id));
   // 표의 `자금` 칸이 대시보드와 같은 값을 가리키도록 이체를 함께 넘긴다.
   const derived = deriveTrades(book, trades, flows);
 
@@ -51,7 +59,7 @@ export default async function TradesPage() {
           아직 거래가 없습니다. 첫 기록을 추가해 주세요.
         </p>
       ) : (
-        <TradeTable rows={derived} currency={book.base_currency} now={nowMs()} />
+        <TradeTable rows={derived} fills={openFills} currency={book.base_currency} now={nowMs()} />
       )}
     </div>
   );

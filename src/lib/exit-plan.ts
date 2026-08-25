@@ -534,6 +534,94 @@ export function exitMode(open: boolean, actual: ExitActual | null): ExitMode {
   return actual === null || actual.steps.length === 0 ? 'plan' : 'plan-with-actual';
 }
 
+/**
+ * 단계 하나 — 이미 체결된 몫이면 실현값, 아직이면 등록된 TP 가격 기준 예상치.
+ *
+ * 살아 있는 거래를 볼 때 "1차는 얼마 벌었고 2차는 얼마를 기대하나"가 한 줄씩 이어져야
+ * 한다. 계획과 실적을 따로 두면 그 이야기가 두 표로 갈린다.
+ */
+export interface ExitStage {
+  /** 1부터 — 체결된 차수가 먼저, 그 뒤가 예상 */
+  n: number;
+  kind: 'filled' | 'expected' | 'empty';
+  /** 예상 단계가 어느 TP 가격에서 왔는지. 체결·빈 단계는 null */
+  tp: 1 | 2 | 3 | null;
+  price: number | null;
+  share: number | null;
+  /** 진입가 대비 수익률 — 부호 있음 */
+  movePct: number | null;
+  /** 수익금 — 체결이면 실현(가격손익), 예상이면 명목가 × 폭 × 비중 */
+  pnl: number | null;
+  /** 증거금 대비 */
+  returnPct: number | null;
+  r: number | null;
+  at: string | null;
+  estimated: boolean;
+  source: LevelSource | null;
+  problem: string | null;
+}
+
+const EMPTY_STAGE = {
+  tp: null,
+  price: null,
+  share: null,
+  movePct: null,
+  pnl: null,
+  returnPct: null,
+  r: null,
+  at: null,
+  estimated: false,
+  source: null,
+  problem: null,
+} as const;
+
+/**
+ * 체결된 차수 뒤에 남은 계획을 이어 붙인다.
+ *
+ * 체결 수만큼 계획의 앞 단을 소진한 것으로 본다 — 1차가 체결됐으면 다음 예상은 TP2 다.
+ * 들고 있는 거래는 세 자리를 늘 채운다(빈 단은 `empty`). 닫힌 거래는 체결만 남긴다 —
+ * 이미 끝난 거래에 예상치는 없다.
+ */
+export function mergeStages(summary: ExitSummary): ExitStage[] {
+  const filled = summary.actual?.steps ?? [];
+  const stages: ExitStage[] = filled.map((s) => ({
+    n: s.n,
+    kind: 'filled',
+    tp: null,
+    price: s.price,
+    share: s.share,
+    movePct: s.movePct,
+    pnl: s.pnl,
+    returnPct: s.returnPct,
+    r: s.r,
+    at: s.at,
+    estimated: s.estimated,
+    source: null,
+    problem: null,
+  }));
+  if (!summary.open) return stages;
+
+  for (const p of summary.plan.steps.slice(filled.length)) {
+    stages.push({
+      n: stages.length + 1,
+      kind: 'expected',
+      tp: p.n,
+      price: p.price,
+      share: p.share,
+      movePct: p.movePct,
+      pnl: p.amount,
+      returnPct: p.returnPct,
+      r: p.r,
+      at: null,
+      estimated: false,
+      source: p.source,
+      problem: p.problem,
+    });
+  }
+  while (stages.length < 3) stages.push({ n: stages.length + 1, kind: 'empty', ...EMPTY_STAGE });
+  return stages;
+}
+
 /** 화면이 부르는 한 줄 — 크기·계획·실적·모드를 한 번에. 체결을 안 넘기면 실적은 청산가 폴백만. */
 export function summarizeExits(
   trade: Trade,

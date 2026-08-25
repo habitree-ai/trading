@@ -1,4 +1,12 @@
-import type { ActualStep, ExitActual, ExitPlan, ExitSummary, PlanStep, StopLeg } from "@/lib/exit-plan";
+import {
+  mergeStages,
+  type ExitActual,
+  type ExitPlan,
+  type ExitStage,
+  type ExitSummary,
+  type PlanStep,
+  type StopLeg,
+} from "@/lib/exit-plan";
 import { DASH, dateTime, num, pct, pnlClass, signed, signedPct } from "@/lib/format";
 
 /**
@@ -71,60 +79,66 @@ function PlanLine({ step }: { step: PlanStep }) {
   );
 }
 
-function ActualLine({ step, single }: { step: ActualStep; single: boolean }) {
+/**
+ * 단계 한 줄 — `1차 체결 79,458 · 50% · +0.70% · +36` / `2차 예상 81,000 · 33% · +2.65% · +90`.
+ * 수익률은 진입가 대비, 수익금은 체결이면 실현값·예상이면 등록된 TP 가격 기준이다.
+ */
+function StageLine({ stage }: { stage: ExitStage }) {
+  if (stage.kind === "empty") {
+    return (
+      <div className="text-dim">
+        <span className={`${BADGE} border-border text-dim`}>{stage.n}차 예상</span> {DASH}
+      </div>
+    );
+  }
+  const filled = stage.kind === "filled";
   return (
     <div className="flex flex-wrap items-baseline gap-x-1.5">
-      <span className={ACTUAL_BADGE}>실제{single ? "" : ` ${step.n}`}</span>
-      <span>{num(step.price)}</span>
-      <span className="text-dim">{pct(step.share, 0)}</span>
-      <span className={pnlClass(step.movePct)}>{signedPct(step.movePct, 2)}</span>
-      <span className={pnlClass(step.pnl)}>{signed(step.pnl, 0)}</span>
-      {step.estimated ? <span className="text-dim">추정</span> : null}
+      <span className={filled ? ACTUAL_BADGE : TP_BADGE}>
+        {stage.n}차 {filled ? "체결" : "예상"}
+      </span>
+      <span>{num(stage.price)}</span>
+      <span className="text-dim">{pct(stage.share, 0)}</span>
+      <span className={pnlClass(stage.movePct)}>{signedPct(stage.movePct, 2)}</span>
+      <span className={pnlClass(stage.pnl)}>{signed(stage.pnl, 0)}</span>
+      {stage.tp !== null && stage.tp !== stage.n ? <span className="text-dim">TP{stage.tp}</span> : null}
+      {stage.source === "okx" ? <span className="text-dim">거래소</span> : null}
+      {stage.estimated ? <span className="text-dim">추정</span> : null}
+      <Warn text={stage.problem} />
     </div>
   );
 }
 
 /**
- * 줄 형태 — 목록 셀과 좁은 화면.
+ * 줄 형태 — 목록 셀·대시보드·좁은 화면.
  *
- * 닫힌 거래는 실적을 먼저 세우고 계획을 흐리게 아래 둔다. 들고 있는 거래는 계획이 먼저고,
- * 부분청산이 있으면 그만큼을 실적으로 아래에 덧붙인다.
+ * 손절 한 줄 뒤에 단계가 차수 순으로 선다. 체결된 차수는 실현값, 아직이면 등록된 TP 기준
+ * 예상치다. 닫힌 거래는 체결만 남고 계획은 흐리게 비교용으로 아래 붙는다.
  */
 export function ExitPlanLines({ summary }: { summary: ExitSummary }) {
-  const { plan, actual, mode } = summary;
-  const planBlock = (
-    <>
-      <StopLine stop={plan.stop} />
-      {TP_SLOTS.map((n) => {
-        const step = plan.steps.find((s) => s.n === n);
-        return step ? (
-          <PlanLine key={n} step={step} />
-        ) : (
-          <div key={n} className="text-dim">
-            <span className={TP_BADGE}>TP{n}</span> {DASH}
-          </div>
-        );
-      })}
-    </>
-  );
-  const actualBlock =
-    actual && actual.steps.length > 0
-      ? actual.steps.map((s) => <ActualLine key={s.n} step={s} single={actual.steps.length === 1} />)
-      : null;
+  const { plan, mode } = summary;
+  const stages = mergeStages(summary);
 
   return (
     <div className="tnum space-y-0.5 text-[11px] leading-4">
-      {mode === "actual-with-plan" ? (
-        <>
-          {actualBlock}
-          <div className="opacity-60">{planBlock}</div>
-        </>
-      ) : (
-        <>
-          {planBlock}
-          {actualBlock}
-        </>
-      )}
+      <StopLine stop={plan.stop} />
+      {stages.map((s) => (
+        <StageLine key={s.n} stage={s} />
+      ))}
+      {mode === "actual-with-plan" && plan.steps.length > 0 ? (
+        <div className="opacity-60">
+          {TP_SLOTS.map((n) => {
+            const step = plan.steps.find((s) => s.n === n);
+            return step ? (
+              <PlanLine key={n} step={step} />
+            ) : (
+              <div key={n} className="text-dim">
+                <span className={TP_BADGE}>TP{n}</span> {DASH}
+              </div>
+            );
+          })}
+        </div>
+      ) : null}
     </div>
   );
 }

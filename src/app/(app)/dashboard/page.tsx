@@ -30,6 +30,7 @@ import {
   getLastSync,
   getLatestBalance,
   listCashFlows,
+  listFillsByTrade,
   listTrades,
 } from "@/lib/queries";
 import { reconcileEquity } from "@/lib/reconcile";
@@ -87,6 +88,10 @@ export default async function DashboardPage() {
   const lastAt = lastActivityAt(derived);
 
   const recent = [...derived].reverse().slice(0, RECENT_COUNT);
+  // 들고 있는 거래의 체결만 읽는다 — 부분청산 단계는 체결에만 있다.
+  const openFills = await listFillsByTrade(
+    recent.filter((d) => d.result === "open").map((d) => d.trade.id),
+  );
 
   // 들고 있는 포지션이 부분청산으로 이미 확정한 금액 — 미실현과 달리 시세로 흔들리지
   // 않고, 이미 계좌의 현금이라 현재자금에 들어와 있다. 그 출처를 밝혀 둔다.
@@ -293,7 +298,7 @@ export default async function DashboardPage() {
                 전체 보기 →
               </Link>
             </div>
-            <RecentTrades rows={recent} currency={book.base_currency} now={nowMs()} />
+            <RecentTrades rows={recent} fills={openFills} currency={book.base_currency} now={nowMs()} />
           </section>
 
           {/* ── 4. 어떻게 흘러왔나 ─────────────────── */}

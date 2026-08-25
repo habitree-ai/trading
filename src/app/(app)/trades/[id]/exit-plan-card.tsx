@@ -72,9 +72,17 @@ export function ExitPlanCard({ trade, summary }: { trade: Trade; summary: ExitSu
         <p className="mt-1 text-[11px] text-dim">손절가가 없어 R 을 잴 수 없습니다.</p>
       ) : null}
 
-      {/* 좁은 화면 — 줄 형태 */}
-      <div className="mt-3 sm:hidden">
-        <ExitPlanLines summary={summary} />
+      {/* 단계별 — 체결된 차수는 실현값, 아직이면 등록된 TP 기준 예상치. 표보다 이 줄이 먼저 읽힌다. */}
+      <div className="mt-3">
+        <h3 className="text-xs font-medium">
+          단계별{" "}
+          <span className="font-normal text-dim">
+            — 수익률은 진입가 대비 · 체결은 실현 · 예상은 등록된 TP 기준
+          </span>
+        </h3>
+        <div className="mt-1">
+          <ExitPlanLines summary={summary} />
+        </div>
       </div>
 
       <div className={`mt-3 hidden gap-4 sm:grid ${actual ? "lg:grid-cols-2" : ""}`}>

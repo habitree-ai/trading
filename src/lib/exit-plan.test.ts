@@ -8,6 +8,7 @@ import {
   checkTpSplit,
   exitMode,
   groupCloseFills,
+  mergeStages,
   positionSize,
   resolveShares,
   summarizeExits,
@@ -472,6 +473,57 @@ describe('buildExitActual — 실적', () => {
     const a = buildExitActual(trade({ realized_pnl: 1 }), closes(), false, NO_SIZE);
     const b = buildExitActual(trade({ realized_pnl: 999 }), closes(), false, NO_SIZE);
     expect(a).toEqual(b);
+  });
+});
+
+describe('mergeStages — 체결 뒤에 예상을 잇는다', () => {
+  const openTrade = (over: Partial<Trade> = {}) =>
+    trade({ okx_pos_id: 'p1', exit_at: null, result: 'open', pnl: null, ...over });
+
+  it('1차가 체결됐으면 다음 예상은 TP2·TP3 이고 금액은 원래 크기 기준이다', () => {
+    const summary = summarizeExits(
+      openTrade({ notional: 500 }),
+      [fill({ role: 'close', price: 110, amount: 550 })],
+      true,
+    );
+    const stages = mergeStages(summary);
+    expect(stages.map((s) => [s.n, s.kind, s.tp])).toEqual([
+      [1, 'filled', null],
+      [2, 'expected', 2],
+      [3, 'expected', 3],
+    ]);
+    expect(stages[0].pnl).toBeCloseTo(50, 10);
+    expect(stages[0].share).toBeCloseTo(0.5, 10);
+    expect(stages[1].price).toBe(110);
+    expect(stages[1].pnl).toBeCloseTo(0.1 * 1000 * (1 / 3), 6);
+    expect(stages[2].pnl).toBeCloseTo(0.2 * 1000 * (1 / 3), 6);
+  });
+
+  it('체결이 없으면 셋 다 예상이다', () => {
+    const stages = mergeStages(summarizeExits(openTrade(), [], true));
+    expect(stages.map((s) => [s.kind, s.tp])).toEqual([
+      ['expected', 1],
+      ['expected', 2],
+      ['expected', 3],
+    ]);
+  });
+
+  it('계획이 없으면 체결 뒤는 빈 자리다 — 세 자리는 늘 선다', () => {
+    const stages = mergeStages(
+      summarizeExits(
+        openTrade({ notional: 500, tp1_price: null, tp2_price: null, tp3_price: null }),
+        [fill({ role: 'close', price: 110, amount: 550 })],
+        true,
+      ),
+    );
+    expect(stages.map((s) => s.kind)).toEqual(['filled', 'empty', 'empty']);
+  });
+
+  it('닫힌 거래는 체결만 — 예상도 빈 자리도 없다', () => {
+    const stages = mergeStages(
+      summarizeExits(trade(), [fill({ role: 'close', price: 110, amount: 1100 })], false),
+    );
+    expect(stages.map((s) => s.kind)).toEqual(['filled']);
   });
 });
 

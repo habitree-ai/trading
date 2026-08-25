@@ -13,7 +13,7 @@ import type { TradeDerived } from "@/lib/metrics";
 
 type ResultFilter = TradeResult | "all";
 
-/** 목록은 체결을 읽지 않는다(북 전량 부담) — 실적은 거래 행의 청산가 한 점으로만 되짚는다. */
+/** 닫힌 거래의 체결은 목록이 읽지 않는다(북 전량 부담) — 실적은 청산가 한 점으로 되짚는다. */
 const NO_FILLS: TradeFill[] = [];
 
 /**
@@ -28,10 +28,13 @@ function needsReview({ trade, result }: TradeDerived): boolean {
 
 export function TradeTable({
   rows,
+  fills,
   currency,
   now,
 }: {
   rows: TradeDerived[];
+  /** 들고 있는 거래의 체결 — 거래 id 로 묶여 온다. 부분청산 단계가 여기서 나온다 */
+  fills: Record<string, TradeFill[]>;
   currency: string;
   /** 페이지를 그린 시각 — 아직 들고 있는 거래의 차트를 여기까지 그린다 */
   now: number;
@@ -175,9 +178,11 @@ export function TradeTable({
                 </td>
                 <td className="px-3 py-2 font-medium">{trade.symbol}</td>
                 <FillCell price={trade.entry_price} at={trade.entry_at} />
-                {/* 진입 옆 — 청산 계획. 들고 있으면 계획, 닫혔으면 청산가 한 점의 실적이 먼저다. */}
+                {/* 진입 옆 — 단계별 청산. 체결된 차수는 실현값, 아직이면 등록된 TP 기준 예상치. */}
                 <td className="px-3 py-2 whitespace-nowrap">
-                  <ExitPlanLines summary={summarizeExits(trade, NO_FILLS, outcome === "open")} />
+                  <ExitPlanLines
+                    summary={summarizeExits(trade, fills[trade.id] ?? NO_FILLS, outcome === "open")}
+                  />
                 </td>
                 <FillCell price={trade.exit_price} at={trade.exit_at} />
                 <td className="px-3 py-2 whitespace-nowrap">
