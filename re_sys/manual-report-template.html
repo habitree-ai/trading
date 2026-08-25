@@ -1,0 +1,518 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>매매 복기 — 전 거래 실패 분석</title>
+<style>
+  /* 백테스트 시리즈 공통 토큰 + 캔들 상승/하락은 앱(trade-chart)과 같은 관례: 상승 녹색·하락 적색. */
+  :root {
+    color-scheme: dark;
+    --bg: #0e1116;
+    --surface: #161a21;
+    --surface-2: #1e232c;
+    --border: #2a3039;
+    --ink: #e6e9ee;
+    --dim: #8b95a3;
+    --grid: #232935;
+    --s1: #3987e5;
+    --s2: #d95926;
+    --pos: #3987e5;
+    --neg: #e66767;
+    --up: #26c281;
+    --down: #f0616d;
+    --warn: #fab219;
+    --crit: #d03b3b;
+    --accent-soft: rgba(57, 135, 229, 0.14);
+  }
+  @media (prefers-color-scheme: light) {
+    :root:not([data-theme="dark"]) {
+      color-scheme: light;
+      --bg: #f7f8fa; --surface: #ffffff; --surface-2: #f1f3f6; --border: #e2e5ea;
+      --ink: #14171c; --dim: #666e7a; --grid: #e8eaee;
+      --s1: #2a78d6; --s2: #eb6834; --pos: #2a78d6; --neg: #e34948;
+      --up: #1a9e66; --down: #e34948; --warn: #b57a00; --crit: #d03b3b;
+      --accent-soft: rgba(42, 120, 214, 0.1);
+    }
+  }
+  :root[data-theme="light"] {
+    color-scheme: light;
+    --bg: #f7f8fa; --surface: #ffffff; --surface-2: #f1f3f6; --border: #e2e5ea;
+    --ink: #14171c; --dim: #666e7a; --grid: #e8eaee;
+    --s1: #2a78d6; --s2: #eb6834; --pos: #2a78d6; --neg: #e34948;
+    --up: #1a9e66; --down: #e34948; --warn: #b57a00; --crit: #d03b3b;
+    --accent-soft: rgba(42, 120, 214, 0.1);
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink);
+    font: 15px/1.7 -apple-system, "Segoe UI", "Malgun Gothic", system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+  .wrap { max-width: 1120px; margin: 0 auto; padding: 40px 22px 96px; }
+  h1 { font-size: 30px; line-height: 1.25; margin: 0 0 10px; letter-spacing: -0.02em; }
+  h2 { font-size: 20px; margin: 52px 0 6px; letter-spacing: -0.01em; }
+  h2 .num { color: var(--dim); font-weight: 500; margin-right: 8px; }
+  h3 { font-size: 15.5px; margin: 26px 0 8px; }
+  p { margin: 10px 0; }
+  .lede { color: var(--dim); font-size: 16px; margin-bottom: 22px; }
+  .note { color: var(--dim); font-size: 13px; }
+  code { background: var(--surface-2); padding: 1px 5px; border-radius: 4px; font-size: 13px;
+         font-family: ui-monospace, "Cascadia Mono", Consolas, monospace; }
+
+  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin: 20px 0 6px; }
+  .tile { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; }
+  .tile .k { font-size: 12px; color: var(--dim); letter-spacing: .02em; }
+  /* 금액이 길어지면 부호만 다음 줄로 떨어져 나간다 — 값은 한 줄로 두되,
+     타일 폭을 넘길 만큼 긴 값(.long)은 글자를 줄여 상자 안에 앉힌다. */
+  .tile .v { font-size: clamp(19px, 2.1vw, 25px); font-weight: 650; letter-spacing: -0.02em;
+             margin-top: 3px; white-space: nowrap; }
+  .tile .v.long { font-size: clamp(15px, 1.5vw, 19px); }
+  .tile .s { font-size: 12px; color: var(--dim); margin-top: 2px; }
+  .tile.bad .v { color: var(--crit); }
+
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 18px 20px; margin: 16px 0; }
+  .grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(420px, 1fr)); gap: 14px; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 13.5px; margin: 12px 0; }
+  th, td { padding: 6px 9px; text-align: right; border-bottom: 1px solid var(--border); font-variant-numeric: tabular-nums; }
+  th:first-child, td:first-child, th.l, td.l { text-align: left; }
+  thead th { color: var(--dim); font-weight: 600; font-size: 12.5px; white-space: nowrap; }
+  tbody tr:hover { background: var(--accent-soft); }
+
+  /* 긴 표는 상자 안에서 스크롤한다. max-height 만 걸고 overflow 를 빠뜨리면 수천 행이
+     상자 밖으로 흘러 아래 카드 위에 그대로 겹쳐 그려진다. 헤더는 상자 안에 고정하고
+     (border-collapse 에서는 테두리가 같이 붙지 않으므로) 밑줄은 그림자로 세운다. */
+  .scroll { overflow: auto; max-height: 520px; margin: 12px -4px; padding: 0 4px; overscroll-behavior: contain; }
+  .scroll table { margin: 0; }
+  .scroll thead th { position: sticky; top: 0; z-index: 1; background: var(--surface);
+                     box-shadow: inset 0 -1px 0 var(--border); }
+  /* 셀이 접히면 행 높이가 들쭉날쭉해져 눈이 줄을 놓친다 — 한 줄로 두고 폭은 가로 스크롤에 맡긴다. */
+  .scroll th, .scroll td { white-space: nowrap; }
+  .pos { color: var(--pos); }
+  .neg { color: var(--neg); }
+
+  .chip { display: inline-block; font-size: 11.5px; padding: 1px 8px; border-radius: 999px;
+          border: 1px solid var(--border); color: var(--dim); margin: 2px 4px 2px 0; white-space: nowrap; }
+  .chip.bad { color: var(--crit); border-color: var(--crit); }
+  .chip.warn { color: var(--warn); border-color: var(--warn); }
+
+  .bars svg, .chart svg { display: block; width: 100%; height: auto; }
+  .chart { position: relative; }
+  .tooltip { position: absolute; pointer-events: none; display: none; z-index: 5;
+    background: var(--surface-2); border: 1px solid var(--border); border-radius: 8px;
+    padding: 7px 10px; font-size: 12.5px; line-height: 1.55; white-space: nowrap; box-shadow: 0 4px 14px rgba(0,0,0,.25); }
+  .tooltip .d { color: var(--dim); }
+
+  .trade { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 16px 18px; margin: 14px 0; }
+  .trade .head { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: baseline; margin-bottom: 6px; }
+  .trade .head b { font-size: 15.5px; }
+  .trade .meta { color: var(--dim); font-size: 12.5px; }
+  .trade .pnl { font-weight: 700; font-size: 15px; }
+  .trade .body { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(260px, 1fr); gap: 14px; }
+  @media (max-width: 860px) { .trade .body { grid-template-columns: 1fr; } }
+  .trade .why { font-size: 13.5px; }
+  .trade .why dt { color: var(--dim); font-size: 12px; margin-top: 8px; }
+  .trade .why dd { margin: 1px 0 0; }
+  .filters { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin: 14px 0 4px; font-size: 13px; }
+  .filters label { color: var(--dim); }
+  select { background: var(--surface-2); color: var(--ink); border: 1px solid var(--border);
+    border-radius: 7px; padding: 5px 8px; font: inherit; font-size: 13px; }
+  .legend { display: flex; flex-wrap: wrap; gap: 14px; font-size: 12.5px; color: var(--dim); margin: 4px 0; }
+  .sw { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 5px; vertical-align: baseline; }
+  .swl { display: inline-block; width: 14px; height: 3px; border-radius: 2px; margin: 0 5px 3px 0; vertical-align: middle; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>매매 복기 — 전 거래 실패 분석</h1>
+  <p class="lede" id="lede"></p>
+  <div class="tiles" id="tiles"></div>
+
+  <h2><span class="num">1</span>자주 실패하는 케이스 — 랭킹</h2>
+  <p class="note">거래 기록에 진입 근거가 없어, 진입 시점 차트 상태(확정 봉 지표)로 의도를 유추하고 보유 중 가격 경로로 실패 원인을 분류했다.
+    한 거래에 원인이 겹칠 수 있어 합계는 총손실보다 크다. 각 판정의 근거 수치는 <a href="#trades">거래별 카드</a>에 있다.</p>
+  <div class="card"><table id="fail-rank"></table></div>
+  <div class="card"><h3 style="margin-top:0">행동 습관 태그 — 손익 영향</h3><table id="tag-rank"></table></div>
+
+  <h2><span class="num">2</span>집계 — 어디서 잃는가</h2>
+  <div class="grid2">
+    <div class="card"><h3 style="margin-top:0">진입 의도별 손익($)</h3><div class="bars" id="bar-intent"></div></div>
+    <div class="card"><h3 style="margin-top:0">레버리지별 손익($)</h3><div class="bars" id="bar-lever"></div></div>
+    <div class="card"><h3 style="margin-top:0">보유시간별 손익($)</h3><div class="bars" id="bar-hold"></div></div>
+    <div class="card"><h3 style="margin-top:0">진입 시각(KST)별 손익($)</h3><div class="bars" id="bar-hour"></div></div>
+    <div class="card"><h3 style="margin-top:0">방향별 · 종목별 손익($)</h3><div class="bars" id="bar-side"></div><div class="bars" id="bar-sym"></div></div>
+    <div class="card"><h3 style="margin-top:0">요일별 손익($, KST)</h3><div class="bars" id="bar-weekday"></div></div>
+    <div class="card"><h3 style="margin-top:0">장 세션별 손익($, KST)</h3><div class="bars" id="bar-session"></div></div>
+    <div class="card"><h3 style="margin-top:0">진입 시 RSI 구간별 손익($)</h3><div class="bars" id="bar-rsi"></div></div>
+    <div class="card"><h3 style="margin-top:0">변동성(ATR%) 구간별 손익($)</h3><div class="bars" id="bar-atr"></div></div>
+    <div class="card"><h3 style="margin-top:0">추세 정렬별 손익($)</h3><div class="bars" id="bar-align"></div></div>
+    <div class="card"><h3 style="margin-top:0">시장 국면별 손익($, 1D vs SMA200)</h3><div class="bars" id="bar-regime"></div></div>
+    <div class="card"><h3 style="margin-top:0">직전 청산과의 간격별 손익($)</h3><div class="bars" id="bar-interval"></div></div>
+    <div class="card"><h3 style="margin-top:0">연패 뒤 진입 손익($)</h3><div class="bars" id="bar-consec"></div></div>
+  </div>
+  <div class="card">
+    <h3 style="margin-top:0">일별 손익</h3>
+    <div class="scroll" style="max-height:300px"><table id="daily"></table></div>
+  </div>
+  <div class="card" id="ledger-card" style="display:none">
+    <h3 style="margin-top:0">계정 원장 요약 — OKX 분기 아카이브 (체결 단위 정본)</h3>
+    <p class="note" id="ledger-line"></p>
+    <div class="scroll" style="max-height:300px"><table id="ledger-daily"></table></div>
+    <p class="note" id="ledger-quarters"></p>
+  </div>
+  <div class="card">
+    <h3 style="margin-top:0">누적 실현손익($) — 청산 순</h3>
+    <div class="chart" id="cum-chart"></div>
+  </div>
+  <div class="card"><h3 style="margin-top:0">행동 패턴 대조</h3><table id="behavior"></table></div>
+
+  <h2 id="trades"><span class="num">3</span>거래별 상세 복기 — 전 <span id="n-trades"></span>건</h2>
+  <p class="note">차트: 진입 전 맥락 ~ 청산 후 10봉. <span class="sw" style="background:var(--up)"></span>상승 <span class="sw" style="background:var(--down)"></span>하락 ·
+    <span class="swl" style="background:var(--s1)"></span>SMA20 <span class="swl" style="background:var(--s2)"></span>SMA50 ·
+    ▶ 진입 · ✕ 청산 (점선 = 각 가격대)</p>
+  <div class="filters">
+    <label>계정 <select id="f-acct"><option value="">전체</option></select></label>
+    <label>결과 <select id="f-result"><option value="">전체</option><option value="loss">손실만</option><option value="win">수익만</option></select></label>
+    <label>실패 유형 <select id="f-fail"><option value="">전체</option></select></label>
+    <label>종목 <select id="f-sym"><option value="">전체</option></select></label>
+    <span class="note" id="f-count"></span>
+  </div>
+  <p class="note">카드(캔들 차트)는 대표 거래 — 손익 절대값 상위 · 강제청산 · 일지 메모 보유 — 만 담는다. 나머지는 아래 전체 테이블에 있다.</p>
+  <div id="trade-list"></div>
+  <h3>전체 거래 테이블</h3>
+  <div class="scroll" style="max-height:70vh"><table id="trade-rows"></table></div>
+
+  <h2><span class="num">4</span>전제와 한계</h2>
+  <div class="card">
+    <ul class="note" style="margin:0; padding-left: 18px;">
+      <li>진입 의도는 기록이 아니라 <b>유추</b>다 — 진입 시점 확정 봉의 RSI·SMA20/50·직전 20봉 고저·연속봉으로 분류했고, 근거 수치를 카드마다 남겼다.</li>
+      <li>지표는 봇·백테스트와 같은 <code>indicators.mjs</code> 수식. 타임프레임은 보유시간에 맞춰 자동 선택(1m~4H) — 카드에 표기.</li>
+      <li>MFE/MAE(보유 중 최대 유리/불리)는 봉 고저 기준 근사치. 진입 봉은 진입 전 움직임을 일부 포함한다.</li>
+      <li>OKX 실계좌는 포지션 단위 이력(수수료·펀딩 포함 실현손익), 매매일지 북은 앱 기록 기준. 손절가 기록이 없어 "손절 부재"는 역행 폭으로 추정했다.</li>
+      <li>원데이터: <code>re_sys/data/manual-trades.csv</code> · <code>manual-review.csv</code> · 캔들 창 <code>manual-candles.json</code> — 전부 로컬 누적분.</li>
+    </ul>
+  </div>
+</div>
+
+<script id="data" type="application/json">__DATA_JSON__</script>
+<script>
+const R = JSON.parse(document.getElementById("data").textContent);
+const W = R.windows;
+const fmtDT = (ts) => new Date(ts + 9 * 3600000).toISOString().slice(0, 16).replace("T", " ");
+const fmt$ = (v) => (v === null || v === undefined ? "—" : (v < 0 ? "−$" : "$") + Math.abs(v).toLocaleString("en-US", { maximumFractionDigits: 2 }));
+const fmtN = (v, d = 2) => (v === null || v === undefined ? "—" : Number(v).toLocaleString("en-US", { maximumFractionDigits: d }));
+/** 가격 자릿수는 종목 가격대가 정한다 — BTC 에 소수 6자리는 잡음, DOGE 엔 필수다. */
+const fmtPx = (v) => (v === null || v === undefined ? "—"
+  : fmtN(v, Math.abs(v) >= 1000 ? 1 : Math.abs(v) >= 1 ? 4 : 6));
+const cls$ = (v) => (v > 0 ? "pos" : v < 0 ? "neg" : "");
+const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[ch]));
+const holdTxt = (m) => (m < 60 ? m + "분" : m < 2880 ? (m / 60).toFixed(1) + "시간" : (m / 1440).toFixed(1) + "일");
+
+/* ---------- 타일 ---------- */
+{
+  const t = R.totals;
+  const days = [R.trades[0].day, R.trades[R.trades.length - 1].day];
+  document.getElementById("lede").textContent =
+    `본인 매매 전 거래 ${t.trades}건 (${days[0]} → ${days[1]}, KST) · OKX 두 계정(매매·봇) 포지션 이력 + 분기 원장 아카이브 복원 + 매매일지 · 생성 ${fmtDT(R.generatedAt)} KST`;
+  document.getElementById("n-trades").textContent = t.trades;
+  const tiles = [
+    { k: "총 거래 · 거래일", v: `${t.trades}건`, s: `${t.days}일 · 하루 최다 ${t.maxPerDay}건` },
+    { k: "승률", v: t.winRate + "%", s: `${t.wins}승 ${t.trades - t.wins}패` },
+    { k: "순손익", v: fmt$(t.pnlUsd), s: `수익 ${fmt$(t.grossWinUsd)} / 손실 ${fmt$(t.grossLossUsd)}`, bad: t.pnlUsd < 0 },
+    { k: "강제청산", v: t.liqCount + "회", s: "레버 50배 구간에 집중", bad: t.liqCount > 0 },
+    { k: "최대 단일 손실", v: fmt$(t.worst), s: "1회 거래 기준", bad: true },
+    { k: "보유 비대칭", v: `${holdTxt(Math.round(t.avgHoldMinWin))} vs ${holdTxt(Math.round(t.avgHoldMinLoss))}`, s: "평균 보유 — 수익 vs 손실" },
+    { k: "비용 합계", v: fmt$(-(t.feeUsd - (t.fundingUsd ?? 0))), s: `수수료 ${fmt$(-t.feeUsd)} · 펀딩 ${fmt$(t.fundingUsd ?? 0)}`, bad: true },
+    { k: "이익 포착률", v: t.mfeCapturePct === null ? "—" : t.mfeCapturePct + "%", s: `수익 거래의 MFE 대비 실현 · MFE+30% 넘고도 손실 ${t.lossDespiteMfe30}건` },
+  ];
+  document.getElementById("tiles").innerHTML = tiles.map((x) =>
+    `<div class="tile${x.bad ? " bad" : ""}"><div class="k">${x.k}</div>` +
+    `<div class="v${String(x.v).length > 12 ? " long" : ""}">${x.v}</div><div class="s">${x.s}</div></div>`).join("");
+}
+
+/* ---------- 1. 실패 랭킹 ---------- */
+{
+  const rows = R.aggregates.failureRanking.map((f, i) =>
+    `<tr><td class="l"><b>${i + 1}. ${esc(f.label)}</b></td><td>${f.n}건</td><td class="neg">${fmt$(f.lost)}</td>` +
+    `<td class="l note">${f.tradeIds.slice(0, 8).map((id) => `<a href="#t-${id}">#${id.replace(/^(okx-.*-|db-)/, "").slice(-4)}</a>`).join(" ")}${f.tradeIds.length > 8 ? " 외 " + (f.tradeIds.length - 8) + "건" : ""}</td></tr>`);
+  document.getElementById("fail-rank").innerHTML =
+    `<thead><tr><th class="l">실패 유형</th><th>건수</th><th>손실 합</th><th class="l">해당 거래</th></tr></thead><tbody>${rows.join("")}</tbody>`;
+
+  const tagRows = R.aggregates.tagRanking.map((s) =>
+    `<tr><td class="l">${esc(s.tag)}</td><td>${s.n}건</td><td>${s.n ? Math.round((s.wins / s.n) * 100) : 0}%</td><td class="${cls$(s.pnl)}">${fmt$(s.pnl)}</td></tr>`);
+  document.getElementById("tag-rank").innerHTML =
+    `<thead><tr><th class="l">태그</th><th>건수</th><th>승률</th><th>해당 거래 손익 합</th></tr></thead><tbody>${tagRows.join("")}</tbody>`;
+}
+
+/* ---------- 가로 바 차트 (직접 라벨 — 값이 마크 옆에 붙는다) ---------- */
+/** 글자 폭 어림 — 한글은 폰트 크기만큼, 영숫자·기호는 그 55%. 여백 계산용. */
+const textPx = (s, size) =>
+  [...String(s)].reduce((w, ch) => w + (/[ᄀ-ᇿ㄰-㆏가-힣一-鿿]/.test(ch) ? size : size * 0.55), 0);
+
+function hbar(el, rows, { labelOf }) {
+  // 라벨이 들어갈 만큼 좌우를 비워 둔다 — 폭을 고정하면 금액이 커지거나 이름이 길어진 순간 잘린다.
+  const valText = (r) => `${fmt$(Math.round(r.pnl))} · ${r.n.toLocaleString()}건`;
+  const labelPx = Math.max(...rows.map((r) => textPx(valText(r), 11.5))) + 14;
+  const catPx = Math.max(60, Math.max(...rows.map((r) => textPx(labelOf(r), 12))) + 12);
+  const Wd = 330 + catPx + labelPx, rowH = 26, m = { t: 6, r: labelPx, b: 6, l: catPx };
+  const H = m.t + m.b + rows.length * rowH;
+  const iw = Wd - m.l - m.r;
+  // 좌우 같은 $/px 스케일 — 0점은 양·음 최대값 비율 위치.
+  const posMax = Math.max(...rows.map((r) => Math.max(r.pnl, 0)), 0);
+  const negMax = Math.max(...rows.map((r) => Math.max(-r.pnl, 0)), 0);
+  const span = posMax + negMax || 1;
+  const x0 = m.l + iw * (negMax / span);
+  const px = (v) => (Math.abs(v) / span) * iw;
+  let svg = `<svg viewBox="0 0 ${Wd} ${H}" role="img">`;
+  svg += `<line x1="${x0}" x2="${x0}" y1="${m.t}" y2="${H - m.b}" stroke="var(--grid)" stroke-width="1"/>`;
+  rows.forEach((r, i) => {
+    const y = m.t + i * rowH;
+    const w = Math.max(px(r.pnl), 0.5);
+    const x = r.pnl >= 0 ? x0 : x0 - w;
+    svg += `<text x="${m.l - 8}" y="${y + rowH / 2 + 4}" text-anchor="end" font-size="12" fill="var(--dim)">${esc(labelOf(r))}</text>`;
+    svg += `<rect x="${x}" y="${y + 5}" width="${w}" height="${rowH - 10}" rx="3" fill="${r.pnl >= 0 ? "var(--pos)" : "var(--neg)"}"><title>${esc(labelOf(r))}: ${fmt$(r.pnl)} · ${r.n}건 · 승률 ${r.winRate}%</title></rect>`;
+    // 값 라벨은 항상 0선 반대편의 빈 공간에 — 막대가 길어도 카테고리 라벨과 겹치지 않는다.
+    svg += `<text x="${r.pnl >= 0 ? x + w + 6 : x0 + 6}" y="${y + rowH / 2 + 4}" text-anchor="start" font-size="11.5" fill="var(--ink)">${valText(r)}</text>`;
+  });
+  svg += "</svg>";
+  el.innerHTML = svg;
+}
+{
+  const A = R.aggregates;
+  hbar(document.getElementById("bar-intent"), A.byIntent.slice().sort((a, b) => a.pnl - b.pnl), { labelOf: (r) => r.key });
+  const order = ["≤10배", "20배", "50배", "100배"];
+  hbar(document.getElementById("bar-lever"), A.byLever.slice().sort((a, b) => order.indexOf(a.key) - order.indexOf(b.key)), { labelOf: (r) => r.key });
+  const horder = ["<5분", "5–30분", "30분–2시간", "2–24시간", "≥1일"];
+  hbar(document.getElementById("bar-hold"), A.byHold.slice().sort((a, b) => horder.indexOf(a.key) - horder.indexOf(b.key)), { labelOf: (r) => r.key });
+  hbar(document.getElementById("bar-hour"), A.byHourKst.slice().sort((a, b) => a.key - b.key), { labelOf: (r) => r.key + "시" });
+
+  const byOrder = (list) => (a, b) => list.indexOf(a.key) - list.indexOf(b.key);
+  // 종목이 25개면 목록이지 차트가 아니다 — 손익 크기 상위만 남기고 나머지는 한 줄로 접는다.
+  const foldTop = (rows, n) => {
+    const sorted = rows.slice().sort((a, b) => Math.abs(b.pnl) - Math.abs(a.pnl));
+    const rest = sorted.slice(n);
+    if (rest.length < 2) return sorted;
+    const agg = rest.reduce((s, r) => ({ ...s, n: s.n + r.n, wins: s.wins + r.wins, pnl: s.pnl + r.pnl }),
+      { key: `기타 ${rest.length}종목`, n: 0, wins: 0, pnl: 0 });
+    agg.pnl = Math.round(agg.pnl * 100) / 100;
+    agg.winRate = agg.n ? Math.round((agg.wins / agg.n) * 1000) / 10 : 0;
+    return [...sorted.slice(0, n), agg];
+  };
+  hbar(document.getElementById("bar-side"), A.bySide, { labelOf: (r) => r.key });
+  hbar(document.getElementById("bar-sym"), foldTop(A.bySymbol, 10).sort((a, b) => a.pnl - b.pnl), { labelOf: (r) => r.key });
+  hbar(document.getElementById("bar-weekday"), A.byWeekday.slice().sort(byOrder(["월요일", "화요일", "수요일", "목요일", "금요일", "토요일", "일요일"])), { labelOf: (r) => r.key });
+  hbar(document.getElementById("bar-session"), A.bySession.slice().sort(byOrder(["00–09시(미국장)", "09–18시(아시아장)", "18–24시(유럽·미국장)"])), { labelOf: (r) => r.key });
+  hbar(document.getElementById("bar-rsi"), A.byRsi.slice().sort(byOrder(["RSI<30", "RSI 30–45", "RSI 45–55", "RSI 55–70", "RSI≥70"])), { labelOf: (r) => r.key });
+  hbar(document.getElementById("bar-atr"), A.byAtrVol.slice().sort(byOrder(["저변동(<0.4%)", "중변동(0.4–0.8%)", "고변동(≥0.8%)"])), { labelOf: (r) => r.key });
+  hbar(document.getElementById("bar-align"), A.byTrendAlign.slice().sort(byOrder(["추세 순방향", "추세 역방향", "판정 불가"])), { labelOf: (r) => r.key });
+  hbar(document.getElementById("bar-regime"), A.byRegime, { labelOf: (r) => r.key });
+  hbar(document.getElementById("bar-interval"), A.byInterval.slice().sort(byOrder(["첫 거래", "직전 청산 ≤5분", "5–30분", "30분–6시간", ">6시간"])), { labelOf: (r) => r.key });
+  hbar(document.getElementById("bar-consec"), A.byConsecLoss.slice().sort(byOrder(["연패 0에서 진입", "1연패 뒤", "2연패 뒤", "3연패 이상 뒤"])), { labelOf: (r) => r.key });
+
+  let cumD = 0;
+  document.getElementById("daily").innerHTML =
+    `<thead><tr><th class="l">날짜(KST)</th><th>거래</th><th>승률</th><th>손익</th><th>누적</th></tr></thead><tbody>` +
+    A.byDay.slice().sort((a, b) => a.key.localeCompare(b.key)).map((d) =>
+      `<tr><td class="l">${d.key}</td><td>${d.n}</td><td>${d.winRate}%</td>` +
+      `<td class="${cls$(d.pnl)}">${fmt$(d.pnl)}</td><td class="${cls$(cumD += d.pnl)}">${fmt$(Math.round(cumD * 100) / 100)}</td></tr>`).join("") + `</tbody>`;
+}
+
+/* ---------- 누적 곡선 (선형 축 — $ 합산) ---------- */
+{
+  const pts = R.curve;
+  const Wd = 1060, H = 260, m = { t: 12, r: 20, b: 24, l: 64 };
+  const iw = Wd - m.l - m.r, ih = H - m.t - m.b;
+  const x0 = pts[0].ts, x1 = pts[pts.length - 1].ts;
+  const ys = pts.map((p) => p.cum).concat([0]);
+  const y0 = Math.min(...ys), y1 = Math.max(...ys);
+  const X = (t) => m.l + ((t - x0) / (x1 - x0 || 1)) * iw;
+  const Y = (v) => m.t + ih - ((v - y0) / (y1 - y0 || 1)) * ih;
+  let svg = `<svg viewBox="0 0 ${Wd} ${H}">`;
+  for (const v of [y0, 0, y1]) {
+    svg += `<line x1="${m.l}" x2="${Wd - m.r}" y1="${Y(v)}" y2="${Y(v)}" stroke="var(--grid)" stroke-width="1"/>` +
+      `<text x="${m.l - 8}" y="${Y(v) + 4}" text-anchor="end" font-size="11" fill="var(--dim)">${fmt$(Math.round(v))}</text>`;
+  }
+  // 시간축이 아니라 "거래 순" 축 — 2024-11 스프리와 2026-08 이 뭉치기 때문. x는 인덱스.
+  const Xi = (i) => m.l + (i / (pts.length - 1 || 1)) * iw;
+  const d = pts.map((p, i) => `${i ? "L" : "M"}${Xi(i).toFixed(1)},${Y(p.cum).toFixed(1)}`).join("");
+  svg += `<path d="${d}" fill="none" stroke="var(--s1)" stroke-width="2" stroke-linejoin="round"/>`;
+  // 점 표식·툴팁은 수백 건까지만 — 수천 건이면 SVG 가 무거워지고 어차피 안 읽힌다.
+  if (pts.length <= 400) {
+    pts.forEach((p, i) => {
+      svg += `<circle cx="${Xi(i)}" cy="${Y(p.cum)}" r="2.5" fill="var(--s1)"><title>${fmtDT(p.ts)} · 이 거래 ${fmt$(p.pnl)} · 누적 ${fmt$(p.cum)}</title></circle>`;
+    });
+  }
+  svg += `<text x="${m.l}" y="${H - 6}" font-size="11" fill="var(--dim)">← 거래 순서(시간 간격 아님)${pts.length <= 400 ? " · 점에 올리면 개별 값" : ` · ${pts.length.toLocaleString()}건`}</text>`;
+  svg += "</svg>";
+  document.getElementById("cum-chart").innerHTML = svg;
+}
+
+/* ---------- 계정 원장 요약 ---------- */
+if (R.ledger) {
+  const L = R.ledger;
+  document.getElementById("ledger-card").style.display = "";
+  document.getElementById("ledger-line").innerHTML =
+    `청구서 <b>${L.bills.toLocaleString()}건</b> · 체결(fill) <b>${L.fills.toLocaleString()}건</b> — 포지션(라운드트립)보다 체결이 훨씬 많다: 한 포지션이 여러 체결로 쌓인다.<br>` +
+    `수수료 합 <b class="neg">${fmt$(L.feeUsd)}</b> · 청산 관련 비용 ${fmt$(L.liqRelatedUsd)} · 펀딩 지출 ${fmt$(L.fundingExpenseUsd)} / 수입 ${fmt$(L.fundingIncomeUsd)} · ` +
+    `트레이딩 계좌 이체 유입 ${fmt$(L.transferInUsd)} / 유출 ${fmt$(L.transferOutUsd)} (순 ${fmt$(Math.round((L.transferInUsd + L.transferOutUsd) * 100) / 100)})`;
+  document.getElementById("ledger-daily").innerHTML =
+    `<thead><tr><th class="l">날짜(KST)</th><th>체결 수</th><th>실현손익(수수료 포함)</th><th>수수료</th></tr></thead><tbody>` +
+    L.byDay.map((d) => `<tr><td class="l">${d.day}</td><td>${d.fills}</td><td class="${cls$(d.pnlUsd)}">${fmt$(d.pnlUsd)}</td><td class="neg">${fmt$(d.feeUsd)}</td></tr>`).join("") + `</tbody>`;
+  document.getElementById("ledger-quarters").textContent =
+    "분기 아카이브 상태: " + Object.entries(L.quarters).map(([q, v]) => `${q} ${typeof v === "number" ? v + "건" : v}`).join(" · ");
+}
+
+/* ---------- 행동 패턴 대조 ---------- */
+{
+  const A = R.aggregates;
+  const re = A.reentry;
+  const nth = Object.fromEntries(A.byNthOfDay.map((s) => [s.key, s]));
+  const rows = [
+    ["손실 직후 30분 내 재진입", `${re.fast.n}건`, `${re.fast.winRate ?? "—"}%`, fmt$(re.fast.pnl)],
+    ["그 외 진입", `${re.rest.n}건`, `${re.rest.winRate ?? "—"}%`, fmt$(re.rest.pnl)],
+    ...["그날 1–2번째", "그날 3–5번째", "그날 6번째+"].filter((k) => nth[k]).map((k) =>
+      [k + " 거래", `${nth[k].n}건`, `${nth[k].winRate}%`, fmt$(nth[k].pnl)]),
+  ];
+  document.getElementById("behavior").innerHTML =
+    `<thead><tr><th class="l">구분</th><th>건수</th><th>승률</th><th>손익 합</th></tr></thead><tbody>` +
+    rows.map((r) => `<tr><td class="l">${r[0]}</td><td>${r[1]}</td><td>${r[2]}</td><td class="${r[3].startsWith("−") ? "neg" : "pos"}">${r[3]}</td></tr>`).join("") +
+    `</tbody>`;
+}
+
+/* ---------- 거래별 카드 ---------- */
+function smaSeries(vals, n) {
+  const out = new Array(vals.length).fill(null);
+  let sum = 0;
+  for (let i = 0; i < vals.length; i += 1) {
+    sum += vals[i];
+    if (i >= n) sum -= vals[i - n];
+    if (i >= n - 1) out[i] = sum / n;
+  }
+  return out;
+}
+
+function candleSvg(t) {
+  const w = W[t.id];
+  if (!w || !w.candles.length) return "<p class='note'>캔들 창 없음</p>";
+  const cs = w.candles;
+  const Wd = 640, H = 250, m = { t: 8, r: 54, b: 20, l: 8 };
+  const iw = Wd - m.l - m.r, ih = H - m.t - m.b;
+  const lo = Math.min(...cs.map((c) => c.l), t.entryPx, t.exitPx ?? t.entryPx);
+  const hi = Math.max(...cs.map((c) => c.h), t.entryPx, t.exitPx ?? t.entryPx);
+  const pad = (hi - lo) * 0.04 || 1;
+  const Y = (v) => m.t + ih - ((v - (lo - pad)) / (hi - lo + 2 * pad)) * ih;
+  const bw = iw / cs.length;
+  const X = (i) => m.l + i * bw + bw / 2;
+  const dec = Math.max(0, 4 - Math.floor(Math.log10(hi)));
+  let svg = `<svg viewBox="0 0 ${Wd} ${H}">`;
+  for (const v of [lo, (lo + hi) / 2, hi]) {
+    svg += `<line x1="${m.l}" x2="${Wd - m.r}" y1="${Y(v)}" y2="${Y(v)}" stroke="var(--grid)" stroke-width="1"/>` +
+      `<text x="${Wd - m.r + 4}" y="${Y(v) + 4}" font-size="10.5" fill="var(--dim)">${v.toFixed(dec)}</text>`;
+  }
+  const closes = cs.map((c) => c.c);
+  for (const [n, color] of [[20, "var(--s1)"], [50, "var(--s2)"]]) {
+    const s = smaSeries(closes, n);
+    const d = s.map((v, i) => (v === null ? "" : `${d0(s, i) ? "M" : "L"}${X(i).toFixed(1)},${Y(v).toFixed(1)}`)).join("");
+    svg += `<path d="${d}" fill="none" stroke="${color}" stroke-width="1.6" opacity="0.9"/>`;
+  }
+  function d0(s, i) { return i === 0 || s[i - 1] === null; }
+  cs.forEach((c, i) => {
+    const up = c.c >= c.o;
+    const col = up ? "var(--up)" : "var(--down)";
+    const bwv = Math.max(bw * 0.6, 1);
+    svg += `<line x1="${X(i)}" x2="${X(i)}" y1="${Y(c.h)}" y2="${Y(c.l)}" stroke="${col}" stroke-width="1"/>`;
+    svg += `<rect x="${X(i) - bwv / 2}" y="${Y(Math.max(c.o, c.c))}" width="${bwv}" height="${Math.max(Math.abs(Y(c.o) - Y(c.c)), 1)}" fill="${col}"/>`;
+  });
+  // 진입·청산 마커 — 봉 인덱스는 시각으로 찾는다.
+  const idxOf = (ts) => Math.max(0, cs.findLastIndex((c) => c.t <= ts));
+  const ei = idxOf(t.entryTs);
+  svg += `<line x1="${m.l}" x2="${Wd - m.r}" y1="${Y(t.entryPx)}" y2="${Y(t.entryPx)}" stroke="var(--ink)" stroke-width="1" stroke-dasharray="4 4" opacity="0.55"/>`;
+  svg += `<path d="M${X(ei) - 5},${Y(t.entryPx) + (t.side === "long" ? 10 : -10)} l5,${t.side === "long" ? -8 : 8} l5,${t.side === "long" ? 8 : -8} z" fill="var(--ink)"/>`;
+  if (t.exitPx !== null && t.exitTs) {
+    const xi = idxOf(t.exitTs);
+    svg += `<line x1="${m.l}" x2="${Wd - m.r}" y1="${Y(t.exitPx)}" y2="${Y(t.exitPx)}" stroke="${t.win ? "var(--pos)" : "var(--neg)"}" stroke-width="1" stroke-dasharray="4 4" opacity="0.8"/>`;
+    svg += `<text x="${X(xi)}" y="${Y(t.exitPx) + 4}" text-anchor="middle" font-size="13" font-weight="700" fill="${t.win ? "var(--pos)" : "var(--neg)"}">✕</text>`;
+  }
+  svg += `<text x="${m.l + 2}" y="${H - 6}" font-size="10.5" fill="var(--dim)">${w.tf} · ${cs.length}봉 · ${fmtDT(cs[0].t)} → ${fmtDT(cs[cs.length - 1].t)} KST</text>`;
+  svg += "</svg>";
+  return svg;
+}
+
+function tradeCard(t) {
+  const sym = t.instId.replace("-USDT-SWAP", "");
+  const chips = t.tags.map((x) => `<span class="chip ${/강제청산|이익 반납/.test(x) ? "bad" : /재진입|레버리지|뒤집기|과잉/.test(x) ? "warn" : ""}">${esc(x)}</span>`).join("");
+  const fails = (t.failure ?? []).map((f) => `<dd>· <b>${esc(f.label)}</b> — ${esc(f.basis)}</dd>`).join("");
+  const cx = t.context;
+  const cxTxt = cx ? `RSI ${cx.rsi ?? "—"} · ATR ${cx.atrPct ?? "—"}% · 추세 ${cx.trend === "up" ? "상승" : cx.trend === "down" ? "하락" : "—"} · 연속봉 ${cx.streak > 0 ? "+" + cx.streak : cx.streak} · 60봉 레인지 위치 ${cx.posInRange60 ?? "—"}%` : "지표 워밍업 부족";
+  const p = t.path;
+  const pathTxt = p ? `최대 유리 +${fmtN(p.mfePct)}% / 최대 불리 −${fmtN(p.maePct)}% (증거금 기준 +${fmtN(p.mfeMarginPct, 0)}% / −${fmtN(p.maeMarginPct, 0)}%)` : "—";
+  return `<div class="trade" id="t-${t.id}">
+    <div class="head">
+      <b>${sym} ${t.side === "long" ? "롱" : "숏"}${t.lever ? ` ×${t.lever}` : ""}</b>
+      <span class="meta">${fmtDT(t.entryTs)} → ${fmtDT(t.exitTs)} KST · 보유 ${holdTxt(t.holdMin)} · ${esc(t.sourceName)} · ${t.tf ?? ""}</span>
+      <span class="pnl ${cls$(t.pnlUsd)}">${fmt$(t.pnlUsd)}${t.pnlRatioPct !== null ? ` (증거금 ${fmtN(t.pnlRatioPct, 1)}%)` : ""}</span>
+    </div>
+    <div>${chips}</div>
+    <div class="body">
+      <div>${candleSvg(t)}</div>
+      <dl class="why" style="margin:0">
+        <dt>진입가 → 청산가</dt><dd>${fmtPx(t.entryPx)} → ${fmtPx(t.exitPx)}</dd>
+        <dt>진입 의도(유추)</dt><dd><b>${esc(t.intent)}</b> <span class="note">[${esc(t.intentGroup)}]</span><br><span class="note">근거: ${esc(t.intentBasis)}</span></dd>
+        <dt>진입 시점 차트 상태</dt><dd class="note">${cxTxt}</dd>
+        <dt>보유 중 가격 경로</dt><dd class="note">${pathTxt}</dd>
+        ${t.win ? "" : `<dt>실패 원인 분석</dt>${fails || "<dd>—</dd>"}`}
+        ${t.note ? `<dt>일지 메모</dt><dd>${esc(t.note)}</dd>` : ""}
+      </dl>
+    </div>
+  </div>`;
+}
+
+{
+  const failSel = document.getElementById("f-fail");
+  for (const f of R.aggregates.failureRanking) failSel.insertAdjacentHTML("beforeend", `<option value="${f.key}">${esc(f.label)}</option>`);
+  const symSel = document.getElementById("f-sym");
+  for (const s of [...new Set(R.trades.map((t) => t.instId.replace("-USDT-SWAP", "")))]) symSel.insertAdjacentHTML("beforeend", `<option>${s}</option>`);
+  const acctSel = document.getElementById("f-acct");
+  for (const s of [...new Set(R.trades.map((t) => t.sourceName))]) acctSel.insertAdjacentHTML("beforeend", `<option>${esc(s)}</option>`);
+
+  const MAX_CARDS = 60;
+  const render = () => {
+    const fa = acctSel.value;
+    const fr = document.getElementById("f-result").value;
+    const ff = failSel.value;
+    const fs = symSel.value;
+    const rows = R.trades.filter((t) =>
+      (!fa || t.sourceName === fa) &&
+      (!fr || (fr === "win") === t.win) &&
+      (!ff || (t.failure ?? []).some((f) => f.key === ff)) &&
+      (!fs || t.instId.startsWith(fs)));
+
+    const withCard = rows.filter((t) => W[t.id]);
+    document.getElementById("trade-list").innerHTML =
+      withCard.slice(0, MAX_CARDS).map(tradeCard).join("") +
+      (withCard.length > MAX_CARDS ? `<p class="note">카드 ${withCard.length}건 중 ${MAX_CARDS}건 표시 — 필터를 좁히면 나머지가 보인다.</p>` : "");
+
+    const head = ["계정", "종목", "방향", "레버", "진입(KST)", "청산(KST)", "보유", "진입가", "청산가", "손익$", "의도(유추)", "태그"];
+    const body = rows.slice().sort((a, b) => b.entryTs - a.entryTs).map((t) => {
+      // 계정·태그는 열 폭을 잡아먹는다 — 표에선 줄이고 전체 이름은 title 로 남긴다.
+      const acct = { "okx-app": "매매", "okx-live": "봇", "okx-archive": "원장", journal: "일지" }[t.source] ?? "?";
+      const tags = t.tags.length
+        ? t.tags.slice(0, 2).map((x) => `<span class="chip">${esc(x)}</span>`).join("") +
+          (t.tags.length > 2 ? `<span class="chip" title="${esc(t.tags.slice(2).join(" · "))}">+${t.tags.length - 2}</span>` : "")
+        : "";
+      return `<tr><td class="l" title="${esc(t.sourceName)}">${acct}</td>` +
+      `<td class="l">${t.instId.replace("-USDT-SWAP", "")}${W[t.id] ? ` <a href="#t-${t.id}">▦</a>` : ""}</td>` +
+      `<td>${t.side === "long" ? "롱" : "숏"}</td><td>${t.lever ?? "—"}</td>` +
+      `<td>${fmtDT(t.entryTs)}</td><td>${fmtDT(t.exitTs)}</td><td>${holdTxt(t.holdMin)}</td>` +
+      `<td>${fmtPx(t.entryPx)}</td><td>${fmtPx(t.exitPx)}</td>` +
+      `<td class="${cls$(t.pnlUsd)}">${fmt$(t.pnlUsd)}</td><td class="l">${esc(t.intent)}</td>` +
+      `<td class="l">${tags}</td></tr>`;
+    });
+    document.getElementById("trade-rows").innerHTML =
+      `<thead><tr>${head.map((h, i) => `<th${i <= 1 ? ' class="l"' : ""}>${h}</th>`).join("")}</tr></thead><tbody>${body.join("")}</tbody>`;
+    document.getElementById("f-count").textContent = `${rows.length}건 (카드 ${withCard.length}건)`;
+  };
+  for (const id of ["f-acct", "f-result", "f-fail", "f-sym"]) document.getElementById(id).addEventListener("change", render);
+  render();
+}
+</script>
+</body>
+</html>

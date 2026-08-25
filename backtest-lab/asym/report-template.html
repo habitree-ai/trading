@@ -1,0 +1,701 @@
+<title>하방 고정 상방 개방</title>
+<style>
+  /* 앞 12회차 리포트와 같은 토큰 — 형제 문서다. 계열색은 dataviz 검증 팔레트(4슬롯 PASS). */
+  :root {
+    color-scheme: dark;
+    --bg: #0e1116; --surface: #161a21; --surface-2: #1e232c; --border: #2a3039;
+    --ink: #e6e9ee; --dim: #8b95a3; --muted: #898781; --grid: #232935;
+    --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500;
+    --pos: #3987e5; --neg: #e66767;
+    --good: #0ca30c; --warn: #fab219; --crit: #d03b3b;
+    --accent-soft: rgba(57, 135, 229, 0.14);
+  }
+  @media (prefers-color-scheme: light) {
+    :root:not([data-theme="dark"]) {
+      color-scheme: light;
+      --bg: #f7f8fa; --surface: #ffffff; --surface-2: #f1f3f6; --border: #e2e5ea;
+      --ink: #14171c; --dim: #666e7a; --muted: #898781; --grid: #e8eaee;
+      --s1: #2a78d6; --s2: #eb6834; --s3: #1baf7a; --s4: #eda100;
+      --pos: #2a78d6; --neg: #e34948;
+      --good: #0ca30c; --warn: #b57a00; --crit: #d03b3b;
+      --accent-soft: rgba(42, 120, 214, 0.1);
+    }
+  }
+  :root[data-theme="light"] {
+    color-scheme: light;
+    --bg: #f7f8fa; --surface: #ffffff; --surface-2: #f1f3f6; --border: #e2e5ea;
+    --ink: #14171c; --dim: #666e7a; --muted: #898781; --grid: #e8eaee;
+    --s1: #2a78d6; --s2: #eb6834; --s3: #1baf7a; --s4: #eda100;
+    --pos: #2a78d6; --neg: #e34948;
+    --good: #0ca30c; --warn: #b57a00; --crit: #d03b3b;
+    --accent-soft: rgba(42, 120, 214, 0.1);
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink);
+    font: 15px/1.7 -apple-system, "Segoe UI", "Malgun Gothic", system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+  .wrap { max-width: 1120px; margin: 0 auto; padding: 40px 22px 96px; }
+  h1 { font-size: 31px; line-height: 1.24; margin: 0 0 10px; letter-spacing: -0.02em; text-wrap: balance; }
+  h2 { font-size: 20px; margin: 54px 0 6px; letter-spacing: -0.01em; text-wrap: balance; }
+  h2 .num { color: var(--dim); font-weight: 500; margin-right: 8px; font-variant-numeric: tabular-nums; }
+  h3 { font-size: 15.5px; margin: 30px 0 8px; }
+  p { margin: 10px 0; max-width: 74ch; }
+  .lede { color: var(--dim); font-size: 16px; margin-bottom: 22px; max-width: 74ch; }
+  .note { color: var(--dim); font-size: 13px; max-width: 80ch; }
+  .eyebrow { font-size: 12px; letter-spacing: .09em; text-transform: uppercase; color: var(--dim); font-weight: 600; }
+  code { background: var(--surface-2); padding: 1px 5px; border-radius: 4px; font-size: 13px;
+         font-family: ui-monospace, "Cascadia Mono", Consolas, monospace; }
+  a { color: var(--s1); }
+  a:focus-visible, summary:focus-visible { outline: 2px solid var(--s1); outline-offset: 2px; border-radius: 3px; }
+  strong { font-weight: 660; }
+  hr { border: 0; border-top: 1px solid var(--border); margin: 34px 0; }
+
+  .verdict { border: 1px solid var(--border); border-left: 3px solid var(--warn);
+    background: var(--surface); border-radius: 10px; padding: 18px 20px; margin: 22px 0 8px; }
+  .verdict .tag { display: inline-block; font-size: 12px; font-weight: 700; letter-spacing: .04em;
+    color: var(--warn); border: 1px solid var(--warn); border-radius: 999px; padding: 2px 10px; margin-bottom: 10px; }
+  .verdict p { margin: 6px 0; }
+
+  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(196px, 1fr)); gap: 12px; margin: 20px 0 6px; }
+  .tile { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; }
+  .tile .k { font-size: 12px; color: var(--dim); }
+  .tile .v { font-size: 26px; font-weight: 650; letter-spacing: -0.02em; margin-top: 3px; font-variant-numeric: tabular-nums; }
+  .tile .s { font-size: 12px; color: var(--dim); margin-top: 2px; }
+  .tile.bad .v { color: var(--crit); }
+  .tile.ok .v { color: var(--good); }
+  .tile.hi { border-color: var(--warn); }
+
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 18px 20px; margin: 16px 0; }
+  .card > h3:first-child { margin-top: 0; }
+  .card.pick { border-left: 3px solid var(--good); }
+  .card.cond { border-left: 3px solid var(--warn); }
+  .card.avoid { border-left: 3px solid var(--crit); }
+  .rank { display: inline-flex; align-items: center; justify-content: center; min-width: 24px; height: 24px;
+    border-radius: 6px; background: var(--surface-2); color: var(--dim); font-size: 12.5px; font-weight: 700;
+    margin-right: 9px; font-variant-numeric: tabular-nums; }
+  .spec { font-size: 13px; color: var(--dim); font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
+    background: var(--surface-2); border-radius: 6px; padding: 8px 10px; margin: 10px 0; overflow-x: auto; }
+  .forag { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; margin-top: 12px; }
+  .forag > div { font-size: 13.5px; }
+  .forag .h { font-size: 12px; letter-spacing: .06em; text-transform: uppercase; color: var(--dim); font-weight: 650; margin-bottom: 3px; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 13.5px; margin: 12px 0; }
+  th, td { padding: 7px 9px; text-align: right; border-bottom: 1px solid var(--border); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  th:first-child, td:first-child { text-align: left; }
+  th.l, td.l { text-align: left; }
+  thead th { color: var(--dim); font-weight: 600; font-size: 12.5px; background: var(--surface); }
+  tbody tr:hover { background: var(--accent-soft); }
+  tbody tr.hl { background: var(--accent-soft); }
+  .scroll { overflow-x: auto; margin: 12px -4px; padding: 0 4px; }
+  .chartbox { overflow-x: auto; }
+  .pos { color: var(--pos); } .neg { color: var(--neg); }
+  .pass { color: var(--good); font-weight: 650; } .fail { color: var(--crit); font-weight: 650; }
+  .chip { display: inline-block; font-size: 11px; padding: 1px 6px; border-radius: 4px;
+          border: 1px solid var(--border); color: var(--dim); margin-left: 5px; }
+  .chip.new { color: var(--s2); border-color: var(--s2); }
+  .chip.warnc { color: var(--warn); border-color: var(--warn); }
+  .chip.okc { color: var(--good); border-color: var(--good); }
+
+  figure { margin: 20px 0 8px; }
+  figcaption { font-size: 13px; color: var(--dim); margin-top: 8px; max-width: 80ch; }
+  .figtitle { font-size: 14.5px; font-weight: 620; margin-bottom: 2px; }
+  .figsub { font-size: 12.5px; color: var(--dim); margin-bottom: 10px; max-width: 80ch; }
+  svg { display: block; max-width: 100%; height: auto; }
+  .legend { display: flex; flex-wrap: wrap; gap: 14px; font-size: 12.5px; color: var(--dim); margin: 4px 0 10px; }
+  .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 5px; vertical-align: -1px; }
+  details { margin: 12px 0; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); }
+  summary { cursor: pointer; padding: 11px 16px; font-size: 13.5px; color: var(--dim); font-weight: 600; }
+  details[open] summary { border-bottom: 1px solid var(--border); }
+  details .body { padding: 4px 16px 14px; }
+  ul, ol { max-width: 74ch; padding-left: 20px; }
+  li { margin: 5px 0; }
+  @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+</style>
+<div class="wrap" id="app"></div>
+<script id="data" type="application/json">__DATA_JSON__</script>
+<script>
+(() => {
+  const D = JSON.parse(document.getElementById("data").textContent);
+  const app = document.getElementById("app");
+  const h = (html) => { const t = document.createElement("template"); t.innerHTML = html.trim(); return t.content.firstElementChild; };
+  const add = (x) => app.appendChild(typeof x === "string" ? h(x) : x);
+  const NS = "http://www.w3.org/2000/svg";
+  const S = (tag, attrs = {}, kids = []) => {
+    const e = document.createElementNS(NS, tag);
+    for (const [k, v] of Object.entries(attrs)) if (v !== null && v !== undefined) e.setAttribute(k, String(v));
+    for (const k of [].concat(kids)) if (k) e.appendChild(typeof k === "string" ? document.createTextNode(k) : k);
+    return e;
+  };
+  const txt = (x, y, s, o = {}) => S("text", { x, y, "font-size": o.size ?? 11.5, fill: o.fill ?? "var(--dim)",
+    "text-anchor": o.anchor ?? "start", "font-weight": o.weight ?? 400, transform: o.transform,
+    "font-variant-numeric": "tabular-nums" }, s);
+  const tip = (s) => S("title", {}, s);
+  const n2 = (v) => (v === null || v === undefined ? "—" : (Math.round(v * 100) / 100).toLocaleString("ko-KR", { maximumFractionDigits: 2 }));
+  const n3 = (v) => (v === null || v === undefined ? "—" : (Math.round(v * 1000) / 1000).toFixed(3));
+  const pc = (v, d = 2) => (v === null || v === undefined ? "—" : (v >= 0 ? "+" : "") + v.toFixed(d) + "%");
+  const cls = (v) => (v === null || v === undefined ? "" : v > 0 ? "pos" : v < 0 ? "neg" : "");
+  const dt = (ms) => new Date(ms).toISOString().slice(0, 10);
+  const dtm = (ms) => new Date(ms).toISOString().slice(0, 16).replace("T", " ");
+  const mark = (b) => (b === true ? '<span class="pass">O</span>' : b === false ? '<span class="fail">X</span>' : '<span style="color:var(--dim)">—</span>');
+  const fig = (title, sub, node, cap) => {
+    const f = document.createElement("figure");
+    f.appendChild(h('<div class="figtitle">' + title + "</div>"));
+    if (sub) f.appendChild(h('<div class="figsub">' + sub + "</div>"));
+    const box = h('<div class="chartbox"></div>'); box.appendChild(node); f.appendChild(box);
+    if (cap) f.appendChild(h("<figcaption>" + cap + "</figcaption>"));
+    return f;
+  };
+  const legend = (items) => '<div class="legend">' + items.map((i) => '<span><i style="background:' + i.c + '"></i>' + i.t + "</span>").join("") + "</div>";
+
+  const SC = { P1: "var(--s1)", P4: "var(--s3)", P5: "var(--s4)", C0: "var(--dim)", P2: "var(--s2)", P6: "var(--s1)", P3: "var(--s4)" };
+  const TFC = { "15m": "var(--s2)", "1H": "var(--s4)", "4H": "var(--s1)" };
+  const bh4 = D.buyHold["4H"];
+
+  /* ─────────────  머리말  ───────────── */
+  add('<div class="eyebrow">BTC 백테스트 13회차 · 단기봉 비대칭 페이오프</div>');
+  add("<h1>하방은 고정하고 상방은 열어두면, 단기봉에서 성립하는가</h1>");
+  add('<p class="lede">기획 6종 · ' + D.rowCount.toLocaleString("ko-KR") + '조합 · 거래 ' +
+    Object.values(D.byTf["4H"]).filter(Boolean).reduce((s, v) => s + v.n, 0).toLocaleString("ko-KR") +
+    '건(4H) 전수. 사전 등록 게이트 7종, 엔진 자체 검사 7종, 대조군 3종(대칭 기하 · 랜덤 진입 · 매수보유). ' +
+    '매매 시스템에는 아직 반영하지 않은 검토 자료다.</p>');
+
+  const p6 = D.byTf["4H"].P6, p2 = D.byTf["4H"].P2, c0 = D.byTf["4H"].C0, p1 = D.byTf["4H"].P1;
+  const pp6 = D.pairedByTf["4H"].P6.ev, pp1 = D.pairedByTf["4H"].P1.ev;
+
+  add(h('<div class="verdict"><span class="tag">답</span>' +
+    '<p><strong>절반은 성립한다.</strong> "손실을 하방으로 고정"은 완전히 작동했다 — 피라미딩을 뺀 모든 기획에서 ' +
+    '가격 손절이 뚫린 거래가 <strong>43,000건 중 0건</strong>이다. 뚫은 것은 시장이 아니라 <strong>비용</strong>이었다.</p>' +
+    '<p><strong>"수익을 길게"는 봉을 가린다.</strong> 4H에서는 비대칭 설계가 대칭 대조군을 유의하게 이긴다' +
+    '(짝지은 18조합 중 ' + pp6.wins + '개 개선, t=' + pp6.t + '). 15m에서는 <em>오히려 진다</em>(t=' +
+    D.pairedByTf["15m"].P1.ev.t + '). 단기봉일수록 유리하리라는 통념과 정반대다.</p>' +
+    '<p><strong>그리고 크기와 안정성은 같은 편이 아니다.</strong> 전 구간 합산 1위(P6 · 상한고정 증량)는 ' +
+    '최근 19개월에서 부호가 뒤집혔다. 세 구간 모두 대조군을 이긴 것은 <strong>가장 단순한 두 설계(P5 · P1)</strong>뿐이고, ' +
+    '그 우위는 거래당 ' + pc(D.thirds.pairedThirds.P5[2].mean, 2) + ' 수준으로 작다.</p>' +
+    '<p><strong>조합 하나하나는 여전히 소음과 구분되지 않는다.</strong> ' + D.multiple.eligible +
+    '개 조합의 최대 t는 ' + D.multiple.maxT.toFixed(2) + '로 귀무 기대 ' + D.multiple.nullMaxT +
+    '에 못 미쳤고, 다중검정 통과는 0건이다. 이 회차의 결과는 <em>설계 수준</em>에 있지 <em>설정 수준</em>에 있지 않다.</p></div>'));
+
+  add(h('<div class="tiles">' +
+    '<div class="tile ok"><div class="k">가격 손절이 뚫린 비율 · 4H P6</div><div class="v">' + n2(p6.breachGrossRate) + '%</div><div class="s">P2(무제한 증량)는 ' + n2(p2.breachGrossRate) + '%</div></div>' +
+    '<div class="tile ok"><div class="k">평균이익 ÷ 평균손실 · 4H P6</div><div class="v">' + n2(p6.payoff) + '배</div><div class="s">대칭 대조군 C0는 ' + n2(c0.payoff) + '배</div></div>' +
+    '<div class="tile hi"><div class="k">상위 5% 거래의 총이익 기여</div><div class="v">' + n2(p6.tailShare) + '%</div><div class="s">그 5%를 빼면 기대값 ' + n3(p6.evExTail) + '%</div></div>' +
+    '<div class="tile bad"><div class="k">세 구간 모두 대조군 우위</div><div class="v">2 / 6</div><div class="s">P5 · P1만 — 크기 1위 P6은 3구간 ' + pc(D.thirds.pairedThirds.P6[2].mean, 2) + '</div></div>' +
+    "</div>"));
+
+  /* ─────────────  1. 우리  ───────────── */
+  add('<h2><span class="num">1</span>먼저, 왜 이전 12회차는 이 질문에 답할 수 없었나</h2>');
+  add("<p>데이터가 아니라 <strong>우리(cage)</strong> 때문이었다. 기존 엔진의 청산 6종 중 5종이 고정 목표가였고, 보유 한도가 " +
+    "15m 3일 · 1H 5일 · 4H 10일로 묶여 있었다. <strong>러너가 존재할 수 없는 구조에서 “수익을 길게 가져가는가”를 물은 적이 없다.</strong> " +
+    "이번 회차는 그 우리를 여는 것이 실험의 본체다.</p>");
+  add(h('<div class="scroll"><table><thead><tr>' +
+    '<th class="l">바뀐 것</th><th class="l">이전 12회차</th><th class="l">이번 회차</th><th class="l">왜</th>' +
+    "</tr></thead><tbody>" +
+    '<tr><td class="l">상방</td><td class="l">고정 목표가 1~9×ATR</td><td class="l">목표가 없음(대조군만 유지)</td><td class="l">목표가는 상방의 천장이다</td></tr>' +
+    '<tr><td class="l">보유 한도</td><td class="l">15m 288봉 · 1H 120봉 · 4H 60봉</td><td class="l">15m ' + D.config.maxHold["15m"] + '봉 · 1H ' + D.config.maxHold["1H"] + '봉 · 4H ' + D.config.maxHold["4H"] + "봉</td><td class=\"l\">기존의 6~10배</td></tr>" +
+    '<tr><td class="l">포지션 크기</td><td class="l">진입 후 불변</td><td class="l">부분익절(감소) · 피라미딩(증가)</td><td class="l">“길게”는 크기의 문제이기도 하다</td></tr>' +
+    "</tbody></table></div>"));
+
+  /* ─────────────  2. 검토 경로  ───────────── */
+  add('<h2><span class="num">2</span>검토 경로 — 무엇을 읽고 무엇을 가져왔나</h2>');
+  add("<p>기획은 상상이 아니라 인용에서 출발했다. 외부 문헌에서 설계를, 내부 12회차 원장에서 진입 계열을 가져왔다.</p>");
+  add(h('<div class="scroll"><table><thead><tr><th class="l">출처</th><th class="l">가져온 것</th><th class="l">이번 회차에서 어떻게 시험했나</th></tr></thead><tbody>' +
+    '<tr><td class="l">Chandelier Exit (LeBeau · Elder)</td><td class="l">22봉 최고가 − 3×ATR 추적, 절대 후퇴 없음</td><td class="l">P1의 청산 규칙 그대로</td></tr>' +
+    '<tr><td class="l">Turtle Trading System</td><td class="l">0.5N마다 증량, 반대편 돈치안 이탈에서 청산</td><td class="l">P2 · P6의 증량 규칙</td></tr>' +
+    '<tr><td class="l">Scale-out vs all-in 비교 연구</td><td class="l">부분익절은 PF를 올리고 기대값을 내린다는 통설</td><td class="l">P3으로 직접 검정 — 통설이 맞았다</td></tr>' +
+    '<tr><td class="l">브레이크이븐 스톱 반증 연구</td><td class="l">조기 무손실화가 손실 수는 줄이되 0 결과를 폭증시킨다</td><td class="l">P5로 반대 가설을 같은 판에 올림</td></tr>' +
+    '<tr><td class="l">MFE/MAE 기반 관리 (Sweeney)</td><td class="l">도달 시간 분포로 죽은 거래를 걸러낸다</td><td class="l">P4의 시간컷 · 전 기획의 MFE 포착률 측정</td></tr>' +
+    '<tr><td class="l">내부 12회차 원장</td><td class="l">3회 독립 생존한 인사이드바, 워크포워드 상위 MACD, 터틀 정통 돈치안</td><td class="l">진입 8계열로 고정 — 진입은 이번 회차의 변수가 아니다</td></tr>' +
+    "</tbody></table></div>"));
+  add('<p class="note">진입 계열을 8개로 <em>고정</em>한 것이 설계의 핵심이다. 진입과 청산을 동시에 훑으면 무엇이 기여했는지 영원히 알 수 없다. ' +
+    "이번 회차의 변수는 <strong>청산 설계 하나</strong>다.</p>");
+
+  /* ─────────────  3. 기획 명세  ───────────── */
+  add('<h2><span class="num">3</span>기획 6종 명세</h2>');
+  const specLine = (p) => {
+    const bits = ["초기 손절 " + p.initSl + "×ATR"];
+    if (p.tp) bits.push("목표 " + p.tp + "×ATR");
+    else bits.push("목표가 없음");
+    if (p.trail) bits.push("추적 " + (p.trail.type === "chandelier" ? "샹들리에 22봉 − " + p.trail.mult + "×ATR" : p.trail.type === "atr" ? "ATR " + p.trail.mult + "배" : "돈치안 10봉"));
+    if (p.trailArmR) bits.push("추적 개시 " + p.trailArmR + "R");
+    if (p.beArmR) bits.push("무손실화 " + p.beArmR + "R");
+    if (p.partial) bits.push("부분익절 " + p.partial.atR + "R에서 " + p.partial.frac * 100 + "%");
+    if (p.timeCut) bits.push("시간컷 " + p.timeCut.needR + "R 미달 시(15m 192봉·1H 48봉·4H 12봉)");
+    if (p.pyramid) bits.push("증량 " + p.pyramid.stepN + "N마다 최대 " + p.pyramid.max + "회");
+    if (p.capRisk) bits.push("총 하방 1R 상한 강제");
+    return bits.join(" · ");
+  };
+  for (const key of ["P1", "P2", "P3", "P4", "P5", "P6", "C0"]) {
+    const p = D.plans.find((x) => x.key === key);
+    if (!p) continue;
+    const card = h('<div class="card"></div>');
+    card.appendChild(h("<h3>" + p.key + " " + p.name + '<span class="chip">' + p.family + "</span>" +
+      (p.key === "P6" ? '<span class="chip new">사후 추가</span>' : "") +
+      (p.key === "C0" ? '<span class="chip">대조군</span>' : "") + "</h3>"));
+    card.appendChild(h('<div class="spec">' + specLine(p) + "</div>"));
+    card.appendChild(h("<p>" + p.why + "</p>"));
+    card.appendChild(h('<p class="note">출처 · ' + p.source + "</p>"));
+    add(card);
+  }
+
+  /* ─────────────  4. 사전 등록  ───────────── */
+  add('<h2><span class="num">4</span>사전 등록 게이트와 엔진 자체 검사</h2>');
+  add("<p>게이트는 스윕을 돌리기 전에 <code>asym/README.md</code>에 적어 고정했다. 아래 통과 수는 " + D.rowCount +
+    "조합 전체에 대한 것이다. <strong>전 게이트 통과는 0건</strong>이므로, 어디에서 죽는지가 결과다.</p>");
+  const gf = D.gateFunnel;
+  const gateRows = [
+    ["G1 표본", "n ≥ 15m 250 · 1H 150 · 4H 100", gf.g1],
+    ["G2 기대값", "비용·펀딩 차감 후 EV &gt; 0", gf.g2],
+    ["G3 비대칭 실현", "페이오프 ≥ 2.0", gf.g3],
+    ["G4 하방 고정", "순손실 &gt; 1R×1.25 인 비율 ≤ 5%", gf.g4],
+    ["G5 유의성", "단측 t ≥ 2.0 <em>그리고</em> BH-FDR(q=0.10) 통과", gf.g5],
+    ["G6 안정성", "창 3등분에서 2구간 이상 EV &gt; 0", gf.g6],
+    ["G7 대조 우위", "같은 진입의 대칭 대조군보다 EV·페이오프 모두 우위", gf.g7],
+  ];
+  add(h('<div class="scroll"><table><thead><tr><th class="l">게이트</th><th class="l">기준</th><th>통과</th><th>비율</th></tr></thead><tbody>' +
+    gateRows.map(([a, b, c]) => '<tr' + (c === 0 ? ' class="hl"' : "") + '><td class="l">' + a + '</td><td class="l">' + b + "</td><td>" +
+      c + "</td><td>" + ((c / D.rowCount) * 100).toFixed(1) + "%</td></tr>").join("") +
+    "</tbody></table></div>"));
+  add('<p class="note"><strong>꼬리 의존도는 게이트로 삼지 않았다</strong>(사전 등록 시 명시). 비대칭 설계는 정의상 소수의 큰 승리로 먹고산다 — ' +
+    "꼬리 의존을 실격 사유로 삼으면 질문 자체를 부정하게 된다. 대신 §7에 공시 수치로 전면에 낸다.</p>");
+  add(h("<details><summary>엔진 자체 검사 7종 — 스윕 전 전부 통과</summary><div class=\"body\">" +
+    '<div class="scroll"><table><thead><tr><th class="l">#</th><th class="l">검사</th><th class="l">결과</th></tr></thead><tbody>' +
+    '<tr><td class="l">①</td><td class="l">하방 고정 — 갭 없으면 손실 ≤ 1R</td><td class="l"><span class="pass">PASS</span> −1.5000% / 1R 1.5000%</td></tr>' +
+    '<tr><td class="l">②</td><td class="l">갭 정직성 — 갭 초과 손실을 숨기지 않음</td><td class="l"><span class="pass">PASS</span> −10.0% vs 1R 1.5%</td></tr>' +
+    '<tr><td class="l">③</td><td class="l">추적손절 단조성 — 완화 시도 차단</td><td class="l"><span class="pass">PASS</span> +55.98%, 차단 1회</td></tr>' +
+    '<tr><td class="l">④</td><td class="l">부분청산 회계 항등 — frac=1 ≡ 1R 목표</td><td class="l"><span class="pass">PASS</span> 차 0.00e+0</td></tr>' +
+    '<tr><td class="l">⑤</td><td class="l">부분청산 중립성 — frac=0 ≡ 부분청산 없음</td><td class="l"><span class="pass">PASS</span> 완전 일치</td></tr>' +
+    '<tr><td class="l">⑥</td><td class="l">피라미딩 회계 — 로트 독립 계산과 합치</td><td class="l"><span class="pass">PASS</span> 4유닛, 차 0</td></tr>' +
+    '<tr><td class="l">⑦</td><td class="l">상한고정 — 증량 후 급반전에서도 손실 ≤ 1R</td><td class="l"><span class="pass">PASS</span> −2.010%(1R 2.010%) vs 무제한 −4.975%</td></tr>' +
+    "</tbody></table></div></div></details>"));
+
+  /* ─────────────  5. 하방은 고정되는가  ───────────── */
+  add('<h2><span class="num">5</span>결과 ① — 하방은 실제로 고정되는가</h2>');
+  add("<p>이 회차가 실측한 첫 번째 주장이다. <strong>가격 손절만 놓고 보면 완전히 고정된다.</strong> " +
+    "P1 · P3 · P4 · P5 · C0 어느 것에서도 총손익이 초기 손절폭을 넘어선 거래가 <strong>한 건도</strong> 없었다. " +
+    "봉 사이 갭조차 스톱을 넘기지 못했다 — BTC 무기한 스왑은 연속 체결되기 때문이다.</p>");
+  add("<p>고정을 깨뜨린 것은 둘뿐이다. <strong>무제한 증량(P2)</strong>은 구조적으로 깬다 — " +
+    "유닛을 3개 더 얹으면 손실도 곱해진다(4H 초과율 " + n2(p2.breachGrossRate) + "%). " +
+    "그리고 <strong>비용</strong>은 15m에서 1R의 " + n2(D.byTf["15m"].P1.costOverR) + "%를 먹는다. " +
+    "1R을 아무리 정확히 지켜도 왕복 0.12%가 그 위에 얹히면 실현 손실은 1R을 넘는다.</p>");
+
+  // C1 — R 배수 분포
+  {
+    const bins = D.detail.rBins;
+    const labels = [];
+    for (let i = 0; i < bins.length - 1; i += 1) {
+      const a = bins[i], b = bins[i + 1];
+      labels.push(a <= -99 ? "<−2" : b >= 99 ? "8R+" : (a < 0 ? "−" + Math.abs(a) : a) + "~" + (b < 0 ? "−" + Math.abs(b) : b));
+    }
+    const A = D.detail.plans.P6.rHist, B = D.detail.plans.C0.rHist;
+    const W = 1040, H = 330, ML = 52, MR = 16, MT = 14, MB = 66;
+    const iw = W - ML - MR, ih = H - MT - MB;
+    const maxV = Math.max(...A, ...B);
+    const ly = (v) => { const lv = v <= 0 ? 0 : Math.log10(v + 1); const lm = Math.log10(maxV + 1); return MT + ih - (lv / lm) * ih; };
+    const g = S("svg", { viewBox: "0 0 " + W + " " + H, width: W, role: "img", "aria-label": "R 배수 분포 비교" });
+    for (const tk of [0, 1, 10, 100, 1000]) {
+      if (tk > maxV) continue;
+      const y = ly(tk);
+      g.appendChild(S("line", { x1: ML, x2: W - MR, y1: y, y2: y, stroke: "var(--grid)", "stroke-width": 1 }));
+      g.appendChild(txt(ML - 8, y + 4, tk.toLocaleString("ko-KR"), { anchor: "end" }));
+    }
+    const bw = iw / labels.length;
+    labels.forEach((lb, i) => {
+      const x0 = ML + i * bw;
+      const pad = bw * 0.16, gap = 2;
+      const each = (bw - pad * 2 - gap) / 2;
+      const draw = (v, off, color, nm) => {
+        if (v <= 0) return;
+        const y = ly(v), hgt = MT + ih - y;
+        const r = S("rect", { x: x0 + pad + off, y, width: each, height: Math.max(1.5, hgt), rx: 3, fill: color });
+        r.appendChild(tip(nm + " · " + lb + "R · " + v.toLocaleString("ko-KR") + "건"));
+        g.appendChild(r);
+      };
+      draw(B[i], 0, "var(--dim)", "C0 대칭");
+      draw(A[i], each + gap, i >= 5 ? "var(--s1)" : "var(--neg)", "P6 상한고정");
+      g.appendChild(txt(x0 + bw / 2, MT + ih + 14, lb, { anchor: "end", size: 10.5, transform: "rotate(-45 " + (x0 + bw / 2) + " " + (MT + ih + 14) + ")" }));
+    });
+    const zx = ML + bw * 5;
+    g.appendChild(S("line", { x1: zx, x2: zx, y1: MT, y2: MT + ih, stroke: "var(--border)", "stroke-width": 1, "stroke-dasharray": "3 3" }));
+    g.appendChild(txt(zx + 5, MT + 11, "0R", { size: 10.5 }));
+    g.appendChild(txt(ML, H - 8, "← 손실 (R 배수) · 이익 →", { size: 11.5 }));
+    add(fig("R 배수 분포 — 상방이 닫혔는가, 열렸는가",
+      "4H, 진입 8계열 × 롱숏 × 필터 2종을 전부 풀링(선별 없음). 세로축은 거래 수 로그 눈금 — 꼬리가 3자릿수 차이라 선형으로는 보이지 않는다.",
+      g,
+      "대칭 대조군(회색)은 +2R 너머에 <strong>단 41건</strong>뿐이다. 목표가가 천장이기 때문이다. " +
+      "P6(파랑)은 +8R을 넘는 거래만 <strong>" + A[A.length - 1] + "건</strong>이다. " +
+      "이것이 “상방을 연다”의 실제 모습이며, 동시에 왜 이 설계가 소수의 거래에 인질로 잡히는지의 이유다."));
+    add(h('<div class="legend"><span><i style="background:var(--dim)"></i>C0 대칭 고정기하</span>' +
+      '<span><i style="background:var(--neg)"></i>P6 손실 구간</span><span><i style="background:var(--s1)"></i>P6 이익 구간</span></div>'));
+  }
+
+  add(h('<div class="scroll"><table><thead><tr><th class="l">봉</th><th class="l">기획</th><th>거래</th>' +
+    "<th>가격 손절 초과</th><th>순손실 초과(비용 포함)</th><th>비용 ÷ 1R</th><th>페이오프</th></tr></thead><tbody>" +
+    ["4H", "1H", "15m"].flatMap((tf) => ["P1", "P4", "P6", "P2", "C0"].map((k) => {
+      const s = D.byTf[tf][k]; if (!s) return "";
+      return "<tr><td>" + tf + '</td><td class="l">' + k + " " + D.nameOf[k] + "</td><td>" + s.n.toLocaleString("ko-KR") +
+        '</td><td class="' + (s.breachGrossRate > 5 ? "neg" : "pos") + '">' + n2(s.breachGrossRate) + "%</td><td>" +
+        n2(s.breachRate) + "%</td><td>" + n2(s.costOverR) + "%</td><td>" + n2(s.payoff) + "배</td></tr>";
+    })).join("") + "</tbody></table></div>"));
+  add('<p class="note">“가격 손절 초과”는 비용을 빼기 <em>전</em> 총손익이 1R을 넘어선 비율 — 시장이 스톱을 뚫었는가. ' +
+    "“순손실 초과”는 비용을 뺀 뒤 — 실제로 계좌에서 1R보다 많이 빠져나갔는가. 둘의 차이가 곧 비용이다.</p>");
+
+  /* ─────────────  6. 봉이 결론을 가른다  ───────────── */
+  add('<h2><span class="num">6</span>결과 ② — 봉이 결론을 가른다</h2>');
+  add("<p>같은 진입 · 같은 방향 · 같은 필터에서 <strong>청산 설계만 바꿔</strong> 짝을 지어 비교했다. " +
+    "이렇게 하면 진입의 좋고 나쁨이 상쇄되고 남는 것은 설계의 기여뿐이다. 그리고 결과는 봉마다 부호가 다르다.</p>");
+
+  // C3 — 봉별 짝지은 EV차
+  {
+    const plans = ["P1", "P2", "P3", "P4", "P5", "P6"];
+    const tfs = ["15m", "1H", "4H"];
+    const vals = plans.map((p) => tfs.map((tf) => D.pairedByTf[tf][p]?.ev ?? null));
+    const flat = vals.flat().filter(Boolean).map((v) => v.mean);
+    const lo = Math.min(0, ...flat), hi = Math.max(0, ...flat);
+    const W = 1040, H = 366, ML = 46, MR = 168, MT = 10, MB = 42;
+    const iw = W - ML - MR, ih = H - MT - MB;
+    const x = (v) => ML + ((v - lo) / (hi - lo)) * iw;
+    const g = S("svg", { viewBox: "0 0 " + W + " " + H, width: W, role: "img", "aria-label": "봉별 짝지은 기대값 차이" });
+    const rowH = ih / plans.length;
+    for (const tk of [lo, 0, hi]) {
+      g.appendChild(S("line", { x1: x(tk), x2: x(tk), y1: MT, y2: MT + ih, stroke: tk === 0 ? "var(--border)" : "var(--grid)", "stroke-width": 1 }));
+      g.appendChild(txt(x(tk), H - 12, pc(tk, 2), { anchor: "middle", size: 11 }));
+    }
+    plans.forEach((p, pi) => {
+      const y0 = MT + pi * rowH;
+      g.appendChild(txt(ML - 8, y0 + rowH / 2 + 4, p, { anchor: "end", weight: 650, fill: "var(--ink)", size: 12.5 }));
+      tfs.forEach((tf, ti) => {
+        const v = vals[pi][ti]; if (!v) return;
+        const bh = (rowH - 12) / 3, y = y0 + 6 + ti * bh;
+        const xa = x(0), xb = x(v.mean);
+        const r = S("rect", { x: Math.min(xa, xb), y: y + 1, width: Math.max(1.5, Math.abs(xb - xa)), height: bh - 2, rx: 3, fill: TFC[tf] });
+        r.appendChild(tip(p + " · " + tf + " · EV차 " + pc(v.mean, 3) + " · t=" + v.t + " · " + v.wins + "/" + v.n + " 조합 개선"));
+        g.appendChild(r);
+        g.appendChild(txt(W - MR + 6, y + bh / 2 + 4, tf + " " + pc(v.mean, 3) + "  t=" + v.t + "  " + v.wins + "/" + v.n,
+          { size: 10.5, fill: Math.abs(v.t) >= 2 ? "var(--ink)" : "var(--dim)", weight: Math.abs(v.t) >= 2 ? 650 : 400 }));
+      });
+    });
+    add(fig("청산 설계만 바꿨을 때의 기대값 변화 — 봉별",
+      "같은 (진입 × 방향 × 필터) 짝에서 기획 EV − 대칭 대조군 EV. 오른쪽 숫자는 기대값 차 · t값 · 개선된 조합 수.",
+      g,
+      "<strong>4H는 6개 기획 전부가 오른쪽(개선)</strong>, 15m은 P4를 뺀 전부가 왼쪽(악화)이다. " +
+      "봉 3종을 한데 뭉쳐 평균 내면 이 부호 역전이 사라져 “대체로 조금 좋다”는 거짓 결론이 나온다 — 그래서 봉별로 갈랐다."));
+    add(h(legend([{ c: TFC["15m"], t: "15m" }, { c: TFC["1H"], t: "1H" }, { c: TFC["4H"], t: "4H" }])));
+  }
+
+  add(h('<div class="scroll"><table><thead><tr><th class="l">4H · 선별 없이 전량 풀링</th><th>거래</th><th>기대값</th><th>PF</th><th>승률</th>' +
+    "<th>페이오프</th><th>꼬리 5% 기여</th><th>꼬리 제외 EV</th><th>MFE 포착률</th><th>보유 중앙</th></tr></thead><tbody>" +
+    ["P6", "P2", "P5", "P4", "P1", "P3", "C0"].map((k) => {
+      const s = D.byTf["4H"][k]; if (!s) return "";
+      return '<tr' + (k === "C0" ? ' class="hl"' : "") + '><td class="l">' + k + " " + D.nameOf[k] + '</td><td>' + s.n.toLocaleString("ko-KR") +
+        '</td><td class="' + cls(s.ev) + '">' + pc(s.ev, 3) + "</td><td>" + n2(s.pf) + "</td><td>" + n2(s.winRate) + "%</td><td>" +
+        n2(s.payoff) + "배</td><td>" + n2(s.tailShare) + '%</td><td class="' + cls(s.evExTail) + '">' + pc(s.evExTail, 2) +
+        "</td><td>" + n2(s.captureRate) + "%</td><td>" + s.holdMed + "봉</td></tr>";
+    }).join("") + "</tbody></table></div>"));
+  add("<p>표의 마지막 두 칸이 비대칭 설계의 대가를 보여준다. <strong>MFE 포착률</strong>은 최대 미실현 이익 중 실제로 realized 한 몫이다 — " +
+    "대칭 대조군은 " + n2(c0.captureRate) + "%인데 러너들은 " + n2(p6.captureRate) + "% 안팎이다. " +
+    "추적손절은 <em>정의상</em> 고점에서 되돌아온 뒤에야 나가므로 이익의 절반 이상을 되돌려준다. " +
+    "그것을 감수하는 이유는 되돌려준 뒤에도 남은 것이 목표가로 잘랐을 때보다 크기 때문이다.</p>");
+
+  // C2 — 누적 곡선 2종
+  const curveChart = (keys, title, sub, cap) => {
+    const W = 1040, H = 300, ML = 62, MR = 92, MT = 14, MB = 46;
+    const iw = W - ML - MR, ih = H - MT - MB;
+    const all = keys.flatMap((k) => D.detail.plans[k].curve);
+    const t0 = Math.min(...all.map((p) => p.t)), t1 = Math.max(...all.map((p) => p.t));
+    const lo = Math.min(0, ...all.map((p) => p.cum)), hi = Math.max(0, ...all.map((p) => p.cum));
+    const x = (t) => ML + ((t - t0) / (t1 - t0)) * iw;
+    const y = (v) => MT + ih - ((v - lo) / (hi - lo)) * ih;
+    const g = S("svg", { viewBox: "0 0 " + W + " " + H, width: W, role: "img", "aria-label": title });
+    const ticks = 5;
+    for (let i = 0; i <= ticks; i += 1) {
+      const v = lo + ((hi - lo) * i) / ticks, yy = y(v);
+      g.appendChild(S("line", { x1: ML, x2: W - MR, y1: yy, y2: yy, stroke: v === 0 ? "var(--border)" : "var(--grid)", "stroke-width": 1 }));
+      g.appendChild(txt(ML - 8, yy + 4, Math.round(v).toLocaleString("ko-KR") + "%", { anchor: "end" }));
+    }
+    for (let i = 0; i <= 5; i += 1) {
+      const t = t0 + ((t1 - t0) * i) / 5, xx = x(t);
+      g.appendChild(txt(xx, MT + ih + 16, dt(t).slice(0, 7), { anchor: "end", size: 10.5, transform: "rotate(-45 " + xx + " " + (MT + ih + 16) + ")" }));
+    }
+    const ends = [];
+    keys.forEach((k) => {
+      const c = D.detail.plans[k].curve;
+      const d = c.map((p, i) => (i ? "L" : "M") + x(p.t).toFixed(1) + " " + y(p.cum).toFixed(1)).join(" ");
+      g.appendChild(S("path", { d, fill: "none", stroke: SC[k], "stroke-width": 2, "stroke-linejoin": "round" }));
+      const last = c[c.length - 1];
+      g.appendChild(S("circle", { cx: x(last.t), cy: y(last.cum), r: 3.5, fill: SC[k] }));
+      ends.push({ yy: y(last.cum), label: k + " " + pc(last.cum, 0) });
+    });
+    // 끝점 라벨이 겹치면 읽을 수 없다 — 최소 간격으로 밀어낸 뒤 하단을 넘으면 통째로 올린다.
+    ends.sort((a, b) => a.yy - b.yy);
+    for (let i = 1; i < ends.length; i += 1) if (ends[i].yy - ends[i - 1].yy < 15) ends[i].yy = ends[i - 1].yy + 15;
+    const over = ends[ends.length - 1].yy - (MT + ih);
+    if (over > 0) ends.forEach((e) => { e.yy -= over; });
+    ends.forEach((e) => g.appendChild(txt(W - MR + 7, e.yy + 4, e.label, { size: 11.5, fill: "var(--ink)", weight: 620 })));
+    return fig(title, sub, g, cap);
+  };
+  add(curveChart(["P1", "P4", "P5", "C0"], "누적 순손익 — 단일 유닛 기획 (4H, 전량 풀링)",
+    "1× 명목 기준 거래별 순손익의 단순 누적. 복리가 아니라 형태를 보는 그림이다.",
+    "대칭 대조군(회색)만 일관되게 우하향한다. 그러나 러너들도 <strong>완만한 우상향이 아니다</strong> — " +
+    "P4는 2023년 말 누적 +517%까지 올랐다가 " + pc(D.detail.plans.P4.finalCum, 0) + "로 되돌아왔다. " +
+    "<strong>이 그림이 다음 절의 질문을 만들었다: 이익이 특정 시기에 몰려 있는가.</strong> 답은 그렇다(§7)."));
+  add(h(legend([{ c: SC.P1, t: "P1 샹들리에" }, { c: SC.P4, t: "P4 데드머니 컷" }, { c: SC.P5, t: "P5 2단 래칫" }, { c: SC.C0, t: "C0 대칭(대조)" }])));
+  add(curveChart(["P2", "P6"], "누적 순손익 — 증량 기획 (4H, 전량 풀링)",
+    "같은 축으로 그리면 단일 유닛 곡선이 바닥에 눌려 보이지 않아 패널을 나눴다. 세로 눈금이 위 그림의 수십 배임에 유의.",
+    "증량은 자릿수를 바꾼다. 다만 P2의 이 곡선은 <strong>손실 상한을 깨뜨린 대가</strong>로 얻은 것이고(§5), " +
+    "P6은 상한을 지키면서 " + Math.round((D.detail.plans.P6.finalCum / D.detail.plans.P2.finalCum) * 100) + "%를 따라잡는다."));
+  add(h(legend([{ c: SC.P2, t: "P2 터틀(무제한 증량)" }, { c: SC.P6, t: "P6 상한고정 증량" }])));
+
+  /* ─────────────  7. 구간 안정성  ───────────── */
+  add('<h2><span class="num">7</span>결과 ③ — 최근 19개월이 순위를 뒤집는다</h2>');
+  const TB = D.thirds.bounds;
+  add("<p>4H 창을 시간으로 3등분했다. 경계는 <strong>" + dt(TB[0]) + " · " + dt(TB[1]) + " · " + dt(TB[2]) + " · " + dt(TB[3]) +
+    "</strong>이다. 구간마다 <em>같은 조합에서</em> 기획 EV − 대조군 EV를 다시 계산했다.</p>");
+  add(h('<div class="scroll"><table><thead><tr><th class="l">기획</th>' +
+    '<th>1구간 ~' + dt(TB[1]).slice(2, 7) + '</th><th>2구간 ~' + dt(TB[2]).slice(2, 7) + '</th><th>3구간 ~' + dt(TB[3]).slice(2, 7) + '</th>' +
+    "<th>3구간 전부 양수</th></tr></thead><tbody>" +
+    ["P5", "P1", "P2", "P3", "P6", "P4"].map((k) => {
+      const v = D.thirds.pairedThirds[k];
+      const allPos = v.every((x) => x && x.mean > 0);
+      return "<tr><td class=\"l\">" + k + " " + D.nameOf[k] + "</td>" +
+        v.map((x) => x ? '<td class="' + cls(x.mean) + '">' + pc(x.mean, 3) + '<br><span style="font-size:11.5px;color:var(--dim)">t=' +
+          x.t + " · " + x.wins + "/" + x.n + "</span></td>" : "<td>—</td>").join("") +
+        "<td>" + (allPos ? '<span class="pass">O</span>' : '<span class="fail">X</span>') + "</td></tr>";
+    }).join("") + "</tbody></table></div>"));
+
+  add('<p class="note">P3(절반익절)도 세 구간 모두 양수지만 어느 구간도 유의하지 않고(t 0.28 / 1.66 / 1.34), ' +
+    "대조군 대비 <strong>페이오프를 떨어뜨리는</strong> 유일한 기획이다(§9에서 기각). " +
+    "이 표의 O는 “부호가 안 흔들린다”는 뜻이지 “쓸 만하다”는 뜻이 아니다.</p>");
+  add(h('<div class="verdict"><span class="tag">순위가 바뀐 지점</span>' +
+    "<p>전 구간 합산으로 보면 <strong>P6이 1위, P4가 2위</strong>였다(§6). 구간을 나누면 " +
+    "<strong>둘 다 3구간에서 부호가 뒤집힌다</strong> — P6 " + pc(D.thirds.pairedThirds.P6[2].mean, 3) + "(t=" +
+    D.thirds.pairedThirds.P6[2].t + ", " + D.thirds.pairedThirds.P6[2].wins + "/" + D.thirds.pairedThirds.P6[2].n +
+    "), P4 " + pc(D.thirds.pairedThirds.P4[2].mean, 3) + "(t=" + D.thirds.pairedThirds.P4[2].t + ").</p>" +
+    "<p>반면 <strong>P5와 P1은 세 구간 모두 양수</strong>다. 크기는 작지만 부호가 흔들리지 않는다. " +
+    "전 구간 t값 하나로 고르면 최근에 망가진 설계를 1순위로 뽑게 된다.</p></div>"));
+
+  add("<h3>왜 P6은 뒤집혔나 — 상한 스톱이 러너를 조기에 죽인다</h3>");
+  add("<p>P6과 P2는 진입 · 증량 규칙이 <strong>완전히 같고</strong> 스톱만 다르다(P6은 증량할 때마다 총 하방을 1R로 되돌린다). " +
+    "그래서 둘을 구간별로 나란히 놓으면 상한의 대가가 그대로 드러난다.</p>");
+  const th6 = D.thirds.byPlan.P6.thirds, th2 = D.thirds.byPlan.P2.thirds;
+  add(h('<div class="scroll"><table><thead><tr><th class="l">구간</th>' +
+    "<th>P6 승률</th><th>P2 승률</th><th>P6 보유 중앙</th><th>P2 보유 중앙</th><th>P6 기대값</th><th>P2 기대값</th></tr></thead><tbody>" +
+    [0, 1, 2].map((i) => "<tr" + (i === 2 ? ' class="hl"' : "") + '><td class="l">' + (i + 1) + "구간 ~" + dt(TB[i + 1]) + "</td><td>" +
+      n2(th6[i].winRate) + "%</td><td>" + n2(th2[i].winRate) + "%</td><td>" + th6[i].holdMed + "봉</td><td>" + th2[i].holdMed +
+      '봉</td><td class="' + cls(th6[i].ev) + '">' + pc(th6[i].ev, 3) + '</td><td class="' + cls(th2[i].ev) + '">' + pc(th2[i].ev, 3) +
+      "</td></tr>").join("") + "</tbody></table></div>"));
+  add("<p>P2의 승률은 " + n2(th2[0].winRate) + "% → " + n2(th2[1].winRate) + "% → " + n2(th2[2].winRate) +
+    "%로 <strong>거의 움직이지 않는다</strong>. 같은 진입 · 같은 증량인데 P6은 " + n2(th6[0].winRate) + "% → " +
+    n2(th6[1].winRate) + "% → " + n2(th6[2].winRate) + "%로 무너졌고, 보유 중앙도 P2의 " + th2[2].holdMed +
+    "봉에 비해 " + th6[2].holdMed + "봉으로 짧다. <strong>차이는 스톱 하나뿐이므로 원인도 스톱 하나다</strong> — " +
+    "증량 후 끌어올린 스톱이 최근 국면의 되돌림 폭 안에 들어와, 러너가 자라기 전에 잘려 나간다.</p>");
+  add('<p class="note">이것은 데이터가 지지하는 <em>가설</em>이지 증명이 아니다. 확인하려면 상한 강도를 1R · 1.5R · 2R로 나눠 ' +
+    "되돌림 폭과의 관계를 직접 재야 한다 — 이번 회차 범위 밖이며 §12의 검증 항목으로 넘긴다.</p>");
+
+  /* ─────────────  8. 통제  ───────────── */
+  add('<h2><span class="num">8</span>통제 실험 — 4H 우위는 봉 때문인가, 창 때문인가</h2>');
+  add("<p>4H 창은 " + Math.round(bh4.days) + "일이고 15m 창은 " + Math.round(D.buyHold["15m"].days) +
+    "일이다. 창이 길어서 좋아 보이는 것일 수 있다. 그래서 <strong>세 봉을 같은 달력 창으로 잘라</strong> 다시 비교했다.</p>");
+  const wc = D.windowControl;
+  add(h('<div class="scroll"><table><thead><tr><th class="l">창</th><th class="l">봉</th><th>거래</th><th>P1 러너</th><th>C0 대칭</th><th>P1 − C0</th><th>P6 상한고정</th></tr></thead><tbody>' +
+    D.winDefs.flatMap((w) => ["15m", "1H", "4H"].filter((tf) => wc[tf] && wc[tf][w.key]).map((tf) => {
+      const o = wc[tf][w.key]; if (!o.P1) return "";
+      const diff = o.P1.ev - o.C0.ev;
+      return '<tr' + (tf === "4H" ? ' class="hl"' : "") + '><td class="l">' + w.name + "</td><td>" + tf + "</td><td>" +
+        o.P1.n.toLocaleString("ko-KR") + '</td><td class="' + cls(o.P1.ev) + '">' + pc(o.P1.ev, 3) + '</td><td class="' + cls(o.C0.ev) + '">' +
+        pc(o.C0.ev, 3) + '</td><td class="' + cls(diff) + '"><strong>' + pc(diff, 3) + "</strong></td><td>" +
+        (o.P6 ? pc(o.P6.ev, 3) : "—") + "</td></tr>";
+    })).join("") + "</tbody></table></div>"));
+  add("<p><strong>창을 통제해도 결론은 바뀌지 않는다.</strong> 15m과 똑같은 " + Math.round(D.buyHold["15m"].days) +
+    "일 창에서도 4H의 P1−C0가 " + pc(wc["4H"].W15.P1.ev - wc["4H"].W15.C0.ev, 3) + "로 가장 크고, 15m은 " +
+    pc(wc["15m"].W15.P1.ev - wc["15m"].W15.C0.ev, 3) + "로 오히려 음수다. <strong>봉의 효과다.</strong></p>");
+  add('<p class="note">덧붙여, 4H 창의 매수보유 수익률은 ' + Math.round(bh4.days) + "일 동안 " + pc(bh4.totalPct, 2) +
+    "다. 즉 이 창은 상승장이 아니다 — 4H 결과가 “올라가는 시장에 롱을 얹은 것”이라는 설명은 성립하지 않는다.</p>");
+
+  // C4 — 리스크 밴드
+  {
+    const tfs = ["15m", "1H", "4H"];
+    const W = 1040, H = 290, ML = 66, MR = 96, MT = 14, MB = 48;
+    const iw = W - ML - MR, ih = H - MT - MB;
+    const sl = D.slBand;
+    const series = tfs.map((tf) => ({ tf, pts: D.riskBand[tf].P1.map((r) => ({ sl: r.initSl, ev: r.ev, cost: r.costOverR, breach: r.breachRate })) }));
+    const evs = series.flatMap((s) => s.pts.map((p) => p.ev));
+    const lo = Math.min(0, ...evs), hi = Math.max(0, ...evs);
+    const x = (v) => ML + (sl.indexOf(v) / (sl.length - 1)) * iw;
+    const y = (v) => MT + ih - ((v - lo) / (hi - lo)) * ih;
+    const g = S("svg", { viewBox: "0 0 " + W + " " + H, width: W, role: "img", "aria-label": "손절폭별 기대값" });
+    for (let i = 0; i <= 4; i += 1) {
+      const v = lo + ((hi - lo) * i) / 4, yy = y(v);
+      g.appendChild(S("line", { x1: ML, x2: W - MR, y1: yy, y2: yy, stroke: Math.abs(v) < 1e-9 ? "var(--border)" : "var(--grid)", "stroke-width": 1 }));
+      g.appendChild(txt(ML - 8, yy + 4, v.toFixed(2) + "%", { anchor: "end" }));
+    }
+    sl.forEach((s) => g.appendChild(txt(x(s), MT + ih + 20, s + "×ATR", { anchor: "middle", size: 11 })));
+    series.forEach((s) => {
+      const d = s.pts.map((p, i) => (i ? "L" : "M") + x(p.sl).toFixed(1) + " " + y(p.ev).toFixed(1)).join(" ");
+      g.appendChild(S("path", { d, fill: "none", stroke: TFC[s.tf], "stroke-width": 2 }));
+      s.pts.forEach((p) => {
+        const c = S("circle", { cx: x(p.sl), cy: y(p.ev), r: 4.5, fill: TFC[s.tf], stroke: "var(--surface)", "stroke-width": 2 });
+        c.appendChild(tip(s.tf + " · 손절 " + p.sl + "×ATR · EV " + pc(p.ev, 3) + " · 비용/1R " + n2(p.cost) + "% · 순초과 " + n2(p.breach) + "%"));
+        g.appendChild(c);
+      });
+      const last = s.pts[s.pts.length - 1];
+      g.appendChild(txt(W - MR + 8, y(last.ev) + 4, s.tf, { size: 12, fill: "var(--ink)", weight: 650 }));
+    });
+    add(fig("손절폭을 넓히면 기대값이 살아나는가 — P1 기준",
+      "비용이 1R을 잡아먹는다면 1R을 넓히는 것이 답일 수 있다. 손절폭 5단계를 전량 풀링으로 훑었다.",
+      g,
+      "<strong>아니다.</strong> 15m에서 손절폭을 1→4×ATR로 넓히면 비용 비중은 " +
+      n2(D.riskBand["15m"].P1[0].costOverR) + "%→" + n2(D.riskBand["15m"].P1[4].costOverR) + "%로, 순손실 초과율은 " +
+      n2(D.riskBand["15m"].P1[0].breachRate) + "%→" + n2(D.riskBand["15m"].P1[4].breachRate) +
+      "%로 깨끗하게 정리된다. 그런데 기대값은 " + pc(D.riskBand["15m"].P1[0].ev, 3) + "에서 " +
+      pc(D.riskBand["15m"].P1[4].ev, 3) + "로 <em>더 나빠진다</em>. 15m의 문제는 손절폭이 아니라 엣지의 부재다."));
+    add(h(legend(tfs.map((tf) => ({ c: TFC[tf], t: tf })))));
+  }
+
+  /* ─────────────  9. 적용할 기획 5선  ───────────── */
+  add('<h2><span class="num">9</span>적용을 검토할 기획 5선</h2>');
+  add("<p>6종을 시험해 5종을 남기고 1종을 기각했다. 순위 기준은 셋이다 — ① <strong>구간 안정성</strong>(세 구간 모두 대조군 우위인가), " +
+    "② <strong>하방 고정 실측</strong>(가격 손절이 뚫렸는가), ③ 크기. " +
+    "<strong>①을 ③보다 앞에 둔 것이 이 회차의 판단이다</strong> — 전 구간 합산 크기로 고르면 최근에 망가진 설계가 1위로 올라오기 때문이다(§7). 모든 수치는 4H 기준이다.</p>");
+
+  const TT = D.thirds.pairedThirds;
+  const tri = (k) => TT[k].map((x) => (x ? pc(x.mean, 3) : "—")).join(" / ");
+  const triT = (k) => TT[k].map((x) => (x ? "t=" + x.t : "—")).join(" / ");
+  const th6w = (i) => D.thirds.byPlan.P6.thirds[i].winRate;
+  const th2w = (i) => D.thirds.byPlan.P2.thirds[i].winRate;
+  const PICKS = [
+    { key: "P5", tone: "pick", verdict: "1순위 — 유일하게 “일관 + 하방 완전 고정 + 단순 회계”를 모두 갖춤",
+      pro: "세 구간 모두 대조군을 이겼다(" + tri("P5") + " · " + triT("P5") + "). 가격 손절이 뚫린 거래 0%, 단일 유닛이라 증거금 회계에 손댈 것이 없다. 4H 전 구간 짝지은 t=" + D.pairedByTf["4H"].P5.ev.t + "(" + D.pairedByTf["4H"].P5.ev.wins + "/" + D.pairedByTf["4H"].P5.ev.n + "), 페이오프 " + n2(D.byTf["4H"].P5.payoff) + "배.",
+      con: "<strong>크기가 작다.</strong> 4H 풀링 기대값 " + pc(D.byTf["4H"].P5.ev, 3) + "로 왕복 비용 0.12%와 같은 자릿수다. 이 정도 우위는 체결이 조금만 나빠져도 사라진다. 상위 5%를 빼면 기대값 " + n3(D.byTf["4H"].P5.evExTail) + "%.",
+      cond: "4H 전용(15m 짝지은 t=" + D.pairedByTf["15m"].P5.ev.t + "). 무손실화(1R)와 추적 개시(2R) 두 문턱이 이 설계의 전부이므로, 문턱을 바꾸는 것은 새 기획이지 튜닝이 아니다." },
+    { key: "P1", tone: "pick", verdict: "2순위 — P5와 사실상 동률이면서 규칙이 절반",
+      pro: "규칙이 두 줄이다: 초기 1.5×ATR 손절, 이후 22봉 최고가 − 3×ATR 추적. 세 구간 모두 양수(" + tri("P1") + " · " + triT("P1") + "), 가격 손절 초과 0%. 재현과 감사가 가장 쉽다.",
+      con: "페이오프 " + n2(p1.payoff) + "배로 러너 중 가장 낮다 — 비대칭이 가장 약하다. 1구간 t=" + TT.P1[0].t + "로 초기 구간에서는 유의하지 않았다.",
+      cond: "<strong>먼저 이것을 붙이고 기준선으로 삼을 것.</strong> P5를 포함해 어떤 변형도 이것을 유의하게 이기지 못하면 복잡도만 늘린 것이다." },
+    { key: "P2", tone: "cond", verdict: "3순위 — 크기는 압도적이고 구간도 안정적이나, 요구의 앞 절반을 어긴다",
+      pro: "세 구간 모두 양수이면서 크기가 자릿수로 크다(" + tri("P2") + " · " + triT("P2") + "). 4H 기대값 " + pc(p2.ev, 3) + ", PF " + n2(p2.pf) + ". 승률 " + n2(th2w(0)) + "% → " + n2(th2w(2)) + "%로 국면 변화에도 흔들리지 않았다.",
+      con: "<strong>손실이 하방에 고정되지 않는다.</strong> 가격 손절 초과 " + n2(p2.breachGrossRate) + "%, 최악 단일 거래 −9.25R. 사용자가 요구한 문장의 앞 절반을 정면으로 어긴다. 명목도 최대 4배까지 커진다.",
+      cond: "“손실 고정”을 요구에서 내려놓을 때만 후보다. 유지한다면 P6이 그 자리를 노렸으나 최근 구간에서 실패했다(아래) — <strong>즉 현재로선 고정과 크기를 동시에 갖는 설계가 없다.</strong>" },
+    { key: "P6", tone: "cond", verdict: "4순위 — 설계는 옳으나 최근 국면에서 무너졌다. 폐기가 아니라 관찰 대상",
+      pro: "요구 문장을 문자 그대로 만족하는 유일한 설계다: 증량으로 상방을 자릿수로 열면서 총 하방을 1R에 묶는다. 페이오프 " + n2(p6.payoff) + "배로 전 기획 최고, 1·2구간 짝지은 t=" + TT.P6[0].t + " / " + TT.P6[1].t + "로 압도적이었다.",
+      con: "<strong>3구간에서 부호가 뒤집혔다</strong>(" + pc(TT.P6[2].mean, 3) + ", t=" + TT.P6[2].t + ", " + TT.P6[2].wins + "/" + TT.P6[2].n + "). 승률이 " + n2(th6w(0)) + "% → " + n2(th6w(2)) + "%로 무너진 반면 스톱만 다른 P2는 " + n2(th2w(2)) + "%로 불변 — 상한 스톱이 러너를 조기에 죽인 것으로 보인다(§7). 명목도 최대 4배라 증거금 검증이 별도로 필요하다.",
+      cond: "<strong>지금 적용하지 말 것.</strong> §12의 상한 강도 실험(1R · 1.5R · 2R)에서 최근 구간의 부호가 회복되는지부터 확인해야 한다." },
+    { key: "P4", tone: "avoid", verdict: "5순위 — P6과 같은 형태로 뒤집혔고, 대안이 더 낫다",
+      pro: "가격(1R)과 시간(2일 안에 +0.5R 미달 시 컷) 두 축으로 하방을 고정한다. 가격 손절 초과 0%, 단일 유닛. 1·2구간에서는 유의하게 좋았다(" + triT("P4") + ").",
+      con: "<strong>3구간 " + pc(TT.P4[2].mean, 3) + "(" + TT.P4[2].wins + "/" + TT.P4[2].n + ")로 뒤집혔다.</strong> 꼬리 의존도 가장 심하다 — 상위 5%가 총이익의 " + n2(D.byTf["4H"].P4.tailShare) + "%를 만들고 그 5%를 빼면 " + n3(D.byTf["4H"].P4.evExTail) + "%다.",
+      cond: "6기획 중 유일하게 15m에서도 대조군에 지지 않았다(" + pc(D.pairedByTf["15m"].P4.ev.mean, 4) + "). 짧은 봉을 꼭 써야 한다면 이것이지만, 4H를 쓸 수 있다면 P5·P1이 낫다." },
+  ];
+  PICKS.forEach((pk, i) => {
+    const s = D.byTf["4H"][pk.key];
+    const card = h('<div class="card ' + pk.tone + '"></div>');
+    card.appendChild(h('<h3><span class="rank">' + (i + 1) + "</span>" + pk.key + " " + D.nameOf[pk.key] + "</h3>"));
+    card.appendChild(h("<p><strong>" + pk.verdict + "</strong></p>"));
+    card.appendChild(h('<div class="spec">4H 풀링 · 거래 ' + s.n.toLocaleString("ko-KR") + " · 기대값 " + pc(s.ev, 3) +
+      " · PF " + n2(s.pf) + " · 승률 " + n2(s.winRate) + "% · 페이오프 " + n2(s.payoff) + "배 · 가격 손절 초과 " + n2(s.breachGrossRate) + "%</div>"));
+    const grid = h('<div class="forag"></div>');
+    grid.appendChild(h('<div><div class="h">쓸 근거</div>' + pk.pro + "</div>"));
+    grid.appendChild(h('<div><div class="h">쓰지 않을 근거</div>' + pk.con + "</div>"));
+    grid.appendChild(h('<div><div class="h">적용 조건</div>' + pk.cond + "</div>"));
+    card.appendChild(grid);
+    add(card);
+  });
+
+  const p3 = D.byTf["4H"].P3;
+  add(h('<div class="card avoid"><h3>기각 — P3 절반익절 러너</h3>' +
+    '<div class="spec">4H 풀링 · 거래 ' + p3.n.toLocaleString("ko-KR") + " · 기대값 " + pc(p3.ev, 3) + " · PF " + n2(p3.pf) +
+    " · 페이오프 " + n2(p3.payoff) + "배</div>" +
+    "<p>6종 중 <strong>유일하게 페이오프를 떨어뜨린</strong> 기획이다(대조군 대비 " +
+    pc(D.pairedByTf["4H"].P3.payoff.mean, 2) + "). 1R에서 절반을 덜어내면 승률은 " + n2(p3.winRate) +
+    "%로 올라가지만 남은 러너의 몫이 반토막 나서 비대칭이 무너진다. " +
+    "문헌이 말한 “부분익절은 PF를 올리고 기대값을 내린다”가 이 데이터에서 그대로 재현됐고, " +
+    "이번 질문(<em>상방을 연다</em>)과는 정면으로 충돌한다. 4H 짝지은 t=" + D.pairedByTf["4H"].P3.ev.t + "로 유의하지도 않다.</p></div>"));
+
+  /* ─────────────  9. 샘플 원장  ───────────── */
+  add('<h2><span class="num">10</span>백테스트 샘플 원장</h2>');
+  const bestP5 = D.detail.plans.P5.best;
+  const bestP6 = D.detail.plans.P6.best;
+  add("<p>1순위 P5의 4H 최고 조합 <code>" + bestP5.key + "</code>에서 거래 " + bestP5.n +
+    "건을 시간순 균등 표집한 30건이다. <strong>인샘플 선별</strong>임에 유의 — 이 조합이 최고라는 사실 자체가 " +
+    "전체를 보고 고른 결과이므로, 이 표는 “설계가 어떻게 굴러가는가”를 보는 용도이지 성과의 근거가 아니다.</p>");
+  add(h('<div class="scroll"><table><thead><tr><th class="l">진입</th><th class="l">방향</th><th>진입가</th><th>청산가</th>' +
+    '<th class="l">청산</th><th>보유</th><th>1R</th><th>MAE</th><th>MFE</th><th>순손익</th><th>R</th><th>유닛</th></tr></thead><tbody>' +
+    D.detail.plans.P5.sample.map((s) => {
+      const et = { sl: "손절", trail: "추적", tp: "목표", cut: "시간컷", time: "시한" }[s.exitType] ?? s.exitType;
+      return '<tr><td class="l">' + dtm(s.entryAt) + '</td><td class="l">' + (s.side === "long" ? "롱" : "숏") + "</td><td>" +
+        s.entry.toLocaleString("ko-KR") + "</td><td>" + s.exit.toLocaleString("ko-KR") + '</td><td class="l">' + et + "</td><td>" +
+        s.holdBars + "봉</td><td>" + n2(s.slPct) + "%</td><td>" + n2(s.maePct) + "%</td><td>" + n2(s.mfePct) +
+        '%</td><td class="' + cls(s.net) + '"><strong>' + pc(s.net, 2) + '</strong></td><td class="' + cls(s.r) + '">' +
+        (s.r >= 0 ? "+" : "") + n2(s.r) + "</td><td>" + s.units + "</td></tr>";
+    }).join("") + "</tbody></table></div>"));
+  add('<p class="note">읽는 법 — <strong>R</strong>이 이 회차의 언어다. 손실은 −1 언저리에 촘촘히 모이고(하방 고정), ' +
+    "이익은 흩어진다(상방 개방). <strong>MAE</strong>가 1R을 넘지 않는지, <strong>MFE</strong>와 순손익의 차이가 " +
+    "얼마나 큰지(추적손절이 되돌려준 몫)를 함께 보면 설계의 성격이 그대로 읽힌다. " +
+    "<strong>유닛</strong>은 최대 보유 유닛 수 — P5는 증량이 없으므로 항상 1이다.</p>");
+  const ledger = (key, note) => {
+    const d = h("<details><summary>" + key + " " + D.nameOf[key] + " 원장 — " + D.detail.plans[key].best.key + " 30건 표집</summary></details>");
+    const body = h('<div class="body"></div>');
+    body.appendChild(h("<p>" + note + "</p>"));
+    body.appendChild(h('<div class="scroll"><table><thead><tr><th class="l">진입</th><th class="l">방향</th><th>진입가</th><th>청산가</th>' +
+      '<th class="l">청산</th><th>보유</th><th>1R</th><th>MAE</th><th>MFE</th><th>순손익</th><th>R</th><th>유닛</th></tr></thead><tbody>' +
+      D.detail.plans[key].sample.map((s2) => {
+        const et = { sl: "손절", trail: "추적", tp: "목표", cut: "시간컷", time: "시한" }[s2.exitType] ?? s2.exitType;
+        return '<tr><td class="l">' + dtm(s2.entryAt) + '</td><td class="l">' + (s2.side === "long" ? "롱" : "숏") + "</td><td>" +
+          s2.entry.toLocaleString("ko-KR") + "</td><td>" + s2.exit.toLocaleString("ko-KR") + '</td><td class="l">' + et + "</td><td>" +
+          s2.holdBars + "봉</td><td>" + n2(s2.slPct) + "%</td><td>" + n2(s2.maePct) + "%</td><td>" + n2(s2.mfePct) +
+          '%</td><td class="' + cls(s2.net) + '"><strong>' + pc(s2.net, 2) + '</strong></td><td class="' + cls(s2.r) + '">' +
+          (s2.r >= 0 ? "+" : "") + n2(s2.r) + "</td><td>" + s2.units + "</td></tr>";
+      }).join("") + "</tbody></table></div>"));
+    d.appendChild(body);
+    return d;
+  };
+  add(ledger("P6", "증량이 어떻게 보이는지 확인용이다. <strong>유닛</strong> 칸이 3~4인 거래에서 R이 크게 벌어지고, " +
+    "같은 거래들의 MAE가 1R을 조금 넘는 것을 볼 수 있다 — 증량 후 <em>미실현</em> 역행이 초기 명목 기준으로 커진 것이며 " +
+    "실현 손실은 상한 안에 있다. P6은 최근 구간에서 뒤집혔으므로(§7) 이 표는 참고 자료다."));
+  add(ledger("P1", "가장 단순한 설계의 원장. 유닛은 항상 1이고 청산은 손절 · 추적 · 시한 셋뿐이다."));
+
+  add(h("<details><summary>기대값 상위 15조합 — 인샘플 선별, 판단 근거 아님</summary><div class=\"body\">" +
+    '<div class="scroll"><table><thead><tr><th class="l">조합</th><th>거래</th><th>기대값</th><th>PF</th><th>t</th><th>승률</th>' +
+    "<th>페이오프</th><th>꼬리 5%</th><th>게이트</th></tr></thead><tbody>" +
+    D.detail.topRows.map((r) => '<tr><td class="l">' + r.key + "</td><td>" + r.n + '</td><td class="' + cls(r.ev) + '">' +
+      pc(r.ev, 3) + "</td><td>" + n2(r.pf) + "</td><td>" + n2(r.t) + "</td><td>" + n2(r.winRate) + "%</td><td>" +
+      n2(r.payoff) + "배</td><td>" + n2(r.tailShare) + "%</td><td>" + r.gates + "/" + r.gatesApplicable + "</td></tr>").join("") +
+    '</tbody></table></div><p class="note">최고 t가 ' + D.multiple.maxT.toFixed(2) + "이다. " +
+    D.multiple.eligible + "개를 훑을 때 순수 우연으로도 이 정도의 t는 나온다(귀무 기대 " + D.multiple.nullMaxT +
+    "). 이 표를 보고 조합을 고르면 그것이 곧 과적합이다.</p></div></details>"));
+
+  /* ─────────────  10. 한계  ───────────── */
+  add('<h2><span class="num">11</span>한계 — 이 자료가 말하지 않는 것</h2>');
+  add(h("<ol>" +
+    "<li><strong>복리 성과는 재지 않았다.</strong> 이 회차는 거래 단위 통계만 본다. 병행 운용 · 리스크 사이징 · 강제청산까지 얹은 복리 결과는 별도 회차가 필요하다. " +
+    "특히 P6은 명목이 최대 4배가 되므로 증거금 회계를 새로 써야 하며, 그 전에는 “월 몇 %”를 말할 수 없다.</li>" +
+    "<li><strong>조합 하나하나는 여전히 소음이다.</strong> " + D.multiple.eligible + "조합 중 G5(t≥2 + 다중검정)를 통과한 것은 0건이다. " +
+    "이 회차의 주장은 <em>설계 수준</em>(대칭 대비 개선)에서만 성립한다.</li>" +
+    "<li><strong>t값은 과대추정이다.</strong> 짝지은 검정의 18조합은 서로 독립이 아니다 — 같은 진입 계열이 필터 2종 · 방향 2종으로 중복된다. " +
+    "더 보수적인 근거는 부호 쪽이다: 4H에서 P6은 " + D.pairedByTf["4H"].P6.ev.wins + "/" + D.pairedByTf["4H"].P6.ev.n +
+    ", P1은 " + pp1.wins + "/" + pp1.n + " 조합이 개선됐다.</li>" +
+    "<li><strong>꼬리에 인질로 잡혀 있다.</strong> 상위 5%를 빼면 모든 기획의 기대값이 음수다. " +
+    "이것은 결함이 아니라 비대칭 설계의 정의이지만, <em>실전에서 그 5%를 놓치면 시스템이 통째로 무너진다</em>는 뜻이기도 하다. " +
+    "체결 실패 · 정지 · 수동 개입이 치명적이다.</li>" +
+    "<li><strong>비용 모형은 낙관일 수 있다.</strong> 테이커 0.10% + 슬리피지 0.02%를 썼다. " +
+    "4H 러너는 거래가 드물어(4.8년 " + D.detail.plans.P6.curveN.toLocaleString("ko-KR") + "건, 32조합 합산) 슬리피지 가정에 덜 민감하지만, " +
+    "P6의 증량 체결은 추세 방향으로 들어가므로 실제 슬리피지가 가정보다 클 수 있다.</li>" +
+    "<li><strong>단일 자산 · 단일 거래소.</strong> BTC-USDT-SWAP(OKX) 하나다. 다른 자산으로의 일반화는 검증하지 않았다.</li>" +
+    "</ol>"));
+
+  add('<h2><span class="num">12</span>다음 단계 — 적용 전에 무엇을 확인해야 하는가</h2>');
+  add(h('<div class="scroll"><table><thead><tr><th class="l">단계</th><th class="l">확인할 것</th><th class="l">통과 기준(사전 등록할 값)</th></tr></thead><tbody>' +
+    '<tr><td class="l">1 · 워크포워드</td><td class="l">진입 계열을 사후에 고르지 않고도 P5 · P1의 4H 우위가 남는가</td><td class="l">창 10등분, 학습 3구간 이후 OOS 짝지은 EV차 &gt; 0이 5/7 구간 이상</td></tr>' +
+    '<tr><td class="l">2 · 상한 강도</td><td class="l">P6의 3구간 역전이 상한 스톱 탓인가 — 상한을 1R · 1.5R · 2R로 나눠 비교</td><td class="l">상한이 느슨할수록 3구간 짝지은 차가 단조 증가(§7 가설의 직접 검정)</td></tr>' +
+    '<tr><td class="l">3 · 체결 스트레스</td><td class="l">상위 5% 거래를 인위적으로 제거해도 살아남는가</td><td class="l">가장 큰 이익 거래 3건 제거 후에도 기대값 ≥ 0</td></tr>' +
+    '<tr><td class="l">4 · 병행 복리</td><td class="l">동시 3포지션 · 스로틀 오버레이에서 복리가 우상향하는가</td><td class="l">MAR ≥ 1.0 그리고 같은 창 매수보유 MAR 초과</td></tr>' +
+    '<tr><td class="l">5 · 증거금 회계</td><td class="l">(P6을 되살릴 경우에만) 최대 4유닛이 격리 증거금·강제청산에서 살아남는가</td><td class="l">리스크 2% · 상한 10배에서 강제청산 0건, 최악 낙폭 ≤ 40%</td></tr>' +
+    "</tbody></table></div>"));
+  add('<p class="note">2 · 3단계가 이 회차가 새로 요구하는 검증이다. 2단계는 §7의 가설을 직접 겨눈다. ' +
+    "3단계는 꼬리 의존 때문이다 — 상위 5%가 총이익의 70%를 넘는 설계는 “평균적으로 좋다”가 아니라 " +
+    "“몇 건을 반드시 잡는다”가 전제이므로, 그 전제를 깨는 시험을 통과해야 한다.</p>");
+
+  add("<hr>");
+  add('<p class="note">데이터 · BTC-USDT-SWAP(OKX) 15m ' + Math.round(D.buyHold["15m"].days) + "일 · 1H " +
+    Math.round(D.buyHold["1H"].days) + "일 · 4H " + Math.round(bh4.days) + "일. 펀딩은 OKX 실측 + Binance 프록시(전 구간). " +
+    "비용 테이커 " + D.config.cost.fee + "% + 슬리피지 " + D.config.cost.slip + "% 왕복, 증량 시 유닛 수만큼 곱. " +
+    "생성 " + dt(D.generatedAt) + " · 봉 수집 " + dt(D.fetchedAt) + " · 코드 <code>backtest-lab/asym/</code> · 사전 등록 <code>asym/README.md</code></p>");
+})();
+</script>

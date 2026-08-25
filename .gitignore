@@ -49,6 +49,8 @@ IMG/
 # 백테스트 캔들 캐시 — 수 MB 원시 데이터, 재수집 가능.
 scripts/backtest/.cache/
 backtest-lab/.cache/
+# 실험 결과물 — 원재료 JSON 만 38MB. 스크립트를 다시 돌리면 나온다.
+backtest-lab/out/
 
 # 복기 시스템 로컬 데이터 — OKX 재수집·재생성 가능.
 re_sys/data/

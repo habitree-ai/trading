@@ -1,0 +1,648 @@
+<title>복리 누적 설계도</title>
+<style>
+  /* 13회차까지와 같은 토큰 — 형제 문서다. 계열색은 dataviz 검증 팔레트(4슬롯 PASS). */
+  :root {
+    color-scheme: dark;
+    --bg: #0e1116; --surface: #161a21; --surface-2: #1e232c; --border: #2a3039;
+    --ink: #e6e9ee; --dim: #8b95a3; --muted: #898781; --grid: #232935;
+    --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500;
+    --pos: #3987e5; --neg: #e66767;
+    --good: #0ca30c; --warn: #fab219; --crit: #d03b3b;
+    --accent-soft: rgba(57, 135, 229, 0.14);
+  }
+  @media (prefers-color-scheme: light) {
+    :root:not([data-theme="dark"]) {
+      color-scheme: light;
+      --bg: #f7f8fa; --surface: #ffffff; --surface-2: #f1f3f6; --border: #e2e5ea;
+      --ink: #14171c; --dim: #666e7a; --muted: #898781; --grid: #e8eaee;
+      --s1: #2a78d6; --s2: #eb6834; --s3: #1baf7a; --s4: #eda100;
+      --pos: #2a78d6; --neg: #e34948;
+      --good: #0ca30c; --warn: #b57a00; --crit: #d03b3b;
+      --accent-soft: rgba(42, 120, 214, 0.1);
+    }
+  }
+  :root[data-theme="light"] {
+    color-scheme: light;
+    --bg: #f7f8fa; --surface: #ffffff; --surface-2: #f1f3f6; --border: #e2e5ea;
+    --ink: #14171c; --dim: #666e7a; --muted: #898781; --grid: #e8eaee;
+    --s1: #2a78d6; --s2: #eb6834; --s3: #1baf7a; --s4: #eda100;
+    --pos: #2a78d6; --neg: #e34948;
+    --good: #0ca30c; --warn: #b57a00; --crit: #d03b3b;
+    --accent-soft: rgba(42, 120, 214, 0.1);
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink);
+    font: 15px/1.7 -apple-system, "Segoe UI", "Malgun Gothic", system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+  .wrap { max-width: 1120px; margin: 0 auto; padding: 40px 22px 96px; }
+  h1 { font-size: 31px; line-height: 1.24; margin: 0 0 10px; letter-spacing: -0.02em; text-wrap: balance; }
+  h2 { font-size: 20px; margin: 54px 0 6px; letter-spacing: -0.01em; text-wrap: balance; }
+  h2 .num { color: var(--dim); font-weight: 500; margin-right: 8px; font-variant-numeric: tabular-nums; }
+  h3 { font-size: 15.5px; margin: 30px 0 8px; }
+  p { margin: 10px 0; max-width: 74ch; }
+  .lede { color: var(--dim); font-size: 16px; margin-bottom: 22px; max-width: 74ch; }
+  .note { color: var(--dim); font-size: 13px; max-width: 80ch; }
+  .eyebrow { font-size: 12px; letter-spacing: .09em; text-transform: uppercase; color: var(--dim); font-weight: 600; }
+  code { background: var(--surface-2); padding: 1px 5px; border-radius: 4px; font-size: 13px;
+         font-family: ui-monospace, "Cascadia Mono", Consolas, monospace; }
+  a { color: var(--s1); }
+  a:focus-visible, summary:focus-visible { outline: 2px solid var(--s1); outline-offset: 2px; border-radius: 3px; }
+  strong { font-weight: 660; }
+  hr { border: 0; border-top: 1px solid var(--border); margin: 34px 0; }
+
+  .verdict { border: 1px solid var(--border); border-left: 3px solid var(--warn);
+    background: var(--surface); border-radius: 10px; padding: 18px 20px; margin: 22px 0 8px; }
+  .verdict .tag { display: inline-block; font-size: 12px; font-weight: 700; letter-spacing: .04em;
+    color: var(--warn); border: 1px solid var(--warn); border-radius: 999px; padding: 2px 10px; margin-bottom: 10px; }
+  .verdict p { margin: 6px 0; }
+  .verdict.bad { border-left-color: var(--crit); }
+  .verdict.bad .tag { color: var(--crit); border-color: var(--crit); }
+
+  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(196px, 1fr)); gap: 12px; margin: 20px 0 6px; }
+  .tile { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; }
+  .tile .k { font-size: 12px; color: var(--dim); }
+  .tile .v { font-size: 26px; font-weight: 650; letter-spacing: -0.02em; margin-top: 3px; font-variant-numeric: tabular-nums; }
+  .tile .s { font-size: 12px; color: var(--dim); margin-top: 2px; }
+  .tile.bad .v { color: var(--crit); }
+  .tile.ok .v { color: var(--good); }
+  .tile.hi { border-color: var(--warn); }
+
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 18px 20px; margin: 16px 0; }
+  .card > h3:first-child { margin-top: 0; }
+  .card.pick { border-left: 3px solid var(--good); }
+  .card.cond { border-left: 3px solid var(--warn); }
+  .card.avoid { border-left: 3px solid var(--crit); }
+  .rank { display: inline-flex; align-items: center; justify-content: center; min-width: 24px; height: 24px;
+    border-radius: 6px; background: var(--surface-2); color: var(--dim); font-size: 12.5px; font-weight: 700;
+    margin-right: 9px; font-variant-numeric: tabular-nums; }
+  .spec { font-size: 13px; color: var(--dim); font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
+    background: var(--surface-2); border-radius: 6px; padding: 8px 10px; margin: 10px 0; overflow-x: auto; white-space: nowrap; }
+  .forag { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 12px; margin-top: 12px; }
+  .forag > div { font-size: 13.5px; }
+  .forag .h { font-size: 12px; letter-spacing: .06em; text-transform: uppercase; color: var(--dim); font-weight: 650; margin-bottom: 3px; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 13.5px; margin: 12px 0; }
+  th, td { padding: 7px 9px; text-align: right; border-bottom: 1px solid var(--border); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  th:first-child, td:first-child { text-align: left; }
+  th.l, td.l { text-align: left; }
+  thead th { color: var(--dim); font-weight: 600; font-size: 12.5px; background: var(--surface); }
+  tbody tr:hover { background: var(--accent-soft); }
+  tbody tr.hl { background: var(--accent-soft); }
+  .scroll { overflow-x: auto; margin: 12px -4px; padding: 0 4px; }
+  .chartbox { overflow-x: auto; }
+  .pos { color: var(--pos); } .neg { color: var(--neg); }
+  .pass { color: var(--good); font-weight: 650; } .fail { color: var(--crit); font-weight: 650; }
+  .chip { display: inline-block; font-size: 11px; padding: 1px 6px; border-radius: 4px;
+          border: 1px solid var(--border); color: var(--dim); margin-left: 5px; }
+  .chip.new { color: var(--s2); border-color: var(--s2); }
+  .chip.warnc { color: var(--warn); border-color: var(--warn); }
+  .chip.okc { color: var(--good); border-color: var(--good); }
+
+  figure { margin: 20px 0 8px; }
+  figcaption { font-size: 13px; color: var(--dim); margin-top: 8px; max-width: 80ch; }
+  .figtitle { font-size: 14.5px; font-weight: 620; margin-bottom: 2px; }
+  .figsub { font-size: 12.5px; color: var(--dim); margin-bottom: 10px; max-width: 80ch; }
+  svg { display: block; max-width: 100%; height: auto; }
+  .legend { display: flex; flex-wrap: wrap; gap: 14px; font-size: 12.5px; color: var(--dim); margin: 4px 0 10px; }
+  .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 5px; vertical-align: -1px; }
+  details { margin: 12px 0; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); }
+  summary { cursor: pointer; padding: 11px 16px; font-size: 13.5px; color: var(--dim); font-weight: 600; }
+  details[open] summary { border-bottom: 1px solid var(--border); }
+  details .body { padding: 4px 16px 14px; }
+  ul, ol { max-width: 74ch; padding-left: 20px; }
+  li { margin: 5px 0; }
+  @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+</style>
+<div class="wrap" id="app"></div>
+<script id="data" type="application/json">__DATA_JSON__</script>
+<script>
+(() => {
+  const D = JSON.parse(document.getElementById("data").textContent);
+  const app = document.getElementById("app");
+  const h = (html) => { const t = document.createElement("template"); t.innerHTML = html.trim(); return t.content.firstElementChild; };
+  const add = (x) => app.appendChild(typeof x === "string" ? h(x) : x);
+  const NS = "http://www.w3.org/2000/svg";
+  const S = (tag, attrs = {}, kids = []) => {
+    const e = document.createElementNS(NS, tag);
+    for (const [k, v] of Object.entries(attrs)) if (v !== null && v !== undefined) e.setAttribute(k, String(v));
+    for (const k of [].concat(kids)) if (k) e.appendChild(typeof k === "string" ? document.createTextNode(k) : k);
+    return e;
+  };
+  const txt = (x, y, s, o = {}) => S("text", { x, y, "font-size": o.size ?? 11.5, fill: o.fill ?? "var(--dim)",
+    "text-anchor": o.anchor ?? "start", "font-weight": o.weight ?? 400, transform: o.transform,
+    "font-variant-numeric": "tabular-nums" }, s);
+  const tip = (s) => S("title", {}, s);
+  const n2 = (v) => (v === null || v === undefined ? "—" : (Math.round(v * 100) / 100).toLocaleString("ko-KR", { maximumFractionDigits: 2 }));
+  const pc = (v, d = 2) => (v === null || v === undefined ? "—" : (v >= 0 ? "+" : "") + v.toFixed(d) + "%");
+  const cls = (v) => (v === null || v === undefined ? "" : v > 0 ? "pos" : v < 0 ? "neg" : "");
+  const dt = (ms) => new Date(ms).toISOString().slice(0, 10);
+  const mark = (b) => (b ? '<span class="pass">O</span>' : '<span class="fail">X</span>');
+  const fig = (title, sub, node, cap) => {
+    const f = document.createElement("figure");
+    f.appendChild(h('<div class="figtitle">' + title + "</div>"));
+    if (sub) f.appendChild(h('<div class="figsub">' + sub + "</div>"));
+    const box = h('<div class="chartbox"></div>'); box.appendChild(node); f.appendChild(box);
+    if (cap) f.appendChild(h("<figcaption>" + cap + "</figcaption>"));
+    return f;
+  };
+  const legend = (items) => '<div class="legend">' + items.map((i) => '<span><i style="background:' + i.c + '"></i>' + i.t + "</span>").join("") + "</div>";
+
+  const mName = Object.fromEntries(D.methods.map((m) => [m.key, m.name]));
+  const sName = Object.fromEntries(D.sets.map((s) => [s.key, s.name]));
+  const pName = Object.fromEntries(D.parts.map((p) => [p.key, p.label]));
+  const bench = D.bench.common;
+  const W = D.windows.common;
+  const cfg = (r) => r ? `${sName[r.set]} · ${mName[r.method]} · 상한 ${r.levCap}배 · 리스크 ${r.riskPct}%` : "—";
+
+  /* ───────────── 머리말 ───────────── */
+  add('<div class="eyebrow">BTC 백테스트 14회차 · 자금 비중 · 레버리지 · 손익비</div>');
+  add("<h1>부품이 아니라 자금 층을 바꿨을 때, 복리는 어디까지 가는가</h1>");
+  add(`<p class="lede">부품 14종을 <strong>고정</strong>하고 그 위의 층만 흔들었다 — 자금 기법 9종 × 레버리지 상한 4단 ×
+    리스크 9단 × 부품 묶음 6종 = ${D.totalConfigs.toLocaleString("ko-KR")}설정. 창은 ${dt(W.from)} ~ ${dt(W.to)}
+    (${D.windowDays.common}일, 매수보유 ${pc(bench.totalPct, 1)} · 낙폭 ${n2(bench.mdd)}%).
+    사전 등록 게이트 6종, 장부 자체 검사 6종. 매매 시스템에는 아직 반영하지 않은 검토 자료다.</p>`);
+
+  const best = D.compounderTop[0];
+  const std = D.recommend.find((x) => x.tol === 40)?.row ?? best;
+  const p4 = D.pairedVsM1.m4;
+
+  add(h(`<div class="verdict"><span class="tag">답</span>
+    <p><strong>부품을 하나도 바꾸지 않고 자금 층만으로 판이 뒤집힌다.</strong>
+    현행 라이브 설정은 이 창에서 낙폭 <strong>${n2(D.live.mdd)}%</strong> · MAR ${n2(D.live.mar)} · 강제청산 ${D.live.liquidations}건 ·
+    파산확률 ${n2(D.live.ruin)}%로 게이트 ${D.live.gates}/6 이다. 같은 부품에서 리스크·레버리지·기법만 바꾸면
+    월 ${n2(best.monthlyGeo)}% · 낙폭 ${n2(best.mdd)}% · MAR ${n2(best.mar)} · 파산확률 ${n2(best.ruin)}%가 된다.</p>
+    <p><strong>레버리지 결론이 가장 단정적이다.</strong> 전 게이트를 통과한 ${D.passCount}건이
+    <strong>전부 상한 3배(${D.passDist.levCap[3]}건) 또는 5배(${D.passDist.levCap[5]}건)</strong>다.
+    10배·20배는 ${D.totalConfigs / 2}설정 중 <strong>단 한 건도</strong> 통과하지 못했다.</p>
+    <p><strong>그리고 손익비는 거래 단위와 복리 단위의 최적이 다르다.</strong>
+    거래당 기대값은 1:6에서 최고인데(+${n2(D.rr.rows.find((r) => r.set === "mix9" && r.ratio === "r6").evPerTrade)}%),
+    복리는 1:3에서 최고다(월 ${n2(D.rr.rows.find((r) => r.set === "mix9" && r.ratio === "r3").monthlyGeo)}% vs
+    ${n2(D.rr.rows.find((r) => r.set === "mix9" && r.ratio === "r6").monthlyGeo)}%). 낙폭이 복리를 이차적으로 갉기 때문이다.</p></div>`));
+
+  add(h(`<div class="tiles">
+    <div class="tile bad"><div class="k">현행 라이브 재현 · 낙폭</div><div class="v">${n2(D.live.mdd)}%</div><div class="s">파산확률 ${n2(D.live.ruin)}% · 청산 ${D.live.liquidations}건 · 게이트 ${D.live.gates}/6</div></div>
+    <div class="tile ok"><div class="k">복리 부문 최선 · 월 기하수익</div><div class="v">${n2(best.monthlyGeo)}%</div><div class="s">낙폭 ${n2(best.mdd)}% · MAR ${n2(best.mar)}</div></div>
+    <div class="tile hi"><div class="k">10배 이상 레버리지 통과</div><div class="v">0건</div><div class="s">통과 ${D.passCount}건 전부 3배·5배</div></div>
+    <div class="tile hi"><div class="k">단독으로 게이트를 통과한 부품</div><div class="v">0 / 14</div><div class="s">최고 단독은 ${pName[D.loo.find((x) => x.soloMar === Math.max(...D.loo.map((y) => y.soloMar ?? -9)))?.removed] ?? "—"} MAR ${n2(Math.max(...D.loo.map((y) => y.soloMar ?? -9)))}</div></div>
+  </div>`));
+
+  /* ───────────── 1. 설계 ───────────── */
+  add('<h2><span class="num">1</span>이 회차가 바꾼 것 — 부품을 상수로 만든다</h2>');
+  add(`<p>13회차까지 열세 번은 전부 <strong>부품</strong>을 물었다. 어떤 지표가, 어떤 청산이, 어떤 봉이.
+    이번에는 부품을 고정하고 <strong>그 위의 층만</strong> 흔든다. 부품과 자금 층을 동시에 훑으면
+    무엇이 기여했는지 영원히 알 수 없고, 조합의 수만큼 과적합이 들어온다.</p>`);
+  add(h(`<div class="scroll"><table><thead><tr><th class="l">축</th><th class="l">값</th><th class="l">왜 이 값인가</th></tr></thead><tbody>
+    <tr><td class="l">부품 (상수)</td><td class="l">14종 — 라이브 4 · 페이퍼 3 · 주5회 3 · 베이시스 2 · 러너 2</td><td class="l">8~13회차에서 이미 검증되었거나 후보로 남은 것만</td></tr>
+    <tr><td class="l">자금 기법</td><td class="l">9종 (고정금액 · 고정비율 · 켈리 2 · 변동성타깃 · 스로틀 · 패리티 · Jones · CPPI)</td><td class="l">문헌에서 실제로 쓰이는 것 전부</td></tr>
+    <tr><td class="l">레버리지 상한</td><td class="l">3 · 5 · 10 · 20배</td><td class="l">현행 라이브가 10배 — 그 위아래를 모두 덮는다</td></tr>
+    <tr><td class="l">리스크</td><td class="l">0.5 ~ 20%</td><td class="l">현행 라이브가 10% — 40분의 1부터 2배까지</td></tr>
+    <tr><td class="l">묶음</td><td class="l">6종 (쿼드 · 계보7 · 베이시스3 · 러너2 · 혼합9 · 전체14)</td><td class="l">상관이 다른 조합을 고루</td></tr>
+    <tr><td class="l">손익비</td><td class="l">1:1 ~ 1:6 + 무제한 러너 2종</td><td class="l">별도 축으로 분리 — §7</td></tr>
+  </tbody></table></div>`));
+
+  /* ───────────── 2. 부품 ───────────── */
+  add('<h2><span class="num">2</span>부품 14종 — 재현 검사와 상관</h2>');
+  add(`<p>신호 부등식은 기존 회차와 <strong>글자 그대로</strong> 같다. 창이 같은 부품은 전부 ±5% 이내이고
+    <strong>8종은 거래 수가 정확히 일치</strong>한다. 베이시스는 현물 캔들로 재구성했고 커버리지 ${(D.basisCoverage * 100).toFixed(0)}%다.</p>`);
+  add(h(`<div class="scroll"><table><thead><tr><th class="l">부품</th><th class="l">봉·방향</th><th>거래</th><th>기존</th><th>편차</th>
+    <th>승률</th><th>기대값</th><th>PF</th><th>t</th><th>페이오프</th><th class="l">출처</th></tr></thead><tbody>` +
+    D.parts.map((p) => `<tr${p.key === "bzc" ? ' class="hl"' : ""}><td class="l">${p.key} ${p.label}</td><td class="l">${p.tf} ${p.side === "long" ? "롱" : "숏"}</td>
+      <td>${p.n}</td><td>${p.expected ?? "—"}</td><td class="${p.driftPct === null ? "" : Math.abs(p.driftPct) <= 5 ? "pos" : "neg"}">${p.driftPct === null ? "—" : p.driftPct + "%"}</td>
+      <td>${n2(p.winRate)}%</td><td class="${cls(p.ev)}">${pc(p.ev, 3)}</td><td>${n2(p.pf)}</td><td>${n2(p.t)}</td><td>${n2(p.payoff)}</td>
+      <td class="l">${p.origin}</td></tr>`).join("") + "</tbody></table></div>"));
+  add(`<p class="note">${D.windowNote.dc ? "dc(1D)만 창이 다르다 — " + D.windowNote.dc + ". 복리 창이 2023년 이후이므로 그 이전 구간은 쓰이지 않는다. " : ""}
+    <strong>bzc(베이시스 공포 복귀)가 여전히 유일하게 t≥3</strong>이다. 12회차 결론이 이 랩에서도 재현됐다.</p>`);
+  add(h(`<div class="scroll"><table><thead><tr><th class="l">묶음</th><th class="l">부품</th><th>평균 상관</th><th class="l">왜 이 조합인가</th></tr></thead><tbody>` +
+    D.sets.map((s) => `<tr><td class="l">${s.name}</td><td class="l">${s.parts.join(" · ")}</td>
+      <td class="${s.corr < 0 ? "pos" : s.corr > 0.3 ? "neg" : ""}">${n2(s.corr)}</td><td class="l">${s.why}</td></tr>`).join("") +
+    "</tbody></table></div>"));
+
+  /* ───────────── 3. 기법 명세 ───────────── */
+  add('<h2><span class="num">3</span>자금 비중 기법 9종</h2>');
+  add(`<p>전부 같은 것을 돌려준다 — <strong>이 거래에 걸 자기자본 대비 리스크 %</strong>. 그래야 같은 축에서 비교된다.
+    모든 기법은 <strong>그 시점까지 닫힌 거래만</strong> 본다(장부 자체 검사 ④에서 위반 0건 확인).</p>`);
+  for (const m of D.methods) {
+    add(h(`<div class="card"><h3>${m.key} ${m.name}<span class="chip">${m.family}</span></h3>
+      <p>${m.why}</p><p class="note">출처 · ${m.source}</p></div>`));
+  }
+
+  /* ───────────── 4. 게이트 ───────────── */
+  add('<h2><span class="num">4</span>사전 등록 게이트와 장부 자체 검사</h2>');
+  const gateRows = [
+    ["C1 청산", "강제청산 0건", D.funnel.c1],
+    ["C2 파산확률", "블록 부트스트랩 1,000회에서 자산 10% 이하 도달 ≤ 1%", D.funnel.c2],
+    ["C3 낙폭", "보수 낙폭 ≤ 40%", D.funnel.c3],
+    ["C4 MAR", "CAGR ÷ |낙폭| ≥ 1.0", D.funnel.c4],
+    ["C5 벤치 초과", `월 기하 &gt; 0 그리고 매수보유(${n2(bench.monthlyGeo)}%) 초과`, D.funnel.c5],
+    ["C6 구간 안정", "창 3등분 <strong>각 구간</strong>의 월 기하 &gt; 0", D.funnel.c6],
+  ];
+  add(h(`<div class="scroll"><table><thead><tr><th class="l">게이트</th><th class="l">기준</th><th>통과</th><th>비율</th></tr></thead><tbody>` +
+    gateRows.map(([a, b, c]) => `<tr><td class="l">${a}</td><td class="l">${b}</td><td>${c}</td><td>${((c / D.totalConfigs) * 100).toFixed(1)}%</td></tr>`).join("") +
+    `<tr class="hl"><td class="l"><strong>전부 통과</strong></td><td class="l">C1~C6</td><td><strong>${D.passCount}</strong></td><td>${((D.passCount / D.totalConfigs) * 100).toFixed(1)}%</td></tr>` +
+    "</tbody></table></div>"));
+  add(`<p><strong>C6이 이번 회차에서 새로 올린 게이트다.</strong> 13회차의 "3구간 중 2구간 이상"은 느슨해서
+    최근 19개월에 무너진 설계를 1위로 통과시켰다. 이번엔 전 구간을 요구한다 — 그리고 실제로 C6이 가장 많이 떨어뜨렸다(${D.funnel.c6}건 통과).</p>`);
+  add(h(`<details><summary>장부 자체 검사 6종 — 그리드 전 전부 통과</summary><div class="body">
+    <div class="scroll"><table><thead><tr><th class="l">#</th><th class="l">검사</th><th class="l">결과</th></tr></thead><tbody>
+    <tr><td class="l">①</td><td class="l">복리 항등 — 제약이 없으면 곱의 연쇄와 정확히 일치</td><td class="l"><span class="pass">PASS</span> 118.69 vs 118.69</td></tr>
+    <tr><td class="l">②</td><td class="l">고정 금액은 복리를 끈다 — 선형이어야</td><td class="l"><span class="pass">PASS</span> 156.60 (복리면 171.76)</td></tr>
+    <tr><td class="l">③</td><td class="l">강제청산 판정 — MAE ≥ 100/Lex − 유지증거금</td><td class="l"><span class="pass">PASS</span> 손실 18.870 = 증거금 18.868</td></tr>
+    <tr><td class="l">④</td><td class="l"><strong>미래 참조 없음</strong> — 사이징이 미래 청산을 보지 않음</td><td class="l"><span class="pass">PASS</span> 호출 40회 · 위반 0건</td></tr>
+    <tr><td class="l">⑤</td><td class="l">증거금 보존 — 사용 증거금 합 ≤ 자기자본</td><td class="l"><span class="pass">PASS</span></td></tr>
+    <tr><td class="l">⑥</td><td class="l">히트 상한 작동 — 동시 리스크 합에 뚜껑</td><td class="l"><span class="pass">PASS</span> 46건 → 8건</td></tr>
+    </tbody></table></div></div></details>`));
+
+  /* ───────────── 5. 기법 ───────────── */
+  add('<h2><span class="num">5</span>결과 ① — 어떤 자금 기법이 이기는가</h2>');
+  add(`<p><strong>중앙값으로 비교하면 안 된다.</strong> 리스크 20%처럼 무너지는 칸이 중앙값을 지배해서,
+    기법이 아니라 "리스크 수준"을 비교하게 된다. 그래서 <strong>같은 (묶음 × 레버리지 × 리스크) 칸</strong>에서
+    기법을 고정비율(m1)과 짝지어 비교한다. 칸을 고정하면 남는 것은 자금 기법의 기여뿐이다.</p>`);
+
+  // C1 — 짝지은 기법 비교
+  {
+    const keys = Object.keys(D.pairedVsM1);
+    const vals = keys.map((k) => D.pairedVsM1[k].mar);
+    const lo = Math.min(0, ...vals.map((v) => v.mean));
+    const hi = Math.max(0, ...vals.map((v) => v.mean));
+    const Wd = 1040, H = 300, ML = 128, MR = 252, MT = 12, MB = 40;
+    const iw = Wd - ML - MR, ih = H - MT - MB;
+    const x = (v) => ML + ((v - lo) / (hi - lo)) * iw;
+    const g = S("svg", { viewBox: `0 0 ${Wd} ${H}`, width: Wd, role: "img", "aria-label": "자금 기법 짝지은 비교" });
+    for (const tk of [lo, 0, hi]) {
+      g.appendChild(S("line", { x1: x(tk), x2: x(tk), y1: MT, y2: MT + ih, stroke: tk === 0 ? "var(--border)" : "var(--grid)", "stroke-width": 1 }));
+      g.appendChild(txt(x(tk), H - 12, (tk >= 0 ? "+" : "") + tk.toFixed(2), { anchor: "middle", size: 11 }));
+    }
+    const rowH = ih / keys.length;
+    keys.forEach((k, i) => {
+      const v = D.pairedVsM1[k].mar;
+      const y = MT + i * rowH;
+      const bh = rowH - 10;
+      g.appendChild(txt(ML - 10, y + rowH / 2 + 4, `${k} ${mName[k]}`, { anchor: "end", fill: "var(--ink)", size: 12.5, weight: 600 }));
+      const xa = x(0), xb = x(v.mean);
+      const r = S("rect", { x: Math.min(xa, xb), y: y + 5, width: Math.max(1.5, Math.abs(xb - xa)), height: bh, rx: 3,
+        fill: v.mean > 0 ? "var(--s1)" : "var(--neg)" });
+      r.appendChild(tip(`${mName[k]} · MAR차 평균 ${v.mean} · 중앙 ${v.median} · t=${v.t} · ${v.wins}/${v.n} 칸 개선`));
+      g.appendChild(r);
+      g.appendChild(txt(Wd - MR + 8, y + rowH / 2 + 4,
+        `평균 ${(v.mean >= 0 ? "+" : "") + v.mean.toFixed(2)} · 중앙 ${(v.median >= 0 ? "+" : "") + v.median.toFixed(2)} · t=${v.t} · ${v.wins}/${v.n}`,
+        { size: 11, fill: Math.abs(v.t) >= 2 ? "var(--ink)" : "var(--dim)", weight: Math.abs(v.t) >= 2 ? 650 : 400 }));
+    });
+    add(fig("같은 칸에서 기법을 바꿨을 때의 MAR 변화 — 고정비율 대비",
+      `${D.pairedVsM1.m0.mar.n}~${D.pairedVsM1.m4.mar.n}개 칸(묶음 6 × 레버리지 4 × 리스크 9)에서 짝지은 차이.`,
+      g,
+      `<strong>변동성 타깃(m4)이 t=${p4.mar.t}로 가장 강하고, ${p4.mar.wins}/${p4.mar.n} 칸에서 이겼다.</strong>
+       낙폭을 중앙값 ${n2(p4.mdd.median)}%p 줄이면서 월 기하수익을 ${pc(p4.geo.median, 2)} 올린 <em>유일한</em> 기법이다 —
+       나머지는 전부 낙폭을 줄이는 대신 수익을 내주었다. 반대로 <strong>CPPI(m8)는 유의하게 나쁘다</strong>(t=${D.pairedVsM1.m8.mar.t}):
+       낙폭은 ${n2(D.pairedVsM1.m8.mdd.median)}%p나 줄이지만 월 ${pc(D.pairedVsM1.m8.geo.median, 2)}를 내준다. 과보험이다.`));
+  }
+
+  add(h(`<div class="scroll"><table><thead><tr><th class="l">기법</th><th>MAR차 평균</th><th>MAR차 중앙</th><th>t</th><th>이긴 칸</th>
+    <th>월기하차</th><th>낙폭차</th><th>통과 설정</th></tr></thead><tbody>` +
+    Object.keys(D.pairedVsM1).map((k) => {
+      const v = D.pairedVsM1[k];
+      return `<tr><td class="l">${k} ${mName[k]}</td><td class="${cls(v.mar.mean)}">${(v.mar.mean >= 0 ? "+" : "") + n2(v.mar.mean)}</td>
+        <td class="${cls(v.mar.median)}">${(v.mar.median >= 0 ? "+" : "") + n2(v.mar.median)}</td><td>${n2(v.mar.t)}</td>
+        <td>${v.mar.wins}/${v.mar.n}</td><td class="${cls(v.geo.median)}">${pc(v.geo.median, 2)}</td>
+        <td class="${cls(v.mdd.median)}">${(v.mdd.median >= 0 ? "+" : "") + n2(v.mdd.median)}%p</td><td>${D.passDist.method[k]}</td></tr>`;
+    }).join("") +
+    `<tr class="hl"><td class="l">m1 고정 비율 (기준)</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>${D.passDist.method.m1}</td></tr>` +
+    "</tbody></table></div>"));
+  add(`<p class="note">낙폭차는 <strong>+가 개선</strong>이다(낙폭은 음수라 커질수록 얕다). 통과 설정 수에서 고정금액(m0 ${D.passDist.method.m0}건)이
+    가장 많지만 — 다음 절에서 보듯 <strong>그것은 복리를 끈 대가로 얻은 것</strong>이다.</p>`);
+
+  add(h(`<div class="verdict"><span class="tag">고정 금액(m0)을 따로 봐야 하는 이유</span>
+    <p>m0 는 자산이 늘수록 리스크 비율을 낮춰 <strong>명목을 일정하게</strong> 유지한다. 그래서 손익이 선형으로 쌓이고,
+    후반부의 낙폭이 %로 얕아져 MAR 이 구조적으로 유리해진다. 실제로 짝지은 MAR 차 ${(D.pairedVsM1.m0.mar.mean >= 0 ? "+" : "") + n2(D.pairedVsM1.m0.mar.mean)}로 두 번째로 크다.</p>
+    <p>그러나 월 기하수익 차이는 ${pc(D.pairedVsM1.m0.geo.median, 3)} — <strong>수익을 늘려서가 아니라 위험을 줄여서 이긴 것</strong>이다.
+    그리고 이 회차의 질문은 "복리 누적"이다. 그래서 <strong>권고 구성은 m0 를 뺀 나머지에서 고른다.</strong>
+    m0 는 "복리를 포기하면 여기까지 안전해진다"는 기준선으로만 쓴다.</p></div>`));
+
+  /* ───────────── 6. 레버리지 ───────────── */
+  add('<h2><span class="num">6</span>결과 ② — 레버리지 상한이 생사를 가른다</h2>');
+  add(`<p>이번 회차에서 가장 단정적인 결과다. 전 게이트를 통과한 ${D.passCount}건이
+    <strong>전부 상한 3배 또는 5배</strong>다. 10배·20배 설정은 ${D.totalConfigs / 2}개 중 하나도 통과하지 못했다.</p>`);
+
+  // C5 — 레버리지 × 리스크 격자
+  {
+    const risks = D.levRiskGrid[0].cells.map((c) => c.risk);
+    const levs = D.levRiskGrid.map((r) => r.levCap);
+    const cw = 88, chh = 62, ML = 78, MT = 46, MB = 44;
+    const Wd = ML + cw * risks.length + 20, H = MT + chh * levs.length + MB;
+    const g = S("svg", { viewBox: `0 0 ${Wd} ${H}`, width: Wd, role: "img", "aria-label": "레버리지 리스크 격자" });
+    const maxPass = Math.max(...D.levRiskGrid.flatMap((r) => r.cells.map((c) => c.pass)));
+    risks.forEach((rk, j) => g.appendChild(txt(ML + j * cw + cw / 2, MT - 14, rk + "%", { anchor: "middle", size: 11.5, fill: "var(--ink)" })));
+    g.appendChild(txt(ML, MT - 32, "리스크 →", { size: 11.5 }));
+    g.appendChild(txt(6, MT + 4, "상한", { size: 11.5 }));
+    D.levRiskGrid.forEach((row, i) => {
+      g.appendChild(txt(ML - 12, MT + i * chh + chh / 2 + 4, row.levCap + "배", { anchor: "end", size: 12.5, fill: "var(--ink)", weight: 620 }));
+      row.cells.forEach((c, j) => {
+        const x0 = ML + j * cw, y0 = MT + i * chh;
+        const a = maxPass > 0 ? c.pass / maxPass : 0;
+        const fill = c.pass > 0 ? `color-mix(in srgb, var(--s1) ${Math.round(18 + a * 82)}%, var(--surface))`
+          : c.liq > 0 ? "color-mix(in srgb, var(--neg) 22%, var(--surface))" : "var(--surface-2)";
+        const rect = S("rect", { x: x0 + 2, y: y0 + 2, width: cw - 4, height: chh - 4, rx: 6, fill, stroke: "var(--border)", "stroke-width": 1 });
+        rect.appendChild(tip(`상한 ${row.levCap}배 · 리스크 ${c.risk}% — 통과 ${c.pass}/${c.total} · 청산 발생 ${c.liq} · 최고 MAR ${n2(c.bestMar)} · 낙폭 중앙 ${n2(c.medMdd)}%`));
+        g.appendChild(rect);
+        g.appendChild(txt(x0 + cw / 2, y0 + 26, String(c.pass), { anchor: "middle", size: 15, weight: 700, fill: c.pass > 0 ? "var(--ink)" : "var(--dim)" }));
+        // 청산이 난 칸만 표시한다 — 0을 굳이 쓰면 짙은 파랑 위에서 읽히지도 않고 정보도 없다.
+        if (c.liq > 0) g.appendChild(txt(x0 + cw / 2, y0 + 44, `청산 ${c.liq}`, { anchor: "middle", size: 10.5, fill: "var(--neg)", weight: 600 }));
+      });
+    });
+    add(fig("레버리지 상한 × 리스크 — 게이트를 전부 통과한 설정 수",
+      "각 칸은 묶음 6 × 기법 9 = 54설정. 숫자는 통과 수, 아래는 강제청산이 난 설정 수.",
+      g,
+      `<strong>살 수 있는 땅이 왼쪽 위에 몰려 있다.</strong> 상한 10배·20배 줄은 통째로 비어 있고,
+       리스크 5% 이상에서도 급격히 줄어든다. 현행 라이브(<strong>10배 · 10%</strong>)는 이 격자에서 통과 0인 칸이다.`));
+  }
+
+  const levKeys = Object.keys(D.passDist.levCap).map(Number).sort((a, b) => a - b);
+  const riskKeys = Object.keys(D.passDist.risk).map(Number).sort((a, b) => a - b);
+  add(h(`<div class="scroll"><table><thead><tr><th class="l">거래소 레버리지 상한</th>` +
+    levKeys.map((k) => `<th>${k}배</th>`).join("") + "</tr></thead><tbody>" +
+    `<tr><td class="l">통과 설정</td>` + levKeys.map((k) => `<td class="${D.passDist.levCap[k] > 0 ? "pos" : "neg"}">${D.passDist.levCap[k]}</td>`).join("") + "</tr>" +
+    "</tbody></table></div>"));
+  add(h(`<div class="scroll"><table><thead><tr><th class="l">거래당 리스크</th>` +
+    riskKeys.map((k) => `<th>${k}%</th>`).join("") + "</tr></thead><tbody>" +
+    `<tr><td class="l">통과 설정</td>` + riskKeys.map((k) => `<td class="${D.passDist.risk[k] > 0 ? "pos" : "neg"}">${D.passDist.risk[k]}</td>`).join("") + "</tr>" +
+    "</tbody></table></div>"));
+  add(`<p>리스크 분포도 같은 방향을 가리킨다 — 통과의 ${Object.entries(D.passDist.risk).filter(([k]) => Number(k) <= 3).reduce((s, [, v]) => s + v, 0)}건(전체 ${D.passCount}건 중)이
+    <strong>리스크 3% 이하</strong>에 있다. 현행 라이브의 10%는 4건뿐이고, 그마저 레버리지 상한이 낮은 칸이다.</p>`);
+
+  /* ───────────── 7. 손익비 ───────────── */
+  add('<h2><span class="num">7</span>결과 ③ — 손익비는 거래 최적과 복리 최적이 다르다</h2>');
+  add(`<p>부품의 손절폭(1R)은 그대로 두고 목표만 배수로 바꿔 사다리를 훑었다.
+    기준 칸은 복리 부문 최고였던 <code>${cfg(D.rr.anchor)}</code>로 고정하고 손익비만 변수로 남겼다.
+    손절을 함께 바꾸면 사이징(리스크÷손절폭)까지 흔들려 무엇이 기여했는지 알 수 없게 된다.</p>`);
+
+  // C2 — 손익비 사다리 2패널
+  {
+    const rows = D.rr.rows.filter((r) => r.set === "mix9");
+    const labels = rows.map((r) => r.ratioName);
+    const panel = (key, title, color, fmt) => {
+      const vals = rows.map((r) => r[key]);
+      const lo = Math.min(0, ...vals), hi = Math.max(0, ...vals);
+      // −45° 회전 라벨은 앵커에서 아래로 0.707×글자폭만큼 내려간다 — 아래 여백을 그만큼 준다.
+      const Wd = 508, H = 306, ML = 58, MR = 12, MT = 26, MB = 112;
+      const iw = Wd - ML - MR, ih = H - MT - MB;
+      const y = (v) => MT + ih - ((v - lo) / (hi - lo)) * ih;
+      const g = S("svg", { viewBox: `0 0 ${Wd} ${H}`, width: Wd, role: "img", "aria-label": title });
+      g.appendChild(txt(ML, 14, title, { size: 12.5, fill: "var(--ink)", weight: 620 }));
+      for (let i = 0; i <= 4; i += 1) {
+        const v = lo + ((hi - lo) * i) / 4, yy = y(v);
+        g.appendChild(S("line", { x1: ML, x2: Wd - MR, y1: yy, y2: yy, stroke: Math.abs(v) < 1e-9 ? "var(--border)" : "var(--grid)", "stroke-width": 1 }));
+        g.appendChild(txt(ML - 7, yy + 4, fmt(v), { anchor: "end", size: 10.5 }));
+      }
+      const bw = iw / rows.length;
+      rows.forEach((r, i) => {
+        const x0 = ML + i * bw + bw * 0.18, w2 = bw * 0.64;
+        const v = r[key];
+        const yv = y(v), y0 = y(0);
+        const rect = S("rect", { x: x0, y: Math.min(yv, y0), width: w2, height: Math.max(1.5, Math.abs(yv - y0)), rx: 3,
+          fill: v >= 0 ? color : "var(--neg)" });
+        rect.appendChild(tip(`${r.ratioName} · ${title} ${fmt(v)} · 승률 ${r.winRate}% · 최장 연패 ${r.maxLossStreak}회 · 낙폭 ${r.mdd}%`));
+        g.appendChild(rect);
+        const cx = x0 + w2 / 2;
+        g.appendChild(txt(cx, MT + ih + 16, labels[i], { anchor: "end", size: 10.5, transform: `rotate(-45 ${cx} ${MT + ih + 16})` }));
+      });
+      const bestI = vals.indexOf(Math.max(...vals));
+      g.appendChild(txt(ML + bestI * bw + bw / 2, y(vals[bestI]) - 7, "최고", { anchor: "middle", size: 10.5, fill: "var(--ink)", weight: 650 }));
+      return g;
+    };
+    const wrapDiv = h('<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(420px,1fr));gap:14px"></div>');
+    wrapDiv.appendChild(panel("flatTotalPct", "복리 없이 — 거래 손익 단순 합", "var(--s4)", (v) => Math.round(v) + "%"));
+    wrapDiv.appendChild(panel("monthlyGeo", "복리로 — 월 기하수익률", "var(--s1)", (v) => v.toFixed(1) + "%"));
+    add(fig("같은 부품, 손익비만 바꿨을 때 — 거래 단위 최적과 복리 최적이 갈린다",
+      `혼합 9에서 고정 기하를 쓰는 8부품(러너 제외). 왼쪽은 복리를 끈 손익 합, 오른쪽은 같은 거래를 복리로 굴린 결과.`,
+      wrapDiv,
+      `<strong>왼쪽 최고는 1:6, 오른쪽 최고는 1:3이다.</strong> 손익비를 키우면 거래당 기대값은 계속 오르지만
+       (${pc(rows.find((r) => r.ratio === "r3").evPerTrade, 3)} → ${pc(rows.find((r) => r.ratio === "r6").evPerTrade, 3)}),
+       승률이 ${n2(rows.find((r) => r.ratio === "r3").winRate)}% → ${n2(rows.find((r) => r.ratio === "r6").winRate)}%로 떨어지고
+       낙폭이 ${n2(rows.find((r) => r.ratio === "r3").mdd)}% → ${n2(rows.find((r) => r.ratio === "r6").mdd)}%로 깊어져
+       복리가 오히려 반토막 난다. <strong>복리에서는 기대값이 아니라 기대값과 낙폭의 비율이 목적함수다.</strong>`));
+  }
+
+  add(h(`<div class="scroll"><table><thead><tr><th class="l">손익비</th><th>거래</th><th>승률</th><th>페이오프</th><th>거래당 EV</th>
+    <th>복리 없이 합</th><th>월 기하</th><th>낙폭</th><th>MAR</th><th>최장 연패</th><th>최장 수중</th></tr></thead><tbody>` +
+    D.rr.rows.filter((r) => r.set === "mix9").map((r) => {
+      const isBestFlat = r.flatTotalPct === Math.max(...D.rr.rows.filter((x) => x.set === "mix9").map((x) => x.flatTotalPct));
+      const isBestGeo = r.monthlyGeo === Math.max(...D.rr.rows.filter((x) => x.set === "mix9").map((x) => x.monthlyGeo));
+      return `<tr${isBestGeo ? ' class="hl"' : ""}><td class="l">${r.ratioName}${isBestFlat ? '<span class="chip">거래 최적</span>' : ""}${isBestGeo ? '<span class="chip okc">복리 최적</span>' : ""}</td>
+        <td>${r.tradeN}</td><td>${n2(r.winRate)}%</td><td>${n2(r.payoff)}</td><td class="${cls(r.evPerTrade)}">${pc(r.evPerTrade, 3)}</td>
+        <td class="${cls(r.flatTotalPct)}">${pc(r.flatTotalPct, 0)}</td><td class="${cls(r.monthlyGeo)}">${pc(r.monthlyGeo, 2)}</td>
+        <td class="neg">${n2(r.mdd)}%</td><td>${n2(r.mar)}</td><td>${r.maxLossStreak}회</td><td>${r.underwaterMaxDays}일</td></tr>`;
+    }).join("") + "</tbody></table></div>"));
+  add(`<p><strong>무제한 러너는 복리에서 최악이다.</strong> 3ATR 추적은 최장 연패
+    ${D.rr.rows.find((r) => r.set === "mix9" && r.ratio === "trail3").maxLossStreak}회,
+    5ATR 추적은 최장 수중 ${D.rr.rows.find((r) => r.set === "mix9" && r.ratio === "trail5").underwaterMaxDays}일이다.
+    13회차에서 설계 수준으로는 좋았던 러너가 <strong>포트폴리오에 얹히면 무너지는 이유가 여기 있다</strong> —
+    연패가 길면 복리의 분모가 먼저 녹는다.</p>`);
+
+  /* ───────────── 8. 부품 구성 ───────────── */
+  add('<h2><span class="num">8</span>결과 ④ — 한 부품이 전부를 만드는가</h2>');
+  add(`<p>상위 구성에서 부품을 하나씩 빼 봤다. 이 검사가 없으면 "복리 시스템"이 아니라
+    "잘 되는 부품 하나 + 장식"일 수 있다.</p>`);
+
+  // C4 — 부품 제거 검사
+  {
+    const rows = D.loo;
+    const lo = Math.min(0, ...rows.map((r) => r.marDelta));
+    const hi = Math.max(0, ...rows.map((r) => r.marDelta));
+    const Wd = 1040, H = 420, ML = 190, MR = 176, MT = 12, MB = 40;
+    const iw = Wd - ML - MR, ih = H - MT - MB;
+    const x = (v) => ML + ((v - lo) / (hi - lo)) * iw;
+    const g = S("svg", { viewBox: `0 0 ${Wd} ${H}`, width: Wd, role: "img", "aria-label": "부품 제거 검사" });
+    for (const tk of [lo, 0, hi]) {
+      g.appendChild(S("line", { x1: x(tk), x2: x(tk), y1: MT, y2: MT + ih, stroke: tk === 0 ? "var(--border)" : "var(--grid)", "stroke-width": 1 }));
+      g.appendChild(txt(x(tk), H - 12, (tk >= 0 ? "+" : "") + tk.toFixed(2), { anchor: "middle", size: 11 }));
+    }
+    const rowH = ih / rows.length;
+    rows.forEach((r, i) => {
+      const y = MT + i * rowH;
+      g.appendChild(txt(ML - 10, y + rowH / 2 + 4, `${r.removed} ${r.label}`, { anchor: "end", fill: "var(--ink)", size: 12 }));
+      const xa = x(0), xb = x(r.marDelta);
+      // 뺐을 때 MAR 이 떨어지면(음수) 그 부품은 기여자다 — 기여를 파랑으로 읽히게 뒤집어 칠한다.
+      const rect = S("rect", { x: Math.min(xa, xb), y: y + 4, width: Math.max(1.5, Math.abs(xb - xa)), height: rowH - 8, rx: 3,
+        fill: r.marDelta < 0 ? "var(--s1)" : "var(--neg)" });
+      rect.appendChild(tip(`${r.label} 제거 → MAR ${r.mar} (${r.marDelta >= 0 ? "+" : ""}${r.marDelta}) · 월 기하 ${r.monthlyGeo}% · 단독 MAR ${r.soloMar}`));
+      g.appendChild(rect);
+      g.appendChild(txt(Wd - MR + 8, y + rowH / 2 + 4,
+        `제거 후 MAR ${r.mar} · 단독 ${r.soloMar}`, { size: 10.5, fill: "var(--dim)" }));
+    });
+    add(fig("부품을 하나 빼면 MAR 이 어떻게 되는가 — 기여도 검사",
+      `기준 구성 ${cfg(D.looTop)} (MAR ${n2(D.looBase.mar)}). 파랑 = 빼면 나빠짐(기여자), 빨강 = 빼면 좋아짐(짐).`,
+      g,
+      `<strong>가장 큰 기여자가 ${pName[rows[0].removed]}인데, 이 부품은 단독으로는 MAR ${n2(rows[0].soloMar)} · 월 ${pc(rows[0].soloGeo, 2)}로 손해를 본다.</strong>
+       분산의 실체가 여기 있다 — 혼자서는 지는 부품이 상관 때문에 책 전체를 개선한다.
+       베이시스(bzc)는 단독 MAR ${n2(rows.find((r) => r.removed === "bzc").soloMar)}로 가장 강하지만 제거 효과는
+       ${n2(rows.find((r) => r.removed === "bzc").marDelta)}로 1위가 아니다 — <strong>한 부품이 전부를 만들지 않는다.</strong>`));
+  }
+
+  add(`<p><strong>그리고 14부품 중 단독으로 게이트를 통과한 것은 하나도 없다.</strong>
+    가장 강한 bzc 조차 단독으로는 통과하지 못한다. 이 회차의 결과는 부품이 아니라
+    <em>부품을 엮는 방식</em>에서 나온다는 뜻이고, 동시에 <em>어느 부품 하나를 못 돌리게 되면 무너진다</em>는 뜻이기도 하다.</p>`);
+  add(h(`<details><summary>부품 제거 검사 전체 표</summary><div class="body">
+    <div class="scroll"><table><thead><tr><th class="l">뺀 부품</th><th>제거 후 MAR</th><th>MAR 변화</th><th>제거 후 월기하</th>
+    <th>제거 후 낙폭</th><th>게이트</th><th>단독 MAR</th><th>단독 월기하</th><th>단독 게이트</th></tr></thead><tbody>` +
+    D.loo.map((r) => `<tr><td class="l">${r.removed} ${r.label}</td><td>${n2(r.mar)}</td>
+      <td class="${cls(-r.marDelta)}">${(r.marDelta >= 0 ? "+" : "") + n2(r.marDelta)}</td><td>${pc(r.monthlyGeo, 2)}</td>
+      <td class="neg">${n2(r.mdd)}%</td><td>${mark(r.pass)}</td><td>${n2(r.soloMar)}</td><td class="${cls(r.soloGeo)}">${pc(r.soloGeo, 2)}</td>
+      <td>${mark(r.soloPass)}</td></tr>`).join("") + "</tbody></table></div></div></details>"));
+
+  add(h(`<div class="scroll"><table><thead><tr><th class="l">묶음</th><th>평균 상관</th><th>통과 설정</th><th>최고 MAR</th></tr></thead><tbody>` +
+    D.bySet.map((s) => `<tr${s.passers === 0 ? ' class="hl"' : ""}><td class="l">${s.name}</td>
+      <td class="${s.corr < 0 ? "pos" : s.corr > 0.3 ? "neg" : ""}">${n2(s.corr)}</td><td>${s.passers}</td><td>${n2(s.marBest)}</td></tr>`).join("") +
+    "</tbody></table></div>"));
+  add(`<p class="note">러너 2종만 묶은 구성은 <strong>통과 0건 · 최고 MAR ${n2(D.bySet.find((s) => s.key === "runner2").marBest)}</strong>이고
+    평균 상관이 ${n2(D.bySet.find((s) => s.key === "runner2").corr)}로 가장 높다. 같은 성격의 부품만 모으면 분산이 없다.</p>`);
+
+  /* ───────────── 9. 현행 진단 ───────────── */
+  add('<h2><span class="num">9</span>현행 라이브 진단과 개선 경로</h2>');
+  add(h(`<div class="verdict bad"><span class="tag">현행 설정</span>
+    <p>쿼드 4부품 · 고정비율 · 상한 10배 · 리스크 10% · 동시 2를 이 창에서 재현하면
+    <strong>월 기하 ${n2(D.live.monthlyGeo)}% · CAGR ${n2(D.live.cagr)}%</strong>로 수익 자체는 크다.
+    그러나 <strong>낙폭 ${n2(D.live.mdd)}% · 강제청산 ${D.live.liquidations}건 · 파산확률 ${n2(D.live.ruin)}%</strong>이며
+    게이트는 ${D.live.gates}/6이다.</p>
+    <p>구간 3등분은 ${D.live.thirds.map((x) => pc(x, 2)).join(" / ")} — <strong>첫 구간이 음수</strong>다.
+    같은 부품으로 시작해 순서만 달랐다면 계좌가 먼저 반토막 났을 수 있다는 뜻이다.</p></div>`));
+
+  add("<h3>한 걸음씩 바꿔 보면</h3>");
+  add(h(`<div class="scroll"><table><thead><tr><th class="l">단계</th><th>부품</th><th>월 기하</th><th>CAGR</th><th>낙폭</th>
+    <th>MAR</th><th>파산확률</th><th>청산</th><th class="l">구간 3등분</th><th>게이트</th></tr></thead><tbody>` +
+    D.path.map((p, i) => `<tr${p.pass ? ' class="hl"' : ""}><td class="l">${i === 0 ? "" : "└ "}${p.name}</td><td>${p.parts}</td>
+      <td class="${cls(p.monthlyGeo)}">${pc(p.monthlyGeo, 2)}</td><td>${n2(p.cagr)}%</td><td class="neg">${n2(p.mdd)}%</td>
+      <td class="${p.mar >= 1 ? "pos" : "neg"}">${n2(p.mar)}</td><td class="${p.ruin <= 1 ? "pos" : "neg"}">${n2(p.ruin)}%</td>
+      <td class="${p.liquidations === 0 ? "pos" : "neg"}">${p.liquidations}</td>
+      <td class="l">${p.thirds.map((x) => pc(x, 2)).join(" / ")}</td><td>${p.pass ? '<span class="pass">6/6</span>' : '<span class="fail">미통과</span>'}</td></tr>`).join("") +
+    "</tbody></table></div>"));
+  add(`<p><strong>세 번째 단계에서 게이트가 열린다</strong> — 레버리지 상한을 10배에서 5배로 내리는 순간
+    강제청산이 사라지고(1건 → 0건) 6/6이 된다. 리스크를 10%에서 2%로 내리는 것만으로는 부족했다:
+    낙폭은 ${n2(D.path[0].mdd)}% → ${n2(D.path[1].mdd)}%로 좋아졌지만 청산이 남아 C1 을 못 넘었다.</p>`);
+  add(`<p class="note">마지막 단계(리스크 5%)는 낙폭 ${n2(D.path[5].mdd)}%로 C3을 넘어 다시 미통과다.
+    그리고 구간 3등분이 ${D.path[5].thirds.map((x) => pc(x, 1)).join(" / ")}로 <strong>최근 구간이 거의 0</strong>이다 — 다음 절의 경고와 같은 이야기다.</p>`);
+
+  // C3 — 자산 곡선
+  {
+    const series = [
+      { name: "현행 라이브", curve: D.path[0].curve, c: "var(--neg)" },
+      { name: "권고 표준", curve: D.recommend.find((x) => x.tol === 40)?.curve, c: "var(--s1)" },
+      { name: "권고 보수", curve: D.recommend.find((x) => x.tol === 25)?.curve, c: "var(--s3)" },
+      { name: "매수보유", curve: D.benchCurve, c: "var(--dim)" },
+    ].filter((s) => s.curve && s.curve.length);
+    const all = series.flatMap((s) => s.curve);
+    const t0 = Math.min(...all.map((p) => p.t)), t1 = Math.max(...all.map((p) => p.t));
+    const lo = 0, hi = Math.max(...all.map((p) => p.equity));
+    const Wd = 1040, H = 330, ML = 66, MR = 128, MT = 14, MB = 48;
+    const iw = Wd - ML - MR, ih = H - MT - MB;
+    const x = (t) => ML + ((t - t0) / (t1 - t0)) * iw;
+    // 로그 눈금 — 최고와 최저가 한 자릿수 이상 벌어져 선형이면 아래쪽이 뭉갠다.
+    const y = (v) => { const a = Math.log10(Math.max(1, v)), b = Math.log10(Math.max(10, hi)); return MT + ih - (a / b) * ih; };
+    const g = S("svg", { viewBox: `0 0 ${Wd} ${H}`, width: Wd, role: "img", "aria-label": "자산 곡선 비교" });
+    for (const tk of [10, 100, 1000, 10000].filter((v) => v <= hi * 1.6)) {
+      const yy = y(tk);
+      g.appendChild(S("line", { x1: ML, x2: Wd - MR, y1: yy, y2: yy, stroke: tk === 100 ? "var(--border)" : "var(--grid)", "stroke-width": 1 }));
+      g.appendChild(txt(ML - 8, yy + 4, "$" + tk.toLocaleString("ko-KR"), { anchor: "end" }));
+    }
+    for (let i = 0; i <= 5; i += 1) {
+      const t = t0 + ((t1 - t0) * i) / 5, xx = x(t);
+      g.appendChild(txt(xx, MT + ih + 16, dt(t).slice(0, 7), { anchor: "end", size: 10.5, transform: `rotate(-45 ${xx} ${MT + ih + 16})` }));
+    }
+    const ends = [];
+    for (const s of series) {
+      const d = s.curve.map((p, i) => (i ? "L" : "M") + x(p.t).toFixed(1) + " " + y(p.equity).toFixed(1)).join(" ");
+      g.appendChild(S("path", { d, fill: "none", stroke: s.c, "stroke-width": 2, "stroke-linejoin": "round" }));
+      const last = s.curve[s.curve.length - 1];
+      g.appendChild(S("circle", { cx: x(last.t), cy: y(last.equity), r: 3.5, fill: s.c }));
+      ends.push({ yy: y(last.equity), label: `${s.name} $${Math.round(last.equity).toLocaleString("ko-KR")}` });
+    }
+    ends.sort((a, b) => a.yy - b.yy);
+    for (let i = 1; i < ends.length; i += 1) if (ends[i].yy - ends[i - 1].yy < 15) ends[i].yy = ends[i - 1].yy + 15;
+    const over = ends[ends.length - 1].yy - (MT + ih);
+    if (over > 0) ends.forEach((e) => { e.yy -= over; });
+    ends.forEach((e) => g.appendChild(txt(Wd - MR + 7, e.yy + 4, e.label, { size: 11.5, fill: "var(--ink)", weight: 620 })));
+    add(fig("자산 곡선 — $100 시작, 세로 로그 눈금",
+      `${dt(W.from)} ~ ${dt(W.to)}. 로그 눈금인 이유는 곡선 간 배율이 한 자릿수 이상 벌어져 선형으로는 아래쪽이 뭉개지기 때문이다.`,
+      g,
+      `현행 라이브(빨강)는 최종 금액만 보면 나쁘지 않다. 문제는 <strong>가는 길</strong>이다 —
+       낙폭 ${n2(D.live.mdd)}%는 계좌가 4분의 1로 줄었다가 돌아온다는 뜻이고, 그 구간을 실제로 견딜 수 있느냐가 별개의 질문이다.`));
+    add(h(legend(series.map((s) => ({ c: s.c, t: s.name })))));
+  }
+
+  /* ───────────── 10. 권고 ───────────── */
+  add('<h2><span class="num">10</span>권고 구성 — 낙폭 허용치별</h2>');
+  add(`<p>"최적"은 견딜 수 있는 낙폭에 따라 달라진다. 그래서 하나를 고르지 않고 <strong>세 단계로 낸다.</strong>
+    앞의 둘은 사전 등록 게이트 6종을 전부 통과했고, 마지막 하나는 낙폭 게이트만 명시적으로 푼 것이다.
+    셋 다 <strong>복리가 실제로 작동하는 기법에서만</strong> 골랐다(고정 금액 제외 — §5 참조).</p>`);
+
+  D.recommend.forEach((rec, i) => {
+    const r = rec.row;
+    if (!r) { add(h(`<div class="card avoid"><h3>${rec.label}</h3><p>이 허용치 안에서 전 게이트를 통과한 복리 설정이 없다.</p></div>`)); return; }
+    const set = D.sets.find((s) => s.key === r.set);
+    const card = h(`<div class="card ${i === 1 ? "pick" : "cond"}"></div>`);
+    card.appendChild(h(`<h3><span class="rank">${i + 1}</span>${rec.label}` +
+      (rec.relaxedC3 ? '<span class="chip warnc">게이트 C3 완화</span>' : '<span class="chip okc">게이트 6/6</span>') + "</h3>"));
+    if (rec.relaxedC3) card.appendChild(h(`<p class="note"><strong>이 단계는 사전 등록 게이트로는 만들 수 없다.</strong>
+      C3(낙폭 ≤ 40%)이 막고 있어 −40 칸과 −60 칸이 같은 답을 낸다. 그래서 <strong>C3 하나만 명시적으로 풀고</strong>
+      나머지 다섯(청산 0 · 파산확률 ≤1% · MAR ≥1 · 벤치 초과 · 구간 전부 양수)은 그대로 요구한 풀에서 골랐다.</p>`));
+    card.appendChild(h(`<div class="spec">${set.name}(${set.parts.length}부품) · ${mName[r.method]} · 거래소 상한 ${r.levCap}배 · 리스크 ${r.riskPct}% · 동시 3</div>`));
+    card.appendChild(h(`<div class="tiles">
+      <div class="tile"><div class="k">월 기하수익</div><div class="v">${n2(r.monthlyGeo)}%</div><div class="s">연 ${n2(r.cagr)}%</div></div>
+      <div class="tile"><div class="k">보수 낙폭</div><div class="v">${n2(r.mdd)}%</div><div class="s">MAR ${n2(r.mar)}</div></div>
+      <div class="tile"><div class="k">파산확률</div><div class="v">${n2(r.ruin)}%</div><div class="s">부트스트랩 1,000회</div></div>
+      <div class="tile"><div class="k">최장 수중 기간</div><div class="v">${r.underwaterMaxDays}일</div><div class="s">월 승률 ${n2(r.monthWinRate)}%</div></div>
+    </div>`));
+    const grid2 = h('<div class="forag"></div>');
+    grid2.appendChild(h(`<div><div class="h">부품</div>${set.parts.map((k) => pName[k]).join(" · ")}</div>`));
+    grid2.appendChild(h(`<div><div class="h">구간 3등분 (월 기하)</div>${r.thirds.map((x) => pc(x, 2)).join(" / ")}
+      ${r.thirds[2] < r.thirds[0] / 2 ? '<br><span class="chip warnc">최근 구간 감쇠</span>' : ""}</div>`));
+    grid2.appendChild(h(`<div><div class="h">실전 감각</div>거래 월 ${n2(r.tradesPerMonth)}회 · 평균 실효 레버리지 ${n2(r.avgLeverage)}배 ·
+      평균 실제 리스크 ${n2(r.avgRiskPct)}% · 나쁜 달 하위 10% ${pc(r.monthlyP10, 1)}</div>`));
+    card.appendChild(grid2);
+    add(card);
+  });
+
+  add(h(`<div class="scroll"><table><thead><tr><th class="l">복리 부문 상위 8</th><th>월 기하</th><th>CAGR</th><th>낙폭</th><th>MAR</th>
+    <th>파산확률</th><th>최장 수중</th><th>월 승률</th><th>거래/월</th><th class="l">구간 3등분</th></tr></thead><tbody>` +
+    D.compounderTop.map((r, i) => `<tr${i === 0 ? ' class="hl"' : ""}><td class="l">${sName[r.set]} · ${mName[r.method]} · ${r.levCap}배 · ${r.riskPct}%</td>
+      <td class="pos">${pc(r.monthlyGeo, 2)}</td><td>${n2(r.cagr)}%</td><td class="neg">${n2(r.mdd)}%</td><td>${n2(r.mar)}</td>
+      <td>${n2(r.ruin)}%</td><td>${r.underwaterMaxDays}일</td><td>${n2(r.monthWinRate)}%</td><td>${n2(r.tradesPerMonth)}</td>
+      <td class="l">${r.thirds.map((x) => pc(x, 1)).join(" / ")}</td></tr>`).join("") + "</tbody></table></div>"));
+
+  add(h(`<div class="verdict"><span class="tag">권고와 함께 반드시 읽을 것</span>
+    <p><strong>상위 설정 전부에서 구간 3등분이 감쇠한다.</strong> 표준 권고만 해도
+    ${std.thirds.map((x) => pc(x, 2)).join(" → ")}다. C6(전 구간 양수)은 통과했지만 <em>추세는 명백히 하향</em>이다.
+    최근 구간의 월 ${pc(std.thirds[2], 2)}가 앞으로의 기대치에 더 가깝다고 보는 편이 안전하다.</p>
+    <p>그리고 이 ${D.passCount}건은 ${D.totalConfigs.toLocaleString("ko-KR")}설정에서 고른 것이다.
+    <strong>최댓값을 고르는 행위 자체가 과적합이다.</strong> 이 회차에서 방어할 수 있는 결론은
+    개별 설정이 아니라 <em>방향</em>이다 — 레버리지는 낮게, 리스크는 3% 이하, 손익비는 1:3 근처, 부품은 상관이 낮게 여러 개.</p></div>`));
+
+  /* ───────────── 11. 한계 ───────────── */
+  add('<h2><span class="num">11</span>한계 — 이 자료가 말하지 않는 것</h2>');
+  add(h(`<ol>
+    <li><strong>창이 3.1년뿐이다.</strong> ${D.windowDays.common}일 — 1H 부품이 2023-05부터라 공통 창이 여기까지다.
+      2022년 하락장 전체가 빠져 있다. 매수보유가 ${pc(bench.totalPct, 0)}인 창이므로 <em>상승 편향</em>을 의심해야 한다.</li>
+    <li><strong>부품 선택 자체가 과거 회차의 선별을 물려받았다.</strong> 14부품은 8~13회차에서 살아남은 것들이다.
+      그 선별이 인샘플이었다면 이 회차도 그 편향을 그대로 상속한다. 이 회차가 검증한 것은 <em>자금 층</em>뿐이다.</li>
+    <li><strong>동시 3포지션까지만 봤다.</strong> 2차 축에서 2·5도 훑었지만 1차 판정은 3 고정이다.</li>
+    <li><strong>체결 가정이 낙관일 수 있다.</strong> 테이커 0.10% + 슬리피지 0.02%. 동시에 여러 부품이
+      같은 방향으로 몰리는 순간의 체결 악화는 모형에 없다.</li>
+    <li><strong>펀딩은 실측이지만 미래는 다르다.</strong> OKX 실측 + Binance 프록시로 전 구간을 덮었으나,
+      레버리지를 낮추라는 이 회차의 결론은 펀딩 부담도 함께 줄인다 — 그 이득은 여기 반영돼 있다.</li>
+    <li><strong>단일 자산.</strong> BTC-USDT-SWAP 하나다. 분산의 대부분을 부품 간 상관에 의존하고 있으며,
+      자산을 늘렸을 때 어떻게 되는지는 검증하지 않았다.</li>
+  </ol>`));
+
+  add('<h2><span class="num">12</span>다음 단계 — 적용 전에 확인할 것</h2>');
+  add(h(`<div class="scroll"><table><thead><tr><th class="l">단계</th><th class="l">확인할 것</th><th class="l">통과 기준(사전 등록할 값)</th></tr></thead><tbody>
+    <tr><td class="l">1 · 워크포워드</td><td class="l">기법·리스크·레버리지를 사후에 고르지 않고도 우위가 남는가</td><td class="l">창 10등분, 학습 3구간 이후 OOS 구간별 MAR ≥ 1 이 5/7 이상</td></tr>
+    <tr><td class="l">2 · 창 확장</td><td class="l">1H 부품을 빼고 4H·1D만으로 2021년부터 다시 — 2022 하락장을 포함해도 결론이 유지되는가</td><td class="l">레버리지 3·5배 우위와 리스크 3% 이하 우위가 부호 유지</td></tr>
+    <tr><td class="l">3 · 부품 탈락 시나리오</td><td class="l">가장 큰 기여 부품 2개가 동시에 죽으면 남는가</td><td class="l">상위 기여 2개 제거 후에도 월 기하 &gt; 0 · 청산 0건</td></tr>
+    <tr><td class="l">4 · 체결 스트레스</td><td class="l">슬리피지를 0.02% → 0.06%로 3배 올려도 통과가 남는가</td><td class="l">권고 3종이 전부 C1·C2 유지, MAR ≥ 1</td></tr>
+    <tr><td class="l">5 · 페이퍼 병행</td><td class="l">권고 구성을 실계좌 전에 페이퍼로</td><td class="l">최소 3개월 · 실현 낙폭이 백테스트 낙폭의 1.5배 이내</td></tr>
+  </tbody></table></div>`));
+  add(`<p class="note">2단계가 가장 중요하다. 이 회차의 창에는 큰 하락장이 없고, 낙폭 게이트(C3)는 하락장에서 시험된 적이 없다.</p>`);
+
+  add("<hr>");
+  add(`<p class="note">데이터 · BTC-USDT-SWAP(OKX) + 현물(베이시스용). 창 ${dt(W.from)} ~ ${dt(W.to)} (${D.windowDays.common}일).
+    비용 테이커 0.10% + 슬리피지 0.02% 왕복, 펀딩 실측. 부트스트랩 블록 20 · 1,000회 · 파산 기준 자산 10%.
+    생성 ${dt(D.generatedAt)} · 코드 <code>backtest-lab/compound/</code> · 사전 등록 <code>compound/README.md</code></p>`);
+})();
+</script>

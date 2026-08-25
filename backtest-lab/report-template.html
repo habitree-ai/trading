@@ -1,0 +1,822 @@
+<title>월 10% 프런티어</title>
+<style>
+  /* 다크 기본 — 백테스트 시리즈 공통 토큰에 dataviz 검증 팔레트를 얹었다. */
+  :root {
+    color-scheme: dark;
+    --bg: #0e1116;
+    --surface: #161a21;
+    --surface-2: #1e232c;
+    --border: #2a3039;
+    --ink: #e6e9ee;
+    --dim: #8b95a3;
+    --muted: #898781;
+    --grid: #232935;
+    --s1: #3987e5;   /* 검증: dark, surface #161a21 */
+    --s2: #d95926;
+    --s3: #199e70;
+    --pos: #3987e5;
+    --neg: #e66767;
+    --good: #0ca30c;
+    --warn: #fab219;
+    --crit: #d03b3b;
+    --accent-soft: rgba(57, 135, 229, 0.14);
+  }
+  /* 라이트는 두 곳에 같은 값을 둔다 — OS 설정(미디어)과 뷰어의 명시 선택(스탬프).
+     미디어만 두면 "OS 다크 + 뷰어가 라이트 선택"에서 라이트가 지고 만다. */
+  @media (prefers-color-scheme: light) {
+    :root:not([data-theme="dark"]) {
+      color-scheme: light;
+      --bg: #f7f8fa;
+      --surface: #ffffff;
+      --surface-2: #f1f3f6;
+      --border: #e2e5ea;
+      --ink: #14171c;
+      --dim: #666e7a;
+      --muted: #898781;
+      --grid: #e8eaee;
+      --s1: #2a78d6;
+      --s2: #eb6834;
+      --s3: #1baf7a;
+      --pos: #2a78d6;
+      --neg: #e34948;
+      --good: #0ca30c;
+      --warn: #b57a00;
+      --crit: #d03b3b;
+      --accent-soft: rgba(42, 120, 214, 0.1);
+    }
+  }
+  :root[data-theme="light"] {
+    color-scheme: light;
+    --bg: #f7f8fa;
+    --surface: #ffffff;
+    --surface-2: #f1f3f6;
+    --border: #e2e5ea;
+    --ink: #14171c;
+    --dim: #666e7a;
+    --muted: #898781;
+    --grid: #e8eaee;
+    --s1: #2a78d6;
+    --s2: #eb6834;
+    --s3: #1baf7a;
+    --pos: #2a78d6;
+    --neg: #e34948;
+    --good: #0ca30c;
+    --warn: #b57a00;
+    --crit: #d03b3b;
+    --accent-soft: rgba(42, 120, 214, 0.1);
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font: 15px/1.7 -apple-system, "Segoe UI", "Malgun Gothic", system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 1120px; margin: 0 auto; padding: 40px 22px 96px; }
+  h1 { font-size: 30px; line-height: 1.25; margin: 0 0 10px; letter-spacing: -0.02em; }
+  h2 { font-size: 20px; margin: 52px 0 6px; letter-spacing: -0.01em; }
+  h2 .num { color: var(--dim); font-weight: 500; margin-right: 8px; }
+  h3 { font-size: 15.5px; margin: 30px 0 8px; }
+  p { margin: 10px 0; }
+  .lede { color: var(--dim); font-size: 16px; margin-bottom: 22px; }
+  .note { color: var(--dim); font-size: 13px; }
+  code { background: var(--surface-2); padding: 1px 5px; border-radius: 4px; font-size: 13px;
+         font-family: ui-monospace, "Cascadia Mono", Consolas, monospace; }
+  a { color: var(--s1); }
+
+  .verdict {
+    border: 1px solid var(--border); border-left: 3px solid var(--crit);
+    background: var(--surface); border-radius: 10px; padding: 18px 20px; margin: 22px 0 8px;
+  }
+  .verdict .tag { display: inline-block; font-size: 12px; font-weight: 700; letter-spacing: .04em;
+    color: var(--crit); border: 1px solid var(--crit); border-radius: 999px; padding: 2px 10px; margin-bottom: 10px; }
+  .verdict p { margin: 6px 0; }
+
+  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; margin: 20px 0 6px; }
+  .tile { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; }
+  .tile .k { font-size: 12px; color: var(--dim); letter-spacing: .02em; }
+  .tile .v { font-size: 26px; font-weight: 650; letter-spacing: -0.02em; margin-top: 3px; font-variant-numeric: tabular-nums; }
+  .tile .s { font-size: 12px; color: var(--dim); margin-top: 2px; }
+  .tile.bad .v { color: var(--crit); }
+  .tile.ok .v { color: var(--good); }
+
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 18px 20px; margin: 16px 0; }
+  .card > h3:first-child { margin-top: 0; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 13.5px; margin: 12px 0; }
+  th, td { padding: 7px 9px; text-align: right; border-bottom: 1px solid var(--border); font-variant-numeric: tabular-nums; }
+  th:first-child, td:first-child { text-align: left; }
+  th.l, td.l { text-align: left; }
+  thead th { color: var(--dim); font-weight: 600; font-size: 12.5px; white-space: nowrap;
+             border-bottom: 1px solid var(--border); position: sticky; top: 0; background: var(--surface); }
+  tbody tr:hover { background: var(--accent-soft); }
+  .scroll { overflow-x: auto; margin: 12px -4px; padding: 0 4px; }
+  .pos { color: var(--pos); }
+  .neg { color: var(--neg); }
+  .pass { color: var(--good); font-weight: 650; }
+  .fail { color: var(--crit); font-weight: 650; }
+  .chip { display: inline-block; font-size: 11px; padding: 1px 6px; border-radius: 4px;
+          border: 1px solid var(--border); color: var(--dim); margin-left: 5px; }
+  .chip.new { color: var(--s2); border-color: var(--s2); }
+
+  figure { margin: 18px 0 8px; }
+  figcaption { font-size: 13px; color: var(--dim); margin-top: 8px; }
+  .figtitle { font-size: 14.5px; font-weight: 620; margin-bottom: 2px; }
+  .figsub { font-size: 12.5px; color: var(--dim); margin-bottom: 10px; }
+  /* overflow는 자르는 쪽이 안전하다 — 회전 라벨이 새어나가면 본문에 가로 스크롤이 생긴다. */
+  svg { display: block; max-width: 100%; height: auto; }
+  .chartbox { overflow-x: auto; }
+  .legend { display: flex; flex-wrap: wrap; gap: 14px; font-size: 12.5px; color: var(--dim); margin: 4px 0 10px; }
+  .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 5px; vertical-align: -1px; }
+
+  .tt { position: fixed; pointer-events: none; background: var(--surface-2); color: var(--ink);
+        border: 1px solid var(--border); border-radius: 7px; padding: 7px 10px; font-size: 12.5px;
+        line-height: 1.5; box-shadow: 0 6px 18px rgba(0,0,0,.28); opacity: 0; transition: opacity .1s; z-index: 50;
+        font-variant-numeric: tabular-nums; max-width: 280px; }
+  .tt.on { opacity: 1; }
+
+  ul, ol { margin: 10px 0; padding-left: 20px; }
+  li { margin: 5px 0; }
+  hr { border: 0; border-top: 1px solid var(--border); margin: 40px 0; }
+  .kicker { font-size: 12.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--dim); }
+  details { margin: 10px 0; }
+  summary { cursor: pointer; color: var(--dim); font-size: 13.5px; }
+</style>
+
+<div class="wrap" id="app"></div>
+<div class="tt" id="tt"></div>
+
+<script id="data" type="application/json">__DATA_JSON__</script>
+<script>
+const D = JSON.parse(document.getElementById("data").textContent);
+const app = document.getElementById("app");
+const tt = document.getElementById("tt");
+
+/* ---------- 유틸 ---------- */
+const esc = (s) => String(s).replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]));
+const n2 = (v) => (v === null || v === undefined || Number.isNaN(v) ? "—" : Number(v).toFixed(2));
+const n1 = (v) => (v === null || v === undefined ? "—" : Number(v).toFixed(1));
+const sgn = (v, d = 2) => {
+  if (v === null || v === undefined) return "—";
+  const s = Number(v).toFixed(d);
+  return `<span class="${v > 0 ? "pass" : v < 0 ? "fail" : ""}">${v > 0 ? "+" : ""}${s}</span>`;
+};
+const yn = (b) => (b ? '<span class="pass">통과</span>' : '<span class="fail">미달</span>');
+const h = (html) => { const d = document.createElement("div"); d.innerHTML = html; return d.firstElementChild; };
+/** 문자열이든 이미 만들어진 노드든 받는다 — 차트는 노드로, 본문은 문자열로 온다. */
+const add = (x) => app.appendChild(typeof x === "string" ? h(x) : x);
+
+function showTip(e, html) {
+  tt.innerHTML = html; tt.classList.add("on");
+  const pad = 14;
+  let x = e.clientX + pad, y = e.clientY + pad;
+  const r = tt.getBoundingClientRect();
+  if (x + r.width > innerWidth - 8) x = e.clientX - r.width - pad;
+  if (y + r.height > innerHeight - 8) y = e.clientY - r.height - pad;
+  tt.style.left = x + "px"; tt.style.top = y + "px";
+}
+const hideTip = () => tt.classList.remove("on");
+
+/** SVG 헬퍼 — viewBox 좌표계로 그리고 CSS가 폭을 맞춘다. */
+function svgEl(w, h) {
+  const s = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  s.setAttribute("viewBox", `0 0 ${w} ${h}`);
+  s.setAttribute("width", "100%");
+  s.setAttribute("role", "img");
+  return s;
+}
+function el(tag, attrs, parent) {
+  const e = document.createElementNS("http://www.w3.org/2000/svg", tag);
+  for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v);
+  if (parent) parent.appendChild(e);
+  return e;
+}
+function figure(titleText, subText, node, caption) {
+  const f = document.createElement("figure");
+  f.innerHTML = `<div class="figtitle">${titleText}</div><div class="figsub">${subText}</div>`;
+  const box = document.createElement("div");
+  box.className = "chartbox";
+  box.appendChild(node);
+  f.appendChild(box);
+  if (caption) { const c = document.createElement("figcaption"); c.innerHTML = caption; f.appendChild(c); }
+  return f;
+}
+function legend(items) {
+  const d = document.createElement("div");
+  d.className = "legend";
+  d.innerHTML = items.map((i) => `<span><i style="background:${i.c}"></i>${esc(i.t)}</span>`).join("");
+  return d;
+}
+const CSS = (v) => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+
+/* ---------- 차트 ---------- */
+
+/** 히스토그램 + 세로 기준선. 단일 계열이라 범례 없음(제목이 계열을 말한다). */
+function histChart(bins, marks) {
+  const W = 1000, H = 300, L = 52, R = 16, T = 14, B = 44;
+  const s = svgEl(W, H);
+  const iw = W - L - R, ih = H - T - B;
+  const maxC = Math.max(...bins.map((b) => b.count));
+  const step = bins[1].lo - bins[0].lo;
+  // 도메인은 막대와 기준선을 모두 담는다 — 기준선이 축 밖에 있으면 비교가 안 된다.
+  const d0 = Math.min(bins[0].lo, ...marks.map((m) => m.v)) - step;
+  const d1 = Math.max(bins[bins.length - 1].lo + step, ...marks.map((m) => m.v)) + step;
+  const xs = (v) => L + ((v - d0) / (d1 - d0)) * iw;
+  const bw = (step / (d1 - d0)) * iw;
+  const ys = (c) => T + ih - (c / maxC) * ih;
+
+  for (let g = 0; g <= 4; g++) {
+    const y = T + (ih * g) / 4;
+    el("line", { x1: L, x2: W - R, y1: y, y2: y, stroke: CSS("--grid"), "stroke-width": 1 }, s);
+    el("text", { x: L - 8, y: y + 4, "text-anchor": "end", fill: CSS("--muted"), "font-size": 11 }, s)
+      .textContent = Math.round((maxC * (4 - g)) / 4);
+  }
+  bins.forEach((b, i) => {
+    const x = xs(b.lo), hh = T + ih - ys(b.count);
+    if (b.count > 0) {
+      const r = el("rect", { x: x + 1, y: ys(b.count), width: Math.max(1, bw - 2), height: Math.max(1, hh), rx: 2,
+        fill: b.lo >= 0 ? CSS("--s1") : CSS("--muted"), opacity: b.lo >= 0 ? 0.95 : 0.55 }, s);
+      r.style.cursor = "crosshair";
+      r.addEventListener("mousemove", (e) => showTip(e, `t ∈ [${b.lo}, ${(b.lo + step).toFixed(1)})<br><b>${b.count}</b>개 조합`));
+      r.addEventListener("mouseleave", hideTip);
+    }
+    if (i % 4 === 0) el("text", { x: x + bw / 2, y: H - B + 16, "text-anchor": "middle", fill: CSS("--muted"), "font-size": 11 }, s)
+      .textContent = b.lo.toFixed(0);
+  });
+  // 기준선 라벨은 세로로 층을 나눈다 — 오른쪽 끝에서 두 선이 가까워 가로로는 반드시 겹친다.
+  marks.forEach((m, i) => {
+    const x = xs(m.v);
+    el("line", { x1: x, x2: x, y1: T - 4, y2: T + ih, stroke: m.c, "stroke-width": 2, "stroke-dasharray": m.dash || "5 4" }, s);
+    if (!m.label) return;
+    const y = T + 12 + i * 19;
+    el("text", { x: x - 8, y, "text-anchor": "end", fill: m.c, "font-size": 12, "font-weight": 640 }, s).textContent = m.label;
+  });
+  el("line", { x1: L, x2: W - R, y1: T + ih, y2: T + ih, stroke: CSS("--border"), "stroke-width": 1 }, s);
+  el("text", { x: L + iw / 2, y: H - 6, "text-anchor": "middle", fill: CSS("--muted"), "font-size": 11.5 }, s)
+    .textContent = "t-통계량 (조합별 기대값의 유의성)";
+  return s;
+}
+
+/** 그룹 막대 — 계열 2개, 2px 간격. */
+function groupedBars(groups, series, opts = {}) {
+  const W = 1000, H = opts.height || 300, L = 56, R = 18, T = 16, B = 52;
+  const s = svgEl(W, H);
+  const iw = W - L - R, ih = H - T - B;
+  const all = groups.flatMap((g) => series.map((se) => g[se.k])).filter((v) => v !== null);
+  const maxV = opts.max ?? Math.max(...all, 0) * 1.12;
+  const minV = Math.min(0, ...all) * 1.12;
+  const ys = (v) => T + ih - ((v - minV) / (maxV - minV)) * ih;
+  const gw = iw / groups.length, bw = Math.min(64, (gw - 18) / series.length);
+
+  for (let g = 0; g <= 4; g++) {
+    const v = minV + ((maxV - minV) * g) / 4, y = ys(v);
+    el("line", { x1: L, x2: W - R, y1: y, y2: y, stroke: CSS("--grid"), "stroke-width": 1 }, s);
+    el("text", { x: L - 8, y: y + 4, "text-anchor": "end", fill: CSS("--muted"), "font-size": 11 }, s).textContent = v.toFixed(opts.dec ?? 1);
+  }
+  if (opts.ref !== undefined) {
+    const y = ys(opts.ref);
+    el("line", { x1: L, x2: W - R, y1: y, y2: y, stroke: CSS("--warn"), "stroke-width": 2, "stroke-dasharray": "6 4" }, s);
+    el("text", { x: W - R, y: y - 7, "text-anchor": "end", fill: CSS("--warn"), "font-size": 12, "font-weight": 640 }, s)
+      .textContent = opts.refLabel;
+  }
+  groups.forEach((g, gi) => {
+    series.forEach((se, si) => {
+      const v = g[se.k];
+      if (v === null || v === undefined) return;
+      const x = L + gi * gw + (gw - bw * series.length - 2 * (series.length - 1)) / 2 + si * (bw + 2);
+      const y = Math.min(ys(v), ys(0)), hh = Math.abs(ys(v) - ys(0));
+      const r = el("rect", { x, y, width: bw, height: Math.max(1.5, hh), rx: 4, fill: se.c }, s);
+      r.style.cursor = "crosshair";
+      r.addEventListener("mousemove", (e) => showTip(e, `<b>${esc(g.label)}</b><br>${esc(se.t)}: <b>${v}</b>${opts.unit || ""}`));
+      r.addEventListener("mouseleave", hideTip);
+      if (opts.labelBars) el("text", { x: x + bw / 2, y: v >= 0 ? y - 5 : y + hh + 13, "text-anchor": "middle",
+        fill: CSS("--dim"), "font-size": 11.5 }, s).textContent = v;
+    });
+    el("text", { x: L + gi * gw + gw / 2, y: H - B + 18, "text-anchor": "middle", fill: CSS("--dim"), "font-size": 12 }, s)
+      .textContent = g.label;
+    if (g.sub) el("text", { x: L + gi * gw + gw / 2, y: H - B + 33, "text-anchor": "middle", fill: CSS("--muted"), "font-size": 11 }, s)
+      .textContent = g.sub;
+  });
+  el("line", { x1: L, x2: W - R, y1: ys(0), y2: ys(0), stroke: CSS("--border"), "stroke-width": 1.5 }, s);
+  if (opts.yLabel) el("text", { x: 14, y: T + ih / 2, "text-anchor": "middle", fill: CSS("--muted"), "font-size": 11.5,
+    transform: `rotate(-90 14 ${T + ih / 2})` }, s).textContent = opts.yLabel;
+  return s;
+}
+
+/** 수평 막대 쌍 — IS vs OOS 같은 대비. */
+function pairedHBars(items, series) {
+  const W = 1000, rowH = 40, L = 300, R = 60, T = 14;
+  const H = T + items.length * rowH + 34;
+  const s = svgEl(W, H);
+  const iw = W - L - R;
+  const vals = items.flatMap((i) => series.map((se) => i[se.k])).filter((v) => v !== null);
+  const maxA = Math.max(...vals.map(Math.abs)) * 1.15;
+  const xs = (v) => L + iw / 2 + (v / maxA) * (iw / 2);
+
+  el("line", { x1: xs(0), x2: xs(0), y1: T, y2: T + items.length * rowH, stroke: CSS("--border"), "stroke-width": 1.5 }, s);
+  [-maxA / 2, maxA / 2].forEach((v) => {
+    el("line", { x1: xs(v), x2: xs(v), y1: T, y2: T + items.length * rowH, stroke: CSS("--grid"), "stroke-width": 1 }, s);
+    el("text", { x: xs(v), y: H - 12, "text-anchor": "middle", fill: CSS("--muted"), "font-size": 11 }, s).textContent = v.toFixed(2);
+  });
+  el("text", { x: xs(0), y: H - 12, "text-anchor": "middle", fill: CSS("--muted"), "font-size": 11 }, s).textContent = "0";
+
+  items.forEach((it, i) => {
+    const y0 = T + i * rowH;
+    el("text", { x: L - 12, y: y0 + rowH / 2 + 4, "text-anchor": "end", fill: CSS("--ink"), "font-size": 12.5 }, s).textContent = it.label;
+    series.forEach((se, si) => {
+      const v = it[se.k];
+      if (v === null) return;
+      const bh = 12, y = y0 + 6 + si * (bh + 2);
+      const x = v >= 0 ? xs(0) : xs(v);
+      const w = Math.max(1.5, Math.abs(xs(v) - xs(0)));
+      const r = el("rect", { x, y, width: w, height: bh, rx: 3, fill: se.c }, s);
+      r.style.cursor = "crosshair";
+      r.addEventListener("mousemove", (e) => showTip(e, `<b>${esc(it.label)}</b><br>${esc(se.t)}: <b>${v > 0 ? "+" : ""}${v}%</b>${it.sub ? "<br>" + esc(it.sub) : ""}`));
+      r.addEventListener("mouseleave", hideTip);
+      el("text", { x: v >= 0 ? x + w + 6 : x - 6, y: y + bh - 2, "text-anchor": v >= 0 ? "start" : "end",
+        fill: CSS("--muted"), "font-size": 10.5 }, s).textContent = (v > 0 ? "+" : "") + v;
+    });
+  });
+  return s;
+}
+
+/** 자산곡선 — 로그 축(자산이 13배 갔다가 1/24로 온다). */
+function equityCurve(points, opts = {}) {
+  const W = 1000, H = 320, L = 58, R = 20, T = 18, B = 40;
+  const s = svgEl(W, H);
+  const iw = W - L - R, ih = H - T - B;
+  const t0 = points[0].t, t1 = points[points.length - 1].t;
+  const eqs = points.map((p) => Math.max(p.equity, 1));
+  const lo = Math.min(...eqs) * 0.8, hi = Math.max(...eqs) * 1.2;
+  const xs = (t) => L + ((t - t0) / (t1 - t0)) * iw;
+  const ys = (v) => T + ih - ((Math.log(Math.max(v, 1)) - Math.log(lo)) / (Math.log(hi) - Math.log(lo))) * ih;
+
+  [1, 10, 100, 1000].filter((v) => v >= lo * 0.5 && v <= hi).forEach((v) => {
+    el("line", { x1: L, x2: W - R, y1: ys(v), y2: ys(v), stroke: CSS("--grid"), "stroke-width": 1 }, s);
+    el("text", { x: L - 8, y: ys(v) + 4, "text-anchor": "end", fill: CSS("--muted"), "font-size": 11 }, s).textContent = "$" + v;
+  });
+  el("line", { x1: L, x2: W - R, y1: ys(100), y2: ys(100), stroke: CSS("--warn"), "stroke-width": 1.5, "stroke-dasharray": "5 4" }, s);
+  el("text", { x: W - R, y: ys(100) - 6, "text-anchor": "end", fill: CSS("--warn"), "font-size": 11.5 }, s).textContent = "시작 $100";
+
+  const d = points.map((p, i) => `${i ? "L" : "M"}${xs(p.t).toFixed(1)},${ys(p.equity).toFixed(1)}`).join(" ");
+  el("path", { d, fill: "none", stroke: CSS("--s1"), "stroke-width": 2, "stroke-linejoin": "round" }, s);
+
+  const peak = points.reduce((a, b) => (b.equity > a.equity ? b : a));
+  const trough = points.slice(points.indexOf(peak)).reduce((a, b) => (b.equity < a.equity ? b : a), peak);
+  [[peak, "고점 $" + peak.equity.toFixed(0), CSS("--good")], [trough, "저점 $" + trough.equity.toFixed(0), CSS("--crit")]]
+    .forEach(([p, lab, c]) => {
+      el("circle", { cx: xs(p.t), cy: ys(p.equity), r: 5, fill: c, stroke: CSS("--surface"), "stroke-width": 2 }, s);
+      el("text", { x: xs(p.t), y: ys(p.equity) - 12, "text-anchor": "middle", fill: c, "font-size": 12, "font-weight": 640 }, s).textContent = lab;
+    });
+
+  const ticks = 6;
+  for (let i = 0; i <= ticks; i++) {
+    const t = t0 + ((t1 - t0) * i) / ticks;
+    el("text", { x: xs(t), y: H - 14, "text-anchor": "middle", fill: CSS("--muted"), "font-size": 11 }, s)
+      .textContent = new Date(t).toISOString().slice(2, 7);
+  }
+  const hit = el("rect", { x: L, y: T, width: iw, height: ih, fill: "transparent" }, s);
+  hit.style.cursor = "crosshair";
+  const cross = el("line", { x1: L, x2: L, y1: T, y2: T + ih, stroke: CSS("--dim"), "stroke-width": 1, opacity: 0 }, s);
+  hit.addEventListener("mousemove", (e) => {
+    const box = s.getBoundingClientRect();
+    const px = ((e.clientX - box.left) / box.width) * W;
+    const t = t0 + ((px - L) / iw) * (t1 - t0);
+    let best = points[0];
+    for (const p of points) if (Math.abs(p.t - t) < Math.abs(best.t - t)) best = p;
+    cross.setAttribute("x1", xs(best.t)); cross.setAttribute("x2", xs(best.t)); cross.setAttribute("opacity", 1);
+    showTip(e, `${new Date(best.t).toISOString().slice(0, 10)}<br>자산 <b>$${best.equity.toFixed(2)}</b>`);
+  });
+  hit.addEventListener("mouseleave", () => { cross.setAttribute("opacity", 0); hideTip(); });
+  return s;
+}
+
+/** 월별 수익률 — 발산 색(양/음) + 목표선. */
+function monthlyBars(months, target) {
+  const W = 1000, H = 292, L = 52, R = 16, T = 18, B = 64;
+  const s = svgEl(W, H);
+  const iw = W - L - R, ih = H - T - B;
+  const vals = months.map((m) => m.ret);
+  const hi = Math.max(...vals, target) * 1.1, lo = Math.min(...vals, 0) * 1.1;
+  const ys = (v) => T + ih - ((v - lo) / (hi - lo)) * ih;
+  const bw = iw / months.length;
+
+  for (let g = 0; g <= 4; g++) {
+    const v = lo + ((hi - lo) * g) / 4, y = ys(v);
+    el("line", { x1: L, x2: W - R, y1: y, y2: y, stroke: CSS("--grid"), "stroke-width": 1 }, s);
+    el("text", { x: L - 8, y: y + 4, "text-anchor": "end", fill: CSS("--muted"), "font-size": 11 }, s).textContent = v.toFixed(0) + "%";
+  }
+  el("line", { x1: L, x2: W - R, y1: ys(target), y2: ys(target), stroke: CSS("--warn"), "stroke-width": 2, "stroke-dasharray": "6 4" }, s);
+  el("text", { x: W - R, y: ys(target) - 6, "text-anchor": "end", fill: CSS("--warn"), "font-size": 12, "font-weight": 640 }, s)
+    .textContent = `목표 +${target}%`;
+
+  months.forEach((m, i) => {
+    const x = L + i * bw + 1.5, w = Math.max(1.5, bw - 3);
+    const y = Math.min(ys(m.ret), ys(0)), hh = Math.abs(ys(m.ret) - ys(0));
+    const r = el("rect", { x, y, width: w, height: Math.max(1.5, hh), rx: 3, fill: m.ret >= 0 ? CSS("--pos") : CSS("--neg") }, s);
+    r.style.cursor = "crosshair";
+    r.addEventListener("mousemove", (e) => showTip(e, `<b>${m.month}</b><br>수익률 <b>${m.ret > 0 ? "+" : ""}${m.ret}%</b><br>월말 자산 $${m.equity}`));
+    r.addEventListener("mouseleave", hideTip);
+    // 라벨은 오른쪽 아래가 아니라 왼쪽 아래로 눕힌다 — 오른쪽으로 눕히면 마지막 라벨이 뷰박스를 넘는다.
+    if (i % 3 === 0) el("text", { x: x + w / 2, y: H - B + 16, "text-anchor": "end", fill: CSS("--muted"), "font-size": 10,
+      transform: `rotate(-45 ${x + w / 2} ${H - B + 16})` }, s).textContent = m.month.slice(2);
+  });
+  el("line", { x1: L, x2: W - R, y1: ys(0), y2: ys(0), stroke: CSS("--border"), "stroke-width": 1.5 }, s);
+  return s;
+}
+
+/** 프런티어 산점도 — x: 보수 MDD, y: 월 중앙 수익률. 계열 2(바스켓). */
+function frontierScatter(sets) {
+  const W = 1000, H = 380, L = 60, R = 24, T = 20, B = 52;
+  const s = svgEl(W, H);
+  const iw = W - L - R, ih = H - T - B;
+  const pts = sets.flatMap((se) => se.pts);
+  const xMin = Math.min(-100, ...pts.map((p) => p.x)), xMax = 0;
+  // 판정이 일어나는 구간에 축을 맞춘다. 아래로 크게 벗어난 설정은 바닥에 눌러 표시하고
+  // 개수를 캡션에 적는다 — 이상치에 축을 내주면 정작 봐야 할 곳이 안 보인다.
+  const Y_FLOOR = -20;
+  const yMin = Y_FLOOR, yMax = Math.max(14, ...pts.map((p) => p.y)) * 1.05;
+  const clamped = pts.filter((p) => p.y < Y_FLOOR).length;
+  const xs = (v) => L + ((v - xMin) / (xMax - xMin)) * iw;
+  const ys = (v) => T + ih - ((v - yMin) / (yMax - yMin)) * ih;
+
+  for (let g = 0; g <= 4; g++) {
+    const v = yMin + ((yMax - yMin) * g) / 4, y = ys(v);
+    el("line", { x1: L, x2: W - R, y1: y, y2: y, stroke: CSS("--grid"), "stroke-width": 1 }, s);
+    el("text", { x: L - 8, y: y + 4, "text-anchor": "end", fill: CSS("--muted"), "font-size": 11 }, s).textContent = v.toFixed(0) + "%";
+  }
+  for (let g = 0; g <= 4; g++) {
+    const v = xMin + ((xMax - xMin) * g) / 4;
+    el("text", { x: xs(v), y: H - B + 18, "text-anchor": "middle", fill: CSS("--muted"), "font-size": 11 }, s).textContent = v.toFixed(0) + "%";
+  }
+  // 합격 영역 — 월 ≥10% 이면서 MDD ≥ −50%
+  el("rect", { x: xs(-50), y: ys(yMax), width: xs(0) - xs(-50), height: ys(10) - ys(yMax),
+    fill: CSS("--good"), opacity: 0.09 }, s);
+  el("line", { x1: L, x2: W - R, y1: ys(10), y2: ys(10), stroke: CSS("--warn"), "stroke-width": 2, "stroke-dasharray": "6 4" }, s);
+  el("text", { x: L + 6, y: ys(10) - 9, fill: CSS("--warn"), "font-size": 12, "font-weight": 640 }, s).textContent = "C1 월 중앙 +10%";
+  el("line", { x1: xs(-50), x2: xs(-50), y1: T, y2: T + ih, stroke: CSS("--warn"), "stroke-width": 2, "stroke-dasharray": "6 4" }, s);
+  el("text", { x: xs(-50) + 8, y: T + 32, fill: CSS("--warn"), "font-size": 12, "font-weight": 640 }, s).textContent = "C3 MDD −50%";
+  el("text", { x: xs(-50) + (xs(0) - xs(-50)) / 2, y: ys(10) - 12, "text-anchor": "middle", fill: CSS("--good"),
+    "font-size": 13, "font-weight": 650 }, s).textContent = "합격 영역 — 점 0개";
+
+  sets.forEach((se) => se.pts.forEach((p) => {
+    const low = p.y < Y_FLOOR;
+    const c = el("circle", { cx: xs(Math.max(p.x, xMin)), cy: ys(low ? Y_FLOOR : p.y), r: low ? 3.5 : 5,
+      fill: low ? "none" : se.c, stroke: se.c, "stroke-width": low ? 1.5 : 2, opacity: low ? 0.6 : 0.82 }, s);
+    if (!low) c.setAttribute("stroke", CSS("--surface"));
+    c.style.cursor = "crosshair";
+    c.addEventListener("mousemove", (e) => showTip(e, `<b>바스켓 ${p.basket}</b> · ${p.overlay} · cap${p.cap} · 리스크 ${p.risk}%<br>월 중앙 <b>${p.y}%</b>${low ? " <i>(축 아래 — 눌러 표시)</i>" : ""} · 보수 MDD <b>${p.x}%</b><br>최종 $${p.eq} · CAGR ${p.cagr}% · 파산확률 ${p.ruin}%`));
+    c.addEventListener("mouseleave", hideTip);
+  }));
+  s.dataset.clamped = String(clamped); // 캡션이 읽는다 — SVG 안에 두면 축 라벨과 겹친다.
+  el("line", { x1: L, x2: W - R, y1: ys(0), y2: ys(0), stroke: CSS("--border"), "stroke-width": 1.5 }, s);
+  el("text", { x: L + iw / 2, y: H - 10, "text-anchor": "middle", fill: CSS("--muted"), "font-size": 11.5 }, s)
+    .textContent = "보수 최대낙폭 (%) — 오른쪽일수록 안전";
+  el("text", { x: 16, y: T + ih / 2, "text-anchor": "middle", fill: CSS("--muted"), "font-size": 11.5,
+    transform: `rotate(-90 16 ${T + ih / 2})` }, s).textContent = "월 수익률 중앙값 (%)";
+  return s;
+}
+
+/* ---------- 표 ---------- */
+function table(cols, rows, opts = {}) {
+  const thead = `<thead><tr>${cols.map((c) => `<th class="${c.l ? "l" : ""}">${c.h}</th>`).join("")}</tr></thead>`;
+  const tbody = `<tbody>${rows.map((r) => `<tr>${cols.map((c) => `<td class="${c.l ? "l" : ""}">${c.f(r)}</td>`).join("")}</tr>`).join("")}</tbody>`;
+  return `<div class="scroll"><table>${thead}${tbody}</table></div>` + (opts.note ? `<p class="note">${opts.note}</p>` : "");
+}
+
+/* ---------- 본문 ---------- */
+
+const S = D.sweep, F = D.frontier, G = D.diagnose;
+const dt = new Date(D.generatedAt);
+const kstDate = new Date(D.generatedAt + 9 * 3600e3).toISOString().slice(0, 10);
+
+add(`<div class="kicker">backtest-lab · 회차 ${esc(kstDate)}</div>`);
+add(`<h1>BTC 4H 이하 기술적 지표로<br>월 10% 복리는 가능한가</h1>`);
+add(`<p class="lede">${esc(D.round.question)} — 지표 31계열 × 롱숏 × 청산 6종 × 필터 4종 × 봉 3종 = <b>${S.total.toLocaleString()}개 조합 전수</b>. 사전 등록 게이트로 판정하고, 살아남은 것을 레버리지·병행 복리에 얹어 월수익 프런티어까지 그렸다.</p>`);
+
+add(`<div class="verdict">
+  <span class="tag">판정 · 기각</span>
+  <p><b>부품 게이트 6/6 통과 0 / ${S.total.toLocaleString()}.  복리 게이트 C1~C5 통과 0 / ${(F.gridA.length + F.gridB.length).toLocaleString()}.</b></p>
+  <p>월 10% 복리는 연 ${D.round.target.impliedCagrPct}% 복리다. 이 회차가 찾은 것은 그 근처가 아니라, <b>우연이 만드는 수준에도 못 미치는 신호</b>였다 — 전수의 최대 t는 <b>${S.multipleTesting.tested.toLocaleString()}개를 훑고도 ${n2(Math.max(...S.top.map((r) => r.t)))}</b>인데, 같은 수를 무작위로 뽑을 때 기대되는 최대 t가 <b>${n2(S.multipleTesting.nullMaxT)}</b>다.</p>
+  <p class="note">이 문서는 "안 된다"를 증명하려 쓴 것이 아니다. 사전 등록한 기준을 그대로 적용한 결과이며, 기준·데이터·코드는 모두 <code>backtest-lab/</code> 에 있다.</p>
+</div>`);
+
+const maxT = Math.max(...S.top.map((r) => r.t));
+add(`<div class="tiles">
+  <div class="tile"><div class="k">전수 조합</div><div class="v">${S.total.toLocaleString()}</div><div class="s">거래 발생 ${S.tested.toLocaleString()} · 0거래 ${S.empty}</div></div>
+  <div class="tile bad"><div class="k">사전 등록 게이트 통과</div><div class="v">0</div><div class="s">6/6 통과 조합 없음</div></div>
+  <div class="tile bad"><div class="k">관측 최대 t</div><div class="v">${n2(maxT)}</div><div class="s">귀무 하 기댓값 ${n2(S.multipleTesting.nullMaxT)}</div></div>
+  <div class="tile bad"><div class="k">월 10%에 필요한 t</div><div class="v">${n2(F.requirements.A.find((r) => r.target === 10)?.requiredT)}</div><div class="s">관측 최대의 ${n2(F.requirements.A.find((r) => r.target === 10)?.requiredT / maxT)}배</div></div>
+</div>`);
+
+/* §1 목표의 크기 */
+add(`<h2><span class="num">1</span>목표의 크기부터</h2>`);
+add(`<p>월 10% 복리는 <code>(1.10)<sup>12</sup> − 1 = ${D.round.target.impliedCagrPct}%</code> 연복리다. 이 저장소의 기존 11회차 누적 최고 성과는 CAGR 48% · MDD −35% · MAR 1.39였다. MAR(연복리÷|MDD|)이 성과 품질의 상한이라면 <code>${D.round.target.impliedCagrPct} ÷ 1.39 = MDD −154%</code> — 산술적으로 파산이다.</p>
+<p>그래서 이 회차의 성공 정의는 "월 10% 달성"이 아니라 <b>월수익–낙폭–파산확률 프런티어를 그려서 10%가 어디에 있는지(또는 없는지) 확정하는 것</b>으로 두었다. 늘리는 경로는 셋뿐이고 셋을 전부 측정했다: ① 엣지 품질(미검증 지표 전수) ② 거래 빈도(15m·1H 재투입, 병행 확대) ③ 사이징(레버리지).</p>`);
+
+/* §2 데이터 */
+add(`<h2><span class="num">2</span>데이터</h2>`);
+add(table(
+  [
+    { h: "봉", l: 1, f: (r) => `<b>${r.tf}</b>` },
+    { h: "창", l: 1, f: (r) => `${r.from} → ${r.to}` },
+    { h: "일수", f: (r) => r.spanDays.toLocaleString() },
+    { h: "캔들", f: (r) => r.bars.toLocaleString() },
+    { h: "결측", f: (r) => r.missPct.toFixed(2) + "%" },
+    { h: "워크포워드 분할", f: (r) => r.isCut ?? "—" },
+    { h: "보유 시한", f: (r) => (r.maxHold ? `${r.maxHold}봉` : "—") },
+    { h: "표본 게이트", f: (r) => (r.sampleMin ? `≥${r.sampleMin}` : "상위봉 전용") },
+  ],
+  D.data.tfs,
+  { note: "OKX BTC-USDT-SWAP 확정봉(confirm=1)만. 1D는 매매하지 않고 상위봉 정렬 판단에만 쓴다(요청 제약: 4H 이하로만 기술적 분석)." },
+));
+add(`<div class="card">
+  <h3>펀딩비 — 가정하지 않고 실측했다</h3>
+  <p>OKX 공개 API는 펀딩 이력을 약 95일만 보존한다(실측: ${D.data.funding.okx.rows}건, 평균 ${D.data.funding.okx.avgPer8hPct.toFixed(5)}%/8h). 1,800일 창을 덮을 수 없어 <b>Binance BTCUSDT 펀딩 ${D.data.funding.binance.rows.toLocaleString()}건</b>을 대리변수로 쓰되, 겹치는 ${D.data.funding.validation.overlap}건에서 검증했다 — 상관 <b>${n2(D.data.funding.validation.corr)}</b>, 평균차 ${D.data.funding.validation.biasPer8hPct.toFixed(6)}%/8h(OKX−Binance)로 <b>Binance 쪽이 더 비싸다(보수적)</b>.</p>
+  <p>결과: 롱 펀딩 연 ${n1(D.data.funding.binance.annualLongPct)}%. 다만 <b>이 회차의 평균 보유가 0.17~2.2일로 짧아 거래당 펀딩은 0.0001~0.0031%</b>에 그쳤다. 진짜 비용은 <b>수수료+슬리피지 ${(D.data.cost.taker + D.data.cost.slippage).toFixed(2)}%/거래</b>다.</p>
+</div>`);
+
+/* §3 사전 등록 */
+add(`<h2><span class="num">3</span>사전 등록한 판정 기준</h2>`);
+add(`<p>4,464개를 훑으면 귀무가설이 참이어도 t가 4 근처인 조합이 하나쯤 나온다. 그래서 게이트를 두 겹으로 뒀다 — <b>다중검정 보정</b>과 <b>워크포워드 분리</b>다.</p>`);
+add(table(
+  [{ h: "#", l: 1, f: (r) => r.k }, { h: "게이트", l: 1, f: (r) => r.n }, { h: "임계", l: 1, f: (r) => r.c }, { h: "개별 통과", f: (r) => r.p }],
+  [
+    { k: "G1", n: "표본", c: "15m ≥400 · 1H ≥250 · 4H ≥150", p: S.gateCounts.g1.toLocaleString() },
+    { k: "G2", n: "기대값", c: "테이커+슬리피지+펀딩 기준 EV > 0", p: S.gateCounts.g2.toLocaleString() },
+    { k: "G3", n: "Profit Factor", c: `PF ≥ ${S.pfMin}`, p: S.gateCounts.g3.toLocaleString() },
+    { k: "G4", n: "구간 안정", c: "창 3등분 중 2구간 이상 플러스", p: S.gateCounts.g4.toLocaleString() },
+    { k: "G5", n: "다중검정", c: `Benjamini–Hochberg FDR q=${S.fdrQ} (단측)`, p: `<span class="fail">${S.gateCounts.g5}</span>` },
+    { k: "G6", n: "아웃오브샘플", c: "IS 앞 65% → OOS 뒤 35%에서 EV>0 · PF≥1.0", p: S.gateCounts.g6.toLocaleString() },
+  ],
+  { note: `BH 임계 p = ${S.multipleTesting.bhThresholdP.toExponential(2)} · Bonferroni = ${S.multipleTesting.bonferroniP.toExponential(2)} · 귀무 하 최대 |t| 기댓값 = ${n2(S.multipleTesting.nullMaxT)}.` },
+));
+
+/* §4 전수 결과 */
+add(`<h2><span class="num">4</span>전수 스윕 — 무엇이 나왔나</h2>`);
+add(figure(
+  "조합 4,428개의 t 분포",
+  "가로축이 오른쪽일수록 기대값이 통계적으로 확실하다는 뜻이다. 분포 전체가 0 왼쪽에 쏠려 있다.",
+  histChart(S.hist, [
+    { v: 0, c: CSS("--muted"), label: "", dash: "3 3" },
+    { v: maxT, c: CSS("--s2"), label: `↓ 관측 최대 ${n2(maxT)}` },
+    { v: S.multipleTesting.nullMaxT, c: CSS("--crit"), label: `↓ 우연이 만드는 최대 ${n2(S.multipleTesting.nullMaxT)}` },
+  ]),
+  `조합의 <b>${((S.hist.filter((b) => b.lo < 0).reduce((s, b) => s + b.count, 0) / S.tested) * 100).toFixed(0)}%</b>가 t &lt; 0이다. 그리고 <b>가장 좋은 것조차 우연의 기댓값 아래</b>에 있다 — 전수를 다 훑고도 무작위 탐색이 만들어냈을 최고치에 못 미쳤다.`,
+));
+
+add(`<h3>봉 · 청산 기하 · 필터 · 계열별</h3>`);
+const grpCols = [
+  { h: "구분", l: 1, f: (r) => r.label },
+  { h: "조합", f: (r) => r.combos.toLocaleString() },
+  { h: "EV>0", f: (r) => `${r.evPos} <span class="note">(${r.evPosPct}%)</span>` },
+  { h: "EV 중앙값", f: (r) => sgn(r.medEv, 3) },
+  { h: "최대 t", f: (r) => n2(r.maxT) },
+  { h: "표본 중앙값", f: (r) => r.medN },
+];
+add(`<div class="card"><h3>봉별 — 짧을수록 나쁘다</h3>` + table(grpCols, S.byTf) + `<p class="note">EV>0 비율이 15m ${S.byTf.find((x) => x.key === "15m").evPosPct}% → 1H ${S.byTf.find((x) => x.key === "1H").evPosPct}% → 4H ${S.byTf.find((x) => x.key === "4H").evPosPct}% 로 단조 증가한다. 이 저장소에서 15m이 기각된 것은 이번이 네 번째다.</p></div>`);
+add(`<div class="card"><h3>청산 기하별</h3>` + table(grpCols, S.byExit) + `<p class="note">넓은 기하(손절2·목표6, 손절3·목표9)가 EV>0 비율이 높다 — 보유가 길어져 고정비용이 상각되기 때문이다. 그러나 최대 t는 개선되지 않는다: <b>기하는 엣지를 만들지 않고 드러낼 뿐이다.</b></p></div>`);
+add(`<div class="card"><h3>국면 필터별</h3>` + table(grpCols, S.byFilter) + `</div>`);
+add(`<div class="card"><h3>지표 계열별</h3>` + table(grpCols, S.byFamily) + `<p class="note">추세·모멘텀·변동성·거래량·구조 다섯 계열 어디에도 우위가 없다. 신규 검증 지표 18종(슈퍼트렌드·일목·PSAR·볼텍스·아룬·TSI·피셔·UO·CMF·MFI·OBV·VWAP·StochRSI·CCI·%R·ROC·켈트너·TTM) 중 게이트 통과는 0개다.</p></div>`);
+
+add(`<h3>상위 20 — 그래도 가장 나았던 것들</h3>`);
+add(table(
+  [
+    { h: "봉", l: 1, f: (r) => r.tf },
+    { h: "신호", l: 1, f: (r) => `${esc(r.famName)}${r.novel ? '<span class="chip new">신규</span>' : ""}` },
+    { h: "방향", l: 1, f: (r) => (r.side === "long" ? "롱" : "숏") },
+    { h: "필터", l: 1, f: (r) => esc(r.filterName) },
+    { h: "청산", l: 1, f: (r) => esc(r.exitName) },
+    { h: "표본", f: (r) => r.n },
+    { h: "EV", f: (r) => sgn(r.ev, 3) + "%" },
+    { h: "PF", f: (r) => n2(r.pf) },
+    { h: "t", f: (r) => n2(r.t) },
+    { h: "3구간", f: (r) => `${r.thirdsPositive}/3` },
+    { h: "OOS EV", f: (r) => sgn(r.oosEv, 3) + "%" },
+    { h: "통과", f: (r) => `${r.gates.passed}/6` },
+  ],
+  S.top,
+  { note: "상위 20개 중 6/6 통과는 없다. 표본(G1)에서 죽거나, 다중검정(G5)에서 죽거나, 아웃오브샘플(G6)에서 죽는다." },
+));
+
+/* §5 대조군 */
+add(`<h2><span class="num">5</span>대조군 — "생존 0개"는 발견인가 버그인가</h2>`);
+add(`<p>결론을 내리기 전에 갈라야 할 것이 넷 있었다: 엔진이 방향을 뒤집지 않았는가(매수보유 대조), 비용이 엣지를 먹은 것인가(무비용 스윕), 지표 신호가 무작위 진입보다 나은가, 비용 구성이 무엇인가.</p>`);
+const tfKeys = Object.keys(G);
+add(figure(
+  "비용을 0으로 둬도 최대 t는 귀무 기댓값 아래",
+  "비용 이전(gross)과 이후(net)의 봉별 최대 t. 붉은 파선은 같은 수의 조합을 무작위로 뽑을 때 기대되는 최대 t.",
+  groupedBars(
+    tfKeys.map((tf) => ({ label: tf, gross: G[tf].gross.maxT, net: G[tf].net.maxT })),
+    [{ k: "gross", t: "비용 전 (gross)", c: CSS("--s1") }, { k: "net", t: "비용 후 (net)", c: CSS("--s2") }],
+    { ref: G[tfKeys[0]].nullMaxTExpected, refLabel: `귀무 기댓값 ${n2(G[tfKeys[0]].nullMaxTExpected)}`, dec: 1, labelBars: true, yLabel: "최대 t" },
+  ),
+  "이것이 이 회차에서 가장 중요한 그림이다. 수수료·슬리피지·펀딩을 <b>전부 0으로 놓아도</b> 최대 t는 귀무 기댓값을 넘지 못한다. 즉 <b>비용이 엣지를 먹은 것이 아니라, 먹을 엣지가 없었다.</b>",
+));
+add(h(legend([{ c: CSS("--s1"), t: "비용 전 (gross)" }, { c: CSS("--s2"), t: "비용 후 (net)" }]).outerHTML));
+add(table(
+  [
+    { h: "봉", l: 1, f: (tf) => `<b>${tf}</b>` },
+    { h: "창", l: 1, f: (tf) => `${G[tf].window.from} → ${G[tf].window.to}` },
+    { h: "매수보유", f: (tf) => sgn(G[tf].buyHold.totalPct, 1) + "%" },
+    { h: "매수보유 CAGR", f: (tf) => sgn(G[tf].buyHold.cagrPct, 1) + "%" },
+    { h: "EV>0 (비용 전)", f: (tf) => `${G[tf].gross.evPositivePct}%` },
+    { h: "EV>0 (비용 후)", f: (tf) => `${G[tf].net.evPositivePct}%` },
+    { h: "무작위 진입 중앙 t", f: (tf) => n2(G[tf].randomEntry.medianT) },
+    { h: "무작위 최대 t", f: (tf) => n2(G[tf].randomEntry.maxT) },
+    { h: "거래당 비용", f: (tf) => `${G[tf].costPerTrade.totalPct}%` },
+    { h: "평균 보유", f: (tf) => `${G[tf].costPerTrade.avgHoldDays}일` },
+  ],
+  tfKeys,
+  { note: "무작위 진입 대조군은 봉마다 400개 전략을 무작위 시점에서 생성해 같은 청산·같은 비용으로 돌린 것이다. 실제 지표 신호가 무작위보다 낫긴 하다 — 다만 그 우위가 통계적으로 의미 있는 크기가 아니다." },
+));
+add(`<p class="note"><b>창의 성격도 읽어야 한다.</b> 4H 창(4.8년)에서 BTC 자체가 ${sgn(G["4H"].buyHold.totalPct, 1)}%, 15m 창(2년)에서 ${sgn(G["15m"].buyHold.totalPct, 1)}%다. 즉 이 창의 상당 부분은 <b>방향성 없는 장</b>이었다. 강한 추세장을 포함한 다른 창에서는 추세 계열이 더 나올 수 있다 — 그것이 이 결론의 첫 번째 한계다.</p>`);
+
+/* §6 워크포워드 */
+add(`<h2><span class="num">6</span>워크포워드 — 인샘플 선별이 무엇을 하는가</h2>`);
+add(`<p>앞 65%(IS)만 보고 t가 높은 부품 8개를 고른 뒤, 뒤 35%(OOS)에서만 평가했다. 선별 시점에 미래를 보지 않는다.</p>`);
+const wf = F.basketB.map((m) => ({
+  label: `${m.tf} ${m.famName.slice(0, 12)} ${m.side === "long" ? "롱" : "숏"}`,
+  sub: `${m.filterName} · ${m.exitName}`,
+  is: m.is.ev, oos: m.oos.ev,
+}));
+add(figure(
+  "IS에서 고른 8개, OOS에서 8개 전부 마이너스",
+  "각 부품의 거래당 기대값(%). 위쪽 막대가 선별에 쓴 인샘플, 아래쪽이 평가 구간.",
+  pairedHBars(wf, [{ k: "is", t: "IS (선별 구간)", c: CSS("--s1") }, { k: "oos", t: "OOS (평가 구간)", c: CSS("--s2") }]),
+  "<b>8/8 전멸.</b> IS에서 t=1.4~3.1로 뽑힌 부품이 OOS에서 예외 없이 기대값 음수로 뒤집혔다. 이것은 '아쉽게 안 됐다'가 아니라 <b>선별 행위 자체가 곡선 맞추기였다</b>는 직접 증거다.",
+));
+add(h(legend([{ c: CSS("--s1"), t: "IS (앞 65%, 선별에 사용)" }, { c: CSS("--s2"), t: "OOS (뒤 35%, 평가에만 사용)" }]).outerHTML));
+add(table(
+  [
+    { h: "봉", l: 1, f: (m) => m.tf },
+    { h: "신호", l: 1, f: (m) => esc(m.famName) },
+    { h: "방향", l: 1, f: (m) => (m.side === "long" ? "롱" : "숏") },
+    { h: "청산", l: 1, f: (m) => esc(m.exitName) },
+    { h: "IS 표본", f: (m) => m.is.n },
+    { h: "IS EV", f: (m) => sgn(m.is.ev, 3) + "%" },
+    { h: "IS t", f: (m) => n2(m.is.t) },
+    { h: "OOS 표본", f: (m) => m.oos.n },
+    { h: "OOS EV", f: (m) => sgn(m.oos.ev, 3) + "%" },
+    { h: "OOS PF", f: (m) => n2(m.oos.pf) },
+  ],
+  F.basketB,
+));
+
+/* §7 프런티어 */
+add(`<h2><span class="num">7</span>레버리지 · 병행 복리 프런티어</h2>`);
+add(`<p>사전 등록 게이트를 통과한 부품이 0개이므로, 이 단계는 <b>생존자 운용이 아니라 상한 측정</b>이다. 조건을 완화해 두 바스켓을 만들었다 — 그리고 완화했다는 사실이 결론의 일부다.</p>
+<ul>
+  <li><b>바스켓 A (인샘플 상한)</b> — 전체 창의 t 상위 8개. 결과를 보고 고른 것이므로 실전 기대값이 아니다. "가장 잘 봐줘도 여기까지"의 천장.</li>
+  <li><b>바스켓 B (워크포워드)</b> — IS만 보고 고른 8개를 OOS에서만 평가. 실전에 가까운 추정치.</li>
+</ul>
+<p class="note">회계: 진입 시점 <b>실현</b> 잔고로 사이징 · 동시 보유 ${F.config.maxConcurrent}개 상한 · 증거금 합 ≤ 자산 · 실효 레버리지 = 리스크% ÷ (손절폭% + 비용%) · 강제청산은 거래 MAE ≥ 100/거래소레버리지 − ${F.config.maintPct}%. 리스크 ${F.config.risks.join("·")}% × 거래소 레버리지 상한 ${F.config.levCaps.join("·")}× × 오버레이 4종 = 설정 ${F.gridA.length}개씩.</p>`);
+
+const pts = (grid, letter) => grid.filter((g) => g.monthlyMedian !== null && g.mdd !== null).map((g) => ({
+  x: g.mdd, y: g.monthlyMedian, basket: letter, overlay: g.overlay, cap: g.levCap, risk: g.riskPct,
+  eq: g.finalEquity, cagr: g.cagr, ruin: g.ruin,
+}));
+const scatterSvg = frontierScatter([
+  { c: CSS("--s1"), pts: pts(F.gridA, "A") },
+  { c: CSS("--s2"), pts: pts(F.gridB, "B") },
+]);
+add(figure(
+  `설정 ${(F.gridA.length + F.gridB.length)}개의 월수익–낙폭 프런티어`,
+  "세로가 월 수익률 중앙값, 가로가 보수 최대낙폭. 초록 영역이 사전 등록 합격 구간(C1 월 ≥+10% 이면서 C3 MDD ≥ −50%)이다.",
+  scatterSvg,
+  `합격 영역에 점이 <b>하나도 없다.</b> 월 10%를 넘는 설정은 존재하지만 전부 낙폭 −90% 아래에 있고, 낙폭이 견딜 만한 설정은 전부 월 10%에 못 미친다. <b>프런티어가 목표선과 교차하지 않는다</b> — 이것이 '레버리지를 더 쓰면 되지 않나'에 대한 답이다. <span class="note">(월 중앙 −20% 미만 ${scatterSvg.dataset.clamped}개는 축 바닥에 속 빈 점으로 눌러 표시했다.)</span>`,
+));
+add(h(legend([{ c: CSS("--s1"), t: "바스켓 A — 인샘플 상한" }, { c: CSS("--s2"), t: "바스켓 B — 워크포워드 OOS" }]).outerHTML));
+
+add(`<h3>월 중앙값이 가장 높았던 설정 — 그리고 그 대가</h3>`);
+const hA = F.headA;
+add(`<div class="tiles">
+  <div class="tile"><div class="k">월 수익률 중앙값</div><div class="v pass">+${n1(hA.monthlyMedian)}%</div><div class="s">C1 통과 · 목표 +10%</div></div>
+  <div class="tile"><div class="k">월 10% 이상인 달</div><div class="v pass">${n1(hA.hit10)}%</div><div class="s">C2 통과 · 기준 50%</div></div>
+  <div class="tile bad"><div class="k">보수 최대낙폭</div><div class="v">${n1(hA.mdd)}%</div><div class="s">C3 미달 · 기준 −50%</div></div>
+  <div class="tile bad"><div class="k">파산확률</div><div class="v">${n1(hA.ruin)}%</div><div class="s">C5 미달 · 기준 5%</div></div>
+</div>`);
+add(`<p>바스켓 A · ${hA.overlay} · 거래소 레버리지 상한 ${hA.levCap}× · 리스크 ${hA.riskPct}% (평균 실효 레버리지 ${n2(hA.avgLev)}×). <b>월 중앙값 +${n1(hA.monthlyMedian)}%로 C1·C2를 통과한다.</b> 그런데 같은 설정의 ${F.windows.A.days}일 최종 자산은 <b>$${n2(hA.finalEquity)}</b> — 시작 $100에서 거의 제자리다.</p>`);
+add(figure(
+  "월 중앙 +11.9%가 만든 자산곡선",
+  `${F.windows.A.days}일 · 로그 축. 시작 $100 → 고점 → 저점 → 최종 $${n2(hA.finalEquity)}.`,
+  equityCurve(hA.curve),
+  "<b>월 중앙값은 목표 달성의 증거가 되지 못한다.</b> 절반의 달이 +11.9%보다 좋았는데도 자산은 고점에서 96% 무너지고 제자리로 돌아왔다. 복리에서는 중앙값이 아니라 로그수익의 평균이 결과를 정한다 — 큰 손실 한 번이 여러 번의 좋은 달을 지운다.",
+));
+add(figure(
+  `월별 수익률 ${hA.monthly.length}개월`,
+  "가로 파선이 목표 +10%. 파란 막대가 플러스, 붉은 막대가 마이너스 달이다.",
+  monthlyBars(hA.monthly, 10),
+  `+168%인 달과 −61%인 달이 같은 시스템에서 나온다. 월 ${n1(hA.hit10)}%의 달이 목표를 넘지만, <b>변동성 자체가 목표보다 훨씬 크다.</b>`,
+));
+
+add(`<h3>사전 등록 복리 게이트 — 상위 설정</h3>`);
+const gcols = [
+  { h: "바스켓", l: 1, f: (g) => g.basket },
+  { h: "오버레이", l: 1, f: (g) => g.overlay },
+  { h: "레버 상한", f: (g) => g.levCap + "×" },
+  { h: "리스크", f: (g) => g.riskPct + "%" },
+  { h: "최종 $", f: (g) => n2(g.finalEquity) },
+  { h: "CAGR", f: (g) => sgn(g.cagr, 1) + "%" },
+  { h: "MDD", f: (g) => `<span class="fail">${n1(g.mdd)}%</span>` },
+  { h: "월 중앙", f: (g) => sgn(g.monthlyMedian, 1) + "%" },
+  { h: "월≥10%", f: (g) => n1(g.hit10) + "%" },
+  { h: "파산확률", f: (g) => n1(g.ruin) + "%" },
+  { h: "C1", f: (g) => yn(g.gates.c1) }, { h: "C2", f: (g) => yn(g.gates.c2) },
+  { h: "C3", f: (g) => yn(g.gates.c3) }, { h: "C4", f: (g) => yn(g.gates.c4) },
+  { h: "C5", f: (g) => yn(g.gates.c5) },
+  { h: "통과", f: (g) => `${g.gates.passed}/5` },
+];
+const topGrid = [...F.gridA, ...F.gridB].sort((a, b) => b.gates.passed - a.gates.passed || (b.monthlyMedian ?? -99) - (a.monthlyMedian ?? -99)).slice(0, 14);
+add(table(gcols, topGrid, { note: `C1 월 중앙 ≥10% · C2 월 10% 이상인 달 ≥50% · C3 보수 MDD ≥ −50% · C4 강제청산 0건 · C5 블록 부트스트랩 파산확률 ≤5%. 전체 ${F.gridA.length + F.gridB.length}개 설정 중 5/5 통과는 <b>0개</b>이고, 최대 통과는 3/5다.` }));
+
+/* §8 역산 */
+add(`<h2><span class="num">8</span>목표 역산 — 무엇이 얼마나 부족한가</h2>`);
+add(`<p>월 X%는 <code>(월 체결 수) × ln(1 + 거래당 순수익)</code>이 <code>ln(1+X/100)</code>이 되는 것이다. 관측된 빈도와 기대값을 넣고 필요한 값을 역산했다.</p>`);
+const reqRows = [];
+for (const [k, arr] of Object.entries(F.requirements)) for (const q of arr) if (q) reqRows.push({ ...q, basket: k });
+add(table(
+  [
+    { h: "바스켓", l: 1, f: (q) => q.basket },
+    { h: "목표", f: (q) => `월 ${q.target}%` },
+    { h: "체결/월", f: (q) => n1(q.tradesPerMonth) },
+    { h: "관측 EV", f: (q) => sgn(q.observedEvPct, 3) + "%" },
+    { h: "관측 t", f: (q) => n2(q.observedT) },
+    { h: "필요 EV", f: (q) => `<b>${n2(q.requiredReturnPerTradePct)}%</b>` },
+    { h: "관측 대비", f: (q) => (q.requiredEdgeMultiple ? `${n2(q.requiredEdgeMultiple)}배` : '<span class="fail">불가</span>') },
+    { h: "필요 실효 레버리지", f: (q) => (q.requiredLeverage ? n2(q.requiredLeverage) + "×" : '<span class="fail">불가 (EV≤0)</span>') },
+    { h: "그 엣지의 t", f: (q) => `<b>${n2(q.requiredT)}</b>` },
+  ],
+  reqRows,
+  { note: "'그 엣지의 t'는 같은 표본·같은 변동성에서 기대값이 필요값이었다면 나왔을 t다. 관측 최대 t와 직접 비교할 수 있는 눈금이다." },
+));
+add(`<div class="card">
+  <h3>병목은 레버리지가 아니라 엣지다</h3>
+  <p>바스켓 A(인샘플 최고치)는 월 10%에 <b>실효 ${n2(F.requirements.A.find((r) => r.target === 10).requiredLeverage)}×</b>면 닿는다. 레버리지는 부족하지 않다. 문제는 그 계산에 들어간 EV ${F.requirements.A.find((r) => r.target === 10).observedEvPct}%가 <b>4,428개를 훑어 고른 인샘플 최고치</b>이고, 같은 방식으로 고른 부품이 OOS에서 EV ${F.requirements.B.find((r) => r.target === 10).observedEvPct}%로 뒤집힌다는 점이다.</p>
+  <p>필요한 것은 거래당 <b>${n2(F.requirements.A.find((r) => r.target === 10).requiredReturnPerTradePct)}%</b>, t로 환산하면 <b>${n2(F.requirements.A.find((r) => r.target === 10).requiredT)}</b>짜리 엣지다. 이 회차가 전수에서 찾은 최대치는 <b>${n2(maxT)}</b>이고, 그마저 우연이 만드는 <b>${n2(S.multipleTesting.nullMaxT)}</b>보다 낮다.</p>
+</div>`);
+
+/* §9 결론 */
+add(`<h2><span class="num">9</span>결론</h2>`);
+add(`<div class="card">
+<p><b>1. 기각.</b> BTC 4H·1H·15m 기술적 지표 조합으로 월 10% 복리는 이 회차의 데이터·기준에서 성립하지 않는다. 부품 게이트 0/${S.total.toLocaleString()}, 복리 게이트 0/${F.gridA.length + F.gridB.length}.</p>
+<p><b>2. 비용 문제가 아니다.</b> 수수료·슬리피지·펀딩을 0으로 둬도 최대 t는 귀무 기댓값 아래다. 더 싼 거래소·메이커 주문·낮은 빈도로 해결될 성질이 아니다.</p>
+<p><b>3. 지표를 더 넣어도 같다.</b> 신규 18종을 포함해 31계열을 전수했고 계열 간 우열이 없었다. 32번째 지표가 답일 확률은 낮다.</p>
+<p><b>4. 봉을 줄이는 것은 반대 방향이다.</b> EV>0 비율이 15m ${S.byTf.find((x) => x.key === "15m").evPosPct}% · 1H ${S.byTf.find((x) => x.key === "1H").evPosPct}% · 4H ${S.byTf.find((x) => x.key === "4H").evPosPct}%. 15m 4차 기각.</p>
+<p><b>5. 월 중앙값을 목표로 삼으면 안 된다.</b> 인샘플 최고 설정은 월 중앙 +${n1(hA.monthlyMedian)}%를 내면서 최종 자산이 제자리였다. 목표는 <b>기하평균(CAGR)과 낙폭</b>으로 세워야 한다.</p>
+</div>`);
+add(`<h3>그럼 무엇을 해야 하는가</h3>
+<ol>
+  <li><b>목표를 다시 세운다.</b> 이 저장소의 검증된 최고치는 CAGR 48% · MDD −35%(베이시스 회차, 게이트 6/6)다. 월로 환산하면 약 <b>3.3%</b>다. 월 10%가 아니라 <b>월 3% 유지</b>가 현실적인 다음 목표다. 이 회차 표에서도 월 3%는 실효 ${n2(F.requirements.A.find((r) => r.target === 3).requiredLeverage)}×로 닿는 거리다.</li>
+  <li><b>OHLCV 밖으로 나간다.</b> 이 저장소에서 유일하게 t≥2.5를 낸 부품은 지표가 아니라 <b>베이시스(스왑−현물 괴리, t=3.52)</b>였다. 가격에서 파생된 지표는 같은 정보를 다르게 자를 뿐이다. 다음 후보: 미결제약정, 펀딩 z-스코어, 청산 데이터, 현물 순유입.</li>
+  <li><b>추세장을 포함한 창에서 재검증한다.</b> 이 창은 BTC 매수보유가 4.8년 +${n1(G["4H"].buyHold.totalPct)}%인 무방향 장이었다. 추세 계열의 기각은 창 의존적일 수 있다.</li>
+  <li><b>15m·1H는 닫는다.</b> 네 번의 독립적 기각이면 충분하다.</li>
+</ol>`);
+
+/* §10 한계 */
+add(`<h2><span class="num">10</span>한계 · 사전 등록 이후 변경</h2>`);
+add(`<ol>
+<li><b>인샘플 상한</b> — 4,464개를 훑은 뒤의 최고값은 실전 기대값이 아니다. 바스켓 A의 모든 수치가 여기 해당한다.</li>
+<li><b>봉 내부 경로 미상</b> — 손절·목표 동시 터치를 손절로 처리했지만 15m에서 실제 체결은 더 나쁠 수 있다.</li>
+<li><b>단일 자산·단일 거래소</b> — OKX BTC-USDT-SWAP 하나. 일반화 근거 없음.</li>
+<li><b>창 의존성</b> — 위 §5·§9 참조. 이 결론의 가장 큰 약점이다.</li>
+<li><b>펀딩 대리변수</b> — 전 구간은 Binance 값이다(겹침 상관 ${n2(D.data.funding.validation.corr)}). 다만 이 회차에서 펀딩 기여는 0.003% 미만이라 결론을 바꾸지 않는다.</li>
+<li><b>청산 모델 단순화</b> — MAE 기준 판정. ADL·부분청산·증거금 추가는 모형에 없다.</li>
+</ol>`);
+add(`<details><summary>사전 등록 이후 변경 이력 6건 — 결과를 보고 바꾼 것 5건 포함 (펼치기)</summary>
+<div class="scroll"><table><thead><tr><th class="l">#</th><th class="l">무엇을</th><th class="l">왜</th><th>결과 본 뒤?</th></tr></thead><tbody>
+<tr><td class="l">1</td><td class="l">펀딩 소스를 OKX 실측 → Binance 대리변수 + OKX 검증</td><td class="l">OKX 공개 API가 약 95일치만 보존(실측 285건). 1,800일 창을 못 덮음</td><td>아니오</td></tr>
+<tr><td class="l">2</td><td class="l">G5 p값을 양측 → 단측(H1: EV&gt;0)</td><td class="l">양측이면 크게 잃는 조합도 귀무 기각으로 통과(양측 기준 1,679개). 방향성 가설에 양측은 명세 오류</td><td><b>예</b></td></tr>
+<tr><td class="l">3</td><td class="l">증거금 모델에서 실효/거래소 레버리지 분리</td><td class="l">초기 구현이 증거금을 자산 전액으로 잡아 동시 3포지션이 1개로 굶음(신호 46회/월 중 12.85회만 체결)</td><td>예</td></tr>
+<tr><td class="l">4</td><td class="l">엔진 MAE 계산 수정</td><td class="l">추적손절이 <b>이익 구간</b>에서 발동하면 MAE에 이익 폭이 부호 반대로 들어감. 수정 후 MAE 최대 18.17% → 4.43%</td><td>예</td></tr>
+<tr><td class="l">5</td><td class="l">부트스트랩 대상을 1× 손익 → 그 설정의 실제 자산 수익률</td><td class="l">1× 손익 재표집이면 리스크 30%와 1%의 파산확률이 같아짐</td><td>예</td></tr>
+<tr><td class="l">6</td><td class="l">P4·P5 바스켓 조건 완화 (G1·G2·G4만)</td><td class="l">게이트 6/6 통과가 0개라 그대로면 실행 불가. 목적을 "생존자 운용"에서 "상한 측정"으로 전환</td><td>예</td></tr>
+</tbody></table></div>
+<p class="note">숨기면 사전 등록이 의미가 없다. 2번은 결론을 <b>더 엄격한 쪽으로</b> 바꿨고(양측 기준으로도 6/6 생존은 0개였다), 3·4번은 회계 오류 수정이며, 6번은 완화이므로 리포트 전면에 명시했다.</p>
+</details>`);
+
+/* 부록 */
+add(`<h2><span class="num">A</span>부록 — 검증한 신호 31계열</h2>`);
+add(table(
+  [
+    { h: "계열", l: 1, f: (f) => f.family },
+    { h: "이름", l: 1, f: (f) => `${esc(f.name)}${f.novel ? '<span class="chip new">신규</span>' : ""}` },
+    { h: "판정 규칙 (롱 기준 · 숏은 기계적 미러)", l: 1, f: (f) => esc(f.rule) },
+  ],
+  D.families,
+  { note: "모든 신호는 '상태'가 아니라 '전환'으로 정의했다 — RSI<30이 아니라 30을 되밟고 올라오는 봉. 상태 신호는 같은 국면에서 수백 번 켜져 표본이 부풀고 통계가 거짓말을 한다." },
+));
+add(`<h3>청산 기하 · 국면 필터</h3>`);
+add(table(
+  [{ h: "키", l: 1, f: (e) => e.key }, { h: "이름", l: 1, f: (e) => esc(e.name) },
+   { h: "손절", f: (e) => e.sl + "×ATR" }, { h: "목표", f: (e) => (e.tp ? e.tp + "×ATR" : "—") },
+   { h: "추적", f: (e) => (e.trail ? e.trail + "×ATR" : "—") }],
+  D.exits,
+));
+add(table(
+  [{ h: "키", l: 1, f: (f) => f.key }, { h: "이름", l: 1, f: (f) => esc(f.name) }, { h: "정의", l: 1, f: (f) => esc(f.desc) }],
+  D.filters,
+));
+
+add(`<hr>`);
+add(`<p class="note">생성 ${esc(dt.toISOString().slice(0, 16).replace("T", " "))} UTC · 재현: <code>node backtest-lab/fetch.mjs → sweep.mjs → diagnose.mjs → frontier.mjs → report.mjs</code> · 원자료 <code>backtest-lab/out/{sweep,diagnose,frontier}.json</code> · 기획·사전등록 <code>backtest-lab/README.md</code></p>`);
+</script>

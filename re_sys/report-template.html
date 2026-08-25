@@ -1,0 +1,477 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>쿼드 복기 — BTC 과거 신호·체결 이력</title>
+<style>
+  /* 다크 기본 — 백테스트 시리즈 공통 토큰. 4색은 dataviz 검증 통과(dark, surface #161a21). */
+  :root {
+    color-scheme: dark;
+    --bg: #0e1116;
+    --surface: #161a21;
+    --surface-2: #1e232c;
+    --border: #2a3039;
+    --ink: #e6e9ee;
+    --dim: #8b95a3;
+    --grid: #232935;
+    --s1: #3987e5;
+    --s2: #d95926;
+    --s3: #199e70;
+    --s4: #c98500;
+    --pos: #3987e5;
+    --neg: #e66767;
+    --good: #0ca30c;
+    --warn: #fab219;
+    --crit: #d03b3b;
+    --accent-soft: rgba(57, 135, 229, 0.14);
+  }
+  @media (prefers-color-scheme: light) {
+    :root:not([data-theme="dark"]) {
+      color-scheme: light;
+      --bg: #f7f8fa;
+      --surface: #ffffff;
+      --surface-2: #f1f3f6;
+      --border: #e2e5ea;
+      --ink: #14171c;
+      --dim: #666e7a;
+      --grid: #e8eaee;
+      --s1: #2a78d6;
+      --s2: #eb6834;
+      --s3: #1baf7a;
+      --s4: #eda100;
+      --pos: #2a78d6;
+      --neg: #e34948;
+      --good: #0ca30c;
+      --warn: #b57a00;
+      --crit: #d03b3b;
+      --accent-soft: rgba(42, 120, 214, 0.1);
+    }
+  }
+  :root[data-theme="light"] {
+    color-scheme: light;
+    --bg: #f7f8fa;
+    --surface: #ffffff;
+    --surface-2: #f1f3f6;
+    --border: #e2e5ea;
+    --ink: #14171c;
+    --dim: #666e7a;
+    --grid: #e8eaee;
+    --s1: #2a78d6;
+    --s2: #eb6834;
+    --s3: #1baf7a;
+    --s4: #eda100;
+    --pos: #2a78d6;
+    --neg: #e34948;
+    --good: #0ca30c;
+    --warn: #b57a00;
+    --crit: #d03b3b;
+    --accent-soft: rgba(42, 120, 214, 0.1);
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font: 15px/1.7 -apple-system, "Segoe UI", "Malgun Gothic", system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 1120px; margin: 0 auto; padding: 40px 22px 96px; }
+  h1 { font-size: 30px; line-height: 1.25; margin: 0 0 10px; letter-spacing: -0.02em; }
+  h2 { font-size: 20px; margin: 52px 0 6px; letter-spacing: -0.01em; }
+  h2 .num { color: var(--dim); font-weight: 500; margin-right: 8px; }
+  p { margin: 10px 0; }
+  .lede { color: var(--dim); font-size: 16px; margin-bottom: 22px; }
+  .note { color: var(--dim); font-size: 13px; }
+  code { background: var(--surface-2); padding: 1px 5px; border-radius: 4px; font-size: 13px;
+         font-family: ui-monospace, "Cascadia Mono", Consolas, monospace; }
+
+  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; margin: 20px 0 6px; }
+  .tile { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; }
+  .tile .k { font-size: 12px; color: var(--dim); letter-spacing: .02em; }
+  .tile .v { font-size: 26px; font-weight: 650; letter-spacing: -0.02em; margin-top: 3px; }
+  .tile .s { font-size: 12px; color: var(--dim); margin-top: 2px; }
+
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 18px 20px; margin: 16px 0; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 13.5px; margin: 12px 0; }
+  th, td { padding: 6px 9px; text-align: right; border-bottom: 1px solid var(--border); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  th:first-child, td:first-child, th.l, td.l { text-align: left; }
+  thead th { color: var(--dim); font-weight: 600; font-size: 12.5px;
+             border-bottom: 1px solid var(--border); position: sticky; top: 0; background: var(--surface); z-index: 1; }
+  tbody tr:hover { background: var(--accent-soft); }
+  .scroll { overflow-x: auto; overflow-y: auto; max-height: 520px; margin: 12px -4px; padding: 0 4px;
+            border-bottom: 1px solid var(--border); }
+  .pos { color: var(--pos); }
+  .neg { color: var(--neg); }
+
+  .swatch { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 6px; vertical-align: baseline; }
+  .legend { display: flex; flex-wrap: wrap; gap: 14px; font-size: 13px; color: var(--dim); margin: 6px 0 2px; }
+  .legend b { color: var(--ink); font-weight: 600; }
+
+  .filters { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin: 14px 0 4px; font-size: 13px; }
+  .filters label { color: var(--dim); }
+  select {
+    background: var(--surface-2); color: var(--ink); border: 1px solid var(--border);
+    border-radius: 7px; padding: 5px 8px; font: inherit; font-size: 13px;
+  }
+
+  .chart { position: relative; margin: 10px 0 4px; }
+  .chart svg { display: block; width: 100%; height: auto; }
+  .tooltip {
+    position: absolute; pointer-events: none; display: none; z-index: 5;
+    background: var(--surface-2); border: 1px solid var(--border); border-radius: 8px;
+    padding: 7px 10px; font-size: 12.5px; line-height: 1.55; white-space: nowrap;
+    box-shadow: 0 4px 14px rgba(0,0,0,.25);
+  }
+  .tooltip .d { color: var(--dim); }
+  .axis-note { font-size: 12px; color: var(--dim); margin-top: 2px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>쿼드 복기 — BTC 과거 신호·체결 이력</h1>
+  <p class="lede" id="lede"></p>
+  <div class="tiles" id="tiles"></div>
+
+  <h2><span class="num">1</span>포트폴리오 복기 — 현 시스템 규칙 그대로</h2>
+  <p class="note">동시 포지션 2개 · 리스크 합 20% 상한 · 진입 시점 잔고 기준 복리 회계. 라이브 쿼드 봇이 이 기간 내내 돌았다면 남겼을 기록의 근사다.</p>
+  <div class="card">
+    <div class="legend" id="pf-legend"></div>
+    <div class="chart" id="pf-chart"></div>
+    <p class="axis-note">세로축은 로그 눈금 — 복리 곡선은 선형 눈금에서 왜곡된다.</p>
+  </div>
+  <div class="card">
+    <table id="pf-summary"></table>
+    <table id="pf-skips"></table>
+  </div>
+  <div class="card">
+    <h3 style="margin-top:0">연도별 분해 — 배수(×)</h3>
+    <p class="note">전 구간 합산이 감추는 시기 편중을 본다. 배수 = 그 해 진입 트레이드의 (1+순손익%) 곱.</p>
+    <div class="scroll" style="max-height:none"><table id="pf-yearly"></table></div>
+  </div>
+  <div class="card">
+    <h3 style="margin-top:0">월별 배수 — 포트폴리오</h3>
+    <div class="scroll" style="max-height:none"><table id="pf-monthly"></table></div>
+  </div>
+  <div class="card">
+    <h3 style="margin-top:0">시장 국면별 — BTC 1D 종가 vs SMA200</h3>
+    <table id="pf-regime"></table>
+  </div>
+  <div class="card">
+    <h3 style="margin-top:0">최대 낙폭 에피소드 · 트레이드 순손익 분포</h3>
+    <table id="pf-dd"></table>
+    <table id="pf-hist"></table>
+  </div>
+
+  <h2><span class="num">2</span>기준별 독립 복기</h2>
+  <p class="note">각 기준을 단독 운용했을 때의 자산 지수(시작 100). 기준 간 상한 제약 없음 — 신호 이력의 정본은 이 층위다.</p>
+  <div class="card">
+    <div class="legend" id="mb-legend"></div>
+    <div class="chart" id="mb-chart"></div>
+    <p class="axis-note">세로축은 로그 눈금.</p>
+  </div>
+  <div class="card"><table id="mb-summary"></table></div>
+
+  <h2><span class="num">3</span>트레이드 이력</h2>
+  <div class="filters">
+    <label>층위 <select id="f-mode">
+      <option value="portfolio">포트폴리오 체결</option>
+      <option value="member">기준별 독립</option>
+    </select></label>
+    <label>기준 <select id="f-member"><option value="">전체</option></select></label>
+    <label>청산 <select id="f-exit">
+      <option value="">전체</option>
+      <option value="tp">목표(tp)</option>
+      <option value="sl">손절(sl)</option>
+      <option value="time">시한(time)</option>
+      <option value="open">미청산(open)</option>
+    </select></label>
+    <span class="note" id="t-count"></span>
+  </div>
+  <div class="scroll"><table id="trades"></table></div>
+
+  <h2><span class="num">4</span>신호 이력 — 미진입 포함</h2>
+  <p class="note">발화했지만 들어가지 않은 신호와 그 사유까지 남긴다 — "그때 왜 안 들어갔나"가 복기의 절반이다.</p>
+  <div class="filters">
+    <label>기준 <select id="s-member"><option value="">전체</option></select></label>
+    <label>판정 <select id="s-action">
+      <option value="">전체</option>
+      <option value="enter">진입</option>
+      <option value="skip">건너뜀</option>
+      <option value="pending">미확정</option>
+    </select></label>
+    <span class="note" id="s-count"></span>
+  </div>
+  <div class="scroll"><table id="signals"></table></div>
+
+  <h2><span class="num">5</span>전제와 한계</h2>
+  <div class="card">
+    <ul class="note" style="margin:0; padding-left: 18px;">
+      <li>판정은 확정 봉에서만, 부등식은 라이브 봇 <code>signals.mjs</code> 를 그대로 import — 화면과 봇이 다른 것을 보지 않는다.</li>
+      <li>진입가는 다음 봉 시가 — 라이브의 "마감 직후 시장가"의 근사다. 슬리피지는 수수료 추정(왕복 <span id="n-fee"></span>%)에 뭉뚱그려져 있다.</li>
+      <li>같은 봉에서 손절·목표가 겹치면 손절 우선, 갭이면 시가 체결 — 봇 페이퍼 시뮬레이션과 같은 보수 규칙.</li>
+      <li>펀딩비 미반영. 손익은 추정치이며 실계좌 정본은 거래소 체결 기록이다.</li>
+      <li>포트폴리오 MDD는 트레이드 청산 시점 granularity — 보유 중 미실현 낙폭은 이보다 깊을 수 있다.</li>
+      <li>데이터: OKX <code>history-candles</code> 확정봉, 상장(2019년)부터 로컬 누적(<code>re_sys/data/</code>).</li>
+    </ul>
+  </div>
+</div>
+
+<script id="data" type="application/json">__DATA_JSON__</script>
+<script>
+const DATA = JSON.parse(document.getElementById("data").textContent);
+const MEMBER_COLOR = { gc: "var(--s1)", ob: "var(--s2)", fade: "var(--s3)", dc: "var(--s4)" };
+const MEMBER_KEYS = Object.keys(DATA.members);
+const fmtD = (ts) => new Date(ts).toISOString().slice(0, 10);
+const fmtDT = (ts) => new Date(ts).toISOString().slice(0, 16).replace("T", " ");
+const fmtN = (v, d = 2) => (v === null || v === undefined ? "—" : Number(v).toLocaleString("en-US", { maximumFractionDigits: d, minimumFractionDigits: 0 }));
+const signCls = (v) => (v > 0 ? "pos" : v < 0 ? "neg" : "");
+const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[ch]));
+
+/* ---------- 머리말·타일 ---------- */
+{
+  const r = DATA.dataRange;
+  const tfTxt = Object.entries(r).map(([tf, x]) => `${tf} ${x.bars.toLocaleString()}봉 (${fmtD(x.from)} → ${fmtD(x.to)})`).join(" · ");
+  document.getElementById("lede").textContent =
+    `${DATA.instId} · ${tfTxt} · 생성 ${fmtDT(DATA.generatedAt)} UTC`;
+  document.getElementById("n-fee").textContent = DATA.config.feePct;
+
+  const ps = DATA.portfolio.summary;
+  const totalSignals = MEMBER_KEYS.reduce((s, k) => s + DATA.members[k].signals.length, 0);
+  const tiles = [
+    { k: "신호(전체 기준)", v: totalSignals.toLocaleString(), s: "발화 기준 · 미진입 포함" },
+    { k: "포트폴리오 진입", v: ps.entered.toLocaleString(), s: `건너뜀 ${ps.skipped.toLocaleString()}건` },
+    { k: "승률", v: ps.winRate === null ? "—" : ps.winRate + "%", s: "청산 완료 기준" },
+    { k: "자산 (시작 $" + ps.startEquity + ")", v: "$" + fmtN(ps.finalEquity, 0), s: "복리 · 수수료 반영 · 펀딩 제외" },
+    { k: "최대 낙폭", v: ps.maxDdPct + "%", s: "청산 시점 기준" },
+    { k: "동시 포지션 최대", v: ps.maxConcurrent + "개", s: `상한 ${DATA.config.maxConcurrent}개` },
+  ];
+  document.getElementById("tiles").innerHTML = tiles.map((t) =>
+    `<div class="tile"><div class="k">${t.k}</div><div class="v">${t.v}</div><div class="s">${t.s}</div></div>`).join("");
+}
+
+/* ---------- 라인 차트 (로그 y · 크로스헤어 툴팁) ---------- */
+function lineChart(el, series, { yLabel }) {
+  const W = 1060, H = 320, m = { t: 14, r: 90, b: 26, l: 58 };
+  const iw = W - m.l - m.r, ih = H - m.t - m.b;
+  const all = series.flatMap((s) => s.points);
+  if (!all.length) { el.textContent = "데이터 없음"; return; }
+  const x0 = Math.min(...all.map((p) => p.ts)), x1 = Math.max(...all.map((p) => p.ts));
+  let y0 = Math.min(...all.map((p) => p.eq)), y1 = Math.max(...all.map((p) => p.eq));
+  y0 = Math.max(y0 * 0.9, 1e-6); y1 = y1 * 1.1;
+  const X = (t) => m.l + ((t - x0) / (x1 - x0 || 1)) * iw;
+  const Y = (v) => m.t + ih - ((Math.log10(v) - Math.log10(y0)) / (Math.log10(y1) - Math.log10(y0) || 1)) * ih;
+
+  // y 눈금 — 10의 거듭제곱, 구간이 좁으면 1-2-5 스텝.
+  const ticks = [];
+  const decades = Math.log10(y1) - Math.log10(y0);
+  const steps = decades > 3 ? [1] : decades > 1.2 ? [1, 3] : [1, 2, 5];
+  for (let e = Math.floor(Math.log10(y0)); e <= Math.ceil(Math.log10(y1)); e += 1)
+    for (const s of steps) { const v = s * 10 ** e; if (v >= y0 && v <= y1) ticks.push(v); }
+  // x 눈금 — 연 단위.
+  const xt = [];
+  for (let y = new Date(x0).getUTCFullYear() + 1; y <= new Date(x1).getUTCFullYear(); y += 1)
+    xt.push(Date.UTC(y, 0, 1));
+
+  let svg = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(yLabel)}">`;
+  for (const v of ticks)
+    svg += `<line x1="${m.l}" x2="${W - m.r}" y1="${Y(v)}" y2="${Y(v)}" stroke="var(--grid)" stroke-width="1"/>` +
+           `<text x="${m.l - 8}" y="${Y(v) + 4}" text-anchor="end" font-size="11" fill="var(--dim)">${fmtN(v, 0)}</text>`;
+  for (const t of xt)
+    svg += `<line x1="${X(t)}" x2="${X(t)}" y1="${m.t}" y2="${m.t + ih}" stroke="var(--grid)" stroke-width="1"/>` +
+           `<text x="${X(t)}" y="${H - 8}" text-anchor="middle" font-size="11" fill="var(--dim)">${new Date(t).getUTCFullYear()}</text>`;
+  for (const s of series) {
+    const d = s.points.map((p, i) => `${i ? "L" : "M"}${X(p.ts).toFixed(1)},${Y(p.eq).toFixed(1)}`).join("");
+    svg += `<path d="${d}" fill="none" stroke="${s.color}" stroke-width="2" stroke-linejoin="round"/>`;
+    const last = s.points[s.points.length - 1];
+    svg += `<circle cx="${X(last.ts)}" cy="${Y(last.eq)}" r="3" fill="${s.color}"/>` +
+           `<text x="${X(last.ts) + 7}" y="${Y(last.eq) + 4}" font-size="11.5" fill="var(--ink)">${esc(s.short ?? s.label)}</text>`;
+  }
+  svg += `<line id="xh" x1="0" x2="0" y1="${m.t}" y2="${m.t + ih}" stroke="var(--dim)" stroke-width="1" stroke-dasharray="3 3" visibility="hidden"/>`;
+  svg += `<rect id="hit" x="${m.l}" y="${m.t}" width="${iw}" height="${ih}" fill="transparent"/>`;
+  svg += `</svg><div class="tooltip"></div>`;
+  el.innerHTML = svg;
+
+  const svgEl = el.querySelector("svg"), tipEl = el.querySelector(".tooltip"), xhEl = el.querySelector("#xh");
+  el.querySelector("#hit").addEventListener("mousemove", (ev) => {
+    const rect = svgEl.getBoundingClientRect();
+    const t = x0 + ((ev.clientX - rect.left) / rect.width * W - m.l) / iw * (x1 - x0);
+    const rows = series.map((s) => {
+      let lo = 0, hi = s.points.length - 1;
+      while (lo < hi) { const mid = (lo + hi + 1) >> 1; if (s.points[mid].ts <= t) lo = mid; else hi = mid - 1; }
+      return { s, p: s.points[lo] };
+    });
+    xhEl.setAttribute("x1", X(t)); xhEl.setAttribute("x2", X(t)); xhEl.setAttribute("visibility", "visible");
+    tipEl.style.display = "block";
+    tipEl.innerHTML = `<span class="d">${fmtD(t)}</span><br>` +
+      rows.map((r) => `<span class="swatch" style="background:${r.s.color}"></span>${esc(r.s.label)} <b>${fmtN(r.p.eq, 1)}</b>`).join("<br>");
+    const px = (X(t) / W) * rect.width;
+    tipEl.style.left = Math.min(px + 14, rect.width - tipEl.offsetWidth - 8) + "px";
+    tipEl.style.top = (ev.clientY - rect.top + 14) + "px";
+  });
+  el.querySelector("#hit").addEventListener("mouseleave", () => {
+    tipEl.style.display = "none"; xhEl.setAttribute("visibility", "hidden");
+  });
+}
+
+/* ---------- 1. 포트폴리오 ---------- */
+{
+  const pf = DATA.portfolio;
+  lineChart(document.getElementById("pf-chart"),
+    [{ label: "자산($)", color: "var(--s1)", points: pf.curve }], { yLabel: "포트폴리오 자산" });
+  document.getElementById("pf-legend").innerHTML =
+    `<span><span class="swatch" style="background:var(--s1)"></span><b>포트폴리오 자산($)</b> — 청산 시점마다 한 점</span>`;
+
+  const ps = pf.summary;
+  document.getElementById("pf-summary").innerHTML =
+    `<thead><tr><th class="l">항목</th><th>값</th><th class="l">항목</th><th>값</th></tr></thead><tbody>` +
+    `<tr><td class="l">신호 → 진입 / 건너뜀</td><td>${ps.signals} → ${ps.entered} / ${ps.skipped}</td>` +
+    `<td class="l">승률 · 평균 순손익</td><td>${ps.winRate ?? "—"}% · <span class="${signCls(ps.avgNetPct)}">${fmtN(ps.avgNetPct)}%</span></td></tr>` +
+    `<tr><td class="l">자산 $${ps.startEquity} → </td><td>$${fmtN(ps.finalEquity, 0)}</td>` +
+    `<td class="l">이익 계수 · 최대 낙폭</td><td>${ps.profitFactor ?? "—"} · ${ps.maxDdPct}%</td></tr></tbody>`;
+
+  const reasons = {};
+  for (const s of pf.skips) reasons[s.skip] = (reasons[s.skip] ?? 0) + 1;
+  document.getElementById("pf-skips").innerHTML =
+    `<thead><tr><th class="l">건너뜀 사유</th><th>건수</th></tr></thead><tbody>` +
+    Object.entries(reasons).sort((a, b) => b[1] - a[1]).map(([k, v]) =>
+      `<tr><td class="l">${esc(k)}</td><td>${v}</td></tr>`).join("") +
+    (pf.skips.length ? "" : `<tr><td class="l" colspan="2">건너뜀 없음</td></tr>`) + `</tbody>`;
+}
+
+/* ---------- 1b. 기간·국면 분해 ---------- */
+{
+  const A = DATA.portfolio.analysis;
+  const multCell = (m) => m === undefined ? "<td>—</td>" :
+    `<td class="${m.mult >= 1 ? "pos" : "neg"}">×${m.mult.toFixed(m.mult >= 10 ? 1 : 2)}</td>`;
+
+  // 연도별: 포트폴리오 + 기준별.
+  const years = A.byYear.map((s) => s.key);
+  const memberByYear = Object.fromEntries(MEMBER_KEYS.map((k) =>
+    [k, Object.fromEntries(DATA.members[k].summary.byYear.map((s) => [s.key, s]))]));
+  document.getElementById("pf-yearly").innerHTML =
+    `<thead><tr><th class="l">연도</th><th>거래</th><th>승률</th><th>포트폴리오</th>${MEMBER_KEYS.map((k) => `<th>${k}</th>`).join("")}</tr></thead><tbody>` +
+    A.byYear.map((s) =>
+      `<tr><td class="l">${s.key}</td><td>${s.n}</td><td>${s.winRate}%</td>${multCell(s)}` +
+      MEMBER_KEYS.map((k) => multCell(memberByYear[k][s.key])).join("") + `</tr>`).join("") + `</tbody>`;
+
+  // 월별 피벗: 행=연도, 열=1~12월.
+  const byMonth = Object.fromEntries(A.byMonth.map((s) => [s.key, s]));
+  document.getElementById("pf-monthly").innerHTML =
+    `<thead><tr><th class="l">연도</th>${Array.from({ length: 12 }, (_, i) => `<th>${i + 1}월</th>`).join("")}</tr></thead><tbody>` +
+    years.map((y) =>
+      `<tr><td class="l">${y}</td>` +
+      Array.from({ length: 12 }, (_, i) => multCell(byMonth[`${y}-${String(i + 1).padStart(2, "0")}`])).join("") +
+      `</tr>`).join("") + `</tbody>`;
+
+  // 국면별: 포트폴리오 + 기준별.
+  const memberByRegime = Object.fromEntries(MEMBER_KEYS.map((k) =>
+    [k, Object.fromEntries(DATA.members[k].summary.byRegime.map((s) => [s.key, s]))]));
+  document.getElementById("pf-regime").innerHTML =
+    `<thead><tr><th class="l">국면</th><th>거래</th><th>승률</th><th>포트폴리오</th>${MEMBER_KEYS.map((k) => `<th>${k}</th>`).join("")}</tr></thead><tbody>` +
+    A.byRegime.map((s) =>
+      `<tr><td class="l">${esc(s.key)}</td><td>${s.n}</td><td>${s.winRate}%</td>${multCell(s)}` +
+      MEMBER_KEYS.map((k) => multCell(memberByRegime[k][s.key])).join("") + `</tr>`).join("") + `</tbody>`;
+
+  document.getElementById("pf-dd").innerHTML =
+    `<thead><tr><th class="l">낙폭 에피소드</th><th>고점</th><th>저점</th><th>회복</th><th>깊이</th></tr></thead><tbody>` +
+    A.drawdowns.map((d, i) =>
+      `<tr><td class="l">${i + 1}</td><td>${fmtD(d.peakTs)}</td><td>${fmtD(d.troughTs)}</td>` +
+      `<td>${d.recoverTs ? fmtD(d.recoverTs) : "미회복"}</td><td class="neg">−${d.depthPct}%</td></tr>`).join("") + `</tbody>`;
+
+  const maxN = Math.max(...A.histogram.map((h) => h.n), 1);
+  document.getElementById("pf-hist").innerHTML =
+    `<thead><tr><th class="l">순손익 구간</th><th>건수</th><th class="l" style="width:45%"></th></tr></thead><tbody>` +
+    A.histogram.map((h) =>
+      `<tr><td class="l">${h.label}</td><td>${h.n}</td>` +
+      `<td class="l"><div style="height:10px;border-radius:3px;width:${(h.n / maxN) * 100}%;background:${h.label.startsWith("−") || h.label.startsWith("<") ? "var(--neg)" : "var(--pos)"}"></div></td></tr>`).join("") + `</tbody>`;
+}
+
+/* ---------- 2. 기준별 ---------- */
+{
+  const series = MEMBER_KEYS.map((k) => ({
+    label: `${k} ${DATA.members[k].name}`,
+    short: k,
+    color: MEMBER_COLOR[k] ?? "var(--dim)",
+    points: [{ ts: DATA.dataRange[DATA.members[k].tf].from, eq: 100 }, ...DATA.members[k].summary.curve],
+  }));
+  lineChart(document.getElementById("mb-chart"), series, { yLabel: "기준별 자산 지수" });
+  document.getElementById("mb-legend").innerHTML = series.map((s) =>
+    `<span><span class="swatch" style="background:${s.color}"></span><b>${esc(s.label)}</b></span>`).join("");
+
+  const head = ["기준", "TF", "방향", "신호", "체결", "승률%", "평균 순손익%", "이익 계수", "최종 지수", "MDD%", "tp/sl/time"];
+  const rows = MEMBER_KEYS.map((k) => {
+    const m = DATA.members[k], s = m.summary, bt = s.byExitType;
+    return `<tr><td class="l"><span class="swatch" style="background:${MEMBER_COLOR[k]}"></span>${k} ${esc(m.name)}</td>` +
+      `<td>${m.tf}</td><td>${m.side}</td><td>${m.signals.length}</td><td>${s.trades}</td>` +
+      `<td>${s.winRate ?? "—"}</td><td class="${signCls(s.avgNetPct)}">${fmtN(s.avgNetPct)}</td>` +
+      `<td>${s.profitFactor ?? "—"}</td><td>${fmtN(s.finalEquityIdx, 0)}</td><td>${s.maxDdPct}</td>` +
+      `<td>${bt.tp ?? 0}/${bt.sl ?? 0}/${bt.time ?? 0}</td></tr>`;
+  });
+  document.getElementById("mb-summary").innerHTML =
+    `<thead><tr>${head.map((h, i) => `<th${i === 0 ? ' class="l"' : ""}>${h}</th>`).join("")}</tr></thead><tbody>${rows.join("")}</tbody>`;
+}
+
+/* ---------- 3. 트레이드 테이블 ---------- */
+{
+  const selMember = document.getElementById("f-member");
+  for (const k of MEMBER_KEYS) selMember.insertAdjacentHTML("beforeend", `<option value="${k}">${k} ${esc(DATA.members[k].name)}</option>`);
+
+  const render = () => {
+    const mode = document.getElementById("f-mode").value;
+    const fm = selMember.value, fe = document.getElementById("f-exit").value;
+    const rows = (mode === "portfolio"
+      ? [...DATA.portfolio.trades, ...DATA.portfolio.openTrades]
+      : MEMBER_KEYS.flatMap((k) => DATA.members[k].trades)
+    ).filter((t) => (!fm || t.member === fm) && (!fe || t.exitType === fe))
+     .sort((a, b) => a.entryTs - b.entryTs);
+
+    const pfCols = mode === "portfolio";
+    const head = ["기준", "방향", "신호 봉", "진입", "진입가", "청산", "청산가", "유형", "보유봉", "레버", "순손익%",
+      ...(pfCols ? ["진입 잔고$", "손익$", "잔고$"] : []), "RSI", "ATR"];
+    const body = rows.map((t) => {
+      const sw = `<span class="swatch" style="background:${MEMBER_COLOR[t.member]}"></span>`;
+      return `<tr><td class="l">${sw}${t.member}</td><td>${t.side}</td>` +
+        `<td>${fmtDT(t.signalTs)}</td><td>${fmtDT(t.entryTs)}</td><td>${fmtN(t.entryPrice)}</td>` +
+        `<td>${t.exitBarTs ? fmtDT(t.exitBarTs) : "—"}</td><td>${t.exitPrice !== undefined ? fmtN(t.exitPrice) : "—"}</td>` +
+        `<td>${t.exitType}</td><td>${t.holdBars ?? "—"}</td><td>${fmtN(t.lev, 1)}</td>` +
+        `<td class="${signCls(t.netPct)}">${t.netPct !== undefined ? fmtN(t.netPct) : "—"}</td>` +
+        (pfCols ? `<td>${fmtN(t.eqAtEntry, 0)}</td><td class="${signCls(t.pnlUsd)}">${t.pnlUsd !== undefined ? fmtN(t.pnlUsd, 0) : "—"}</td><td>${t.equityAfter !== undefined ? fmtN(t.equityAfter, 0) : "—"}</td>` : "") +
+        `<td>${fmtN(t.signal.rsi, 1)}</td><td>${fmtN(t.signal.atr, 1)}</td></tr>`;
+    });
+    document.getElementById("trades").innerHTML =
+      `<thead><tr>${head.map((h, i) => `<th${i === 0 ? ' class="l"' : ""}>${h}</th>`).join("")}</tr></thead><tbody>${body.join("")}</tbody>`;
+    document.getElementById("t-count").textContent = `${rows.length}건`;
+  };
+  for (const id of ["f-mode", "f-member", "f-exit"]) document.getElementById(id).addEventListener("change", render);
+  render();
+}
+
+/* ---------- 4. 신호 테이블 ---------- */
+{
+  const selMember = document.getElementById("s-member");
+  for (const k of MEMBER_KEYS) selMember.insertAdjacentHTML("beforeend", `<option value="${k}">${k} ${esc(DATA.members[k].name)}</option>`);
+
+  const render = () => {
+    const fm = selMember.value, fa = document.getElementById("s-action").value;
+    const rows = MEMBER_KEYS.flatMap((k) => DATA.members[k].signals)
+      .filter((s) => (!fm || s.member === fm) && (!fa || s.action === fa))
+      .sort((a, b) => a.barTs - b.barTs);
+    const head = ["기준", "TF", "마감 봉", "판정", "사유", "종가", "RSI", "ATR", "SMA20", "SMA50", "LL20"];
+    const body = rows.map((s) => {
+      const sw = `<span class="swatch" style="background:${MEMBER_COLOR[s.member]}"></span>`;
+      const i = s.indicators;
+      return `<tr><td class="l">${sw}${s.member}</td><td>${s.tf}</td><td>${fmtDT(s.barTs)}</td>` +
+        `<td>${s.action === "enter" ? "진입" : s.action === "pending" ? "미확정" : "건너뜀"}</td><td class="l">${esc(s.skip ?? "")}</td>` +
+        `<td>${fmtN(i.close)}</td><td>${fmtN(i.rsi, 1)}</td><td>${fmtN(i.atr, 1)}</td>` +
+        `<td>${fmtN(i.sma20, 1)}</td><td>${fmtN(i.sma50, 1)}</td><td>${fmtN(i.ll20, 1)}</td></tr>`;
+    });
+    document.getElementById("signals").innerHTML =
+      `<thead><tr>${head.map((h, i2) => `<th${i2 === 0 ? ' class="l"' : ""}>${h}</th>`).join("")}</tr></thead><tbody>${body.join("")}</tbody>`;
+    document.getElementById("s-count").textContent = `${rows.length}건`;
+  };
+  for (const id of ["s-member", "s-action"]) document.getElementById(id).addEventListener("change", render);
+  render();
+}
+</script>
+</body>
+</html>

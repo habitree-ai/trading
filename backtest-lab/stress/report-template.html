@@ -1,0 +1,588 @@
+<title>하락장 통과 시험</title>
+<style>
+  /* 13·14회차와 같은 토큰 — 형제 문서다. 계열색은 dataviz 검증 팔레트(4슬롯 PASS). */
+  :root {
+    color-scheme: dark;
+    --bg: #0e1116; --surface: #161a21; --surface-2: #1e232c; --border: #2a3039;
+    --ink: #e6e9ee; --dim: #8b95a3; --muted: #898781; --grid: #232935;
+    --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500;
+    --pos: #3987e5; --neg: #e66767;
+    --good: #0ca30c; --warn: #fab219; --crit: #d03b3b;
+    --accent-soft: rgba(57, 135, 229, 0.14);
+  }
+  @media (prefers-color-scheme: light) {
+    :root:not([data-theme="dark"]) {
+      color-scheme: light;
+      --bg: #f7f8fa; --surface: #ffffff; --surface-2: #f1f3f6; --border: #e2e5ea;
+      --ink: #14171c; --dim: #666e7a; --muted: #898781; --grid: #e8eaee;
+      --s1: #2a78d6; --s2: #eb6834; --s3: #1baf7a; --s4: #eda100;
+      --pos: #2a78d6; --neg: #e34948;
+      --good: #0ca30c; --warn: #b57a00; --crit: #d03b3b;
+      --accent-soft: rgba(42, 120, 214, 0.1);
+    }
+  }
+  :root[data-theme="light"] {
+    color-scheme: light;
+    --bg: #f7f8fa; --surface: #ffffff; --surface-2: #f1f3f6; --border: #e2e5ea;
+    --ink: #14171c; --dim: #666e7a; --muted: #898781; --grid: #e8eaee;
+    --s1: #2a78d6; --s2: #eb6834; --s3: #1baf7a; --s4: #eda100;
+    --pos: #2a78d6; --neg: #e34948;
+    --good: #0ca30c; --warn: #b57a00; --crit: #d03b3b;
+    --accent-soft: rgba(42, 120, 214, 0.1);
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink);
+    font: 15px/1.7 -apple-system, "Segoe UI", "Malgun Gothic", system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+  .wrap { max-width: 1120px; margin: 0 auto; padding: 40px 22px 96px; }
+  h1 { font-size: 31px; line-height: 1.24; margin: 0 0 10px; letter-spacing: -0.02em; text-wrap: balance; }
+  h2 { font-size: 20px; margin: 54px 0 6px; letter-spacing: -0.01em; text-wrap: balance; }
+  h2 .num { color: var(--dim); font-weight: 500; margin-right: 8px; font-variant-numeric: tabular-nums; }
+  h3 { font-size: 15.5px; margin: 30px 0 8px; }
+  p { margin: 10px 0; max-width: 74ch; }
+  .lede { color: var(--dim); font-size: 16px; margin-bottom: 22px; max-width: 74ch; }
+  .note { color: var(--dim); font-size: 13px; max-width: 80ch; }
+  .eyebrow { font-size: 12px; letter-spacing: .09em; text-transform: uppercase; color: var(--dim); font-weight: 600; }
+  code { background: var(--surface-2); padding: 1px 5px; border-radius: 4px; font-size: 13px;
+         font-family: ui-monospace, "Cascadia Mono", Consolas, monospace; }
+  a { color: var(--s1); }
+  a:focus-visible, summary:focus-visible { outline: 2px solid var(--s1); outline-offset: 2px; border-radius: 3px; }
+  strong { font-weight: 660; }
+  hr { border: 0; border-top: 1px solid var(--border); margin: 34px 0; }
+
+  .verdict { border: 1px solid var(--border); border-left: 3px solid var(--warn);
+    background: var(--surface); border-radius: 10px; padding: 18px 20px; margin: 22px 0 8px; }
+  .verdict .tag { display: inline-block; font-size: 12px; font-weight: 700; letter-spacing: .04em;
+    color: var(--warn); border: 1px solid var(--warn); border-radius: 999px; padding: 2px 10px; margin-bottom: 10px; }
+  .verdict p { margin: 6px 0; }
+  .verdict.bad { border-left-color: var(--crit); }
+  .verdict.bad .tag { color: var(--crit); border-color: var(--crit); }
+  .verdict.ok { border-left-color: var(--good); }
+  .verdict.ok .tag { color: var(--good); border-color: var(--good); }
+
+  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(196px, 1fr)); gap: 12px; margin: 20px 0 6px; }
+  .tile { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; }
+  .tile .k { font-size: 12px; color: var(--dim); }
+  .tile .v { font-size: 26px; font-weight: 650; letter-spacing: -0.02em; margin-top: 3px; font-variant-numeric: tabular-nums; }
+  .tile .s { font-size: 12px; color: var(--dim); margin-top: 2px; }
+  .tile.bad .v { color: var(--crit); }
+  .tile.ok .v { color: var(--good); }
+  .tile.hi { border-color: var(--warn); }
+
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 18px 20px; margin: 16px 0; }
+  .card > h3:first-child { margin-top: 0; }
+  .card.pick { border-left: 3px solid var(--good); }
+  .card.cond { border-left: 3px solid var(--warn); }
+  .card.avoid { border-left: 3px solid var(--crit); }
+  .gate { display: grid; grid-template-columns: max-content 1fr; gap: 10px 16px; align-items: start; }
+  .gate .badge { font-size: 12px; font-weight: 700; border-radius: 6px; padding: 3px 8px; text-align: center; white-space: nowrap; }
+  .gate .badge.p { color: var(--good); border: 1px solid var(--good); }
+  .gate .badge.f { color: var(--crit); border: 1px solid var(--crit); }
+  .gate .badge.w { color: var(--warn); border: 1px solid var(--warn); }
+  .spec { font-size: 13px; color: var(--dim); font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
+    background: var(--surface-2); border-radius: 6px; padding: 8px 10px; margin: 10px 0; overflow-x: auto; white-space: nowrap; }
+  .forag { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 12px; margin-top: 12px; }
+  .forag > div { font-size: 13.5px; }
+  .forag .h { font-size: 12px; letter-spacing: .06em; text-transform: uppercase; color: var(--dim); font-weight: 650; margin-bottom: 3px; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 13.5px; margin: 12px 0; }
+  th, td { padding: 7px 9px; text-align: right; border-bottom: 1px solid var(--border); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  th:first-child, td:first-child { text-align: left; }
+  th.l, td.l { text-align: left; }
+  thead th { color: var(--dim); font-weight: 600; font-size: 12.5px; background: var(--surface); }
+  tbody tr:hover { background: var(--accent-soft); }
+  tbody tr.hl { background: var(--accent-soft); }
+  .scroll { overflow-x: auto; margin: 12px -4px; padding: 0 4px; }
+  .chartbox { overflow-x: auto; }
+  .pos { color: var(--pos); } .neg { color: var(--neg); }
+  .pass { color: var(--good); font-weight: 650; } .fail { color: var(--crit); font-weight: 650; }
+  .chip { display: inline-block; font-size: 11px; padding: 1px 6px; border-radius: 4px;
+          border: 1px solid var(--border); color: var(--dim); margin-left: 5px; }
+  .chip.new { color: var(--s2); border-color: var(--s2); }
+  .chip.warnc { color: var(--warn); border-color: var(--warn); }
+  .chip.okc { color: var(--good); border-color: var(--good); }
+  .chip.critc { color: var(--crit); border-color: var(--crit); }
+
+  figure { margin: 20px 0 8px; }
+  figcaption { font-size: 13px; color: var(--dim); margin-top: 8px; max-width: 80ch; }
+  .figtitle { font-size: 14.5px; font-weight: 620; margin-bottom: 2px; }
+  .figsub { font-size: 12.5px; color: var(--dim); margin-bottom: 10px; max-width: 80ch; }
+  svg { display: block; max-width: 100%; height: auto; }
+  .legend { display: flex; flex-wrap: wrap; gap: 14px; font-size: 12.5px; color: var(--dim); margin: 4px 0 10px; }
+  .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 5px; vertical-align: -1px; }
+  details { margin: 12px 0; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); }
+  summary { cursor: pointer; padding: 11px 16px; font-size: 13.5px; color: var(--dim); font-weight: 600; }
+  details[open] summary { border-bottom: 1px solid var(--border); }
+  details .body { padding: 4px 16px 14px; }
+  ul, ol { max-width: 74ch; padding-left: 20px; }
+  li { margin: 5px 0; }
+  @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+</style>
+<div class="wrap" id="app"></div>
+<script id="data" type="application/json">__DATA_JSON__</script>
+<script>
+(() => {
+  const D = JSON.parse(document.getElementById("data").textContent);
+  const app = document.getElementById("app");
+  const h = (html) => { const t = document.createElement("template"); t.innerHTML = html.trim(); return t.content.firstElementChild; };
+  const add = (x) => app.appendChild(typeof x === "string" ? h(x) : x);
+  const NS = "http://www.w3.org/2000/svg";
+  const S = (tag, attrs = {}, kids = []) => {
+    const e = document.createElementNS(NS, tag);
+    for (const [k, v] of Object.entries(attrs)) if (v !== null && v !== undefined) e.setAttribute(k, String(v));
+    for (const k of [].concat(kids)) if (k) e.appendChild(typeof k === "string" ? document.createTextNode(k) : k);
+    return e;
+  };
+  const txt = (x, y, s, o = {}) => S("text", { x, y, "font-size": o.size ?? 11.5, fill: o.fill ?? "var(--dim)",
+    "text-anchor": o.anchor ?? "start", "font-weight": o.weight ?? 400, transform: o.transform,
+    "font-variant-numeric": "tabular-nums" }, s);
+  const tip = (s) => S("title", {}, s);
+  const n2 = (v) => (v === null || v === undefined ? "—" : (Math.round(v * 100) / 100).toLocaleString("ko-KR", { maximumFractionDigits: 2 }));
+  const pc = (v, d = 2) => (v === null || v === undefined ? "—" : (v >= 0 ? "+" : "") + v.toFixed(d) + "%");
+  const cls = (v) => (v === null || v === undefined ? "" : v > 0 ? "pos" : v < 0 ? "neg" : "");
+  const dt = (ms) => new Date(ms).toISOString().slice(0, 10);
+  const fig = (title, sub, node, cap) => {
+    const f = document.createElement("figure");
+    f.appendChild(h('<div class="figtitle">' + title + "</div>"));
+    if (sub) f.appendChild(h('<div class="figsub">' + sub + "</div>"));
+    const box = h('<div class="chartbox"></div>'); box.appendChild(node); f.appendChild(box);
+    if (cap) f.appendChild(h("<figcaption>" + cap + "</figcaption>"));
+    return f;
+  };
+  const legend = (items) => '<div class="legend">' + items.map((i) => '<span><i style="background:' + i.c + '"></i>' + i.t + "</span>").join("") + "</div>";
+
+  const mName = Object.fromEntries(D.methods.map((m) => [m.key, m.name]));
+  const sName = Object.fromEntries(D.sets.map((s) => [s.key, s.name]));
+  const pL = D.partLabel;
+  const B = D.bench;
+  const W = D.window;
+
+  /* ───────────── 머리말 ───────────── */
+  add('<div class="eyebrow">BTC 백테스트 15회차 · 창 확장 · 워크포워드 · 스트레스</div>');
+  add("<h1>14회차의 결론은 하락장을 겪지 않았다. 겪게 하면 남는가</h1>");
+  add(`<p class="lede">14회차 창(${D.prevWindow.days}일)에는 2022 하락장이 통째로 빠져 있었다 — 그 창의 매수보유는
+    ${pc(D.prevWindow.bench.totalPct, 0)}였다. 여기서는 1H 부품을 버리고 4H·1D 부품만 남겨
+    창을 <strong>${W.days}일(4.7년)</strong>로 늘렸다. 이 창의 매수보유는 ${pc(B.totalPct, 1)}이고
+    최대 낙폭은 <strong>${n2(B.mdd)}%</strong>다. 게이트도 축도 바꾸지 않았다 — 바뀐 것은 창뿐이다.</p>`);
+
+  const d3basis = D.d3.find((x) => x.set === "basis2");
+  const d3mix = D.d3.find((x) => x.set === "mix7");
+  const wf = D.wfa.wf;
+
+  add(h(`<div class="verdict"><span class="tag">답 — 절반은 버티고 절반은 무너진다</span>
+    <p><strong>버틴 것:</strong> 레버리지와 리스크 결론이다. 하락장을 넣어도 전 게이트 통과 ${D.passCount}건이
+    <strong>여전히 전부 상한 3배·5배</strong>이고 10·20배는 0건이다. 체결 스트레스도 통과했다 —
+    슬리피지를 5배로 올려도 표준 구성의 MAR 이 ${n2(D.d4[1]?.ladder[0].mar)} → ${n2(D.d4[1]?.ladder[3].mar)} 로만 준다.</p>
+    <p><strong>무너진 것:</strong> "한 부품이 전부를 만들지 않는다"던 14회차 §8 의 결론이다.
+    긴 창에서는 <strong>베이시스 하나(bzc)를 빼면 어디서든 무너진다</strong> —
+    MAR ${n2(d3basis.full.mar)} → ${n2(d3basis.loo[0].mar)}. 그리고 14회차 권고 구성(혼합)은
+    이 창에서 <strong>단 한 건도 게이트를 통과하지 못했다.</strong></p>
+    <p><strong>그리고 현행 라이브는 하락장에서 계좌가 사라진다.</strong> 이 창에서 재현하면
+    낙폭 <strong>${n2(D.live.mdd)}%</strong> · 강제청산 ${D.live.liquidations}건 · 파산확률 <strong>${n2(D.live.ruin)}%</strong>,
+    첫 구간 월 ${pc(D.live.thirds[0], 2)}로 사실상 끝난다.</p></div>`));
+
+  add(h(`<div class="tiles">
+    <div class="tile bad"><div class="k">현행 라이브 · 하락장 포함 낙폭</div><div class="v">${n2(D.live.mdd)}%</div><div class="s">14회차 창에서는 ${n2(D.prevLive.mdd)}% · 파산확률 ${n2(D.live.ruin)}%</div></div>
+    <div class="tile ok"><div class="k">10배 이상 레버리지 통과</div><div class="v">0건</div><div class="s">통과 ${D.passCount}건 전부 3배·5배 — 두 창 모두</div></div>
+    <div class="tile bad"><div class="k">bzc 제거 시 MAR</div><div class="v">${n2(d3basis.loo[0].mar)}</div><div class="s">제거 전 ${n2(d3basis.full.mar)} — 14회차 결론이 뒤집힘</div></div>
+    <div class="tile hi"><div class="k">워크포워드 자산 (평가 7구간)</div><div class="v">$${n2(wf.R1.finalEquity)}</div><div class="s">무선별 $${n2(wf.R3.finalEquity)} · 매수보유 $${n2(wf.bench.finalEquity)} · 상한 $${n2(wf.hindsight.finalEquity)}</div></div>
+  </div>`));
+
+  /* ───────────── 1. 게이트 판정 ───────────── */
+  add('<h2><span class="num">1</span>사전 등록 게이트 4종 — 판정</h2>');
+  add(`<p>이 회차는 새 숫자를 최적화하는 회차가 아니다. <strong>이미 낸 답이 버티는지 보는 회차</strong>이므로
+    판정을 먼저 놓는다. 기준은 <code>stress/README.md</code>에 실행 전 적어 고정했다.</p>`);
+
+  const d1 = D.d1;
+  const d2 = D.wfa.d2;
+  const d3AllPass = D.d3.every((x) => x.d3pass);
+  const d4AllPass = D.d4.every((x) => x.d4pass);
+  const gateCards = [
+    { key: "D1", name: "창 확장 부호 유지", state: d1.pass ? "p" : "f",
+      verdict: d1.pass ? "통과" : "실패",
+      body: `하락장을 포함한 창에서도 통과 설정이 <strong>레버리지 3·5배에 ${d1.lowLev}/${d1.total}</strong>,
+        <strong>리스크 3% 이하에 ${d1.lowRisk}/${d1.total}</strong> 몰렸다. 10·20배는 ${d1.highLev}건.
+        14회차의 두 결론은 상승장 산물이 아니었다.` },
+    { key: "D2", name: "워크포워드", state: d2.pass ? "p" : "f",
+      verdict: d2.pass ? "통과" : "실패",
+      body: `OOS ${d2.of}구간 중 MAR ≥ 1 은 <strong>${d2.marOk}구간</strong>(기준 ${d2.need}). <strong>실패다.</strong>
+        다만 연쇄 자산으로는 선별이 작동했다 — §5 에서 그 어긋남을 다룬다.` },
+    { key: "D3", name: "부품 탈락", state: d3AllPass ? "w" : "f",
+      verdict: d3AllPass ? "문자상 통과 · 실질 실패" : "실패",
+      body: `사전 등록 기준(월 기하 &gt; 0 · 청산 0건)은 세 묶음 모두 만족했다. 그러나
+        <strong>MAR 이 전부 1 아래로 무너진다</strong>(${D.d3.map((x) => `${sName[x.set]} ${n2(x.full.mar)}→${n2(x.after?.mar)}`).join(" · ")}).
+        <strong>기준을 너무 느슨하게 등록한 것이다</strong> — §6.` },
+    { key: "D4", name: "체결 스트레스", state: d4AllPass ? "p" : "f",
+      verdict: d4AllPass ? "통과" : "실패",
+      body: `슬리피지 0.02% → 0.06%(3배)에서 권고 ${D.d4.length}종 모두 청산 0 · 파산확률 0% · MAR ≥ 1 유지.
+        5배(0.10%)까지 올려도 표준 구성이 MAR ${n2(D.d4[1]?.ladder[0].mar)} → ${n2(D.d4[1]?.ladder[3].mar)}.
+        저빈도·광폭 손절 설계는 체결 가정에 둔감하다.` },
+  ];
+  for (const g of gateCards) {
+    const card = h(`<div class="card ${g.state === "p" ? "pick" : g.state === "w" ? "cond" : "avoid"}"></div>`);
+    const grid = h('<div class="gate"></div>');
+    grid.appendChild(h(`<div class="badge ${g.state}">${g.verdict}</div>`));
+    grid.appendChild(h(`<div><strong>${g.key} ${g.name}</strong><br>${g.body}</div>`));
+    card.appendChild(grid);
+    add(card);
+  }
+  add(`<p class="note">사전 등록 §4에 적어 둔 대로 — <strong>하나라도 실패하면 실패한 항목이 이 회차의 결론</strong>이며
+    권고를 그만큼 좁힌다. D2 와 D3 이 그 항목이다.</p>`);
+
+  /* ───────────── 2. 무엇을 바꿨나 ───────────── */
+  add('<h2><span class="num">2</span>무엇을 바꿨나 — 창 하나뿐</h2>');
+  add(h(`<div class="scroll"><table><thead><tr><th class="l"></th><th class="l">14회차</th><th class="l">15회차</th></tr></thead><tbody>
+    <tr><td class="l">부품</td><td class="l">14종 (1H 4종 포함)</td><td class="l"><strong>10종 (4H·1D만)</strong></td></tr>
+    <tr><td class="l">창</td><td class="l">${dt(D.prevWindow.from)} ~ ${dt(D.prevWindow.to)} (${D.prevWindow.days}일)</td><td class="l"><strong>${dt(W.from)} ~ ${dt(W.to)} (${W.days}일)</strong></td></tr>
+    <tr class="hl"><td class="l">그 창의 매수보유</td><td class="l">${pc(D.prevWindow.bench.totalPct, 1)} · 낙폭 ${n2(D.prevWindow.bench.mdd)}%</td><td class="l"><strong>${pc(B.totalPct, 1)} · 낙폭 ${n2(B.mdd)}%</strong></td></tr>
+    <tr><td class="l">게이트 C1~C6</td><td class="l">사전 등록</td><td class="l">그대로 — 잣대를 바꾸면 비교가 아니다</td></tr>
+    <tr><td class="l">기법 · 레버리지 · 리스크 축</td><td class="l">9 × 4 × 9</td><td class="l">그대로</td></tr>
+  </tbody></table></div>`));
+  add(`<p>1H 부품을 버리는 대가로 부품이 14종 → 10종으로 줄었다. <strong>분산이 약해지는 것은 이 실험이 치르는 값</strong>이고,
+    그 대신 매수보유가 ${n2(B.mdd)}% 빠지는 구간이 들어온다. 14회차 창은 4.7년 중 상승 구간만 잘라 본 셈이었다 —
+    같은 창의 매수보유가 ${pc(D.prevWindow.bench.totalPct, 0)}인데 전체 창은 ${pc(B.totalPct, 1)}뿐이다.</p>`);
+
+  /* ───────────── 3. 부품 성적 ───────────── */
+  add('<h2><span class="num">3</span>창이 바뀌면 부품 순위가 바뀐다</h2>');
+  add(h(`<div class="scroll"><table><thead><tr><th class="l">부품</th><th class="l">봉·방향</th><th>거래</th><th>승률</th>
+    <th>거래당 기대값</th><th>누적 손익</th><th class="l">출처</th></tr></thead><tbody>` +
+    [...D.parts].sort((a, b) => b.ev - a.ev).map((p) => `<tr${p.key === "bzc" ? ' class="hl"' : ""}>
+      <td class="l">${p.key} ${p.label}</td><td class="l">${p.tf} ${p.side === "long" ? "롱" : "숏"}</td><td>${p.n}</td>
+      <td>${n2(p.winRate)}%</td><td class="${cls(p.ev)}">${pc(p.ev, 3)}</td><td class="${cls(p.totalPct)}">${pc(p.totalPct, 1)}</td>
+      <td class="l">${p.origin}</td></tr>`).join("") + "</tbody></table></div>"));
+  const r5 = D.parts.find((p) => p.key === "r5");
+  const bzc = D.parts.find((p) => p.key === "bzc");
+  add(`<p><strong>bzc 가 압도적이다</strong> — 거래당 ${pc(bzc.ev, 2)}, 누적 ${pc(bzc.totalPct, 0)}로 2위의 네 배가 넘는다.
+    반대로 <strong>13회차 1순위였던 러너 r5 는 이 창에서 최악</strong>이다(거래당 ${pc(r5.ev, 3)}, 누적 ${pc(r5.totalPct, 0)}).
+    14회차의 부품 제거 검사에서 r5 는 <em>최대 기여자</em>였다 — 3.1년 창에서는 그랬다.
+    창을 4.7년으로 늘리면 순수한 짐이다.</p>`);
+
+  /* ───────────── 4. D1 ───────────── */
+  add('<h2><span class="num">4</span>D1 — 레버리지와 리스크는 버틴다</h2>');
+  {
+    const risks = D.levRiskGrid[0].cells.map((c) => c.risk);
+    const cw = 88, chh = 62, ML = 78, MT = 46, MB = 44;
+    const Wd = ML + cw * risks.length + 20, H = MT + chh * D.levRiskGrid.length + MB;
+    const g = S("svg", { viewBox: `0 0 ${Wd} ${H}`, width: Wd, role: "img", "aria-label": "레버리지 리스크 격자" });
+    const maxPass = Math.max(...D.levRiskGrid.flatMap((r) => r.cells.map((c) => c.pass)));
+    risks.forEach((rk, j) => g.appendChild(txt(ML + j * cw + cw / 2, MT - 14, rk + "%", { anchor: "middle", size: 11.5, fill: "var(--ink)" })));
+    g.appendChild(txt(ML, MT - 32, "리스크 →", { size: 11.5 }));
+    g.appendChild(txt(6, MT + 4, "상한", { size: 11.5 }));
+    D.levRiskGrid.forEach((row, i) => {
+      g.appendChild(txt(ML - 12, MT + i * chh + chh / 2 + 4, row.levCap + "배", { anchor: "end", size: 12.5, fill: "var(--ink)", weight: 620 }));
+      row.cells.forEach((c, j) => {
+        const x0 = ML + j * cw, y0 = MT + i * chh;
+        const a = maxPass > 0 ? c.pass / maxPass : 0;
+        const fill = c.pass > 0 ? `color-mix(in srgb, var(--s1) ${Math.round(18 + a * 82)}%, var(--surface))`
+          : c.liq > 0 ? "color-mix(in srgb, var(--neg) 22%, var(--surface))" : "var(--surface-2)";
+        const rect = S("rect", { x: x0 + 2, y: y0 + 2, width: cw - 4, height: chh - 4, rx: 6, fill, stroke: "var(--border)", "stroke-width": 1 });
+        rect.appendChild(tip(`상한 ${row.levCap}배 · 리스크 ${c.risk}% — 통과 ${c.pass}/${c.total} · 청산 발생 ${c.liq} · 최고 MAR ${n2(c.bestMar)}`));
+        g.appendChild(rect);
+        g.appendChild(txt(x0 + cw / 2, y0 + 26, String(c.pass), { anchor: "middle", size: 15, weight: 700, fill: c.pass > 0 ? "var(--ink)" : "var(--dim)" }));
+        if (c.liq > 0) g.appendChild(txt(x0 + cw / 2, y0 + 44, `청산 ${c.liq}`, { anchor: "middle", size: 10.5, fill: "var(--neg)", weight: 600 }));
+      });
+    });
+    add(fig("레버리지 상한 × 리스크 — 하락장을 포함한 창에서 게이트를 전부 통과한 설정 수",
+      "각 칸은 묶음 5 × 기법 9 = 45설정. 숫자는 통과 수, 아래는 강제청산이 난 설정 수.",
+      g,
+      `<strong>14회차 격자와 같은 모양이다.</strong> 상한 10배·20배 줄은 통째로 비어 있고 청산이 가득하다.
+       창을 바꿔도 이 결론은 흔들리지 않았다 — 이번 회차에서 가장 확실하게 살아남은 것이다.`));
+  }
+  add(h(`<div class="scroll"><table><thead><tr><th class="l">축</th><th class="l">14회차 (상승장만)</th><th class="l">15회차 (하락장 포함)</th></tr></thead><tbody>
+    <tr><td class="l">통과 설정</td><td class="l">92건</td><td class="l">${D.passCount}건</td></tr>
+    <tr><td class="l">레버리지 3·5배</td><td class="l">92 / 92</td><td class="l"><strong>${d1.lowLev} / ${d1.total}</strong></td></tr>
+    <tr><td class="l">레버리지 10·20배</td><td class="l">0</td><td class="l"><strong>${d1.highLev}</strong></td></tr>
+    <tr><td class="l">리스크 3% 이하</td><td class="l">74 / 92</td><td class="l"><strong>${d1.lowRisk} / ${d1.total}</strong></td></tr>
+  </tbody></table></div>`));
+
+  /* ───────────── 5. 현행 라이브 ───────────── */
+  add('<h2><span class="num">5</span>현행 라이브가 하락장을 만나면</h2>');
+  add(h(`<div class="verdict bad"><span class="tag">쿼드 · 고정비율 · 10배 · 리스크 10% · 동시 2</span>
+    <p>14회차 창(상승장)에서는 월 ${n2(D.prevLive.monthlyGeo)}% · 낙폭 ${n2(D.prevLive.mdd)}% · 파산확률 ${n2(D.prevLive.ruin)}%였다.
+    같은 설정을 하락장 포함 창에서 재현하면 <strong>월 ${n2(D.live.monthlyGeo)}% · 낙폭 ${n2(D.live.mdd)}% ·
+    강제청산 ${D.live.liquidations}건 · 파산확률 ${n2(D.live.ruin)}%</strong>다.</p>
+    <p>구간 3등분이 <strong>${D.live.thirds.map((x) => pc(x, 2)).join(" / ")}</strong> — 첫 구간에서 사실상 끝나고
+    이후는 남은 자본이 없어 0 이다. 이것이 14회차가 "가는 길이 문제"라고 한 것의 실제 모습이다.</p></div>`));
+
+  /* ───────────── 6. D2 워크포워드 ───────────── */
+  add('<h2><span class="num">6</span>D2 — 게이트는 실패, 자산은 성공</h2>');
+  add(`<p>창을 ${D.wfa.window.folds}등분하고 앞 ${D.wfa.window.trainFolds}구간은 학습 전용으로 뒀다.
+    구간마다 <strong>그때까지의 정보만으로</strong> ${D.wfa.configsN.toLocaleString("ko-KR")}개 설정 중 하나를 고르고,
+    고른 설정을 <strong>다음 구간에만</strong> 적용했다. 창 확장에서 베이시스 묶음이 통과의 대부분을 가져갔는데,
+    베이시스 부품은 12회차가 <em>바로 이 창에서</em> 발굴한 것이다 — 워크포워드는 그 순환을 끊으려고 돌렸다.</p>`);
+
+  {
+    const series = [
+      { name: "워크포워드 R1", curve: wf.R1.curve, c: "var(--s1)" },
+      { name: "후행 상한", curve: wf.hindsight.curve, c: "var(--s3)" },
+      { name: "무선별 균등", curve: wf.R3.curve, c: "var(--s4)" },
+      { name: "매수보유", curve: wf.bench.curve, c: "var(--dim)" },
+      { name: "현행 라이브", curve: wf.live.curve, c: "var(--neg)" },
+    ];
+    const all = series.flatMap((s) => s.curve);
+    const t0 = Math.min(...all.map((p) => p.t)), t1 = Math.max(...all.map((p) => p.t));
+    const hi = Math.max(...all.map((p) => p.equity));
+    const Wd = 1040, H = 330, ML = 66, MR = 176, MT = 14, MB = 48;
+    const iw = Wd - ML - MR, ih = H - MT - MB;
+    const x = (t) => ML + ((t - t0) / (t1 - t0)) * iw;
+    const y = (v) => { const a = Math.log10(Math.max(10, v)) - 1, b = Math.log10(Math.max(100, hi)) - 1; return MT + ih - (a / b) * ih; };
+    const g = S("svg", { viewBox: `0 0 ${Wd} ${H}`, width: Wd, role: "img", "aria-label": "워크포워드 자산 곡선" });
+    for (const tk of [10, 50, 100, 200, 500, 1000].filter((v) => v <= hi * 1.3)) {
+      const yy = y(tk);
+      g.appendChild(S("line", { x1: ML, x2: Wd - MR, y1: yy, y2: yy, stroke: tk === 100 ? "var(--border)" : "var(--grid)", "stroke-width": 1 }));
+      g.appendChild(txt(ML - 8, yy + 4, "$" + tk, { anchor: "end" }));
+    }
+    for (const f of D.wfa.folds) {
+      const xx = x(f.from);
+      g.appendChild(S("line", { x1: xx, x2: xx, y1: MT, y2: MT + ih, stroke: "var(--grid)", "stroke-width": 1, "stroke-dasharray": "2 4" }));
+      g.appendChild(txt(xx, MT + ih + 16, dt(f.from).slice(0, 7), { anchor: "end", size: 10.5, transform: `rotate(-45 ${xx} ${MT + ih + 16})` }));
+    }
+    const ends = [];
+    for (const s of series) {
+      const d = s.curve.map((p, i) => (i ? "L" : "M") + x(p.t).toFixed(1) + " " + y(p.equity).toFixed(1)).join(" ");
+      g.appendChild(S("path", { d, fill: "none", stroke: s.c, "stroke-width": 2, "stroke-linejoin": "round" }));
+      const last = s.curve[s.curve.length - 1];
+      g.appendChild(S("circle", { cx: x(last.t), cy: y(last.equity), r: 3.5, fill: s.c }));
+      ends.push({ yy: y(last.equity), label: `${s.name} $${Math.round(last.equity)}` });
+    }
+    ends.sort((a, b) => a.yy - b.yy);
+    for (let i = 1; i < ends.length; i += 1) if (ends[i].yy - ends[i - 1].yy < 15) ends[i].yy = ends[i - 1].yy + 15;
+    const over = ends[ends.length - 1].yy - (MT + ih);
+    if (over > 0) ends.forEach((e) => { e.yy -= over; });
+    ends.forEach((e) => g.appendChild(txt(Wd - MR + 7, e.yy + 4, e.label, { size: 11.5, fill: "var(--ink)", weight: 620 })));
+    add(fig("워크포워드 자산 — 평가 7구간을 연쇄, $100 시작, 세로 로그 눈금",
+      "점선은 구간 경계. 각 구간의 설정은 그 이전 구간들만 보고 골랐다.",
+      g,
+      `<strong>선별이 작동한다.</strong> R1(${wf.R1.finalEquity})이 무선별 균등(${wf.R3.finalEquity})과
+       매수보유(${wf.bench.finalEquity})를 크게 이기고, <strong>후행 상한(${wf.hindsight.finalEquity})의
+       ${Math.round((wf.R1.finalEquity / wf.hindsight.finalEquity) * 100)}%</strong>까지 따라붙는다.
+       13회차 워크포워드에서 선별이 <em>무선별보다 나빴던</em> 것과 정반대다 —
+       차이는 부품이다: 그때는 지표뿐이었고 지금은 베이시스가 있다.`));
+    add(h(legend(series.map((s) => ({ c: s.c, t: s.name })))));
+  }
+
+  add(h(`<div class="scroll"><table><thead><tr><th class="l">구간</th><th class="l">시작</th><th class="l">학습 자격</th>
+    <th class="l">R1 선택</th><th>학습 MAR</th><th>OOS MAR</th><th>OOS 월기하</th><th>OOS 낙폭</th><th>배율</th><th>매수보유</th></tr></thead><tbody>` +
+    D.wfa.folds.map((f) => `<tr${(f.rules.R1.mar ?? -9) >= 1 ? ' class="hl"' : ""}><td class="l">${f.k + 1}</td><td class="l">${dt(f.from)}</td>
+      <td class="l">${f.eligibleN}/${f.trainedN}</td>
+      <td class="l">${sName[f.rules.R1.cfg.set]}·${mName[f.rules.R1.cfg.method]}·${f.rules.R1.cfg.levCap}배·${f.rules.R1.cfg.riskPct}%</td>
+      <td>${n2(f.rules.R1.trainMar)}</td><td class="${(f.rules.R1.mar ?? -9) >= 1 ? "pos" : "neg"}">${n2(f.rules.R1.mar)}</td>
+      <td class="${cls(f.rules.R1.monthlyGeo)}">${pc(f.rules.R1.monthlyGeo, 2)}</td><td class="neg">${n2(f.rules.R1.mdd)}%</td>
+      <td>${n2(f.rules.R1.factor)}×</td><td class="${cls(f.bench.totalPct)}">${pc(f.bench.totalPct, 1)}</td></tr>`).join("") +
+    "</tbody></table></div>"));
+
+  add(h(`<div class="verdict"><span class="tag">게이트와 자산이 어긋나는 이유</span>
+    <p>D2 는 <strong>구간별 MAR ≥ 1</strong> 을 요구했고 ${d2.marOk}/${d2.of} 로 실패했다. 그런데 같은 구간을 연쇄한 자산은
+    무선별의 ${Math.round((wf.R1.finalEquity / wf.R3.finalEquity) * 10) / 10}배다. 왜 어긋나는가 —
+    <strong>172일 구간에서 MAR 을 재면 분모(낙폭)가 회복될 시간이 없다.</strong>
+    구간 4·5 의 OOS 낙폭이 ${n2(D.wfa.folds[0].rules.R1.mdd)}% · ${n2(D.wfa.folds[1].rules.R1.mdd)}% 인데,
+    같은 설정을 전 구간으로 재면 ${n2(D.compounderTop[0]?.mdd)}% 다.</p>
+    <p><strong>게이트를 잘못 등록한 쪽은 나다.</strong> 짧은 구간에 MAR 기준을 그대로 쓴 것이 설계 실수다.
+    그러나 사전 등록한 것은 사전 등록한 대로 판정한다 — <strong>D2 는 실패</strong>이고,
+    다음 회차에서 구간 길이에 맞는 기준을 다시 등록해야 한다.</p></div>`));
+
+  /* ───────────── 7. D3 부품 탈락 ───────────── */
+  add('<h2><span class="num">7</span>D3 — 14회차의 "분산이 실재한다"가 뒤집힌다</h2>');
+  add(`<p>14회차 §8 은 <em>"14부품 중 단독으로 게이트를 통과한 것은 0종이고, 최대 기여자는 단독으로는 손해 보는 부품이다 —
+    분산이 실재한다"</em>고 결론했다. 같은 검사를 긴 창에서 다시 하면 그림이 다르다.</p>`);
+
+  {
+    const rows = D.d3.find((x) => x.set === "all10").loo;
+    const lo = Math.min(0, ...rows.map((r) => r.marDelta));
+    const hi = Math.max(0, ...rows.map((r) => r.marDelta));
+    const Wd = 1040, H = 360, ML = 186, MR = 210, MT = 12, MB = 40;
+    const iw = Wd - ML - MR, ih = H - MT - MB;
+    const x = (v) => ML + ((v - lo) / (hi - lo)) * iw;
+    const g = S("svg", { viewBox: `0 0 ${Wd} ${H}`, width: Wd, role: "img", "aria-label": "부품 제거 검사" });
+    for (const tk of [lo, 0, hi]) {
+      g.appendChild(S("line", { x1: x(tk), x2: x(tk), y1: MT, y2: MT + ih, stroke: tk === 0 ? "var(--border)" : "var(--grid)", "stroke-width": 1 }));
+      g.appendChild(txt(x(tk), H - 12, (tk >= 0 ? "+" : "") + tk.toFixed(2), { anchor: "middle", size: 11 }));
+    }
+    const rowH = ih / rows.length;
+    const prevBy = Object.fromEntries(D.prevLoo.map((p) => [p.key, p.marDelta]));
+    rows.forEach((r, i) => {
+      const y = MT + i * rowH;
+      g.appendChild(txt(ML - 10, y + rowH / 2 + 4, `${r.key} ${r.label}`, { anchor: "end", fill: "var(--ink)", size: 12 }));
+      const xa = x(0), xb = x(r.marDelta);
+      const rect = S("rect", { x: Math.min(xa, xb), y: y + 4, width: Math.max(1.5, Math.abs(xb - xa)), height: rowH - 8, rx: 3,
+        fill: r.marDelta < 0 ? "var(--s1)" : "var(--neg)" });
+      rect.appendChild(tip(`${r.label} 제거 → MAR ${r.mar} (${r.marDelta >= 0 ? "+" : ""}${r.marDelta}) · 월 기하 ${r.monthlyGeo}%`));
+      g.appendChild(rect);
+      const p = prevBy[r.key];
+      g.appendChild(txt(Wd - MR + 8, y + rowH / 2 + 4,
+        `MAR ${n2(r.mar)}` + (p === undefined ? "" : ` · 14회차 ${p >= 0 ? "+" : ""}${n2(p)}`),
+        { size: 10.5, fill: p !== undefined && Math.sign(p) !== Math.sign(r.marDelta) ? "var(--s2)" : "var(--dim)",
+          weight: p !== undefined && Math.sign(p) !== Math.sign(r.marDelta) ? 650 : 400 }));
+    });
+    add(fig("부품을 하나 빼면 MAR 이 어떻게 되는가 — 전체 10 묶음, 하락장 포함 창",
+      `기준 ${mName[D.d3.find((x) => x.set === "all10").cfg.method]} · ${D.d3.find((x) => x.set === "all10").cfg.levCap}배 ·
+       리스크 ${D.d3.find((x) => x.set === "all10").cfg.riskPct}% (MAR ${n2(D.d3.find((x) => x.set === "all10").full.mar)}).
+       파랑 = 빼면 나빠짐(기여자), 빨강 = 빼면 좋아짐(짐). 오른쪽에 14회차 값을 함께 적었고, <span style="color:var(--s2)">부호가 뒤집힌 것은 주황</span>이다.`,
+      g,
+      `<strong>bzc 가 1위 기여자로 올라섰다.</strong> 14회차에서 최대 기여자였던 r5(러너)는
+       이 창에서 <strong>빼는 편이 나은 짐</strong>이다(${n2(rows.find((r) => r.key === "r5").marDelta)}).
+       3.1년 창의 기여 순위가 4.7년 창에서 뒤집힌다 — <em>부품 기여도는 창에 대해 안정적이지 않다.</em>`));
+  }
+
+  add(h(`<div class="scroll"><table><thead><tr><th class="l">묶음</th><th class="l">기준 설정</th><th>제거 전 MAR</th>
+    <th class="l">동시 제거</th><th>제거 후 MAR</th><th>제거 후 월기하</th><th>청산</th><th>D3</th></tr></thead><tbody>` +
+    D.d3.map((x) => `<tr><td class="l">${x.setName}${x.limited ? '<span class="chip warnc">부품 2개 — 1개만 제거 가능</span>' : ""}</td>
+      <td class="l">${mName[x.cfg.method]} · ${x.cfg.levCap}배 · ${x.cfg.riskPct}%</td><td>${n2(x.full.mar)}</td>
+      <td class="l">${x.droppedLabels.join(", ")}</td>
+      <td class="${(x.after?.mar ?? 0) >= 1 ? "pos" : "neg"}"><strong>${n2(x.after?.mar)}</strong></td>
+      <td class="${cls(x.after?.monthlyGeo)}">${pc(x.after?.monthlyGeo, 2)}</td><td>${x.after?.liquidations ?? "—"}</td>
+      <td>${x.d3pass ? '<span class="pass">기준 충족</span>' : '<span class="fail">실패</span>'}</td></tr>`).join("") +
+    "</tbody></table></div>"));
+  add(h(`<div class="verdict bad"><span class="tag">기준을 느슨하게 등록했다</span>
+    <p>D3 의 사전 등록 기준은 "월 기하 &gt; 0 · 청산 0건"이었다. 세 묶음 모두 만족한다.
+    그런데 <strong>MAR 은 전부 1 아래로 무너진다</strong> — 베이시스 2에서는 ${n2(d3basis.full.mar)} → ${n2(d3basis.loo[0].mar)},
+    혼합 7에서는 ${n2(d3mix.full.mar)} → ${n2(d3mix.after.mar)}.</p>
+    <p>월 기하가 0보다 크기만 하면 통과시키는 기준은 <strong>"살아는 있다"</strong>를 재는 것이지
+    <strong>"쓸 만하다"</strong>를 재는 것이 아니었다. 다음 회차의 기준은 <strong>제거 후에도 MAR ≥ 1</strong> 이어야 한다.
+    그 기준으로 다시 보면 <strong>D3 은 세 묶음 모두 실패</strong>다.</p></div>`));
+
+  /* ───────────── 8. D4 ───────────── */
+  add('<h2><span class="num">8</span>D4 — 체결 스트레스는 통과</h2>');
+  add(h(`<div class="scroll"><table><thead><tr><th class="l">권고</th><th class="l">구성</th>` +
+    D.slips.map((s) => `<th>슬리피지 ${s}%</th>`).join("") + "</tr></thead><tbody>" +
+    D.d4.flatMap((x) => [
+      `<tr><td class="l" rowspan="3">${x.label}</td><td class="l">월 기하</td>` +
+        x.ladder.map((l) => `<td class="${cls(l.monthlyGeo)}">${pc(l.monthlyGeo, 2)}</td>`).join("") + "</tr>",
+      `<tr><td class="l">MAR</td>` + x.ladder.map((l) => `<td class="${l.mar >= 1 ? "pos" : "neg"}">${n2(l.mar)}</td>`).join("") + "</tr>",
+      `<tr><td class="l">청산 · 게이트</td>` + x.ladder.map((l) => `<td>${l.liquidations} · ${l.gates}/6</td>`).join("") + "</tr>",
+    ]).join("") + "</tbody></table></div>"));
+  add(`<p>슬리피지를 5배(0.02% → 0.10%)로 올려도 표준 구성이 월 ${pc(D.d4[1]?.ladder[0].monthlyGeo, 2)} →
+    ${pc(D.d4[1]?.ladder[3].monthlyGeo, 2)}, MAR ${n2(D.d4[1]?.ladder[0].mar)} → ${n2(D.d4[1]?.ladder[3].mar)} 로만 준다.
+    <strong>이유는 거래 빈도와 손절폭이다</strong> — 베이시스 부품은 4.7년에 ${D.parts.find((p) => p.key === "bzc").n + D.parts.find((p) => p.key === "bzf").n}거래(월 4회 남짓)이고
+    1R 이 3% 넘게 넓어, 왕복 비용이 리스크 예산에서 차지하는 몫이 작다.
+    14회차에서 15m 이 무너진 이유(비용이 1R 의 28.5%)와 정확히 반대편이다.</p>`);
+  add(h(`<div class="scroll"><table><thead><tr><th class="l">슬리피지</th><th>통과 설정 (400개 중)</th><th class="l">최선</th><th>MAR</th><th>월 기하</th></tr></thead><tbody>` +
+    D.slipFunnel.map((f) => `<tr><td class="l">${f.slip}%</td><td>${f.pass}</td>
+      <td class="l">${sName[f.best.set]} · ${mName[f.best.method]} · ${f.best.levCap}배 · ${f.best.riskPct}%</td>
+      <td>${n2(f.best.mar)}</td><td class="pos">${pc(f.best.monthlyGeo, 2)}</td></tr>`).join("") + "</tbody></table></div>"));
+
+  /* ───────────── 9. 기법 재검정 ───────────── */
+  add('<h2><span class="num">9</span>자금 기법 — 두 창을 모두 버틴 것은 둘뿐</h2>');
+  add(`<p>14회차와 같은 방식으로 짝지어 비교했다 — 같은 (묶음 × 레버리지 × 리스크) 칸에서 기법 X 의 MAR 에서
+    고정비율(m1)의 MAR 을 뺀다. <strong>두 창의 부호를 나란히 놓으면 무엇이 진짜인지 보인다.</strong></p>`);
+  {
+    const keys = Object.keys(D.pairedNow);
+    const Wd = 1040, H = 340, ML = 140, MR = 210, MT = 34, MB = 40;
+    const iw = Wd - ML - MR, ih = H - MT - MB;
+    const vals = keys.flatMap((k) => [D.pairedNow[k].mar?.mean ?? 0, D.pairedPrev[k]?.mar?.mean ?? 0]);
+    const lo = Math.min(0, ...vals), hi = Math.max(0, ...vals);
+    const x = (v) => ML + ((v - lo) / (hi - lo)) * iw;
+    const g = S("svg", { viewBox: `0 0 ${Wd} ${H}`, width: Wd, role: "img", "aria-label": "기법 두 창 비교" });
+    for (const tk of [lo, 0, hi]) {
+      g.appendChild(S("line", { x1: x(tk), x2: x(tk), y1: MT, y2: MT + ih, stroke: tk === 0 ? "var(--border)" : "var(--grid)", "stroke-width": 1 }));
+      g.appendChild(txt(x(tk), H - 12, (tk >= 0 ? "+" : "") + tk.toFixed(2), { anchor: "middle", size: 11 }));
+    }
+    g.appendChild(txt(ML, 16, "MAR 차 (고정비율 대비) — 위: 14회차 상승장만 · 아래: 15회차 하락장 포함", { size: 11.5 }));
+    const rowH = ih / keys.length;
+    keys.forEach((k, i) => {
+      const y0 = MT + i * rowH;
+      const now = D.pairedNow[k].mar, before = D.pairedPrev[k]?.mar;
+      g.appendChild(txt(ML - 10, y0 + rowH / 2 + 4, `${k} ${mName[k]}`, { anchor: "end", fill: "var(--ink)", size: 12, weight: 600 }));
+      const bh = (rowH - 12) / 2;
+      const bar = (v, yy, color, name, t) => {
+        if (v === undefined || v === null) return;
+        const xa = x(0), xb = x(v);
+        const r = S("rect", { x: Math.min(xa, xb), y: yy, width: Math.max(1.5, Math.abs(xb - xa)), height: bh - 2, rx: 3, fill: color });
+        r.appendChild(tip(`${mName[k]} · ${name} · MAR차 ${v} · t=${t}`));
+        g.appendChild(r);
+      };
+      bar(before?.mean, y0 + 5, (before?.mean ?? 0) > 0 ? "var(--s4)" : "var(--neg)", "14회차", before?.t);
+      bar(now?.mean, y0 + 5 + bh, (now?.mean ?? 0) > 0 ? "var(--s1)" : "var(--neg)", "15회차", now?.t);
+      const flipped = before && now && Math.sign(before.mean) !== Math.sign(now.mean);
+      g.appendChild(txt(Wd - MR + 8, y0 + rowH / 2 + 4,
+        `14회차 t=${before?.t ?? "—"} → 15회차 t=${now?.t ?? "—"}${flipped ? "  뒤집힘" : ""}`,
+        { size: 10.5, fill: flipped ? "var(--s2)" : "var(--dim)", weight: flipped ? 650 : 400 }));
+    });
+    add(fig("같은 기법을 두 창에서 — 무엇이 상승장 산물이었나",
+      "위 막대가 14회차(상승장만), 아래가 15회차(하락장 포함). 오른쪽에 두 창의 t값.",
+      g,
+      `<strong>변동성 타깃(m4)과 낙폭 스로틀(m5)만 두 창 모두에서 양수를 지켰다</strong>
+       (m4 t=${D.pairedPrev.m4.mar.t}→${D.pairedNow.m4.mar.t}, m5 t=${D.pairedPrev.m5.mar.t}→${D.pairedNow.m5.mar.t}).
+       <strong>켈리 두 종과 고정 금액은 부호가 뒤집혔다</strong> — 14회차에서 t=+${D.pairedPrev.m3.mar.t}였던 1/4 켈리가
+       이 창에서는 t=${D.pairedNow.m3.mar.t}다. 롤링 60거래로 추정한 켈리 비율이 국면이 바뀌면 틀리기 때문이고,
+       문헌이 경고한 "엣지는 고정된 수가 아니라 추정치"가 바로 이것이다. CPPI(m8)는 두 창 모두 나쁘다.`));
+    add(h(legend([{ c: "var(--s4)", t: "14회차 (상승장만)" }, { c: "var(--s1)", t: "15회차 (하락장 포함)" }, { c: "var(--neg)", t: "음수" }])));
+  }
+  add(h(`<div class="scroll"><table><thead><tr><th class="l">기법</th><th>14회차 MAR차</th><th>14회차 t</th>
+    <th>15회차 MAR차</th><th>15회차 t</th><th class="l">판정</th></tr></thead><tbody>` +
+    Object.keys(D.pairedNow).map((k) => {
+      const a = D.pairedPrev[k]?.mar, b = D.pairedNow[k].mar;
+      const both = a && b && a.mean > 0 && b.mean > 0;
+      const flip = a && b && Math.sign(a.mean) !== Math.sign(b.mean);
+      return `<tr${both ? ' class="hl"' : ""}><td class="l">${k} ${mName[k]}</td>
+        <td class="${cls(a?.mean)}">${a ? (a.mean >= 0 ? "+" : "") + n2(a.mean) : "—"}</td><td>${n2(a?.t)}</td>
+        <td class="${cls(b?.mean)}">${b ? (b.mean >= 0 ? "+" : "") + n2(b.mean) : "—"}</td><td>${n2(b?.t)}</td>
+        <td class="l">${both ? '<span class="pass">두 창 모두 양수</span>' : flip ? '<span class="fail">부호 뒤집힘</span>' : '<span style="color:var(--dim)">두 창 모두 음수</span>'}</td></tr>`;
+    }).join("") + "</tbody></table></div>"));
+
+  /* ───────────── 10. 권고 수정 ───────────── */
+  add('<h2><span class="num">10</span>권고 수정 — 14회차 대비 무엇이 좁아졌나</h2>');
+  add(h(`<div class="scroll"><table><thead><tr><th class="l">항목</th><th class="l">14회차 권고</th><th class="l">15회차 이후</th></tr></thead><tbody>
+    <tr><td class="l">레버리지 상한</td><td class="l">3 · 5배</td><td class="l"><span class="pass">유지</span> — 두 창 모두 10배 이상 통과 0건</td></tr>
+    <tr><td class="l">거래당 리스크</td><td class="l">3% 이하</td><td class="l"><span class="pass">유지</span> — ${d1.lowRisk}/${d1.total}</td></tr>
+    <tr><td class="l">자금 기법</td><td class="l">1/4 켈리 (복리 부문 1위)</td><td class="l"><span class="fail">철회</span> → <strong>변동성 타깃 · 낙폭 스로틀</strong>만 두 창 생존</td></tr>
+    <tr><td class="l">부품 구성</td><td class="l">혼합 9 (분산이 실재)</td><td class="l"><span class="fail">철회</span> — 혼합은 이 창에서 통과 0건. 사실상 <strong>베이시스가 시스템</strong></td></tr>
+    <tr><td class="l">손익비</td><td class="l">1:3 근처</td><td class="l"><span class="chip warnc">미검증</span> — 이 회차에서 다시 훑지 않았다</td></tr>
+    <tr><td class="l">체결 가정</td><td class="l">테이커 0.10 + 슬리피지 0.02</td><td class="l"><span class="pass">여유 있음</span> — 5배까지 견딤</td></tr>
+  </tbody></table></div>`));
+
+  add(`<p>이 창에서 게이트를 통과한 복리 설정은 사실상 베이시스 묶음뿐이다. 그 최선을 적되,
+    <strong>이것을 권고가 아니라 "현재 유일하게 게이트를 넘는 것"으로 읽어야 한다</strong> —
+    부품이 두 개뿐이고 그중 하나(bzc)가 빠지면 MAR 이 ${n2(d3basis.loo[0].mar)}로 무너진다.</p>`);
+  for (const rec of D.recommend) {
+    const r = rec.row;
+    if (!r) continue;
+    const set = D.sets.find((s) => s.key === r.set);
+    const card = h('<div class="card cond"></div>');
+    card.appendChild(h(`<h3>${rec.label}<span class="chip warnc">단일 부품 의존</span></h3>`));
+    card.appendChild(h(`<div class="spec">${set.name}(${set.parts.map((k) => pL[k]).join(" · ")}) · ${mName[r.method]} · 상한 ${r.levCap}배 · 리스크 ${r.riskPct}% · 동시 3</div>`));
+    card.appendChild(h(`<div class="tiles">
+      <div class="tile"><div class="k">월 기하수익</div><div class="v">${n2(r.monthlyGeo)}%</div><div class="s">연 ${n2(r.cagr)}%</div></div>
+      <div class="tile"><div class="k">보수 낙폭</div><div class="v">${n2(r.mdd)}%</div><div class="s">MAR ${n2(r.mar)}</div></div>
+      <div class="tile"><div class="k">파산확률</div><div class="v">${n2(r.ruin)}%</div><div class="s">청산 ${r.liquidations}건</div></div>
+      <div class="tile"><div class="k">최장 수중 기간</div><div class="v">${r.underwaterMaxDays}일</div><div class="s">월 승률 ${n2(r.monthWinRate)}%</div></div>
+    </div>`));
+    card.appendChild(h(`<p class="note">구간 3등분 ${r.thirds.map((x) => pc(x, 2)).join(" / ")} · 거래 월 ${n2(r.tradesPerMonth)}회 ·
+      평균 실효 레버리지 ${n2(r.avgLeverage)}배 · 나쁜 달 하위 10% ${pc(r.monthlyP10, 1)}</p>`));
+    add(card);
+  }
+
+  /* ───────────── 11. 한계 ───────────── */
+  add('<h2><span class="num">11</span>한계 — 이 회차가 풀지 못한 것</h2>');
+  add(h(`<ol>
+    <li><strong>순환 논리가 완전히 끊기지는 않았다.</strong> bzc·bzf 는 12회차가 <em>바로 이 창에서</em> 발굴했다.
+      워크포워드는 <em>설정</em>(기법·레버리지·리스크) 선별이 OOS 에서 작동함을 보였을 뿐,
+      <em>부품</em> 선택이 OOS 라는 것은 보이지 못했다. 진짜 검증은 <strong>2021년 이전 데이터나 다른 자산</strong>이다.</li>
+    <li><strong>부품이 10종으로 줄었다.</strong> 1H 부품 4종을 버린 대가다. 14회차의 분산 결론이 뒤집힌 것이
+      창 때문인지 부품이 줄어서인지 완전히 분리되지 않는다 — 다만 §7 의 기여 순위 뒤집힘은 부품 수와 무관하다.</li>
+    <li><strong>D2·D3 의 기준을 잘못 등록했다.</strong> 172일 구간에 MAR 기준을 그대로 쓴 것(D2)과
+      "월 기하 &gt; 0"으로 탈락 시험을 통과시킨 것(D3)은 설계 실수다. 사전 등록한 대로 판정했지만,
+      <strong>다음 회차는 기준부터 고쳐야 한다.</strong></li>
+    <li><strong>워크포워드가 구간마다 자본을 리셋한다.</strong> 구간 경계에서 열린 포지션을 이어받지 않는다.
+      실제 운용보다 낙관도 비관도 아니지만, 정확하지는 않다.</li>
+    <li><strong>여전히 단일 자산.</strong> BTC-USDT-SWAP 하나다. 베이시스 의존이 이렇게 크다면
+      다른 자산의 베이시스로 분산이 되는지가 다음 질문이다.</li>
+  </ol>`));
+
+  add('<h2><span class="num">12</span>다음 단계</h2>');
+  add(h(`<div class="scroll"><table><thead><tr><th class="l">단계</th><th class="l">확인할 것</th><th class="l">통과 기준 (사전 등록할 값)</th></tr></thead><tbody>
+    <tr><td class="l">1 · 베이시스 창 밖 검증</td><td class="l">bzc 가 2021년 이전 또는 다른 자산에서도 성립하는가</td><td class="l">별도 창에서 거래당 기대값 &gt; 0 · t ≥ 2</td></tr>
+    <tr><td class="l">2 · 기준 재등록</td><td class="l">D2·D3 의 기준을 구간 길이와 목적에 맞게</td><td class="l">D2 → 구간 월 기하 &gt; 0 이 5/7 · D3 → 제거 후 MAR ≥ 1</td></tr>
+    <tr><td class="l">3 · 베이시스 부품 확장</td><td class="l">베이시스 신호를 z 문턱·창 길이로 넓혀 부품을 늘릴 수 있는가</td><td class="l">추가 부품이 사전 등록 게이트 통과 · bzc 와 상관 &lt; 0.3</td></tr>
+    <tr><td class="l">4 · 다자산 분산</td><td class="l">ETH·SOL 베이시스로 같은 설계가 되는가</td><td class="l">자산 간 상관 &lt; 0.5 · 합산 MAR &gt; 단일 자산</td></tr>
+    <tr><td class="l">5 · 페이퍼 병행</td><td class="l">권고 구성을 실계좌 전에</td><td class="l">최소 3개월 · 실현 낙폭이 백테스트의 1.5배 이내</td></tr>
+  </tbody></table></div>`));
+  add(`<p class="note">1단계가 가장 중요하다. 이 회차의 결론이 사실상 <strong>"베이시스가 시스템이다"</strong>로 좁혀졌으므로,
+    베이시스가 발굴된 창 밖에서도 성립하는지가 전부를 결정한다.</p>`);
+
+  add("<hr>");
+  add(`<p class="note">데이터 · BTC-USDT-SWAP(OKX) + 현물(베이시스) + 긴 1D. 창 ${dt(W.from)} ~ ${dt(W.to)} (${W.days}일).
+    비용 테이커 ${D.cost.fee}% + 슬리피지 ${D.cost.slip}% 왕복(스트레스에서 최대 0.10%), 펀딩 실측.
+    부트스트랩 블록 20 · 1,000회 · 파산 기준 자산 10%.
+    생성 ${dt(D.generatedAt)} · 코드 <code>backtest-lab/stress/</code> · 사전 등록 <code>stress/README.md</code></p>`);
+})();
+</script>
