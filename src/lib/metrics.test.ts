@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import type { Book, CashFlow, CashFlowKind, Trade, TradeResult } from '@/lib/domain';
 import {
   bucketBy,
+  buildEquityCurve,
   computeMetrics,
   crossCheckPnl,
   dayKey,
@@ -960,5 +961,108 @@ describe('lastActivityAt — 벤치마크 구간의 끝', () => {
     open.exit_at = null;
 
     expect(lastActivityAt(deriveTrades(book, [closed, open]))).toBe('2026-07-05T00:00:00Z');
+  });
+});
+
+describe('buildEquityCurve — 곡선은 실현 시각 순서로 쌓인다', () => {
+  const big: Book = { ...book, initial_capital: 10000 };
+
+  /** 겹치는 포지션 — 먼저 들어가 나중에 나오는 A와, 그 사이에 들어갔다 나온 B. */
+  function overlapping() {
+    seq = 0;
+    return [
+      trade({
+        entry_at: '2026-01-01T00:00:00Z',
+        exit_at: '2026-01-10T00:00:00Z',
+        pnl: 1000,
+        result: 'win',
+      }),
+      trade({
+        entry_at: '2026-01-02T00:00:00Z',
+        exit_at: '2026-01-03T00:00:00Z',
+        pnl: -500,
+        result: 'loss',
+      }),
+    ];
+  }
+
+  it('아직 실현되지 않은 손익을 앞선 점에 먼저 반영하지 않는다', () => {
+    const derived = deriveTrades(big, overlapping());
+    const curve = buildEquityCurve(big, derived);
+
+    // 01-03에는 B만 실현됐다. A의 +1000은 01-10에 가서야 들어온다.
+    expect(curve.map((p) => p.at)).toEqual(['2026-01-03T00:00:00Z', '2026-01-10T00:00:00Z']);
+    expect(curve.map((p) => p.equity)).toEqual([9500, 10500]);
+  });
+
+  it('누적값이 뒤로 가지 않는다 — 방어 없이도 단조롭다', () => {
+    const derived = deriveTrades(big, overlapping());
+    const curve = buildEquityCurve(big, derived);
+
+    expect(curve.map((p) => p.netTotal)).toEqual([-500, 500]);
+    expect(curve.map((p) => p.performance)).toEqual([9500, 10500]);
+    for (let i = 1; i < curve.length; i += 1) {
+      expect(curve[i].withdrawnTotal).toBeGreaterThanOrEqual(curve[i - 1].withdrawnTotal);
+    }
+  });
+
+  it('고점과 낙폭도 실현 순서로 잰다', () => {
+    const derived = deriveTrades(big, overlapping());
+    const curve = buildEquityCurve(big, derived);
+
+    // 01-03 바닥 9500은 초기자금 10000 대비 −5%. 01-10에 신고점을 찍어 낙폭이 사라진다.
+    expect(curve.map((p) => p.peak)).toEqual([10000, 10500]);
+    expect(curve[0].drawdownPct).toBeCloseTo(-0.05, 10);
+    expect(curve[1].drawdownPct).toBe(0);
+    expect(computeMetrics(big, derived).maxDrawdownPct).toBeCloseTo(-0.05, 10);
+  });
+
+  it('겹치지 않으면 거래 단위 값과 그대로 일치한다 — 순서가 같으므로', () => {
+    seq = 0;
+    const derived = deriveTrades(book, [
+      trade({ pnl: 100, result: 'win' }),
+      trade({ pnl: -120, result: 'loss' }),
+      trade({ pnl: 40, result: 'win' }),
+    ]);
+    const curve = buildEquityCurve(book, derived);
+
+    expect(curve.map((p) => p.equity)).toEqual(derived.map((d) => d.equityAfter));
+    expect(curve.map((p) => p.peak)).toEqual(derived.map((d) => d.peak));
+    expect(curve.map((p) => p.drawdownPct)).toEqual(derived.map((d) => d.drawdownPct));
+  });
+
+  it('보유 중인 거래도 점을 만든다 — 진입 시각 자리에 선다', () => {
+    seq = 0;
+    const derived = deriveTrades(book, [
+      trade({ pnl: 10, result: 'win' }),
+      trade({ pnl: 0, result: 'open', exit_at: null }),
+    ]);
+    const curve = buildEquityCurve(book, derived);
+
+    expect(curve).toHaveLength(2);
+    expect(curve[1].at).toBe(derived[1].trade.entry_at);
+  });
+
+  it('이체는 그 시각이 지난 점부터 반영된다', () => {
+    seq = 0;
+    flowSeq = 0;
+    // 첫 거래 청산(01-01T01:00) 뒤, 둘째 거래 청산(01-02T01:00) 전에 들어온 이체.
+    const flows = [flow('transfer', '2026-01-01T12:00:00Z', 1000)];
+    const derived = deriveTrades(
+      book,
+      [trade({ pnl: 100, result: 'win' }), trade({ pnl: -120, result: 'loss' })],
+      flows,
+    );
+    const curve = buildEquityCurve(book, derived, flows);
+
+    expect(curve[0].equity).toBe(200); // 이체 전
+    expect(curve[1].equity).toBe(1080); // 200 + 1000 − 120
+    // 고점도 같은 금액만큼 올라가므로 낙폭은 −10%다.
+    expect(curve[1].peak).toBe(1200);
+    expect(curve[1].drawdownPct).toBeCloseTo(-0.1, 10);
+  });
+
+  it('거래가 없으면 빈 곡선이다', () => {
+    expect(buildEquityCurve(book, [])).toEqual([]);
   });
 });

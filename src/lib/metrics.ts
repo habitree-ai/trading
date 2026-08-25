@@ -185,6 +185,93 @@ export function deriveTrades(
   });
 }
 
+/** 이 거래가 장부에 확정되는 시각 — 청산했으면 청산 시각, 아직 들고 있으면 진입 시각. */
+function realizedMs(d: TradeDerived): number {
+  return Date.parse(d.trade.exit_at ?? d.trade.entry_at);
+}
+
+/** 자금 곡선의 점 하나 — 그 시각까지 실제로 확정된 값만 담는다. */
+export interface EquityCurvePoint {
+  trade: Trade;
+  /** 이 점이 서는 시각(ISO). 청산 시각, 아직 들고 있으면 진입 시각. */
+  at: string;
+  /** 그 시각의 거래계좌 잔액. */
+  equity: number;
+  /** 넣고 뺀 돈을 걷어낸 곡선 — 초기자금 + 누적 실현손익. */
+  performance: number;
+  peak: number;
+  drawdownPct: number;
+  withdrawnTotal: number;
+  netTotal: number;
+  net: number;
+}
+
+/**
+ * 자금 곡선 — `deriveTrades`와 달리 **실현 시각 순서로** 쌓는다.
+ *
+ * `deriveTrades`는 진입 순서로 누적한다. 거래 한 건의 관점에서는 그게 맞다 —
+ * `equityBefore`는 진입 직전 자금이어야 한다. 하지만 곡선의 가로축은 시각이고,
+ * 점은 청산 시각에 찍힌다. 먼저 들어가 나중에 나온 포지션이 있으면 두 순서가
+ * 갈라져서, 아직 실현되지 않은 손익이 앞선 점에 먼저 들어가고 나중 점에서
+ * 거꾸로 빠져나간다. 계좌에서 일어나지 않은 움직임이다.
+ *
+ * 그래서 시계열은 여기서 따로 세운다. 거래 단위 값(`TradeDerived`)은 건드리지 않는다.
+ * 겹치는 포지션이 없고 거래 도중에 이체가 없으면 두 결과는 완전히 같다.
+ */
+export function buildEquityCurve(
+  book: Book,
+  derived: readonly TradeDerived[],
+  flows: readonly CashFlow[] = [],
+): EquityCurvePoint[] {
+  // 같은 시각에 둘이 닫히면 순번으로 가른다 — 순서가 매번 달라지면 곡선도 흔들린다.
+  const events = [...derived].sort(
+    (a, b) => realizedMs(a) - realizedMs(b) || a.trade.seq - b.trade.seq,
+  );
+  const transfers = sortedTransfers(flows);
+
+  let running = book.initial_capital;
+  let peak = book.initial_capital;
+  let withdrawnTotal = 0;
+  let netTotal = 0;
+  let nextTransfer = 0;
+
+  return events.map((d) => {
+    const atMs = realizedMs(d);
+    // 그 시각까지 실제로 오간 이체만 반영한다.
+    while (nextTransfer < transfers.length && Date.parse(transfers[nextTransfer].at) <= atMs) {
+      const { amount } = transfers[nextTransfer];
+      running += amount;
+      // 나간 이체만 출금으로 센다 — 왕복이 출금으로 잡히지 않도록.
+      if (amount < 0) withdrawnTotal -= amount;
+      // 고점도 같은 금액만큼 옮긴다 — 넣고 뺀 돈은 매매 성과가 아니다.
+      peak = Math.max(peak + amount, 0);
+      nextTransfer += 1;
+    }
+
+    const { trade, net } = d;
+    const withdrawal = trade.withdrawal ?? 0;
+    // 실측이 있으면 그게 정본이다. 없으면 직전 자금에서 이어 붙인다.
+    const equity = trade.equity_after ?? (trade.equity_before ?? running) + net - withdrawal;
+
+    running = equity;
+    peak = Math.max(peak, running);
+    withdrawnTotal += withdrawal;
+    netTotal += net;
+
+    return {
+      trade,
+      at: trade.exit_at ?? trade.entry_at,
+      equity,
+      performance: book.initial_capital + netTotal,
+      peak,
+      drawdownPct: peak <= 0 ? 0 : (running - peak) / peak,
+      withdrawnTotal,
+      netTotal,
+      net,
+    };
+  });
+}
+
 /**
  * 증거금 — 이 거래에 실제로 묶인 돈.
  *
@@ -425,9 +512,12 @@ export function computeMetrics(
   const netChange = finalEquity - book.initial_capital - netTransfer + totalWithdrawal;
   const investedCapital = book.initial_capital + peakTransfer;
 
+  // 고점·저점·낙폭은 곡선에서 잰다 — 거래 단위 누계(진입순)로 재면 겹치는 포지션에서
+  // 화면의 곡선과 값이 갈린다. 곡선이 보여 주는 그 낙폭을 그대로 쓴다.
+  const curve = buildEquityCurve(book, derived, flows);
   // 최고치는 낙폭을 재는 그 고점을 쓴다 — 거래 사이에 이체로 올라간 지점까지 담긴다.
-  const peaks = [book.initial_capital, ...derived.map((d) => d.peak)];
-  const balances = [book.initial_capital, ...derived.map((d) => d.equityAfter)];
+  const peaks = [book.initial_capital, ...curve.map((p) => p.peak)];
+  const balances = [book.initial_capital, ...curve.map((p) => p.equity)];
   const riskPcts = derived.map((d) => d.riskPct).filter((v): v is number => v !== null);
 
   return {
@@ -471,7 +561,7 @@ export function computeMetrics(
     capitalRatio: ratio(finalEquity, investedCapital),
     peakEquity: Math.max(...peaks),
     troughEquity: Math.min(...balances),
-    maxDrawdownPct: derived.reduce((min, d) => Math.min(min, d.drawdownPct), 0),
+    maxDrawdownPct: curve.reduce((min, p) => Math.min(min, p.drawdownPct), 0),
     avgRiskPct: mean(riskPcts),
   };
 }
@@ -669,29 +759,29 @@ function longestRun(
 /**
  * 최대 낙폭이 언제 시작해 언제 바닥을 쳤는지.
  *
- * 낙폭 자체는 `deriveTrades`가 거래 단위로 이미 재 뒀다 — 여기서 다시 재면 KPI 타일의
- * MDD와 값이 갈린다. 그 곡선을 그대로 훑으며 고점이 갱신된 시점만 따로 기억한다.
+ * 낙폭 자체는 `buildEquityCurve`가 이미 재 뒀다 — 여기서 다시 재면 KPI 타일의 MDD와
+ * 값이 갈린다. 그 곡선을 그대로 훑으며 고점이 갱신된 시점만 따로 기억한다.
  */
 function findMaxDrawdown(
   book: Book,
-  derived: readonly TradeDerived[],
+  curve: readonly EquityCurvePoint[],
 ): PerformanceSummary['maxDrawdown'] {
   let peak = book.initial_capital;
   let peakAt = book.start_date;
   let deepest = 0;
   let found: PerformanceSummary['maxDrawdown'] = null;
 
-  for (const d of derived) {
-    const at = dayKey(d.trade.exit_at ?? d.trade.entry_at);
-    if (d.peak > peak) {
-      peak = d.peak;
+  for (const p of curve) {
+    const at = dayKey(p.at);
+    if (p.peak > peak) {
+      peak = p.peak;
       peakAt = at;
     }
 
-    const drop = d.peak - d.equityAfter;
+    const drop = p.peak - p.equity;
     if (drop > deepest) {
       deepest = drop;
-      found = { amount: -drop, pct: d.drawdownPct, from: peakAt, to: at };
+      found = { amount: -drop, pct: p.drawdownPct, from: peakAt, to: at };
     }
   }
   return found;
@@ -720,7 +810,7 @@ export function summarizePerformance(
 
   const winDays = days.filter((d) => d.pnl > 0).length;
   const lossDays = days.filter((d) => d.pnl < 0).length;
-  const maxDrawdown = findMaxDrawdown(book, derived);
+  const maxDrawdown = findMaxDrawdown(book, buildEquityCurve(book, derived, flows));
 
   return {
     period: days.length === 0 ? null : { from: days[0].key, to: days[days.length - 1].key },

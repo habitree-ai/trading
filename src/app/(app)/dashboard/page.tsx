@@ -15,6 +15,7 @@ import { loadBenchmark } from "@/lib/benchmark";
 import { date, dateTime, num, pct, pnlClass, signed, signedPct, DASH } from "@/lib/format";
 import {
   bucketBy,
+  buildEquityCurve,
   computeMetrics,
   dayKey,
   deriveTrades,
@@ -97,25 +98,8 @@ export default async function DashboardPage() {
   const benchmark = lastAt ? await loadBenchmark(startedAt, lastAt) : null;
   const priceAt = (iso: string) => benchmark?.at(iso) ?? null;
 
-  /*
-   * 자금 곡선의 점 — 손익이 실현된 시각에 찍는다.
-   *
-   * `deriveTrades`는 진입 순서로 잔액을 이어 붙이지만, 먼저 들어가 나중에 나온
-   * 포지션이 있으면 그 순서가 청산 순서와 어긋난다. 가로축이 시각인 이상 점은
-   * 시각순으로 이어야 하므로 여기서 다시 세운다.
-   */
-  const points = derived.map((d) => ({
-    t: Date.parse(d.trade.exit_at ?? d.trade.entry_at),
-    label: `#${d.trade.seq} ${date(d.trade.exit_at ?? d.trade.entry_at)}`,
-    equity: d.equityAfter,
-    // 넣고 뺀 돈을 걷어낸 곡선 — 출금으로 꺾인 자리가 여기서는 이어진다.
-    performance: book.initial_capital + d.netTotal,
-    withdrawn: d.withdrawnTotal,
-    drawdown: d.drawdownPct,
-    pnl: d.trade.pnl,
-    benchmark: priceAt(d.trade.exit_at ?? d.trade.entry_at),
-  }));
-  points.sort((a, b) => a.t - b.t);
+  // 자금 곡선의 점 — 실현 시각 순서로 쌓인 시계열을 그대로 옮긴다.
+  const series = buildEquityCurve(book, derived, flows);
 
   const curve: EquityPoint[] = [
     {
@@ -129,11 +113,18 @@ export default async function DashboardPage() {
       pnl: null,
       benchmark: priceAt(startedAt),
     },
-    // 이번 구간에 빠져나간 금액 — 시각순으로 정렬한 뒤에 계산해야 화면의 순서와 맞는다.
-    // 순서를 다시 세운 탓에 누계가 잠깐 뒤로 갈 수 있어 음수는 0으로 눌러 둔다.
-    ...points.map((p, i) => ({
-      ...p,
-      withdrawnStep: Math.max(0, p.withdrawn - (i === 0 ? 0 : points[i - 1].withdrawn)),
+    ...series.map((p, i) => ({
+      t: Date.parse(p.at),
+      label: `#${p.trade.seq} ${date(p.at)}`,
+      equity: p.equity,
+      // 넣고 뺀 돈을 걷어낸 곡선 — 출금으로 꺾인 자리가 여기서는 이어진다.
+      performance: p.performance,
+      withdrawn: p.withdrawnTotal,
+      // 누계가 시각순으로 쌓이므로 이번 구간 출금은 그냥 차이다.
+      withdrawnStep: p.withdrawnTotal - (i === 0 ? 0 : series[i - 1].withdrawnTotal),
+      drawdown: p.drawdownPct,
+      pnl: p.trade.pnl,
+      benchmark: priceAt(p.at),
     })),
   ];
 
@@ -319,12 +310,14 @@ export default async function DashboardPage() {
                 data={curve}
                 currency={book.base_currency}
                 initialCapital={book.initial_capital}
+                returnBase={m.investedCapital}
                 benchmarkLabel={benchmark?.symbol ?? null}
               />
             </div>
             <Note>
               가로축은 거래 순번이 아니라 날짜입니다 — 몰아서 거래한 날은 붙어서, 쉰 구간은
-              넓게 찍힙니다.
+              넓게 찍힙니다. 세로축은 기본이 수익률입니다 — 시장을 이겼는지 기울기로 보라고
+              그렇게 뒀습니다. 잔액 금액이 필요하면 차트 오른쪽 위에서 바꿉니다.
             </Note>
           </section>
 
