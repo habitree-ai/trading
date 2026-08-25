@@ -110,6 +110,15 @@ export interface Trade {
   tp2_price: number | null;
   tp3_price: number | null;
   /**
+   * TP 단계마다 덜어낼 비중(%, 0 초과 100 이하) — 시트에는 없던 항목. 손 입력 전용.
+   *
+   * 셋 다 비어 있으면 가격이 있는 TP 수로 균등으로 읽고, 하나라도 적혀 있으면 빈 칸은 0 이다.
+   * 합이 100 이 아닌 것은 폼이 경고할 뿐 저장을 막지 않는다 — 계획은 고쳐 가며 적는다.
+   */
+  tp1_pct: number | null;
+  tp2_pct: number | null;
+  tp3_pct: number | null;
+  /**
    * 거래소에 **실제로 걸려 있던** 손절 트리거가.
    *
    * 위 `stop_price`가 "얼마에 끊으려 했나"(계획)라면 이쪽은 "얼마가 걸려 있었나"(사실)다.

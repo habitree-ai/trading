@@ -1,0 +1,277 @@
+import type { ActualStep, ExitActual, ExitPlan, ExitSummary, PlanStep, StopLeg } from "@/lib/exit-plan";
+import { DASH, dateTime, num, pct, pnlClass, signed, signedPct } from "@/lib/format";
+
+/**
+ * 분할 청산 계획·실적의 표시 조각 — 훅이 없어 서버·클라이언트 어디서든 그린다.
+ *
+ * 네 화면(거래 목록 셀·거래 상세 카드·대시보드 펼침·좁은 화면)이 같은 어휘를 쓴다:
+ *   `SL 95.00 −5.00% −50 거래소` / `TP1 105.00 33% +5.00% +16.7` / `실제 1 105.10 50% +5.10% +25.5`
+ * 숫자 포맷은 format.ts 만 쓴다 — 직접 toLocaleString 을 부르면 서버와 브라우저가 다른
+ * 문자열을 만들어 하이드레이션이 깨진다.
+ */
+
+const BADGE = "inline-block rounded border px-1 text-center text-[10px] leading-4";
+const SL_BADGE = `${BADGE} border-loss/40 text-loss`;
+const TP_BADGE = `${BADGE} border-profit/40 text-profit`;
+const ACTUAL_BADGE = `${BADGE} border-beta/40 text-beta`;
+
+function Warn({ text }: { text: string | null }) {
+  if (!text) return null;
+  return (
+    <span className="text-beta" title={text} aria-label={text}>
+      ⚠
+    </span>
+  );
+}
+
+/** 값이 어디서 왔는지 — 거래소면 그렇게, 계획값이 나란히 있으면 함께. */
+function SourceTag({ source, planPrice }: { source: "plan" | "okx"; planPrice: number | null }) {
+  if (source !== "okx") return null;
+  return (
+    <span className="text-dim">
+      거래소{planPrice !== null ? ` · 내 계획 ${num(planPrice)}` : ""}
+    </span>
+  );
+}
+
+function StopLine({ stop }: { stop: StopLeg | null }) {
+  if (!stop) {
+    return (
+      <div className="text-dim">
+        <span className={SL_BADGE}>SL</span> {DASH}
+      </div>
+    );
+  }
+  return (
+    <div className="flex flex-wrap items-baseline gap-x-1.5">
+      <span className={SL_BADGE}>SL</span>
+      <span>{num(stop.price)}</span>
+      <span className="text-loss">{signedPct(stop.riskPct === null ? null : -stop.riskPct, 2)}</span>
+      <span className="text-loss">{signed(stop.lossAmount, 0)}</span>
+      <SourceTag source={stop.source} planPrice={stop.planPrice} />
+      <Warn text={stop.problem} />
+    </div>
+  );
+}
+
+function PlanLine({ step }: { step: PlanStep }) {
+  return (
+    <div className="flex flex-wrap items-baseline gap-x-1.5">
+      <span className={TP_BADGE}>TP{step.n}</span>
+      <span>{num(step.price)}</span>
+      <span className="text-dim">{pct(step.share, 0)}</span>
+      <span className={pnlClass(step.movePct)}>{signedPct(step.movePct, 2)}</span>
+      <span className={pnlClass(step.amount)}>{signed(step.amount, 0)}</span>
+      <SourceTag source={step.source} planPrice={step.planPrice} />
+      <Warn text={step.problem} />
+    </div>
+  );
+}
+
+function ActualLine({ step, single }: { step: ActualStep; single: boolean }) {
+  return (
+    <div className="flex flex-wrap items-baseline gap-x-1.5">
+      <span className={ACTUAL_BADGE}>실제{single ? "" : ` ${step.n}`}</span>
+      <span>{num(step.price)}</span>
+      <span className="text-dim">{pct(step.share, 0)}</span>
+      <span className={pnlClass(step.movePct)}>{signedPct(step.movePct, 2)}</span>
+      <span className={pnlClass(step.pnl)}>{signed(step.pnl, 0)}</span>
+      {step.estimated ? <span className="text-dim">추정</span> : null}
+    </div>
+  );
+}
+
+/**
+ * 줄 형태 — 목록 셀과 좁은 화면.
+ *
+ * 닫힌 거래는 실적을 먼저 세우고 계획을 흐리게 아래 둔다. 들고 있는 거래는 계획이 먼저고,
+ * 부분청산이 있으면 그만큼을 실적으로 아래에 덧붙인다.
+ */
+export function ExitPlanLines({ summary }: { summary: ExitSummary }) {
+  const { plan, actual, mode } = summary;
+  const planBlock = (
+    <>
+      <StopLine stop={plan.stop} />
+      {plan.steps.length > 0 ? (
+        plan.steps.map((s) => <PlanLine key={s.n} step={s} />)
+      ) : (
+        <div className="text-dim">
+          <span className={TP_BADGE}>TP</span> {DASH}
+        </div>
+      )}
+    </>
+  );
+  const actualBlock =
+    actual && actual.steps.length > 0
+      ? actual.steps.map((s) => <ActualLine key={s.n} step={s} single={actual.steps.length === 1} />)
+      : null;
+
+  return (
+    <div className="tnum space-y-0.5 text-[11px] leading-4">
+      {mode === "actual-with-plan" ? (
+        <>
+          {actualBlock}
+          <div className="opacity-60">{planBlock}</div>
+        </>
+      ) : (
+        <>
+          {planBlock}
+          {actualBlock}
+        </>
+      )}
+    </div>
+  );
+}
+
+const TH = "py-1 text-right font-medium";
+
+function RCell({ r }: { r: number | null }) {
+  return (
+    <td className={`hidden py-1.5 text-right sm:table-cell ${pnlClass(r)}`}>
+      {r === null ? DASH : `${num(r, 2)}R`}
+    </td>
+  );
+}
+
+/** 계획 표 — 단계 · 가격 · 비중 · 가격폭 · 금액 · 수익률(증거금) · R. */
+export function PlanTable({ plan, hideTotal }: { plan: ExitPlan; hideTotal: boolean }) {
+  return (
+    <table className="tnum w-full text-xs">
+      <thead className="text-[11px] text-dim">
+        <tr>
+          <th className="py-1 text-left font-medium">단계</th>
+          <th className={TH}>가격</th>
+          <th className={TH}>비중</th>
+          <th className={TH}>가격폭</th>
+          <th className={TH}>금액</th>
+          <th className={TH}>
+            수익률<span className="block font-normal">증거금</span>
+          </th>
+          <th className={`hidden sm:table-cell ${TH}`}>R</th>
+        </tr>
+      </thead>
+      <tbody>
+        {plan.steps.length === 0 ? (
+          <tr className="border-t border-border">
+            <td colSpan={7} className="py-2 text-dim">
+              목표 {DASH}
+            </td>
+          </tr>
+        ) : (
+          plan.steps.map((s) => (
+            <tr key={s.n} className="border-t border-border">
+              <td className="py-1.5 whitespace-nowrap">
+                <span className={TP_BADGE}>TP{s.n}</span> <Warn text={s.problem} />
+              </td>
+              <td className="py-1.5 text-right">
+                {num(s.price)}
+                {s.source === "okx" ? (
+                  <span className="block text-[11px] text-dim">
+                    거래소{s.planPrice !== null ? ` · 내 계획 ${num(s.planPrice)}` : ""}
+                  </span>
+                ) : null}
+              </td>
+              <td className="py-1.5 text-right text-dim">
+                {pct(s.share, 0)}
+                {s.shareSource === "even" ? <span className="block text-[11px]">균등</span> : null}
+              </td>
+              <td className={`py-1.5 text-right ${pnlClass(s.movePct)}`}>{signedPct(s.movePct, 2)}</td>
+              <td className={`py-1.5 text-right ${pnlClass(s.amount)}`}>{signed(s.amount)}</td>
+              <td className={`py-1.5 text-right ${pnlClass(s.returnPct)}`}>{signedPct(s.returnPct)}</td>
+              <RCell r={s.r} />
+            </tr>
+          ))
+        )}
+      </tbody>
+      {/* 합이 100 이 아닐 때의 합계는 그 물량 기준이라 "이 거래 최대" 로 읽힌다 — 숨긴다. */}
+      {plan.steps.length > 0 && !hideTotal ? (
+        <tfoot className="border-t border-border text-[11px]">
+          <tr>
+            <td className="py-1.5 text-dim">합계</td>
+            <td />
+            <td className="py-1.5 text-right text-dim">{pct(plan.shareSum, 0)}</td>
+            <td />
+            <td className={`py-1.5 text-right ${pnlClass(plan.total.amount)}`}>
+              {signed(plan.total.amount)}
+            </td>
+            <td className={`py-1.5 text-right ${pnlClass(plan.total.returnPct)}`}>
+              {signedPct(plan.total.returnPct)}
+            </td>
+            <RCell r={plan.total.blendedR} />
+          </tr>
+        </tfoot>
+      ) : null}
+    </table>
+  );
+}
+
+/** 실적 표 — 계획 표와 같은 열에 수수료·시각이 붙는다. */
+export function ActualTable({ actual }: { actual: ExitActual }) {
+  return (
+    <table className="tnum w-full text-xs">
+      <thead className="text-[11px] text-dim">
+        <tr>
+          <th className="py-1 text-left font-medium">차수</th>
+          <th className={TH}>가격</th>
+          <th className={TH}>비중</th>
+          <th className={TH}>가격폭</th>
+          <th className={TH}>손익</th>
+          <th className={TH}>
+            수익률<span className="block font-normal">증거금</span>
+          </th>
+          <th className={`hidden sm:table-cell ${TH}`}>R</th>
+          <th className={`hidden sm:table-cell ${TH}`}>시각</th>
+        </tr>
+      </thead>
+      <tbody>
+        {actual.steps.map((s) => (
+          <tr key={s.n} className="border-t border-border">
+            <td className="py-1.5 whitespace-nowrap">
+              <span className={ACTUAL_BADGE}>{s.n}차</span>
+              {s.estimated ? <span className="ml-1 text-[11px] text-dim">추정</span> : null}
+            </td>
+            <td className="py-1.5 text-right">
+              {num(s.price)}
+              {s.fillCount > 1 ? (
+                <span className="block text-[11px] text-dim">{s.fillCount}체결 평균</span>
+              ) : null}
+            </td>
+            <td className="py-1.5 text-right text-dim">{pct(s.share, 0)}</td>
+            <td className={`py-1.5 text-right ${pnlClass(s.movePct)}`}>{signedPct(s.movePct, 2)}</td>
+            <td className={`py-1.5 text-right ${pnlClass(s.pnl)}`}>
+              {signed(s.pnl)}
+              {s.fee !== null ? (
+                <span className="block text-[11px] text-dim">수수료 {signed(s.fee)}</span>
+              ) : null}
+            </td>
+            <td className={`py-1.5 text-right ${pnlClass(s.returnPct)}`}>{signedPct(s.returnPct)}</td>
+            <RCell r={s.r} />
+            <td className="hidden py-1.5 text-right text-dim sm:table-cell">{dateTime(s.at)}</td>
+          </tr>
+        ))}
+      </tbody>
+      <tfoot className="border-t border-border text-[11px]">
+        <tr>
+          <td className="py-1.5 text-dim">합계</td>
+          <td />
+          <td className="py-1.5 text-right text-dim">
+            {pct(actual.closedShare, 0)}
+            {actual.remainingShare !== null && actual.remainingShare > 0 ? (
+              <span className="block">보유 {pct(actual.remainingShare, 0)}</span>
+            ) : null}
+          </td>
+          <td />
+          <td className={`py-1.5 text-right ${pnlClass(actual.pnlTotal)}`}>
+            {signed(actual.pnlTotal)}
+            {actual.closeFeeTotal !== null ? (
+              <span className="block text-dim">수수료 {signed(actual.closeFeeTotal)}</span>
+            ) : null}
+          </td>
+          <td />
+          <td className="hidden sm:table-cell" />
+          <td className="hidden sm:table-cell" />
+        </tr>
+      </tfoot>
+    </table>
+  );
+}

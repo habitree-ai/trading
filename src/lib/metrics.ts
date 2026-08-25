@@ -86,9 +86,19 @@ export interface TradeDerived {
  * 거래소가 준 실현손익이 정본이다. 없을 때만(수기 입력 경로) 손익·수수료·펀딩비로
  * 되짚는데, 그 셋에는 청산 수수료·ADL이 실리지 않아 근사값이다.
  */
-function netOf(trade: Trade): number {
+export function netOf(trade: Trade): number {
   if (trade.realized_pnl !== null) return trade.realized_pnl;
   return (trade.pnl ?? 0) + (trade.fee ?? 0) + (trade.funding_fee ?? 0);
+}
+
+/**
+ * 아직 들고 있는 거래인가 — 저장된 `result`만 믿지 않고 종료 시각·손익의 유무까지 본다.
+ *
+ * `resultOf`가 '보유중'을 가르는 그 판정이다. 계획/실적 화면이 같은 기준을 써야
+ * 표의 배지와 카드의 모드가 한 거래를 두고 다른 말을 하지 않는다.
+ */
+export function isOpenTrade(trade: Trade): boolean {
+  return trade.result === 'open' || trade.exit_at === null || trade.pnl === null;
 }
 
 /**
@@ -99,7 +109,7 @@ function netOf(trade: Trade): number {
  * 배지가 서로 다른 말을 한다.
  */
 function resultOf(trade: Trade, net: number): TradeResult {
-  if (trade.result === 'open' || trade.exit_at === null || trade.pnl === null) return 'open';
+  if (isOpenTrade(trade)) return 'open';
   return net > 0 ? 'win' : net < 0 ? 'loss' : 'be';
 }
 

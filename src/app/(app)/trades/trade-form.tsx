@@ -7,18 +7,21 @@ import { createTrade, updateTrade, type TradeFormState } from "@/app/(app)/trade
 import type { Trade } from "@/lib/domain";
 import type { Prefill } from "@/lib/extract/to-prefill";
 import type { ExtractedFill } from "@/lib/extract/types";
+import { checkTpSplit } from "@/lib/exit-plan";
 import { toLocalInput } from "@/lib/format";
 import { crossCheckPnl, type PnlCrossCheck } from "@/lib/metrics";
+
+function numberField(data: FormData, key: string): number | null {
+  const raw = String(data.get(key) ?? "").trim().replace(/,/g, "");
+  if (raw === "") return null;
+  const parsed = Number(raw);
+  return Number.isFinite(parsed) ? parsed : null;
+}
 
 /** 폼에 지금 들어 있는 값으로 손익 교차검증을 돌린다. */
 function readCrossCheck(form: HTMLFormElement, side: "long" | "short"): PnlCrossCheck | null {
   const data = new FormData(form);
-  const n = (key: string): number | null => {
-    const raw = String(data.get(key) ?? "").trim().replace(/,/g, "");
-    if (raw === "") return null;
-    const parsed = Number(raw);
-    return Number.isFinite(parsed) ? parsed : null;
-  };
+  const n = (key: string) => numberField(data, key);
 
   return crossCheckPnl({
     side,
@@ -26,6 +29,21 @@ function readCrossCheck(form: HTMLFormElement, side: "long" | "short"): PnlCross
     entry_price: n("entry_price"),
     exit_price: n("exit_price"),
     pnl: n("pnl"),
+  });
+}
+
+/**
+ * TP 비중 경고 — 저장을 막지 않는다.
+ *
+ * TP1 자리는 거래소 익절이 먼저 선다(카드와 같은 판정). 손으로 가격을 안 적어도 거래소에
+ * 걸려 있으면 그 단은 살아 있어, 비중만 적은 것이 "가격 없는데 비율만" 으로 잡히지 않게.
+ */
+function readTpSplit(form: HTMLFormElement, okxTpPrice: number | null): string | null {
+  const data = new FormData(form);
+  const n = (key: string) => numberField(data, key);
+  return checkTpSplit({
+    prices: [okxTpPrice ?? n("tp1_price"), n("tp2_price"), n("tp3_price")],
+    pcts: [n("tp1_pct"), n("tp2_pct"), n("tp3_pct")],
   });
 }
 
@@ -117,6 +135,7 @@ export function TradeForm({
   );
   const suspect = new Set(suspectFields);
   const [check, setCheck] = useState<PnlCrossCheck | null>(null);
+  const [tpNote, setTpNote] = useState<string | null>(null);
 
   const v = (key: keyof Trade): string => {
     const fromPrefill = prefill?.[key];
@@ -129,7 +148,10 @@ export function TradeForm({
     <form
       action={action}
       className="space-y-4"
-      onInput={(e) => setCheck(readCrossCheck(e.currentTarget, side))}
+      onInput={(e) => {
+        setCheck(readCrossCheck(e.currentTarget, side));
+        setTpNote(readTpSplit(e.currentTarget, trade?.okx_tp_price ?? null));
+      }}
     >
       <input type="hidden" name="book_id" value={bookId} />
       {trade ? <input type="hidden" name="trade_id" value={trade.id} /> : null}
@@ -286,6 +308,15 @@ export function TradeForm({
         <Field name="tp1_price" label="TP1 (익절1)" numeric defaultValue={v("tp1_price")} />
         <Field name="tp2_price" label="TP2" numeric defaultValue={v("tp2_price")} />
         <Field name="tp3_price" label="TP3" numeric defaultValue={v("tp3_price")} />
+        {/* 비중은 셋 다 비우면 균등, 하나라도 적으면 빈 칸은 0 이다 — 합이 안 맞으면 아래 경고. */}
+        <Field name="tp1_pct" label="TP1 비중 %" hint="비우면 균등" numeric defaultValue={v("tp1_pct")} />
+        <Field name="tp2_pct" label="TP2 비중 %" numeric defaultValue={v("tp2_pct")} />
+        <Field name="tp3_pct" label="TP3 비중 %" numeric defaultValue={v("tp3_pct")} />
+        {tpNote ? (
+          <p className="sm:col-span-3 rounded-lg border border-beta/50 bg-beta/10 px-3 py-2 text-xs text-beta">
+            ⚠ {tpNote}
+          </p>
+        ) : null}
       </Section>
 
       <Section title="복기">

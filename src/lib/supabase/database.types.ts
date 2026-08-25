@@ -873,8 +873,11 @@ export type Database = {
           side: Database["public"]["Enums"]["trade_side"]
           stop_price: number | null
           symbol: string
+          tp1_pct: number | null
           tp1_price: number | null
+          tp2_pct: number | null
           tp2_price: number | null
+          tp3_pct: number | null
           tp3_price: number | null
           unrealized_pnl: number | null
           updated_at: string
@@ -912,8 +915,11 @@ export type Database = {
           side: Database["public"]["Enums"]["trade_side"]
           stop_price?: number | null
           symbol: string
+          tp1_pct?: number | null
           tp1_price?: number | null
+          tp2_pct?: number | null
           tp2_price?: number | null
+          tp3_pct?: number | null
           tp3_price?: number | null
           unrealized_pnl?: number | null
           updated_at?: string
@@ -951,8 +957,11 @@ export type Database = {
           side?: Database["public"]["Enums"]["trade_side"]
           stop_price?: number | null
           symbol?: string
+          tp1_pct?: number | null
           tp1_price?: number | null
+          tp2_pct?: number | null
           tp2_price?: number | null
+          tp3_pct?: number | null
           tp3_price?: number | null
           unrealized_pnl?: number | null
           updated_at?: string

@@ -83,6 +83,9 @@ function readForm(formData: FormData) {
     tp1_price: parseNumber(formData.get("tp1_price")),
     tp2_price: parseNumber(formData.get("tp2_price")),
     tp3_price: parseNumber(formData.get("tp3_price")),
+    tp1_pct: parseNumber(formData.get("tp1_pct")),
+    tp2_pct: parseNumber(formData.get("tp2_pct")),
+    tp3_pct: parseNumber(formData.get("tp3_pct")),
     setup: parseText(formData.get("setup")),
     rationale: parseText(formData.get("rationale")),
     review: parseText(formData.get("review")),
@@ -156,6 +159,12 @@ function validate(values: ReturnType<typeof readForm>): string | null {
   }
   if (values.exit_at && values.entry_at && values.exit_at < values.entry_at) {
     return "종료 시각이 진입 시각보다 빠릅니다.";
+  }
+  // 비중은 범위만 거른다 — 합이 100 이 아닌 것은 폼이 경고할 뿐, 계획은 고쳐 가며 적는다.
+  for (const [n, pct] of [values.tp1_pct, values.tp2_pct, values.tp3_pct].entries()) {
+    if (pct !== null && (pct <= 0 || pct > 100)) {
+      return `TP${n + 1} 비율은 0 초과 100 이하여야 합니다.`;
+    }
   }
   return null;
 }

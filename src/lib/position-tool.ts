@@ -39,7 +39,7 @@ export interface PositionMetrics {
   problem: string | null;
 }
 
-const PROBLEM: Record<Side, string> = {
+export const PROBLEM: Record<Side, string> = {
   long: '롱은 손절이 진입보다 낮고 목표가 높아야 합니다.',
   short: '숏은 손절이 진입보다 높고 목표가 낮아야 합니다.',
 };

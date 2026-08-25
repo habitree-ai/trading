@@ -450,7 +450,18 @@ describe("미청산 포지션", () => {
     const row = toTradeInsert({ pos: position(), ctVal: 0.01, ...owner, seq: 3 })!;
     const update = toCloseUpdate(row);
 
-    for (const field of ["rationale", "review", "emotion", "note", "setup", "stop_price"]) {
+    for (const field of [
+      "rationale",
+      "review",
+      "emotion",
+      "note",
+      "setup",
+      "stop_price",
+      "tp1_price",
+      "tp1_pct",
+      "tp2_pct",
+      "tp3_pct",
+    ]) {
       expect(update).not.toHaveProperty(field);
     }
     expect(update).not.toHaveProperty("book_id");

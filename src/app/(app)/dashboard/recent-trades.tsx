@@ -2,10 +2,15 @@
 
 import { useState, type ReactNode } from "react";
 
+import { ExitPlanLines } from "@/components/exit-plan";
 import { TradeChart } from "@/components/trade-chart";
-import { RESULT_LABEL, SIDE_LABEL } from "@/lib/domain";
+import { RESULT_LABEL, SIDE_LABEL, type TradeFill } from "@/lib/domain";
+import { activeTargetPrices, summarizeExits } from "@/lib/exit-plan";
 import { dateTime, num, pnlClass, signed, signedPct } from "@/lib/format";
 import type { TradeDerived } from "@/lib/metrics";
+
+/** 대시보드는 체결을 읽지 않는다 — 실적은 거래 행의 청산가 한 점으로만 되짚는다. */
+const NO_FILLS: TradeFill[] = [];
 
 /**
  * 최근 거래 — 한 줄을 누르면 그 자리에서 간략 정보와 당시 차트를 편다.
@@ -87,35 +92,12 @@ export function RecentTrades({
                     </span>
                   </Item>
                   {/*
-                    * 거래소에 실제로 걸려 있던 값이 먼저다 — 손으로 적은 것은 계획이고
-                    * 이쪽은 사실이다. 둘 다 있으면 나란히 세워 어긋난 폭이 보이게 한다.
+                    * 손절·목표는 목록 셀과 같은 줄 형태다 — 거래소에 걸려 있던 값이 먼저 서고
+                    * 손으로 적은 계획은 옆에 붙는다. 닫힌 거래는 청산가 한 점의 실적이 먼저다.
                     */}
-                  <Item label="손절가">
-                    <span className="tnum">
-                      {num(trade.okx_stop_price ?? trade.stop_price)}
-                    </span>
-                    {trade.okx_stop_price !== null ? (
-                      <span className="block text-[11px] text-dim">
-                        거래소
-                        {trade.stop_price !== null
-                          ? ` · 내 계획 ${num(trade.stop_price)}`
-                          : ""}
-                      </span>
-                    ) : trade.stop_price !== null ? (
-                      <span className="block text-[11px] text-dim">내 계획</span>
-                    ) : null}
+                  <Item label="손절 · 목표" className="col-span-2">
+                    <ExitPlanLines summary={summarizeExits(trade, NO_FILLS, result === "open")} />
                   </Item>
-                  {/* 익절은 걸어 둔 거래에만 뜬다 — 없는 칸을 비워 세우지 않는다. */}
-                  {trade.okx_tp_price !== null || trade.tp1_price !== null ? (
-                    <Item label="익절가">
-                      <span className="tnum">
-                        {num(trade.okx_tp_price ?? trade.tp1_price)}
-                      </span>
-                      <span className="block text-[11px] text-dim">
-                        {trade.okx_tp_price !== null ? "거래소" : "내 계획"}
-                      </span>
-                    </Item>
-                  ) : null}
                   <Item label={result === "open" ? `평가손익 (${currency})` : `실현손익 (${currency})`}>
                     {result === "open" ? (
                       <span className={`tnum ${pnlClass(trade.unrealized_pnl)}`}>
@@ -157,7 +139,7 @@ export function RecentTrades({
                     entryPrice={trade.entry_price}
                     exitPrice={trade.exit_price}
                     stopPrice={trade.okx_stop_price ?? trade.stop_price}
-                    targetPrice={trade.okx_tp_price ?? trade.tp1_price}
+                    targets={activeTargetPrices(trade)}
                     notional={trade.notional}
                     now={now}
                   />
@@ -171,9 +153,17 @@ export function RecentTrades({
   );
 }
 
-function Item({ label, children }: { label: string; children: ReactNode }) {
+function Item({
+  label,
+  children,
+  className = "",
+}: {
+  label: string;
+  children: ReactNode;
+  className?: string;
+}) {
   return (
-    <div className="text-xs">
+    <div className={`text-xs ${className}`}>
       <dt className="text-[11px] text-dim">{label}</dt>
       <dd className="mt-0.5">{children}</dd>
     </div>

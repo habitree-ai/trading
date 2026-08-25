@@ -54,6 +54,7 @@ import {
   type TradeAnnotation,
   type TradeFill,
 } from "@/lib/domain";
+import { groupCloseFills } from "@/lib/exit-plan";
 import { num, signed } from "@/lib/format";
 import { handleMovesTime, type AnnotationHit } from "@/lib/hit-test";
 import { rsi } from "@/lib/indicators";
@@ -170,6 +171,7 @@ export function annotationColors(theme: ReturnType<typeof readTheme>): Annotatio
  */
 const NO_FILLS: TradeFill[] = [];
 const NO_ANNOTATIONS: TradeAnnotation[] = [];
+const NO_TARGETS: readonly [number | null, number | null, number | null] = [null, null, null];
 
 interface MeasureState {
   from: MeasurePoint;
@@ -188,7 +190,7 @@ export function TradeChart({
   entryPrice,
   exitPrice,
   stopPrice,
-  targetPrice = null,
+  targets = NO_TARGETS,
   notional = null,
   now,
 }: {
@@ -201,8 +203,11 @@ export function TradeChart({
   entryPrice: number | null;
   exitPrice: number | null;
   stopPrice: number | null;
-  /** 목표가(TP1) — 시스템 거래는 진입 주문에 걸었던 값이 그대로 온다 */
-  targetPrice?: number | null;
+  /**
+   * 목표가 TP1~3 — 없는 단은 null. 배열로 받지만 안에서 스칼라 셋으로 풀어 effect 의존성에
+   * 넣는다 — 목록의 map 안에서 매 렌더 새 배열이 와도 선을 다시 긋지 않게.
+   */
+  targets?: readonly [number | null, number | null, number | null];
   /** 시트의 `투입` — 손익 툴이 비율을 금액으로 옮기는 데 쓴다. 없으면 비율만 나온다 */
   notional?: number | null;
   /**
@@ -215,6 +220,7 @@ export function TradeChart({
 }) {
   const entryMs = Date.parse(entryAt);
   const exitMs = exitAt ? Date.parse(exitAt) : null;
+  const [tp1, tp2, tp3] = targets;
 
   const hostRef = useRef<HTMLDivElement>(null);
   const overlayRef = useRef<HTMLDivElement>(null);
@@ -590,12 +596,13 @@ export function TradeChart({
     rsiRef.current?.setData(rsiData);
 
     // 체결 좌표에 마커를 찍는다. 평균가는 어느 시점의 가격도 아니라 점으로 쓰지 않는다.
-    const points =
+    const points: { role: "open" | "close"; ms: number; price: number; id?: string }[] =
       fills.length > 0
         ? fills.map((f) => ({
             role: f.role,
             ms: Date.parse(f.filled_at),
             price: f.price,
+            id: f.id,
           }))
         : [
             ...(entryPrice !== null
@@ -607,35 +614,51 @@ export function TradeChart({
           ];
 
     const opens = points.filter((p) => p.role === "open");
-    const closes = points.filter((p) => p.role === "close");
+    // 청산은 주문 단위로 번호를 매긴다 — 한 주문이 여러 체결로 쪼개져도 사람 눈에는 한 차수다.
+    // 청산 계획 카드의 '1차·2차'와 같은 함수를 써서 번호가 어긋나지 않게 한다. 진입은 체결
+    // 단위 그대로다 — 분할 진입은 낱개가 뜻을 갖는다.
+    const closeGroups = groupCloseFills(fills);
+    const closeOrder = new Map<string, number>();
+    closeGroups.forEach((group, i) => group.forEach((f) => closeOrder.set(f.id, i + 1)));
+    const closeCount =
+      fills.length > 0 ? closeGroups.length : points.filter((p) => p.role === "close").length;
 
     const markers: SeriesMarker<Time>[] = points.map((p) => {
       const isOpen = p.role === "open";
-      const group = isOpen ? opens : closes;
-      const order = group.indexOf(p) + 1;
+      const order = isOpen ? opens.indexOf(p) + 1 : (p.id === undefined ? 1 : closeOrder.get(p.id) ?? 1);
+      const count = isOpen ? opens.length : closeCount;
       return {
         time: (Math.floor(p.ms / BAR_MS[bar]) * BAR_MS[bar] / 1000) as UTCTimestamp,
         position: isOpen ? "belowBar" : "aboveBar",
         shape: isOpen ? "arrowUp" : "arrowDown",
         color: isOpen ? theme.accent : theme.beta,
-        text: `${isOpen ? "진입" : "청산"}${group.length > 1 ? ` ${order}` : ""} ${num(p.price)}`,
+        text: `${isOpen ? "진입" : "청산"}${count > 1 ? ` ${order}` : ""} ${num(p.price)}`,
       };
     });
     const markerApi = createSeriesMarkers(series, markers);
 
     const lines = [
       stopPrice !== null && { price: stopPrice, color: theme.down, title: "손절" },
-      targetPrice !== null && { price: targetPrice, color: theme.up, title: "목표" },
+      // TP2·TP3 는 점선으로 위계를 낮춘다 — 셋이 같은 모양이면 어느 것이 1차인지 안 보인다.
+      tp1 !== null && {
+        price: tp1,
+        color: theme.up,
+        title: tp2 !== null || tp3 !== null ? "목표 1" : "목표",
+      },
+      tp2 !== null && { price: tp2, color: theme.up, title: "목표 2", style: LineStyle.Dotted },
+      tp3 !== null && { price: tp3, color: theme.up, title: "목표 3", style: LineStyle.Dotted },
       entryPrice !== null && { price: entryPrice, color: theme.accent, title: fills.length > 2 ? "평균진입" : "진입" },
       exitPrice !== null && { price: exitPrice, color: theme.beta, title: fills.length > 2 ? "평균청산" : "청산" },
     ]
-      .filter((l): l is { price: number; color: string; title: string } => Boolean(l))
+      .filter(
+        (l): l is { price: number; color: string; title: string; style?: LineStyle } => Boolean(l),
+      )
       .map((l) =>
         series.createPriceLine({
           price: l.price,
           color: l.color,
           lineWidth: 1,
-          lineStyle: LineStyle.Dashed,
+          lineStyle: l.style ?? LineStyle.Dashed,
           axisLabelVisible: true,
           title: l.title,
         }),
@@ -647,7 +670,7 @@ export function TradeChart({
       markerApi.detach();
       for (const line of lines) series.removePriceLine(line);
     };
-  }, [candles, fills, entryPrice, exitPrice, stopPrice, targetPrice, entryMs, exitMs, bar]);
+  }, [candles, fills, entryPrice, exitPrice, stopPrice, tp1, tp2, tp3, entryMs, exitMs, bar]);
 
   /* ---------- 측정(자)·메모 도구 ---------- */
   const toPoint = useCallback((x: number, y: number): MeasurePoint | null => {

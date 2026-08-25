@@ -4,12 +4,17 @@ import Link from "next/link";
 import { Fragment, useEffect, useMemo, useRef, useState, useTransition } from "react";
 
 import { deleteTrade } from "@/app/(app)/trades/actions";
+import { ExitPlanLines } from "@/components/exit-plan";
 import { TradeChart } from "@/components/trade-chart";
-import { RESULT_LABEL, SIDE_LABEL, type TradeResult } from "@/lib/domain";
+import { RESULT_LABEL, SIDE_LABEL, type TradeFill, type TradeResult } from "@/lib/domain";
+import { activeTargetPrices, summarizeExits } from "@/lib/exit-plan";
 import { dateTime, num, pct, pnlClass, signed, signedPct } from "@/lib/format";
 import type { TradeDerived } from "@/lib/metrics";
 
 type ResultFilter = TradeResult | "all";
+
+/** 목록은 체결을 읽지 않는다(북 전량 부담) — 실적은 거래 행의 청산가 한 점으로만 되짚는다. */
+const NO_FILLS: TradeFill[] = [];
 
 /**
  * 복기가 비어 있는 청산 거래.
@@ -82,6 +87,7 @@ export function TradeTable({
     "방향",
     "종목",
     "진입 (가격 · 시각)",
+    "손절 · 목표",
     "청산 (가격 · 시각)",
     "승패",
     "투입",
@@ -140,7 +146,7 @@ export function TradeTable({
       </div>
 
       <div ref={scrollRef} className="scroll-x rounded-xl border border-border">
-        <table className="w-full min-w-[1100px] text-sm">
+        <table className="w-full min-w-[1320px] text-sm">
           <thead className="bg-surface-2 text-xs text-dim">
             <tr>
               {columns.map((h, i) => (
@@ -169,6 +175,10 @@ export function TradeTable({
                 </td>
                 <td className="px-3 py-2 font-medium">{trade.symbol}</td>
                 <FillCell price={trade.entry_price} at={trade.entry_at} />
+                {/* 진입 옆 — 청산 계획. 들고 있으면 계획, 닫혔으면 청산가 한 점의 실적이 먼저다. */}
+                <td className="px-3 py-2 whitespace-nowrap">
+                  <ExitPlanLines summary={summarizeExits(trade, NO_FILLS, outcome === "open")} />
+                </td>
                 <FillCell price={trade.exit_price} at={trade.exit_at} />
                 <td className="px-3 py-2 whitespace-nowrap">
                   <ResultBadge result={outcome} />
@@ -257,8 +267,8 @@ export function TradeTable({
                           exitAt={trade.exit_at}
                           entryPrice={trade.entry_price}
                           exitPrice={trade.exit_price}
-                          stopPrice={trade.stop_price}
-                          targetPrice={trade.tp1_price}
+                          stopPrice={trade.okx_stop_price ?? trade.stop_price}
+                          targets={activeTargetPrices(trade)}
                           notional={trade.notional}
                           now={now}
                         />
