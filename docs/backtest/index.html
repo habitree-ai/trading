@@ -46,7 +46,7 @@
 <body>
 <div class="wrap">
   <h1>백테스트 아카이브</h1>
-  <p class="sub">BTC-USDT-SWAP · 회차 14개 · 계보: 그리드 탐색 → 표본 검증 → 기하·비용 축 → 조합·오버레이 → 파생 데이터 — 각 회차의 질문과 결론, 원자료 링크의 정본 목록.
+  <p class="sub">BTC-USDT-SWAP · 회차 15개 · 계보: 그리드 탐색 → 표본 검증 → 기하·비용 축 → 조합·오버레이 → 파생 데이터 — 각 회차의 질문과 결론, 원자료 링크의 정본 목록.
   갱신: <code>docs/backtest/rounds.json</code> 편집 후 <code>node scripts/backtest/build-archive.mjs</code></p>
 
   <section>
@@ -58,6 +58,16 @@
   <section>
     <p class="eyebrow">Rounds — 최신순</p>
     
+  <article class="card">
+    <div class="head"><span class="date tnum">2026-08-26</span><h3>엘리엇 파동 적용 가능성</h3></div>
+    <p class="q">되돌림 임계로 자른 지그재그에서 5파 임펄스 규칙·피보나치 비율·ABC 조정을 세면, 그 구조가 우연보다 잦고 4파 확정 시점에 5파 목표를 맞히는 데 쓸모가 있는가 (15m·1H·4H·1D)</p>
+    <p class="c">기계적 데이터로는 적용 불가(사전 등록 기준 ①·② 미충족). 봉×임계 8조합 전부에서 임펄스 후보율(3.4~4.1%)이 스윙을 섞은 대조군 p95(4.4~7.7%) 아래였고, 2파 되돌림의 피보나치 근접률도 대조군 수준(예: 15m 56% vs p95 57%) — 규칙에 맞는 5파 구조는 무작위 지그재그만큼만 나온다. 유일한 잔여 신호는 전방 검증의 0.618×(0→3) 목표: 15m R1% 에서 도달 22.3% vs 기준선 16.5%(lift 1.35×, n 1,177), 4H R3% 1.28×(n 116). 5=1 목표는 어디서도 쓸모가 없었다(lift 0.9~1.1). 하위봉 분할은 3파 안 스윙 수 중앙 5.5이나 '정확히 5'는 10%뿐. 후속 후보: 파동 라벨 없이 '되돌림 뒤 재개 시 0.618 확장'만 따로 검증.</p>
+    <div class="links">
+      <a href="elliott-report.html">리포트</a>
+      <a href="2026-08-26-elliott.json">데이터 JSON</a>
+      
+    </div>
+  </article>
   <article class="card">
     <div class="head"><span class="date tnum">2026-08-26</span><h3>임펄스 시작점 다중봉 스냅샷</h3></div>
     <p class="q">되돌림 없이 1% 이상 간 구간이 1m·15m·1H·4H 에서 시작될 때, 1분~주봉 여섯 봉의 차트·지표는 각각 어떤 모습이었는가</p>

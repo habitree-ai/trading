@@ -115,6 +115,13 @@ const CATALOG: LabEntry[] = [
     path: "docs/backtest/impulse-mtf-report.html",
   },
   {
+    key: "bt-elliott",
+    group: "backtest",
+    title: "엘리엇 파동 적용 가능성 — 15m·1H·4H·1D 파동 원장",
+    desc: "되돌림 임계로 자른 지그재그 피벗에서 5파 임펄스 규칙·피보나치 비율·ABC 조정을 전수로 세고, 스윙을 섞은 대조군과 4파 확정 시점의 5파 목표 도달률로 '기계적 데이터로 쓸 수 있는가'를 사전 등록 기준으로 판정",
+    path: "docs/backtest/elliott-report.html",
+  },
+  {
     key: "doc-status",
     group: "doc",
     title: "시스템 상태 콘솔",

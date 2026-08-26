@@ -1,0 +1,382 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>엘리엇 파동 적용 가능성 — BTC 15m·1H·4H·1D</title>
+<style>
+  :root {
+    color-scheme: dark;
+    --bg:#0e1116; --surface:#161a21; --surface-2:#1e232c; --border:#2a3039;
+    --ink:#e6e9ee; --dim:#8b95a3; --accent:#5b8cff;
+    --up:#26c281; --dn:#f0616d; --warn:#c98500; --grid:#232935;
+  }
+  @media (prefers-color-scheme: light) {
+    :root:not([data-theme="dark"]) {
+      color-scheme: light;
+      --bg:#f7f8fa; --surface:#ffffff; --surface-2:#f1f3f6; --border:#e2e5ea;
+      --ink:#14171c; --dim:#666e7a; --accent:#3b6ef5;
+      --up:#0f9d58; --dn:#dc3545; --warn:#b06f00; --grid:#eceef2;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font:14px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans KR", sans-serif; -webkit-font-smoothing:antialiased; }
+  .wrap { max-width:1240px; margin:0 auto; padding:28px 20px 80px; }
+  .tnum { font-variant-numeric: tabular-nums; }
+  h1 { font-size:22px; margin:0 0 6px; letter-spacing:-.01em; }
+  h2 { font-size:16px; margin:36px 0 10px; letter-spacing:-.01em; }
+  h3 { font-size:13.5px; margin:0 0 6px; }
+  p { margin:0 0 10px; }
+  .lede { color:var(--dim); font-size:13px; max-width:74ch; }
+  .sub { color:var(--dim); font-size:12px; }
+  code { background:var(--surface-2); border-radius:4px; padding:1px 5px; font-size:12px; }
+  .panel { background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:16px; }
+  .grid { display:grid; gap:12px; }
+  .g2 { grid-template-columns:repeat(auto-fit,minmax(320px,1fr)); }
+  .g4 { grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); }
+  .kpi { background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:14px 16px; }
+  .kpi .label { color:var(--dim); font-size:11.5px; }
+  .kpi .value { font-size:24px; font-weight:600; margin-top:2px; letter-spacing:-.02em; }
+  .kpi .note { color:var(--dim); font-size:11px; margin-top:2px; }
+  table { width:100%; border-collapse:collapse; font-size:12.5px; }
+  th, td { padding:6px 8px; text-align:right; border-bottom:1px solid var(--border); white-space:nowrap; }
+  th { color:var(--dim); font-weight:500; font-size:11.5px; position:sticky; top:0; background:var(--surface); }
+  th:first-child, td:first-child { text-align:left; }
+  tbody tr:hover { background:var(--surface-2); }
+  .scroll { overflow-x:auto; }
+  .up { color:var(--up); } .dn { color:var(--dn); } .muted { color:var(--dim); } .warn { color:var(--warn); }
+  .pass { color:var(--up); font-weight:600; } .fail { color:var(--dn); font-weight:600; }
+  .controls { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin:14px 0 18px; position:sticky; top:0; z-index:20; background:var(--bg); padding:10px 0; border-bottom:1px solid var(--border); }
+  .seg { display:inline-flex; border:1px solid var(--border); border-radius:9px; overflow:hidden; }
+  .seg button { background:var(--surface); color:var(--dim); border:0; padding:6px 13px; font-size:12.5px; cursor:pointer; font-family:inherit; border-right:1px solid var(--border); }
+  .seg button:last-child { border-right:0; }
+  .seg button[aria-pressed="true"] { background:var(--accent); color:#fff; }
+  .ctl-label { color:var(--dim); font-size:11.5px; margin-right:2px; }
+  .verdict { border-left:4px solid var(--accent); background:var(--surface); border-radius:0 12px 12px 0; padding:14px 18px; }
+  .verdict.ok { border-left-color:var(--up); } .verdict.no { border-left-color:var(--dn); }
+  .verdict .big { font-size:18px; font-weight:700; margin-bottom:6px; }
+  .callout { border-left:3px solid var(--warn); background:var(--surface); border-radius:0 10px 10px 0; padding:12px 14px; font-size:12.5px; color:var(--dim); }
+  .callout b { color:var(--ink); }
+  ul.tight { margin:6px 0 0; padding-left:18px; } ul.tight li { margin-bottom:5px; }
+  .card { background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:14px; }
+  .card .hd { display:flex; justify-content:space-between; align-items:baseline; gap:10px; margin-bottom:8px; flex-wrap:wrap; }
+  .tags { display:flex; flex-wrap:wrap; gap:5px; margin-top:8px; }
+  .tag { font-size:10.5px; color:var(--dim); border:1px solid var(--border); border-radius:5px; padding:1px 6px; }
+  .tag.hit { color:var(--up); border-color:var(--up); }
+  .chart { width:100%; height:200px; display:block; }
+  .bar { display:inline-block; height:7px; border-radius:4px; background:var(--surface-2); overflow:hidden; width:100px; vertical-align:middle; margin-left:6px; }
+  .bar > i { display:block; height:100%; background:var(--accent); }
+  .foot { margin-top:48px; padding-top:16px; border-top:1px solid var(--border); color:var(--dim); font-size:11.5px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>엘리엇 파동 적용 가능성 — BTC 15m·1H·4H·1D</h1>
+<p class="lede" id="lede"></p>
+
+<div class="callout" style="margin:14px 0 0">
+  <b>이 회차가 묻는 것.</b> 엘리엇 파동을 <b>사람이 그리지 않고</b> 규칙으로 세었을 때, (1) 5파 임펄스 구조가 무작위 지그재그보다
+  더 자주 나오는가, (2) 파동 비율이 피보나치 수준에 우연 이상으로 몰리는가, (3) 4파가 확정된 시점에 서서 5파 목표를 맞히는 데
+  쓸모가 있는가. 이 셋을 사전 등록한 기준으로 판정한다. 손익은 재지 않는다.
+</div>
+
+<h2>판정</h2>
+<div id="verdict" class="verdict"></div>
+
+<h2>정의</h2>
+<div class="panel"><div id="defs"></div></div>
+
+<h2>봉 × 임계 한눈에 — 판정의 근거</h2>
+<p class="sub">모든 조합을 한 표에. <b>관측 &gt; 대조군 p95</b> 이면 초록, 아니면 빨강. 전방 lift 는 5파 목표 도달률 ÷ 같은 거리의 무조건 도달률.</p>
+<div class="panel scroll"><table id="matrix"></table></div>
+
+<div class="controls">
+  <span class="ctl-label">봉</span><span class="seg" id="tfSeg"></span>
+  <span class="ctl-label" style="margin-left:8px">되돌림 임계 R</span><span class="seg" id="rSeg"></span>
+</div>
+
+<h2>한눈에</h2>
+<div class="grid g4" id="kpis"></div>
+
+<h2>임펄스 구조는 우연보다 잦은가 — 대조군 비교</h2>
+<p class="sub">대조군 = 같은 피벗 열에서 스윙 길이·봉수를 섞어(방향 교대 유지) 200회 합성한 지그재그. 관측이 대조군 p95 를 넘어야 "우연 이상"이다.</p>
+<div class="panel scroll"><table id="baseline"></table></div>
+
+<div class="grid g2" style="margin-top:12px">
+  <div class="panel scroll"><h3>규칙별 통과율 (5스윙 창 대비)</h3><table id="rules"></table></div>
+  <div class="panel scroll"><h3>파동 비율 분포 (임펄스 후보)</h3><table id="ratios"></table></div>
+</div>
+
+<h2>4파 확정 시점에서 5파 목표는 맞는가 — 전방 검증</h2>
+<p class="sub">판단 시점은 p4 가 확정된 봉(p4 에서 R% 되돌아온 봉)의 종가. 그때 아는 것(R1·R3·3파&gt;1파)만으로 후보를 고르고, R% 역행 전에 목표에 닿은 비율을 센다. 기준선은 전 구간 모든 봉에서 같은 거리를 간 비율.</p>
+<div class="panel scroll"><table id="forward"></table></div>
+
+<div class="grid g2" style="margin-top:12px">
+  <div class="panel scroll"><h3>임펄스 뒤 ABC 조정</h3><table id="corr"></table></div>
+  <div class="panel"><h3>하위봉 분할 — 3파 안의 스윙 수</h3><p class="sub" id="nestNote"></p><div id="nest"></div></div>
+</div>
+
+<h2>대표 사례</h2>
+<p class="sub">선 = 피벗을 이은 지그재그, 숫자 = 파동 라벨. 순이동 최대 3 · 피보나치 근접도 최고 3 · 최근 2, 그리고 뒤이은 조정 4.</p>
+<div class="grid g2" id="samples"></div>
+
+<h2>남는 주의</h2>
+<div class="panel"><ul class="tight" id="caveats"></ul></div>
+
+<h2>데이터 재고</h2>
+<div class="panel scroll"><table id="fetch"></table></div>
+
+<div class="foot">
+  <span id="footMeta"></span><br>
+  재생성: <code>node scripts/backtest/oneway-fetch.mjs 15m 1H 4H 1D</code> → <code>node --max-old-space-size=8192 scripts/backtest/elliott.mjs run</code> → <code>node scripts/backtest/elliott-report.mjs</code>
+</div>
+</div>
+
+<script id="data" type="application/json">__DATA_JSON__</script>
+<script>
+(function () {
+  "use strict";
+  var D = JSON.parse(document.getElementById("data").textContent);
+  var el = function (id) { return document.getElementById(id); };
+  var esc = function (s) { return String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); };
+  var n0 = function (v) { return (v == null ? 0 : v).toLocaleString(undefined, { maximumFractionDigits: 0 }); };
+  var n1 = function (v) { return v == null ? "-" : Number(v).toFixed(1); };
+  var n2 = function (v) { return v == null ? "-" : Number(v).toFixed(2); };
+  var pctS = function (v) { return v == null ? "-" : Number(v).toFixed(1) + "%"; };
+
+  var state = { tf: D.tfs[0].tf, r: Object.keys(D.tfs[0].byR)[0] };
+  function tfData(tf) { for (var i = 0; i < D.tfs.length; i += 1) if (D.tfs[i].tf === tf) return D.tfs[i]; return D.tfs[0]; }
+  function cur() { var t = tfData(state.tf); return t.byR[state.r] || t.byR[Object.keys(t.byR)[0]]; }
+  var rLabel = function (r) { return (Number(r) * 100).toFixed(0) + "%"; };
+
+  /* ---------- 판정 — 사전 등록 기준을 데이터에서 그대로 계산 ---------- */
+  function beats(obs, p95) { return obs != null && p95 != null && obs > p95; }
+  function verdict() {
+    var passRate = [], passFib = [];
+    D.tfs.forEach(function (t) {
+      var rs = Object.keys(t.byR);
+      var allRate = rs.every(function (r) { var b = t.byR[r].baseline; return beats(b.observedRate, b.rate.p95); });
+      var allFib = rs.every(function (r) { var b = t.byR[r].baseline.fibNear; return beats(b.w2w1.observed, b.w2w1.p95) && beats(b.w4w3.observed, b.w4w3.p95); });
+      if (allRate) passRate.push(t.label);
+      if (allRate && allFib) passFib.push(t.label);
+    });
+    var fwd = [];
+    D.tfs.forEach(function (t) {
+      Object.keys(t.byR).forEach(function (r) {
+        (t.byR[r].forward.targets || []).forEach(function (g) {
+          if (g.lift >= 1.2 && g.n >= 100) fwd.push(t.label + " R" + rLabel(r) + " " + g.label + " (n " + n0(g.n) + " · " + n2(g.lift) + "×)");
+        });
+      });
+    });
+    var c1 = passRate.length >= 3, c2 = passFib.length >= 3, c3 = fwd.length > 0;
+    return { c1: c1, c2: c2, c3: c3, passRate: passRate, passFib: passFib, fwd: fwd, ok: c1 && c2 && c3 };
+  }
+  function renderVerdict() {
+    var v = verdict();
+    var host = el("verdict");
+    host.className = "verdict " + (v.ok ? "ok" : "no");
+    var miss = [];
+    if (!v.c1) miss.push("①");
+    if (!v.c2) miss.push("②");
+    if (!v.c3) miss.push("③");
+    host.innerHTML = '<div class="big">' + (v.ok ? "기계적 데이터로 적용 가능 — 사전 등록 기준 3개를 모두 넘었다" : "기계적 데이터로는 적용 불가 — 미충족 " + miss.join("·")) + "</div>" +
+      '<ul class="tight">' +
+      "<li><b>① 임펄스 후보율 &gt; 대조군 p95</b> (두 임계 모두, 3개 봉 이상): " + (v.passRate.length ? v.passRate.join(" · ") : "없음") + ' → <span class="' + (v.c1 ? "pass" : "fail") + '">' + (v.c1 ? "충족" : "미충족") + "</span></li>" +
+      "<li><b>② 2파·4파 되돌림의 피보나치 근접률 &gt; 대조군 p95</b> (①을 넘은 봉에서, 두 임계 모두): " + (v.passFib.length ? v.passFib.join(" · ") : "없음") + ' → <span class="' + (v.c2 ? "pass" : "fail") + '">' + (v.c2 ? "충족" : "미충족") + "</span></li>" +
+      "<li><b>③ 4파 확정 시점 5파 목표 도달 lift ≥ 1.2, n ≥ 100</b>: " + (v.fwd.length ? v.fwd.join(" · ") : "해당 조합 없음") + ' → <span class="' + (v.c3 ? "pass" : "fail") + '">' + (v.c3 ? "충족" : "미충족") + "</span></li>" +
+      "</ul>" +
+      '<p class="sub" style="margin:8px 0 0">기준은 데이터를 보기 전에 REQ-0012 문서에 적어 두었다. 문장은 손으로 쓴 것이 아니라 아래 표에서 계산된다.</p>';
+  }
+
+  /* ---------- 머리말 ---------- */
+  el("lede").textContent = D.question + " — " + D.inst + ". 봉 " + D.tfs.map(function (t) { return t.label + "(" + t.spanDays + "일)"; }).join(" · ") + ". 대조군 " + D.axes.shuffles + "회 · 시드 " + D.axes.seed + ".";
+  el("defs").innerHTML = Object.keys(D.definition || {}).map(function (k) { return '<p style="margin:0 0 8px"><b>' + esc(k) + "</b> — " + esc(D.definition[k]) + "</p>"; }).join("");
+  el("caveats").innerHTML = (D.caveats || []).map(function (c) { return "<li>" + esc(c) + "</li>"; }).join("");
+  el("fetch").innerHTML = "<thead><tr><th>봉</th><th>봉 수</th><th>일수</th><th>결측 %</th><th>역순</th></tr></thead><tbody>" +
+    (D.fetch || []).filter(function (f) { return D.axes.tfs.indexOf(f.tf) >= 0; }).map(function (f) {
+      return "<tr><td>" + esc(f.tf) + '</td><td class="tnum">' + n0(f.bars) + '</td><td class="tnum">' + n0(f.spanDays) + '</td><td class="tnum">' + n2(f.missPct) + '</td><td class="tnum">' + n0(f.nonMono) + "</td></tr>";
+    }).join("") + "</tbody>";
+  el("footMeta").textContent = "생성 " + D.generatedAt + " · " + D.inst;
+
+  /* ---------- 매트릭스 ---------- */
+  function cell(obs, p95, fmt) {
+    var ok = beats(obs, p95);
+    return '<td class="tnum ' + (ok ? "up" : "dn") + '">' + fmt(obs) + ' <span class="muted">/ ' + fmt(p95) + "</span></td>";
+  }
+  function renderMatrix() {
+    var head = "<thead><tr><th>봉</th><th>R</th><th>피벗</th><th>5스윙 창</th><th>임펄스 후보 (비겹침)</th><th>후보율 관측 / 대조 p95</th><th>절단율</th><th>2파 근접 관측 / p95</th><th>4파 근접 관측 / p95</th><th>3파 근접 관측 / p95</th><th>전방 5=1 lift (n)</th><th>전방 0.618 lift (n)</th></tr></thead>";
+    var rows = [];
+    D.tfs.forEach(function (t) {
+      Object.keys(t.byR).forEach(function (r) {
+        var d = t.byR[r], b = d.baseline, f = d.forward.targets || [];
+        var eq = f.filter(function (g) { return g.key === "eq1"; })[0], f6 = f.filter(function (g) { return g.key === "f618"; })[0];
+        var fl = function (g) { return g ? '<td class="tnum ' + (g.lift >= 1.2 && g.n >= 100 ? "up" : "") + '">' + n2(g.lift) + "× <span class=\"muted\">(" + n0(g.n) + ")</span></td>" : '<td class="muted">-</td>'; };
+        rows.push("<tr><td>" + esc(t.label) + '</td><td class="tnum">' + rLabel(r) + '</td><td class="tnum">' + n0(d.pivots) + '</td><td class="tnum">' + n0(d.windows) +
+          '</td><td class="tnum">' + n0(d.impulse.count) + ' <span class="muted">(' + n0(d.impulse.countNonOverlap) + ")</span></td>" +
+          cell(b.observedRate, b.rate.p95, pctS) + '<td class="tnum">' + pctS(d.impulse.truncated != null && d.windows ? (d.impulse.truncated / d.windows) * 100 : null) + "</td>" +
+          cell(b.fibNear.w2w1.observed, b.fibNear.w2w1.p95, pctS) + cell(b.fibNear.w4w3.observed, b.fibNear.w4w3.p95, pctS) + cell(b.fibNear.w3w1.observed, b.fibNear.w3w1.p95, pctS) +
+          fl(eq) + fl(f6) + "</tr>");
+      });
+    });
+    el("matrix").innerHTML = head + "<tbody>" + rows.join("") + "</tbody>";
+  }
+
+  /* ---------- 컨트롤 ---------- */
+  function seg(host, items, get, set) {
+    host.innerHTML = items.map(function (it) {
+      return '<button type="button" data-v="' + esc(it.v) + '" aria-pressed="' + (String(get()) === String(it.v)) + '">' + esc(it.t) + "</button>";
+    }).join("");
+    host.onclick = function (e) { var b = e.target.closest("button"); if (!b) return; set(b.getAttribute("data-v")); render(); };
+  }
+  function renderControls() {
+    seg(el("tfSeg"), D.tfs.map(function (t) { return { v: t.tf, t: t.label }; }), function () { return state.tf; }, function (v) { state.tf = v; var rs = Object.keys(tfData(v).byR); if (rs.indexOf(state.r) < 0) state.r = rs[0]; });
+    seg(el("rSeg"), Object.keys(tfData(state.tf).byR).map(function (r) { return { v: r, t: rLabel(r) }; }), function () { return state.r; }, function (v) { state.r = v; });
+  }
+
+  /* ---------- 한눈에 ---------- */
+  function renderKpis() {
+    var d = cur(), t = tfData(state.tf), b = d.baseline;
+    var best = (d.forward.targets || []).slice().sort(function (a, c) { return c.lift - a.lift; })[0];
+    var items = [
+      { label: "피벗 · 스윙", value: n0(d.pivots), note: "스윙 길이 중앙 " + n2(d.swingLen.p50) + "% · " + n0(d.swingBars.p50) + "봉" },
+      { label: "임펄스 후보 (비겹침)", value: n0(d.impulse.countNonOverlap), note: "겹침 포함 " + n0(d.impulse.count) + " · 연 " + n1(d.impulse.perYear) + "회 · 상승 " + n0(d.impulse.up) + " / 하락 " + n0(d.impulse.dn) },
+      { label: "후보율 관측", value: pctS(b.observedRate), note: "대조군 평균 " + pctS(b.rate.mean) + " · p95 " + pctS(b.rate.p95) },
+      { label: "절단(5파 미달)", value: n0(d.impulse.truncated), note: "R1~R3 통과 후 p5 가 p3 를 못 넘음" },
+      { label: "2파 되돌림 중앙", value: n2(d.impulse.ratios.w2w1.p50), note: "피보나치 근접 " + pctS(d.impulse.ratios.w2w1.fibNear) + " (대조 p95 " + pctS(b.fibNear.w2w1.p95) + ")" },
+      { label: "3파 / 1파 중앙", value: n2(d.impulse.ratios.w3w1.p50) + "×", note: "근접 " + pctS(d.impulse.ratios.w3w1.fibNear) + " (대조 p95 " + pctS(b.fibNear.w3w1.p95) + ")" },
+      { label: "전방 최고 lift", value: best ? n2(best.lift) + "×" : "-", note: best ? best.label + " · 도달 " + pctS(best.rate) + " vs 기준 " + pctS(best.baseRate) + " · n " + n0(best.n) : "" },
+      { label: "구간", value: n0(t.spanDays) + "일", note: t.from.slice(0, 10) + " → " + t.to.slice(0, 10) },
+    ];
+    el("kpis").innerHTML = items.map(function (k) {
+      return '<div class="kpi"><div class="label">' + esc(k.label) + '</div><div class="value tnum">' + esc(k.value) + '</div><div class="note tnum">' + esc(k.note) + "</div></div>";
+    }).join("");
+  }
+
+  /* ---------- 대조군 · 규칙 · 비율 ---------- */
+  function renderBaseline() {
+    var d = cur(), b = d.baseline;
+    var rows = [
+      ["임펄스 후보율 (후보 / 5스윙 창)", b.observedRate, b.rate.mean, b.rate.p95],
+      ["절단율", d.windows ? (d.impulse.truncated / d.windows) * 100 : null, b.truncRate.mean, b.truncRate.p95],
+      ["2파 되돌림 피보나치 근접률", b.fibNear.w2w1.observed, b.fibNear.w2w1.mean, b.fibNear.w2w1.p95],
+      ["3파 연장 피보나치 근접률", b.fibNear.w3w1.observed, b.fibNear.w3w1.mean, b.fibNear.w3w1.p95],
+      ["4파 되돌림 피보나치 근접률", b.fibNear.w4w3.observed, b.fibNear.w4w3.mean, b.fibNear.w4w3.p95],
+      ["5파 / 1파 피보나치 근접률", b.fibNear.w5w1.observed, b.fibNear.w5w1.mean, b.fibNear.w5w1.p95],
+    ];
+    el("baseline").innerHTML = "<thead><tr><th>항목</th><th>관측</th><th>대조군 평균</th><th>대조군 p95</th><th>판정</th></tr></thead><tbody>" +
+      rows.map(function (r) {
+        var ok = beats(r[1], r[3]);
+        return "<tr><td>" + esc(r[0]) + '</td><td class="tnum">' + pctS(r[1]) + '</td><td class="tnum muted">' + pctS(r[2]) + '</td><td class="tnum muted">' + pctS(r[3]) + '</td><td class="' + (ok ? "pass" : "fail") + '">' + (ok ? "우연 이상" : "우연 수준") + "</td></tr>";
+      }).join("") + "</tbody>";
+  }
+  function renderRules() {
+    var d = cur(), rp = d.impulse.rulePass || {};
+    var names = { r1: "R1 · 2파가 1파 시작을 넘지 않음", r2: "R2 · 3파가 가장 짧지 않음", r3: "R3 · 4파가 1파 영역에 안 들어옴", r4: "R4 · 5파가 3파 끝을 넘음(미절단)" };
+    el("rules").innerHTML = "<thead><tr><th>규칙</th><th>통과율</th><th></th></tr></thead><tbody>" + ["r1", "r2", "r3", "r4"].map(function (k) {
+      return "<tr><td>" + names[k] + '</td><td class="tnum">' + pctS(rp[k]) + '</td><td><span class="bar"><i style="width:' + n1(rp[k] || 0) + '%"></i></span></td></tr>';
+    }).join("") + "<tr><td><b>전부 통과 = 임펄스 후보</b></td><td class=\"tnum\"><b>" + pctS(d.baseline.observedRate) + "</b></td><td></td></tr></tbody>";
+  }
+  function renderRatios() {
+    var d = cur(), R = d.impulse.ratios;
+    var rows = [["2파 / 1파 되돌림", R.w2w1, "0.382 · 0.5 · 0.618 · 0.786"], ["3파 / 1파", R.w3w1, "1 · 1.618 · 2.618"], ["4파 / 3파 되돌림", R.w4w3, "0.382 · 0.5 · 0.618 · 0.786"], ["5파 / 1파", R.w5w1, "0.618 · 1 · 1.618"], ["5파 / (0→3)", R.w5net, "-"], ["3파 봉수 / 1파 봉수", R.t3t1, "-"]];
+    el("ratios").innerHTML = "<thead><tr><th>비율</th><th>p25</th><th>p50</th><th>p75</th><th>피보나치 근접</th><th>기준 수준</th></tr></thead><tbody>" + rows.map(function (r) {
+      var v = r[1] || {};
+      return "<tr><td>" + r[0] + '</td><td class="tnum muted">' + n2(v.p25) + '</td><td class="tnum">' + n2(v.p50) + '</td><td class="tnum muted">' + n2(v.p75) + '</td><td class="tnum">' + (v.fibNear == null ? "-" : pctS(v.fibNear)) + '</td><td class="muted">' + r[2] + "</td></tr>";
+    }).join("") + "</tbody>";
+  }
+
+  /* ---------- 전방 · 조정 · 분할 ---------- */
+  function renderForward() {
+    var d = cur(), f = d.forward;
+    el("forward").innerHTML = "<thead><tr><th>목표</th><th>후보 n</th><th>도달</th><th>도달률</th><th>기준선(같은 거리)</th><th>lift</th><th>판정</th></tr></thead><tbody>" +
+      (f.targets || []).map(function (g) {
+        var ok = g.lift >= 1.2 && g.n >= 100;
+        return "<tr><td>" + esc(g.label) + '</td><td class="tnum">' + n0(g.n) + '</td><td class="tnum">' + n0(g.hit) + '</td><td class="tnum">' + pctS(g.rate) + '</td><td class="tnum muted">' + pctS(g.baseRate) + '</td><td class="tnum ' + (ok ? "up" : "") + '">' + n2(g.lift) + '×</td><td class="' + (ok ? "pass" : "muted") + '">' + (ok ? "기준 충족" : g.n < 100 ? "표본 부족" : "쓸모 없음") + "</td></tr>";
+      }).join("") + "</tbody>" + '<tfoot><tr><td colspan="7" class="muted" style="text-align:left">후보 ' + n0(f.candidates) + '건 · 목표까지 거리 중앙 ' + n2(f.distPct && f.distPct.p50) + "% · 도달은 R% 역행이 나오기 전 기준</td></tr></tfoot>";
+  }
+  function renderCorr() {
+    var c = cur().correction;
+    el("corr").innerHTML = "<thead><tr><th>항목</th><th>값</th></tr></thead><tbody>" +
+      "<tr><td>조정 표본 (임펄스 직후 3스윙)</td><td class=\"tnum\">" + n0(c.count) + "</td></tr>" +
+      "<tr><td>zigzag (C 가 A 끝을 넘음) · flat</td><td class=\"tnum\">" + n0(c.zigzag) + " · " + n0(c.flat) + "</td></tr>" +
+      "<tr><td>임펄스(0→5) 되돌림 p25 / p50 / p75</td><td class=\"tnum\">" + n2(c.retrace.p25) + " / " + n2(c.retrace.p50) + " / " + n2(c.retrace.p75) + "</td></tr>" +
+      "<tr><td>되돌림 피보나치 근접률</td><td class=\"tnum\">" + pctS(c.retrace.fibNear) + "</td></tr>" +
+      "<tr><td>C / A 중앙 · 근접률</td><td class=\"tnum\">" + n2(c.cVsA.p50) + " · " + pctS(c.cVsA.fibNear) + "</td></tr></tbody>";
+  }
+  function histHtml(h, hi) {
+    var keys = Object.keys(h || {}), max = 0;
+    keys.forEach(function (k) { if (h[k] > max) max = h[k]; });
+    keys.sort(function (a, b) { return (parseInt(a, 10) || 99) - (parseInt(b, 10) || 99); });
+    return keys.map(function (k) {
+      return '<div style="display:grid;grid-template-columns:34px 1fr 44px;gap:6px;align-items:center;font-size:11.5px"><span class="muted tnum">' + esc(k) + '</span><span class="bar" style="width:100%;margin:0"><i style="width:' + n1(max ? (h[k] / max) * 100 : 0) + '%;background:' + (String(k) === String(hi) ? "var(--up)" : "var(--accent)") + '"></i></span><span class="tnum">' + n0(h[k]) + "</span></div>";
+    }).join("");
+  }
+  function renderNest() {
+    var nst = cur().nesting;
+    if (!nst) { el("nestNote").textContent = "이 조합에는 하위봉 쌍이 없다(15m 은 가장 낮은 봉)."; el("nest").innerHTML = ""; return; }
+    el("nestNote").textContent = "하위봉 " + nst.lowerTf + " R" + rLabel(nst.lowerR) + " 피벗 기준. 엘리엇대로라면 3파 안에 5개, 2파 안에 3개가 들어야 한다.";
+    el("nest").innerHTML = '<div class="grid g2"><div><h3 style="font-size:12px">3파 안 스윙 수 — 정확히 5: <b>' + pctS(nst.wave3.share5) + "</b> · 중앙 " + n0(nst.wave3.p50) + "</h3>" + histHtml(nst.wave3.hist, 5) + "</div>" +
+      '<div><h3 style="font-size:12px">2파 안 스윙 수 — 정확히 3: <b>' + pctS(nst.wave2.share3) + "</b> · 중앙 " + n0(nst.wave2.p50) + "</h3>" + histHtml(nst.wave2.hist, 3) + "</div></div>";
+  }
+
+  /* ---------- 대표 사례 ---------- */
+  function waveSvg(s) {
+    var cs = s.candles;
+    if (!cs || !cs.length) return "";
+    var W = 560, Hh = 200, padT = 10, padB = 12, padL = 4, padR = 46;
+    var lo = Infinity, hi = -Infinity;
+    for (var i = 0; i < cs.length; i += 1) { if (cs[i][3] < lo) lo = cs[i][3]; if (cs[i][2] > hi) hi = cs[i][2]; }
+    var span = (hi - lo) || 1; lo -= span * 0.05; hi += span * 0.05; span = hi - lo;
+    var cw = (W - padL - padR) / cs.length;
+    var x = function (i) { return padL + i * cw + cw / 2; };
+    var y = function (p) { return padT + (1 - (p - lo) / span) * (Hh - padT - padB); };
+    var idxOf = function (t) { var k = 0; for (var i = 0; i < cs.length; i += 1) if (cs[i][0] <= t) k = i; return k; };
+    var parts = [];
+    for (var j = 0; j < cs.length; j += 1) {
+      var c = cs[j], col = c[4] >= c[1] ? "var(--up)" : "var(--dn)";
+      parts.push('<line x1="' + n1(x(j)) + '" y1="' + n1(y(c[2])) + '" x2="' + n1(x(j)) + '" y2="' + n1(y(c[3])) + '" stroke="' + col + '" stroke-width="0.7" opacity="0.6"/>');
+      var top = y(Math.max(c[1], c[4])), bot = y(Math.min(c[1], c[4]));
+      parts.push('<rect x="' + n1(x(j) - cw * 0.35) + '" y="' + n1(top) + '" width="' + n1(Math.max(0.6, cw * 0.7)) + '" height="' + n1(Math.max(0.7, bot - top)) + '" fill="' + col + '" opacity="0.7"/>');
+    }
+    var pts = (s.pivots || []).map(function (p) { return [x(idxOf(p[0])), y(p[1]), p[2]]; });
+    parts.push('<polyline points="' + pts.map(function (p) { return n1(p[0]) + "," + n1(p[1]); }).join(" ") + '" fill="none" stroke="var(--ink)" stroke-width="1.4" opacity="0.9"/>');
+    pts.forEach(function (p, i) {
+      var above = i % 2 === (s.dir === 1 ? 1 : 0);
+      parts.push('<circle cx="' + n1(p[0]) + '" cy="' + n1(p[1]) + '" r="2.2" fill="var(--accent)"/>');
+      parts.push('<text x="' + n1(p[0] + 3) + '" y="' + n1(p[1] + (above ? -5 : 11)) + '" font-size="10" font-weight="700" fill="var(--ink)">' + esc(p[2]) + "</text>");
+    });
+    parts.push('<text x="' + (W - padR + 4) + '" y="' + n1(y(hi - span * 0.05) + 3) + '" font-size="9" fill="var(--dim)">' + n0(hi - span * 0.05) + "</text>");
+    parts.push('<text x="' + (W - padR + 4) + '" y="' + n1(y(lo + span * 0.05) + 3) + '" font-size="9" fill="var(--dim)">' + n0(lo + span * 0.05) + "</text>");
+    return '<svg class="chart" viewBox="0 0 ' + W + " " + Hh + '" preserveAspectRatio="none">' + parts.join("") + "</svg>";
+  }
+  function renderSamples() {
+    var list = cur().samples || [];
+    if (!list.length) { el("samples").innerHTML = '<p class="muted">표본 없음</p>'; return; }
+    el("samples").innerHTML = list.map(function (s) {
+      var R = s.ratios || {};
+      var hits = s.fibHits || [];
+      var tags = [];
+      if (R.w2w1 != null) tags.push({ t: "2/1 " + n2(R.w2w1), h: hits.indexOf("w2w1") >= 0 });
+      if (R.w3w1 != null) tags.push({ t: "3/1 " + n2(R.w3w1), h: hits.indexOf("w3w1") >= 0 });
+      if (R.w4w3 != null) tags.push({ t: "4/3 " + n2(R.w4w3), h: hits.indexOf("w4w3") >= 0 });
+      if (R.w5w1 != null) tags.push({ t: "5/1 " + n2(R.w5w1), h: hits.indexOf("w5w1") >= 0 });
+      if (R.retrace != null) tags.push({ t: "조정 되돌림 " + n2(R.retrace), h: hits.indexOf("retrace") >= 0 });
+      if (R.cVsA != null) tags.push({ t: "C/A " + n2(R.cVsA), h: hits.indexOf("cVsA") >= 0 });
+      return '<div class="card"><div class="hd"><h3>' + esc(s.startLabel) + " → " + esc(s.endLabel) + ' <span class="tag" style="margin-left:6px">' + esc(s.kind === "correction" ? "조정 · " + s.why : s.why) + "</span></h3>" +
+        '<span class="tnum ' + (s.dir === 1 ? "up" : "dn") + '" style="font-weight:600">' + (s.dir === 1 ? "+" : "") + n2(s.netMove) + "%</span></div>" +
+        '<div class="sub tnum">' + n0(s.bars) + "봉" + (s.step > 1 ? " · " + s.step + "봉 묶음" : "") + "</div>" + waveSvg(s) +
+        '<div class="tags">' + tags.map(function (g) { return '<span class="tag' + (g.h ? " hit" : "") + '">' + esc(g.t) + "</span>"; }).join("") + '<span class="tag muted">초록 = 피보나치 근접</span></div></div>';
+    }).join("");
+  }
+
+  function render() {
+    renderControls(); renderKpis(); renderBaseline(); renderRules(); renderRatios(); renderForward(); renderCorr(); renderNest(); renderSamples();
+  }
+  renderVerdict();
+  renderMatrix();
+  render();
+})();
+</script>
+</body>
+</html>
