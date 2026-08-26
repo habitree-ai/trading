@@ -108,6 +108,13 @@ const CATALOG: LabEntry[] = [
     path: "docs/backtest/oneway-report.html",
   },
   {
+    key: "bt-impulse-mtf",
+    group: "backtest",
+    title: "임펄스 시작점 다중봉 스냅샷 — 1%+ 구간의 여섯 봉 차트·지표",
+    desc: "1m·15m·1H·4H 각각에서 되돌림 없이 1% 이상 간 구간의 시작 시점에 1분~주봉 여섯 봉이 어떤 모습이었는지를 전수 스냅샷과 대표 차트로 정리. oneway 원장의 다중봉 확장",
+    path: "docs/backtest/impulse-mtf-report.html",
+  },
+  {
     key: "doc-status",
     group: "doc",
     title: "시스템 상태 콘솔",

@@ -46,7 +46,7 @@
 <body>
 <div class="wrap">
   <h1>백테스트 아카이브</h1>
-  <p class="sub">BTC-USDT-SWAP · 회차 13개 · 계보: 그리드 탐색 → 표본 검증 → 기하·비용 축 → 조합·오버레이 → 파생 데이터 — 각 회차의 질문과 결론, 원자료 링크의 정본 목록.
+  <p class="sub">BTC-USDT-SWAP · 회차 14개 · 계보: 그리드 탐색 → 표본 검증 → 기하·비용 축 → 조합·오버레이 → 파생 데이터 — 각 회차의 질문과 결론, 원자료 링크의 정본 목록.
   갱신: <code>docs/backtest/rounds.json</code> 편집 후 <code>node scripts/backtest/build-archive.mjs</code></p>
 
   <section>
@@ -58,6 +58,16 @@
   <section>
     <p class="eyebrow">Rounds — 최신순</p>
     
+  <article class="card">
+    <div class="head"><span class="date tnum">2026-08-26</span><h3>임펄스 시작점 다중봉 스냅샷</h3></div>
+    <p class="q">되돌림 없이 1% 이상 간 구간이 1m·15m·1H·4H 에서 시작될 때, 1분~주봉 여섯 봉의 차트·지표는 각각 어떤 모습이었는가</p>
+    <p class="c">540일 공통 구간에서 시작점 9,095건(1m 2,776 · 15m 2,643 · 1H 2,266 · 4H 1,410)의 여섯 봉 스냅샷과 대표 사례 86건의 6봉 차트. 시작 시점에 상위봉이 전부 같은 방향이었던 경우는 1m 5% · 15m 8% · 1H 12% · 4H 20%뿐이고, 일봉이 반대였던 역추세 임펄스가 34~37% — 상위봉 정렬은 필터이지 신호가 아니다. 스캔 봉 자신은 극값 특성만 남는다(1m 시작 봉 RSI 중앙 31/69, '거래량 2배+볼린저 이탈' 리프트 1m 12~13배 → 4H 2배 이하). 4H 는 R=1% 가 봉 하나보다 좁아 leg 절반이 1봉짜리다.</p>
+    <div class="links">
+      <a href="impulse-mtf-report.html">리포트</a>
+      <a href="2026-08-26-impulse-mtf.json">데이터 JSON</a>
+      
+    </div>
+  </article>
   <article class="card">
     <div class="head"><span class="date tnum">2026-08-25</span><h3>일방향 임펄스 원장</h3></div>
     <p class="q">도중 되돌리지 않고 1~10% 한 방향으로 가는 구간이 얼마나 자주 나오며, 그 시작점의 차트로 미리 알아볼 수 있는가</p>

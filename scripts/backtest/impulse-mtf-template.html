@@ -1,0 +1,651 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>임펄스 시작점 다중봉 스냅샷 — BTC 1m·15m·1H·4H</title>
+<style>
+  :root {
+    color-scheme: dark;
+    --bg:#0e1116; --surface:#161a21; --surface-2:#1e232c; --border:#2a3039;
+    --ink:#e6e9ee; --dim:#8b95a3; --accent:#5b8cff;
+    --up:#26c281; --dn:#f0616d; --warn:#c98500; --grid:#232935;
+  }
+  @media (prefers-color-scheme: light) {
+    :root:not([data-theme="dark"]) {
+      color-scheme: light;
+      --bg:#f7f8fa; --surface:#ffffff; --surface-2:#f1f3f6; --border:#e2e5ea;
+      --ink:#14171c; --dim:#666e7a; --accent:#3b6ef5;
+      --up:#0f9d58; --dn:#dc3545; --warn:#b06f00; --grid:#eceef2;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin:0; background:var(--bg); color:var(--ink);
+    font:14px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans KR", sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap { max-width:1240px; margin:0 auto; padding:28px 20px 80px; }
+  .tnum { font-variant-numeric: tabular-nums; }
+  h1 { font-size:22px; margin:0 0 6px; letter-spacing:-.01em; }
+  h2 { font-size:16px; margin:36px 0 10px; letter-spacing:-.01em; }
+  h3 { font-size:13.5px; margin:0 0 6px; }
+  h4 { font-size:11.5px; margin:0 0 4px; color:var(--dim); font-weight:500; }
+  p { margin:0 0 10px; }
+  .lede { color:var(--dim); font-size:13px; max-width:74ch; }
+  .sub { color:var(--dim); font-size:12px; }
+  code { background:var(--surface-2); border-radius:4px; padding:1px 5px; font-size:12px; }
+  a { color:var(--accent); }
+
+  .panel { background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:16px; }
+  .grid { display:grid; gap:12px; }
+  .g2 { grid-template-columns:repeat(auto-fit,minmax(320px,1fr)); }
+  .g3 { grid-template-columns:repeat(auto-fit,minmax(300px,1fr)); }
+  .g4 { grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); }
+
+  .kpi { background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:14px 16px; }
+  .kpi .label { color:var(--dim); font-size:11.5px; }
+  .kpi .value { font-size:24px; font-weight:600; margin-top:2px; letter-spacing:-.02em; }
+  .kpi .note { color:var(--dim); font-size:11px; margin-top:2px; }
+
+  table { width:100%; border-collapse:collapse; font-size:12.5px; }
+  th, td { padding:6px 8px; text-align:right; border-bottom:1px solid var(--border); white-space:nowrap; }
+  th { color:var(--dim); font-weight:500; font-size:11.5px; position:sticky; top:0; background:var(--surface); }
+  th:first-child, td:first-child { text-align:left; }
+  tbody tr:hover { background:var(--surface-2); }
+  .scroll { overflow-x:auto; }
+  .tall { max-height:560px; overflow-y:auto; }
+  td.sel, th.sel { background:var(--surface-2); }
+
+  .up { color:var(--up); }
+  .dn { color:var(--dn); }
+  .muted { color:var(--dim); }
+
+  .controls { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin:14px 0 18px;
+    position:sticky; top:0; z-index:20; background:var(--bg); padding:10px 0; border-bottom:1px solid var(--border); }
+  .seg { display:inline-flex; border:1px solid var(--border); border-radius:9px; overflow:hidden; }
+  .seg button {
+    background:var(--surface); color:var(--dim); border:0; padding:6px 13px; font-size:12.5px;
+    cursor:pointer; font-family:inherit; border-right:1px solid var(--border);
+  }
+  .seg button:last-child { border-right:0; }
+  .seg button[aria-pressed="true"] { background:var(--accent); color:#fff; }
+  .ctl-label { color:var(--dim); font-size:11.5px; margin-right:2px; }
+  button.more { background:var(--surface); color:var(--accent); border:1px solid var(--border); border-radius:8px;
+    padding:6px 14px; font:inherit; font-size:12.5px; cursor:pointer; margin-top:10px; }
+
+  .bar { height:7px; border-radius:4px; background:var(--surface-2); overflow:hidden; display:inline-block; width:80px; vertical-align:middle; margin-left:6px; }
+  .bar > i { display:block; height:100%; background:var(--accent); }
+  .share { display:inline-flex; height:8px; width:90px; border-radius:4px; overflow:hidden; vertical-align:middle; margin-left:6px; background:var(--surface-2); }
+  .share > i { display:block; height:100%; }
+
+  .card { background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:14px; margin-bottom:12px; }
+  .card .hd { display:flex; justify-content:space-between; align-items:baseline; gap:10px; margin-bottom:8px; flex-wrap:wrap; }
+  .tags { display:flex; flex-wrap:wrap; gap:5px; margin-top:8px; }
+  .tag { font-size:10.5px; color:var(--dim); border:1px solid var(--border); border-radius:5px; padding:1px 6px; }
+  .chart { width:100%; height:190px; display:block; }
+  .tfbox { background:var(--surface-2); border:1px solid var(--border); border-radius:10px; padding:8px 8px 4px; }
+  .tfbox .cap { display:flex; justify-content:space-between; font-size:11px; color:var(--dim); margin-bottom:2px; }
+  .legend { font-size:10.5px; color:var(--dim); margin-top:6px; }
+  .legend i { display:inline-block; width:14px; height:2px; vertical-align:middle; margin:0 4px 0 8px; }
+
+  .callout { border-left:3px solid var(--warn); background:var(--surface); border-radius:0 10px 10px 0;
+    padding:12px 14px; font-size:12.5px; color:var(--dim); }
+  .callout b { color:var(--ink); }
+  ul.tight { margin:6px 0 0; padding-left:18px; }
+  ul.tight li { margin-bottom:5px; }
+  .foot { margin-top:48px; padding-top:16px; border-top:1px solid var(--border); color:var(--dim); font-size:11.5px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>임펄스 시작점 다중봉 스냅샷 — BTC 1m·15m·1H·4H</h1>
+<p class="lede" id="lede"></p>
+
+<div class="callout" style="margin:14px 0 0">
+  <b>이 자료가 답하는 것.</b>
+  되돌리지 않고 1% 이상 간 구간이 <b>시작된 시점</b>에, 1분·15분·1시간·4시간·일·주 여섯 봉의 차트와 지표가
+  각각 어떤 모습이었는가. oneway 원장이 "그 봉 하나"만 봤다면 여기서는 여섯 봉을 한꺼번에 본다.
+  손익은 재지 않는다 — 수수료·슬리피지·체결이 없는 <b>시장이 준 폭</b>의 기록이며,
+  시작점은 사후에만 확정되므로 이 표만으로 매매할 수 없다.
+</div>
+
+<h2>정의</h2>
+<div class="panel"><div id="defs"></div></div>
+
+<div class="controls">
+  <span class="ctl-label">스캔 봉</span>
+  <span class="seg" id="tfSeg"></span>
+  <span class="ctl-label" style="margin-left:8px">방향</span>
+  <span class="seg" id="dirSeg"></span>
+  <span class="ctl-label" style="margin-left:8px">크기</span>
+  <span class="seg" id="bSeg"></span>
+</div>
+
+<h2>한눈에</h2>
+<div class="grid g4" id="kpis"></div>
+
+<h2>이 조합이 말하는 것</h2>
+<p class="sub">손으로 쓴 요약이 아니다 — 선택한 봉·방향·크기에서 그때그때 계산된다. 컨트롤을 바꾸면 문장도 바뀐다.</p>
+<div class="panel"><ul class="tight" id="findings"></ul></div>
+
+<h2>시작 시점의 여섯 봉 — 지표 분포</h2>
+<p class="sub">
+  임펄스가 시작된 봉의 마감 시각 τ 에서, 각 봉의 "이미 마감된 마지막 봉"이 보여 준 값이다.
+  <b>방향</b>은 EMA20·EMA50·종가 부등식(상승 = EMA20 &gt; EMA50 이고 종가 &gt; EMA20)으로 판정하며,
+  <b>같은 방향</b>은 그 봉의 방향이 임펄스 방향과 일치한 비율이다. 값은 중앙값, 괄호는 사분위 범위.
+</p>
+<div class="panel scroll"><table id="profile"></table></div>
+
+<h2>그때 스캔 봉은 어떤 모습이었나 — 조건 리프트</h2>
+<p class="sub">
+  스캔 봉의 시작 봉에서 각 조건이 켜져 있던 비율을 구간 전체 봉에서 켜진 비율로 나눈 값. 1보다 크면 그 모습에서
+  임펄스가 더 자주 출발했다. ≥1% 전체 기준이며 크기 필터와 무관하다. 동시 발생이지 인과가 아니다.
+</p>
+<div class="panel scroll tall"><table id="lift"></table></div>
+
+<h2>크기 분포와 지속</h2>
+<div class="grid g2">
+  <div class="panel scroll"><h3>이동폭 구간별 leg 수</h3><table id="hist"></table></div>
+  <div class="panel scroll"><h3>크기 버킷별 지속·되돌림</h3><table id="dur"></table></div>
+</div>
+
+<h2>대표 사례 — 여섯 봉 차트</h2>
+<p class="sub">
+  이동폭 상위만 뽑으면 급락·급등 사건만 남는다. 그래서 축을 나눠 골랐다 — 가장 큰 것, 가장 오래 간 것,
+  되돌림이 가장 얕았던 것, 가장 최근, 중앙값에 가까운 전형, 그리고 리프트 상위 조건을 만족한 사례.
+  각 카드의 여섯 차트는 같은 시각을 봉만 바꿔 본 것이다. 음영이 임펄스 구간, 세로 점선이 스냅샷 봉(τ 직전 마감 봉)이다.
+  선: <span class="legend"><i style="background:var(--accent)"></i>EMA20 <i style="background:var(--warn)"></i>EMA50 <i style="background:var(--dim)"></i>EMA200 · 점선 = 볼린저 20/2 · 아래 띠 = RSI14(30·70)</span>
+</p>
+<div id="samples"></div>
+<button type="button" class="more" id="moreSamples">대표 사례 더 보기</button>
+
+<h2>시작 시점 전수 표</h2>
+<p class="sub">선택한 봉·방향·크기의 모든 시작점. 봉마다 <b>방향 · RSI · %b · 채널 위치</b>를 적었다. 최신순.</p>
+<div class="panel scroll tall"><table id="events"></table></div>
+<button type="button" class="more" id="moreBtn">더 보기</button>
+
+<h2>남는 주의</h2>
+<div class="panel"><ul class="tight" id="caveats"></ul></div>
+
+<h2>데이터 재고</h2>
+<div class="panel scroll"><table id="fetch"></table></div>
+
+<div class="foot">
+  <span id="footMeta"></span><br>
+  재생성: <code>node scripts/backtest/oneway-fetch.mjs 1m 15m 1H 4H 1D 1W</code> → <code>node --max-old-space-size=8192 scripts/backtest/impulse-mtf.mjs run</code> → <code>node scripts/backtest/impulse-mtf-report.mjs</code>
+</div>
+</div>
+
+<script id="data" type="application/json">__DATA_JSON__</script>
+<script>
+(function () {
+  "use strict";
+  var D = JSON.parse(document.getElementById("data").textContent);
+
+  var SNAP_MS = { "1m": 60e3, "15m": 9e5, "1H": 36e5, "4H": 144e5, "1D": 864e5, "1W": 6048e5 };
+  var TF_LABEL = { "1m": "1분", "15m": "15분", "1H": "1시간", "4H": "4시간", "1D": "일봉", "1W": "주봉" };
+  var SNAP = D.axes.snapTfs;
+  var F = {};
+  D.snapFields.forEach(function (k, i) { F[k] = i; });
+  var HEAD = 7; // 이벤트 행에서 스냅샷이 시작하는 칸
+  var METRICS = [
+    { key: "rsi", label: "RSI14", fmt: function (v) { return n0(v); } },
+    { key: "bbPb", label: "볼린저 %b", fmt: function (v) { return n2(v); } },
+    { key: "bbWPct", label: "밴드폭 %ile", fmt: function (v) { return n0(v); } },
+    { key: "atrPctile", label: "ATR %ile", fmt: function (v) { return n0(v); } },
+    { key: "distE200", label: "EMA200 이격 %", fmt: function (v) { return n2(v); } },
+    { key: "volR", label: "거래량 / 20봉 평균", fmt: function (v) { return n2(v); } },
+    { key: "dcPos", label: "96봉 채널 위치 %", fmt: function (v) { return n0(v); } },
+  ];
+
+  var state = { tf: D.scans[0].tf, dir: 0, b: 1, shown: 200, sampleShown: 6 };
+
+  var el = function (id) { return document.getElementById(id); };
+  var esc = function (s) { return String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); };
+  var n0 = function (v) { return (v == null ? 0 : v).toLocaleString(undefined, { maximumFractionDigits: 0 }); };
+  var n1 = function (v) { return (v == null ? 0 : v).toFixed(1); };
+  var n2 = function (v) { return (v == null ? 0 : v).toFixed(2); };
+  var pct = function (a, b) { return b ? (a / b) * 100 : 0; };
+  var pad2 = function (n) { return (n < 10 ? "0" : "") + n; };
+  function kst(t) {
+    var d = new Date(t + 9 * 3600e3);
+    return d.getUTCFullYear() + "-" + pad2(d.getUTCMonth() + 1) + "-" + pad2(d.getUTCDate()) + " " + pad2(d.getUTCHours()) + ":" + pad2(d.getUTCMinutes());
+  }
+  function q(arr, p) {
+    if (!arr.length) return null;
+    var s = Float64Array.from(arr).sort();
+    var i = (s.length - 1) * p;
+    var lo = Math.floor(i), hi = Math.ceil(i);
+    return lo === hi ? s[lo] : s[lo] + (s[hi] - s[lo]) * (i - lo);
+  }
+
+  function scan() {
+    for (var i = 0; i < D.scans.length; i += 1) if (D.scans[i].tf === state.tf) return D.scans[i];
+    return D.scans[0];
+  }
+  var eventIndex = {};
+  function byT(sc) {
+    if (!eventIndex[sc.tf]) {
+      var m = {};
+      sc.events.forEach(function (e) { m[e[0]] = e; });
+      eventIndex[sc.tf] = m;
+    }
+    return eventIndex[sc.tf];
+  }
+  /** 컨트롤을 통과한 이벤트 — 방향과 크기는 전부 여기서 거른다. 표·분포·사례가 같은 집합을 본다. */
+  function filtered() {
+    var sc = scan();
+    return sc.events.filter(function (e) {
+      return (state.dir === 0 || e[1] === state.dir) && Math.abs(e[2]) >= state.b;
+    });
+  }
+  var snapVal = function (e, k, field) { return e[HEAD + k * D.snapFields.length + F[field]]; };
+  var dirLabel = function (v) { return v === 1 ? "상승" : v === -1 ? "하락" : "혼조"; };
+  var dirArrow = function (v) { return v === 1 ? '<span class="up">↑</span>' : v === -1 ? '<span class="dn">↓</span>' : '<span class="muted">·</span>'; };
+  var stackLabel = function (v) { return v === 1 ? "정배열" : v === -1 ? "역배열" : "혼조"; };
+
+  function seg(host, items, get, set) {
+    host.innerHTML = items.map(function (it) {
+      return '<button type="button" data-v="' + esc(it.v) + '" aria-pressed="' + (String(get()) === String(it.v)) + '">' + esc(it.t) + "</button>";
+    }).join("");
+    host.onclick = function (e) {
+      var b = e.target.closest("button");
+      if (!b) return;
+      set(b.getAttribute("data-v"));
+      state.shown = 200;
+      state.sampleShown = 6;
+      render();
+    };
+  }
+  function renderControls() {
+    seg(el("tfSeg"), D.scans.map(function (s) { return { v: s.tf, t: s.label }; }),
+      function () { return state.tf; }, function (v) { state.tf = v; });
+    seg(el("dirSeg"), [{ v: "0", t: "전체" }, { v: "1", t: "상승" }, { v: "-1", t: "하락" }],
+      function () { return state.dir; }, function (v) { state.dir = Number(v); });
+    seg(el("bSeg"), D.axes.buckets.map(function (b) { return { v: String(b), t: "≥" + b + "%" }; }),
+      function () { return state.b; }, function (v) { state.b = Number(v); });
+  }
+
+  /* ---------- 머리말·정의 ---------- */
+  el("lede").textContent = D.question + " — " + D.inst + ", 공통 구간 " + D.window.from + " → " + D.window.to +
+    " (" + n0(D.window.days) + "일). 스캔 봉 " + D.scans.map(function (s) { return s.label; }).join("·") +
+    ", 스냅샷 봉 " + SNAP.map(function (t) { return TF_LABEL[t]; }).join("·") + ".";
+  var defs = [];
+  Object.keys(D.definition || {}).forEach(function (k) {
+    defs.push("<p style=\"margin:0 0 8px\"><b>" + esc(k) + "</b> — " + esc(D.definition[k]) + "</p>");
+  });
+  el("defs").innerHTML = defs.join("");
+  el("caveats").innerHTML = (D.caveats || []).map(function (c) { return "<li>" + esc(c) + "</li>"; }).join("");
+  el("fetch").innerHTML = "<thead><tr><th>봉</th><th>봉 수</th><th>일수</th><th>결측 %</th><th>역순</th></tr></thead><tbody>" +
+    (D.fetch || []).map(function (f) {
+      return "<tr><td>" + esc(f.tf) + '</td><td class="tnum">' + n0(f.bars) + '</td><td class="tnum">' + n0(f.spanDays) +
+        '</td><td class="tnum">' + n2(f.missPct) + '</td><td class="tnum">' + n0(f.nonMono) + "</td></tr>";
+    }).join("") + "</tbody>";
+  el("footMeta").textContent = "생성 " + D.generatedAt + " · " + D.inst + " · 스냅샷 시각 규칙: 시작 봉 마감 시각 τ 이전에 마감된 마지막 봉";
+
+  /* ---------- 방향 일치 집계 — 여러 곳에서 쓴다 ---------- */
+  function agreement(list) {
+    var out = {};
+    SNAP.forEach(function (t, k) {
+      var same = 0, opp = 0, mix = 0, n = 0;
+      list.forEach(function (e) {
+        var d = snapVal(e, k, "dir");
+        if (d == null) return;
+        n += 1;
+        if (d === e[1]) same += 1; else if (d === -e[1]) opp += 1; else mix += 1;
+      });
+      out[t] = { same: same, opp: opp, mix: mix, n: n };
+    });
+    var all = 0, allN = 0;
+    list.forEach(function (e) {
+      var ok = true, has = true;
+      SNAP.forEach(function (t, k) {
+        var d = snapVal(e, k, "dir");
+        if (d == null) has = false; else if (d !== e[1]) ok = false;
+      });
+      if (has) { allN += 1; if (ok) all += 1; }
+    });
+    out.all = { same: all, n: allN };
+    // 스캔 봉과 그보다 짧은 봉은 시작점이 극값이라 정의상 반대로 보인다 — 시점에서 정보가 있는 곳은 상위봉뿐이다.
+    var upper = SNAP.filter(function (t) { return SNAP_MS[t] > SNAP_MS[state.tf]; });
+    var uSame = 0, uN = 0;
+    list.forEach(function (e) {
+      var ok = true, has = true;
+      upper.forEach(function (t) {
+        var d = snapVal(e, SNAP.indexOf(t), "dir");
+        if (d == null) has = false; else if (d !== e[1]) ok = false;
+      });
+      if (has) { uN += 1; if (ok) uSame += 1; }
+    });
+    out.upper = { tfs: upper, same: uSame, n: uN };
+    return out;
+  }
+
+  /* ---------- 한눈에 ---------- */
+  function renderKpis() {
+    var sc = scan();
+    var list = filtered();
+    var up = list.filter(function (e) { return e[1] === 1; }).length;
+    var years = D.window.days / 365.25;
+    var moves = list.map(function (e) { return Math.abs(e[2]); });
+    var hours = list.map(function (e) { return e[4]; });
+    var bars = list.map(function (e) { return e[3]; });
+    var retr = list.map(function (e) { return e[5]; });
+    var ag = agreement(list);
+    var items = [
+      { label: "≥" + state.b + "% 임펄스 시작점", value: n0(list.length) + "회", note: "연 " + n1(list.length / years) + "회 · 월 " + n1(list.length / years / 12) + "회" },
+      { label: "상승 · 하락", value: n0(up) + " · " + n0(list.length - up), note: "상승 비중 " + n1(pct(up, list.length)) + "%" },
+      { label: "이동폭 중앙", value: (moves.length ? n2(q(moves, 0.5)) : "-") + "%", note: moves.length ? "p90 " + n2(q(moves, 0.9)) + "% · 최대 " + n2(q(moves, 1)) + "%" : "" },
+      { label: "지속 중앙", value: hours.length ? n1(q(hours, 0.5)) + "시간" : "-", note: bars.length ? n0(q(bars, 0.5)) + "봉 · p90 " + n1(q(hours, 0.9)) + "시간" : "" },
+      { label: "구간 내 되돌림 중앙", value: retr.length ? n2(q(retr, 0.5)) + "%" : "-", note: retr.length ? "p90 " + n2(q(retr, 0.9)) + "%" : "" },
+      { label: "4H 방향 일치", value: ag["4H"].n ? n0(pct(ag["4H"].same, ag["4H"].n)) + "%" : "-", note: "1D " + (ag["1D"].n ? n0(pct(ag["1D"].same, ag["1D"].n)) : "-") + "% · 1W " + (ag["1W"].n ? n0(pct(ag["1W"].same, ag["1W"].n)) : "-") + "%" },
+      { label: "상위봉 모두 같은 방향", value: ag.upper.n ? n1(pct(ag.upper.same, ag.upper.n)) + "%" : "-", note: ag.upper.tfs.map(function (t) { return TF_LABEL[t]; }).join("·") + " · 여섯 봉 전부는 " + (ag.all.n ? n1(pct(ag.all.same, ag.all.n)) : "-") + "%" },
+      { label: "공통 구간", value: n0(D.window.days) + "일", note: D.window.from.slice(0, 10) + " → " + D.window.to.slice(0, 10) + " · leg " + n0(sc.legsTotal) + "개" },
+    ];
+    el("kpis").innerHTML = items.map(function (k) {
+      return '<div class="kpi"><div class="label">' + esc(k.label) + '</div><div class="value tnum">' + esc(k.value) +
+        '</div><div class="note tnum">' + esc(k.note) + "</div></div>";
+    }).join("");
+  }
+
+  /* ---------- 발견 — 지금 데이터에서 읽는다 ---------- */
+  function renderFindings() {
+    var sc = scan();
+    var list = filtered();
+    var out = [];
+    if (!list.length) { el("findings").innerHTML = "<li>선택한 조합에 시작점이 없다.</li>"; return; }
+    var years = D.window.days / 365.25;
+    var up = list.filter(function (e) { return e[1] === 1; }).length;
+    out.push("<b>" + esc(sc.label) + "</b>에서 되돌림 1% 없이 <b>≥" + state.b + "%</b> 간 구간은 " + n0(D.window.days) + "일 동안 <b>" + n0(list.length) +
+      "회</b>(연 " + n1(list.length / years) + "회) 시작됐다. 상승 " + n0(up) + " · 하락 " + n0(list.length - up) + ".");
+
+    var ag = agreement(list);
+    var order = SNAP.slice().sort(function (a, b) { return pct(ag[b].same, ag[b].n) - pct(ag[a].same, ag[a].n); });
+    out.push("시작 시점에 임펄스와 <b>같은 방향</b>이었던 봉은 " + order.map(function (t) {
+      return TF_LABEL[t] + " " + n0(pct(ag[t].same, ag[t].n)) + "%";
+    }).join(" · ") + ". 스캔 봉과 그보다 짧은 봉은 시작점이 곧 극값이라 <b>정의상 반대</b>로 보인다 — 시점에서 읽을 수 있는 정보는 상위봉에 있다.");
+    if (ag.upper.tfs.length && ag.upper.n) {
+      var uPct = pct(ag.upper.same, ag.upper.n);
+      out.push("상위봉(" + ag.upper.tfs.map(function (t) { return TF_LABEL[t]; }).join("·") + ")이 <b>전부 임펄스 방향</b>이었던 시작점은 <b>" + n1(uPct) + "%</b>" +
+        (uPct < 30 ? " — 상위봉 정렬을 기다리면 임펄스의 대부분을 놓친다. 정렬은 필터이지 신호가 아니다." : " — 상위봉 정렬이 시작점의 큰 몫을 설명한다."));
+    }
+
+    // 상위봉이 반대였던 임펄스 — 역추세 임펄스의 비중
+    var opp1D = ag["1D"].n ? pct(ag["1D"].opp, ag["1D"].n) : 0;
+    if (ag["1D"].n) out.push("일봉이 <b>반대 방향</b>이었는데도 시작된 임펄스가 " + n0(opp1D) + "% — 역추세 임펄스는 드물지 않다.");
+
+    // 스냅샷 지표 한 줄 — 1m·스캔 봉 RSI 중앙값, 방향별
+    var k1 = SNAP.indexOf(sc.tf);
+    if (k1 >= 0) {
+      var upR = list.filter(function (e) { return e[1] === 1; }).map(function (e) { return snapVal(e, k1, "rsi"); }).filter(function (v) { return v != null; });
+      var dnR = list.filter(function (e) { return e[1] === -1; }).map(function (e) { return snapVal(e, k1, "rsi"); }).filter(function (v) { return v != null; });
+      if (upR.length && dnR.length) {
+        out.push("스캔 봉 자신의 시작 봉 RSI 중앙값은 상승 임펄스 " + n0(q(upR, 0.5)) + " · 하락 임펄스 " + n0(q(dnR, 0.5)) +
+          " — 시작 봉은 이미 그 방향으로 기울어 있다(시작점이 극값이므로 당연한 결과이고, 그래서 사후에만 보인다).");
+      }
+    }
+
+    // 리프트 상위 조건
+    var liftRows = (state.dir === -1 ? sc.lift.dn : sc.lift.up) || [];
+    var top = liftRows.filter(function (r) { return r.n >= 30 && r.rate >= 3; }).slice().sort(function (a, b) { return b.lift - a.lift; })[0];
+    if (top) {
+      var name = "";
+      D.conditions.forEach(function (c) { if (c.key === top.key) name = c.name; });
+      out.push((state.dir === -1 ? "하락" : "상승") + " 임펄스 시작 봉에서 가장 도드라진 조건은 <b>" + esc(name) + "</b> — 시작 봉의 " + n1(top.rate) +
+        "%에서 켜져 있었고 전체 봉 기준 " + n1(top.base) + "%의 <b>" + n2(top.lift) + "배</b>다.");
+    }
+
+    // 1H·4H 에서 R=1% 의 한계
+    var bars = list.map(function (e) { return e[3]; });
+    if ((sc.tf === "1H" || sc.tf === "4H") && bars.length) {
+      out.push("이 봉에서 되돌림 임계 1%는 봉 하나의 변동폭보다 작을 때가 많아 구간이 짧게 잘린다 — 봉 수 중앙값 " + n0(q(bars, 0.5)) + "봉. 큰 임펄스는 크기 필터로 걸러 보라.");
+    }
+    el("findings").innerHTML = out.map(function (t) { return "<li>" + t + "</li>"; }).join("");
+  }
+
+  /* ---------- 여섯 봉 지표 분포 ---------- */
+  function shareBar(parts) {
+    return '<span class="share">' + parts.map(function (p) {
+      return '<i style="width:' + n1(p.pct) + "%;background:" + p.color + '"></i>';
+    }).join("") + "</span>";
+  }
+  function renderProfile() {
+    var list = filtered();
+    var ag = agreement(list);
+    var head = "<thead><tr><th>지표</th>" + SNAP.map(function (t) { return "<th>" + esc(TF_LABEL[t]) + "</th>"; }).join("") + "</tr></thead>";
+    var rows = [];
+    rows.push("<tr><td>같은 방향 · 반대 · 혼조</td>" + SNAP.map(function (t) {
+      var a = ag[t];
+      if (!a.n) return '<td class="muted">-</td>';
+      return '<td class="tnum"><span class="up">' + n0(pct(a.same, a.n)) + '</span> · <span class="dn">' + n0(pct(a.opp, a.n)) + '</span> · <span class="muted">' + n0(pct(a.mix, a.n)) + "</span>" +
+        shareBar([{ pct: pct(a.same, a.n), color: "var(--up)" }, { pct: pct(a.opp, a.n), color: "var(--dn)" }, { pct: pct(a.mix, a.n), color: "var(--border)" }]) + "</td>";
+    }).join("") + "</tr>");
+    rows.push("<tr><td>이평 정배열 · 역배열 · 혼조</td>" + SNAP.map(function (t, k) {
+      var b = 0, s = 0, m = 0, n = 0;
+      list.forEach(function (e) {
+        var v = snapVal(e, k, "stack");
+        if (v == null) return;
+        n += 1; if (v === 1) b += 1; else if (v === -1) s += 1; else m += 1;
+      });
+      if (!n) return '<td class="muted">-</td>';
+      return '<td class="tnum"><span class="up">' + n0(pct(b, n)) + '</span> · <span class="dn">' + n0(pct(s, n)) + '</span> · <span class="muted">' + n0(pct(m, n)) + "</span>" +
+        shareBar([{ pct: pct(b, n), color: "var(--up)" }, { pct: pct(s, n), color: "var(--dn)" }, { pct: pct(m, n), color: "var(--border)" }]) + "</td>";
+    }).join("") + "</tr>");
+    METRICS.forEach(function (m) {
+      rows.push("<tr><td>" + esc(m.label) + "</td>" + SNAP.map(function (t, k) {
+        var vals = list.map(function (e) { return snapVal(e, k, m.key); }).filter(function (v) { return v != null; });
+        if (!vals.length) return '<td class="muted">-</td>';
+        return '<td class="tnum">' + m.fmt(q(vals, 0.5)) + ' <span class="muted">(' + m.fmt(q(vals, 0.25)) + "~" + m.fmt(q(vals, 0.75)) + ")</span></td>";
+      }).join("") + "</tr>");
+    });
+    rows.push('<tr><td class="muted">표본</td>' + SNAP.map(function (t) { return '<td class="tnum muted">' + n0(ag[t].n) + "</td>"; }).join("") + "</tr>");
+    el("profile").innerHTML = head + "<tbody>" + rows.join("") + "</tbody>";
+  }
+
+  /* ---------- 조건 리프트 ---------- */
+  function heat(lift) {
+    if (lift == null) return "";
+    var v = Math.max(-1, Math.min(1, Math.log2(Math.max(lift, 0.01))));
+    var a = Math.abs(v) * 0.35;
+    return "background:" + (v >= 0 ? "rgba(38,194,129," + n2(a) + ")" : "rgba(240,97,109," + n2(a) + ")");
+  }
+  function renderLift() {
+    var sc = scan();
+    var upM = {}, dnM = {};
+    (sc.lift.up || []).forEach(function (r) { upM[r.key] = r; });
+    (sc.lift.dn || []).forEach(function (r) { dnM[r.key] = r; });
+    var head = "<thead><tr><th>그룹</th><th>조건</th><th>전체 봉 %</th>" +
+      '<th class="' + (state.dir === 1 ? "sel" : "") + '">상승 시작 봉 %</th><th class="' + (state.dir === 1 ? "sel" : "") + '">리프트</th>' +
+      '<th class="' + (state.dir === -1 ? "sel" : "") + '">하락 시작 봉 %</th><th class="' + (state.dir === -1 ? "sel" : "") + '">리프트</th></tr></thead>';
+    var body = D.conditions.map(function (c) {
+      var u = upM[c.key], d = dnM[c.key];
+      var base = u ? u.base : d ? d.base : null;
+      return "<tr><td>" + esc(c.group) + "</td><td style=\"text-align:left\">" + esc(c.name) + '</td><td class="tnum muted">' + (base == null ? "-" : n1(base)) + "</td>" +
+        '<td class="tnum ' + (state.dir === 1 ? "sel" : "") + '">' + (u ? n1(u.rate) : "-") + '</td><td class="tnum" style="' + (u ? heat(u.lift) : "") + '">' + (u ? n2(u.lift) + "×" : "-") + "</td>" +
+        '<td class="tnum ' + (state.dir === -1 ? "sel" : "") + '">' + (d ? n1(d.rate) : "-") + '</td><td class="tnum" style="' + (d ? heat(d.lift) : "") + '">' + (d ? n2(d.lift) + "×" : "-") + "</td></tr>";
+    }).join("");
+    el("lift").innerHTML = head + "<tbody>" + body + "</tbody>";
+  }
+
+  /* ---------- 크기 분포 · 지속 ---------- */
+  function renderHist() {
+    var sc = scan();
+    var max = 0;
+    sc.hist.forEach(function (h) { if (h.total > max) max = h.total; });
+    el("hist").innerHTML = "<thead><tr><th>이동폭 %</th><th>상승</th><th>하락</th><th>합계</th><th></th></tr></thead><tbody>" +
+      sc.hist.map(function (h) {
+        return "<tr><td>" + esc(h.range) + '</td><td class="tnum up">' + n0(h.up) + '</td><td class="tnum dn">' + n0(h.dn) + '</td><td class="tnum">' + n0(h.total) +
+          '</td><td><span class="bar" style="width:120px"><i style="width:' + n1(pct(h.total, max)) + '%"></i></span></td></tr>';
+      }).join("") + "</tbody>";
+  }
+  function renderDur() {
+    var sc = scan();
+    var years = D.window.days / 365.25;
+    var rows = D.axes.buckets.map(function (b) {
+      var st = sc.stats[String(b)] || sc.stats[b];
+      if (!st) return "";
+      var s = state.dir === 1 ? st.up : state.dir === -1 ? st.down : st.both;
+      if (!s || !s.count) return "<tr><td>≥" + b + '%</td><td class="tnum">0</td><td colspan="6" class="muted">-</td></tr>';
+      return "<tr><td>≥" + b + '%</td><td class="tnum">' + n0(s.count) + '</td><td class="tnum">' + n1(s.count / years) + '</td><td class="tnum">' + n2(s.move.p50) + " / " + n2(s.move.p90) +
+        '</td><td class="tnum">' + n0(s.bars.p50) + " / " + n0(s.bars.p90) + '</td><td class="tnum">' + n1(s.hours.p50) + " / " + n1(s.hours.p90) +
+        '</td><td class="tnum">' + n2(s.retr.p50) + " / " + n2(s.retr.p90) + "</td></tr>";
+    }).join("");
+    el("dur").innerHTML = "<thead><tr><th>크기</th><th>건수</th><th>연간</th><th>이동폭 p50/p90</th><th>봉 p50/p90</th><th>시간 p50/p90</th><th>되돌림 p50/p90</th></tr></thead><tbody>" + rows + "</tbody>";
+  }
+
+  /* ---------- 여섯 봉 차트 ---------- */
+  function poly(pts, stroke, dash, width) {
+    var segs = [], cur = [];
+    pts.forEach(function (p) {
+      if (p == null) { if (cur.length) segs.push(cur); cur = []; } else cur.push(p);
+    });
+    if (cur.length) segs.push(cur);
+    return segs.map(function (s) {
+      return '<polyline points="' + s.map(function (p) { return n1(p[0]) + "," + n1(p[1]); }).join(" ") + '" fill="none" stroke="' + stroke +
+        '" stroke-width="' + (width || 0.9) + '"' + (dash ? ' stroke-dasharray="' + dash + '"' : "") + ' opacity="0.9"/>';
+    }).join("");
+  }
+  function tfChart(win, tf, s) {
+    var cs = win.candles;
+    if (!cs || !cs.length) return '<p class="muted" style="font-size:11px">창 없음</p>';
+    var W = 360, Hh = 190, padT = 6, cH = 120, gap = 10, rH = 40, padL = 2, padR = 44;
+    var lo = Infinity, hi = -Infinity;
+    for (var i = 0; i < cs.length; i += 1) { if (cs[i][3] < lo) lo = cs[i][3]; if (cs[i][2] > hi) hi = cs[i][2]; }
+    // 볼린저 밴드가 캔들 밖으로 나가는 창이 있다 — 스케일에 함께 넣어 잘리지 않게.
+    (win.bbU || []).forEach(function (v) { if (v != null && v > hi) hi = v; });
+    (win.bbL || []).forEach(function (v) { if (v != null && v < lo) lo = v; });
+    var span = (hi - lo) || 1;
+    lo -= span * 0.04; hi += span * 0.04; span = hi - lo;
+    var cw = (W - padL - padR) / cs.length;
+    var x = function (i) { return padL + i * cw; };
+    var y = function (p) { return padT + (1 - (p - lo) / span) * cH; };
+    var ry = function (v) { return padT + cH + gap + (1 - v / 100) * rH; };
+    var ms = SNAP_MS[tf];
+    var tau = s.t + SNAP_MS[state.tf];
+
+    // 임펄스 구간 [t, tEnd] 을 이 봉의 캔들 인덱스로 옮긴다 — 봉 하나 안에 다 들어가면 그 봉 하나.
+    var i0 = -1, i1 = -1, iSnap = -1;
+    for (var k = 0; k < cs.length; k += 1) {
+      if (cs[k][0] <= s.t) i0 = k;
+      if (cs[k][0] <= s.tEnd) i1 = k;
+      if (cs[k][0] + ms <= tau) iSnap = k;
+    }
+    var parts = [];
+    if (i0 >= 0) {
+      parts.push('<rect x="' + n1(x(i0)) + '" y="' + padT + '" width="' + n1(Math.max(cw, (Math.max(i1, i0) - i0 + 1) * cw)) + '" height="' + cH +
+        '" fill="' + (s.dir === 1 ? "var(--up)" : "var(--dn)") + '" opacity="0.12"/>');
+    }
+    if (iSnap >= 0) {
+      parts.push('<line x1="' + n1(x(iSnap) + cw / 2) + '" y1="' + padT + '" x2="' + n1(x(iSnap) + cw / 2) + '" y2="' + (padT + cH + gap + rH) +
+        '" stroke="var(--ink)" stroke-width="0.6" stroke-dasharray="2 3" opacity="0.6"/>');
+    }
+    var mk = function (arr) {
+      return cs.map(function (c, i) { var v = arr && arr[i]; return v == null ? null : [x(i) + cw / 2, y(v)]; });
+    };
+    parts.push(poly(mk(win.bbU), "var(--dim)", "2 3", 0.6));
+    parts.push(poly(mk(win.bbL), "var(--dim)", "2 3", 0.6));
+    parts.push(poly(mk(win.e200), "var(--dim)", null, 1.1));
+    parts.push(poly(mk(win.e50), "var(--warn)", null, 0.9));
+    parts.push(poly(mk(win.e20), "var(--accent)", null, 0.9));
+    for (var j = 0; j < cs.length; j += 1) {
+      var c = cs[j];
+      var col = c[4] >= c[1] ? "var(--up)" : "var(--dn)";
+      var cx = x(j) + cw / 2;
+      parts.push('<line x1="' + n1(cx) + '" y1="' + n1(y(c[2])) + '" x2="' + n1(cx) + '" y2="' + n1(y(c[3])) + '" stroke="' + col + '" stroke-width="0.7" opacity="0.85"/>');
+      var top = y(Math.max(c[1], c[4])), bot = y(Math.min(c[1], c[4]));
+      parts.push('<rect x="' + n1(x(j) + cw * 0.15) + '" y="' + n1(top) + '" width="' + n1(Math.max(0.6, cw * 0.7)) + '" height="' + n1(Math.max(0.7, bot - top)) + '" fill="' + col + '" opacity="0.9"/>');
+    }
+    // 가격 눈금 — 위·아래·스냅샷 종가
+    parts.push('<text x="' + (W - padR + 4) + '" y="' + n1(y(hi - span * 0.04) + 3) + '" font-size="8.5" fill="var(--dim)">' + n0(hi - span * 0.04) + "</text>");
+    parts.push('<text x="' + (W - padR + 4) + '" y="' + n1(y(lo + span * 0.04) + 3) + '" font-size="8.5" fill="var(--dim)">' + n0(lo + span * 0.04) + "</text>");
+    if (iSnap >= 0) parts.push('<text x="' + (W - padR + 4) + '" y="' + n1(y(cs[iSnap][4]) + 3) + '" font-size="8.5" fill="var(--ink)">' + n0(cs[iSnap][4]) + "</text>");
+    // RSI 띠
+    parts.push('<rect x="' + padL + '" y="' + n1(ry(100)) + '" width="' + (W - padL - padR) + '" height="' + rH + '" fill="var(--grid)" opacity="0.5"/>');
+    [30, 70].forEach(function (lv) {
+      parts.push('<line x1="' + padL + '" y1="' + n1(ry(lv)) + '" x2="' + (W - padR) + '" y2="' + n1(ry(lv)) + '" stroke="var(--dim)" stroke-width="0.5" stroke-dasharray="2 3" opacity="0.7"/>');
+    });
+    parts.push(poly(cs.map(function (c, i) { var v = win.rsi && win.rsi[i]; return v == null ? null : [x(i) + cw / 2, ry(v)]; }), "var(--accent)", null, 0.9));
+    parts.push('<text x="' + (W - padR + 4) + '" y="' + n1(ry(70) + 3) + '" font-size="8" fill="var(--dim)">70</text>');
+    parts.push('<text x="' + (W - padR + 4) + '" y="' + n1(ry(30) + 3) + '" font-size="8" fill="var(--dim)">30</text>');
+    return '<svg class="chart" viewBox="0 0 ' + W + " " + Hh + '" preserveAspectRatio="none">' + parts.join("") + "</svg>";
+  }
+
+  function snapTable(sc, s) {
+    var e = byT(sc)[s.t];
+    if (!e) return "";
+    var head = "<thead><tr><th>봉</th><th>방향</th><th>이평</th><th>RSI</th><th>%b</th><th>밴드폭</th><th>ATR</th><th>EMA200 이격</th><th>거래량</th><th>채널</th></tr></thead>";
+    var body = SNAP.map(function (t, k) {
+      var d = snapVal(e, k, "dir");
+      if (d == null) return "<tr><td>" + esc(TF_LABEL[t]) + '</td><td colspan="9" class="muted">τ 이전에 마감된 봉 없음</td></tr>';
+      var same = d === s.dir;
+      return "<tr><td>" + esc(TF_LABEL[t]) + '</td><td class="' + (d === 1 ? "up" : d === -1 ? "dn" : "muted") + '">' + dirLabel(d) + (same ? " ✓" : "") + "</td><td>" + stackLabel(snapVal(e, k, "stack")) +
+        '</td><td class="tnum">' + n0(snapVal(e, k, "rsi")) + '</td><td class="tnum">' + n2(snapVal(e, k, "bbPb")) + '</td><td class="tnum">' + n0(snapVal(e, k, "bbWPct")) + "%ile" +
+        '</td><td class="tnum">' + n0(snapVal(e, k, "atrPctile")) + "%ile" + '</td><td class="tnum">' + n2(snapVal(e, k, "distE200")) + "%" +
+        '</td><td class="tnum">' + n2(snapVal(e, k, "volR")) + "배" + '</td><td class="tnum">' + n0(snapVal(e, k, "dcPos")) + "%</td></tr>";
+    }).join("");
+    return '<div class="scroll" style="margin-top:10px"><table>' + head + "<tbody>" + body + "</tbody></table></div>";
+  }
+
+  function renderSamples() {
+    var sc = scan();
+    var list = (sc.samples || []).filter(function (s) {
+      return (state.dir === 0 || s.dir === state.dir) && Math.abs(s.movePct) >= state.b;
+    });
+    if (!list.length) { el("samples").innerHTML = '<p class="muted">선택한 조합에 대표 사례가 없다 — 크기 필터를 낮춰 보라.</p>'; el("moreSamples").style.display = "none"; return; }
+    // 카드 하나가 SVG 여섯 장이다 — 스무 장을 한꺼번에 그리면 첫 화면이 몇 초 멈춘다. 여섯 장씩 잇는다.
+    var btn = el("moreSamples");
+    btn.style.display = list.length > state.sampleShown ? "" : "none";
+    btn.textContent = "대표 사례 더 보기 (" + n0(Math.min(state.sampleShown, list.length)) + " / " + n0(list.length) + ")";
+    btn.onclick = function () { state.sampleShown += 6; renderSamples(); };
+    el("samples").innerHTML = list.slice(0, state.sampleShown).map(function (s) {
+      var charts = SNAP.map(function (t) {
+        var win = s.windows && s.windows[t];
+        return '<div class="tfbox"><div class="cap"><b>' + esc(TF_LABEL[t]) + "</b><span>" + (win && win.candles ? n0(win.candles.length) + "봉 창" : "") + "</span></div>" +
+          (win ? tfChart(win, t, s) : '<p class="muted" style="font-size:11px">창 없음</p>') + "</div>";
+      }).join("");
+      return '<div class="card"><div class="hd"><h3>' + esc(s.kst) + ' <span class="tag" style="margin-left:6px">' + esc(s.why) + "</span></h3>" +
+        '<span class="tnum ' + (s.dir === 1 ? "up" : "dn") + '" style="font-weight:600">' + (s.dir === 1 ? "+" : "") + n2(s.movePct) + "%</span></div>" +
+        '<div class="sub tnum">' + n0(s.bars) + "봉 · " + n1(s.hours) + "시간 · 되돌림 " + n2(s.retr) + "% · " + n0(s.sp) + " → " + n0(s.ep) + " · 끝 " + esc(kst(s.tEnd)) + "</div>" +
+        '<div class="grid g3" style="margin-top:10px">' + charts + "</div>" + snapTable(sc, s) + "</div>";
+    }).join("");
+  }
+
+  /* ---------- 전수 표 ---------- */
+  function renderEvents() {
+    var list = filtered().slice().sort(function (a, b) { return b[0] - a[0]; });
+    var head = "<thead><tr><th>시작(KST)</th><th>방향</th><th>이동폭</th><th>봉</th><th>시간</th><th>되돌림</th>" +
+      SNAP.map(function (t) { return "<th>" + esc(TF_LABEL[t]) + " 방향·RSI·%b·채널</th>"; }).join("") + "</tr></thead>";
+    var rows = list.slice(0, state.shown).map(function (e) {
+      return "<tr><td>" + esc(kst(e[0])) + '</td><td class="' + (e[1] === 1 ? "up" : "dn") + '">' + (e[1] === 1 ? "상승" : "하락") + '</td><td class="tnum">' + n2(e[2]) +
+        '%</td><td class="tnum">' + n0(e[3]) + '</td><td class="tnum">' + n1(e[4]) + '</td><td class="tnum">' + n2(e[5]) + "%</td>" +
+        SNAP.map(function (t, k) {
+          var d = snapVal(e, k, "dir");
+          if (d == null) return '<td class="muted">-</td>';
+          return '<td class="tnum">' + dirArrow(d) + " " + n0(snapVal(e, k, "rsi")) + " · " + n2(snapVal(e, k, "bbPb")) + " · " + n0(snapVal(e, k, "dcPos")) + "%</td>";
+        }).join("") + "</tr>";
+    }).join("");
+    el("events").innerHTML = head + "<tbody>" + rows + "</tbody>";
+    var btn = el("moreBtn");
+    btn.style.display = list.length > state.shown ? "" : "none";
+    btn.textContent = "더 보기 (" + n0(Math.min(state.shown, list.length)) + " / " + n0(list.length) + ")";
+    btn.onclick = function () { state.shown += 200; renderEvents(); };
+  }
+
+  function render() {
+    renderControls();
+    renderKpis();
+    renderFindings();
+    renderProfile();
+    renderLift();
+    renderHist();
+    renderDur();
+    renderSamples();
+    renderEvents();
+  }
+  render();
+})();
+</script>
+</body>
+</html>

@@ -37,6 +37,7 @@ const TFS = {
   "1H": { bar: "1H", ms: 3600_000, days: 2400 },
   "4H": { bar: "4H", ms: 4 * 3600_000, days: 2400 },
   "1D": { bar: "1D", ms: 86_400_000, days: 2400 },
+  "1W": { bar: "1W", ms: 7 * 86_400_000, days: 2400 },
 };
 
 async function fetchPage(bar, after, attempt = 0) {
