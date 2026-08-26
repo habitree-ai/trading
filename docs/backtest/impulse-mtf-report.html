@@ -130,6 +130,15 @@
 <p class="sub">손으로 쓴 요약이 아니다 — 선택한 봉·방향·크기에서 그때그때 계산된다. 컨트롤을 바꾸면 문장도 바뀐다.</p>
 <div class="panel"><ul class="tight" id="findings"></ul></div>
 
+<h2>시작점 기준 정리 — 봉별 · 방향별</h2>
+<p class="sub">
+  위 컨트롤과 무관하게 네 스캔 봉을 한 표에 견준다(≥1% 전체). <b>시작 봉</b> 열은 스캔 봉 자신의 시작 봉 지표 중앙값,
+  <b>상위봉 같은 방향</b>은 그 봉이 임펄스 방향과 일치한 비율, <b>가장 도드라진 조건</b>은 시작 봉에서 켜진 비율(전체 봉 대비 배수) 상위 셋(표본 30건 이상).
+  시작 봉 자체는 극값이라 반대 방향 극단(상승이면 과매도·하단 이탈)이 정상이다 — 이 표는 "그 모습이면 시작된다"가 아니라 "시작됐을 때 그 모습이었다"를 적은 것이다.
+</p>
+<div class="panel scroll"><table id="criteria"></table></div>
+<div class="panel" style="margin-top:12px"><ul class="tight" id="criteriaNotes"></ul></div>
+
 <h2>시작 시점의 여섯 봉 — 지표 분포</h2>
 <p class="sub">
   임펄스가 시작된 봉의 마감 시각 τ 에서, 각 봉의 "이미 마감된 마지막 봉"이 보여 준 값이다.
@@ -405,6 +414,51 @@
     el("findings").innerHTML = out.map(function (t) { return "<li>" + t + "</li>"; }).join("");
   }
 
+  /* ---------- 시작점 기준 정리 — 컨트롤과 무관한 고정 표 ---------- */
+  function renderCriteria() {
+    var condName = {};
+    D.conditions.forEach(function (c) { condName[c.key] = c.name; });
+    var upperTfs = ["15m", "1H", "4H", "1D", "1W"];
+    var head = "<thead><tr><th>봉 · 방향</th><th>건수</th><th>시작 봉 RSI</th><th>%b</th><th>밴드폭</th><th>ATR</th><th>거래량</th><th>채널</th>" +
+      upperTfs.map(function (t) { return "<th>" + esc(TF_LABEL[t]) + " 같은 방향</th>"; }).join("") + '<th style="text-align:left">가장 도드라진 조건 (시작 봉 비율 · 배수)</th></tr></thead>';
+    var rows = [];
+    var notes = [];
+    D.scans.forEach(function (sc) {
+      var k0 = SNAP.indexOf(sc.tf);
+      [1, -1].forEach(function (dir) {
+        var ev = sc.events.filter(function (e) { return e[1] === dir; });
+        var med = function (f) { return q(ev.map(function (e) { return snapVal(e, k0, f); }).filter(function (v) { return v != null; }), 0.5); };
+        var same = function (t) {
+          var k = SNAP.indexOf(t), s = 0, n = 0;
+          ev.forEach(function (e) { var v = snapVal(e, k, "dir"); if (v == null) return; n += 1; if (v === dir) s += 1; });
+          return n ? pct(s, n) : null;
+        };
+        var lift = (dir === 1 ? sc.lift.up : sc.lift.dn).filter(function (r) { return r.n >= 30; }).slice().sort(function (a, b) { return b.lift - a.lift; }).slice(0, 3);
+        rows.push("<tr><td><b>" + esc(sc.label) + '</b> <span class="' + (dir === 1 ? "up" : "dn") + '">' + (dir === 1 ? "상승" : "하락") + "</span></td>" +
+          '<td class="tnum">' + n0(ev.length) + '</td><td class="tnum">' + n0(med("rsi")) + '</td><td class="tnum">' + n2(med("bbPb")) + '</td><td class="tnum">' + n0(med("bbWPct")) + '%ile</td>' +
+          '<td class="tnum">' + n0(med("atrPctile")) + '%ile</td><td class="tnum">' + n2(med("volR")) + '배</td><td class="tnum">' + n0(med("dcPos")) + "%</td>" +
+          upperTfs.map(function (t) {
+            var v = same(t);
+            if (t === sc.tf || SNAP_MS[t] < SNAP_MS[sc.tf]) return '<td class="tnum muted">' + (v == null ? "-" : n0(v) + "%") + "</td>";
+            return '<td class="tnum">' + (v == null ? "-" : n0(v) + "%") + "</td>";
+          }).join("") +
+          '<td style="text-align:left;white-space:normal;min-width:260px">' + lift.map(function (r) {
+            return esc(condName[r.key]) + ' <span class="tnum">' + n1(r.rate) + "% · " + n2(r.lift) + "×</span>";
+          }).join("<br>") + "</td></tr>");
+      });
+      // 봉별 한 줄 — 방향별 상위봉(일봉) 일치율 비대칭과 스캔 봉 극단성을 적는다.
+      var up = sc.events.filter(function (e) { return e[1] === 1; }), dn = sc.events.filter(function (e) { return e[1] === -1; });
+      var k1D = SNAP.indexOf("1D"), kS = SNAP.indexOf(sc.tf);
+      var sameRate = function (list, dir) { var s = 0, n = 0; list.forEach(function (e) { var v = snapVal(e, k1D, "dir"); if (v == null) return; n += 1; if (v === dir) s += 1; }); return n ? pct(s, n) : 0; };
+      var rsiUp = q(up.map(function (e) { return snapVal(e, kS, "rsi"); }).filter(function (v) { return v != null; }), 0.5);
+      var rsiDn = q(dn.map(function (e) { return snapVal(e, kS, "rsi"); }).filter(function (v) { return v != null; }), 0.5);
+      notes.push("<b>" + esc(sc.label) + "</b> — 시작 봉 RSI 중앙 상승 " + n0(rsiUp) + " · 하락 " + n0(rsiDn) + ". 일봉이 같은 방향이었던 비율은 상승 시작점 " + n0(sameRate(up, 1)) + "% · 하락 시작점 " + n0(sameRate(dn, -1)) + "%" +
+        (sameRate(dn, -1) - sameRate(up, 1) > 15 ? " — 이 구간은 일봉 하락일 때가 많아 하락 임펄스가 추세 순방향으로, 상승 임펄스가 역추세로 자주 시작됐다." : "."));
+    });
+    el("criteria").innerHTML = head + "<tbody>" + rows.join("") + "</tbody>";
+    el("criteriaNotes").innerHTML = notes.map(function (t) { return "<li>" + t + "</li>"; }).join("");
+  }
+
   /* ---------- 여섯 봉 지표 분포 ---------- */
   function shareBar(parts) {
     return '<span class="share">' + parts.map(function (p) {
@@ -644,6 +698,7 @@
     renderSamples();
     renderEvents();
   }
+  renderCriteria();
   render();
 })();
 </script>
