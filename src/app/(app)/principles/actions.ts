@@ -24,11 +24,40 @@ function parseDetail(value: FormDataEntryValue | null): string | null {
 }
 
 /**
- * 원칙을 새로 적는다.
+ * 원칙 한 줄을 넣는다 — 손으로 적는 경로와 진단에서 옮기는 경로가 함께 쓴다.
  *
  * 순서는 같은 묶음의 맨 아래로 붙인다 — 새로 떠올린 규칙이 이미 지키던 것들을
  * 밀어내고 위로 오면, 목록의 위아래가 중요도를 뜻한다는 약속이 깨진다.
  */
+export async function insertPrinciple(input: {
+  bookId: string;
+  category: PrincipleCategory;
+  title: string;
+  detail: string | null;
+}): Promise<{ error?: string }> {
+  const { supabase, user } = await requireUser();
+
+  const { data: last } = await supabase
+    .from("principles")
+    .select("sort_order")
+    .eq("book_id", input.bookId)
+    .eq("category", input.category)
+    .order("sort_order", { ascending: false })
+    .limit(1);
+
+  const { error } = await supabase.from("principles").insert({
+    book_id: input.bookId,
+    user_id: user.id,
+    category: input.category,
+    title: input.title,
+    detail: input.detail,
+    sort_order: (last?.[0]?.sort_order ?? 0) + 1,
+  });
+
+  return error ? { error: error.message } : {};
+}
+
+/** 원칙을 새로 적는다. */
 export async function createPrinciple(
   _prev: PrincipleFormState,
   formData: FormData,
@@ -39,27 +68,14 @@ export async function createPrinciple(
   const title = String(formData.get("title") ?? "").trim();
   if (!title) return { error: "원칙 내용을 입력해 주세요." };
 
-  const { supabase, user } = await requireUser();
-  const category = parseCategory(formData.get("category"));
-
-  const { data: last } = await supabase
-    .from("principles")
-    .select("sort_order")
-    .eq("book_id", bookId)
-    .eq("category", category)
-    .order("sort_order", { ascending: false })
-    .limit(1);
-
-  const { error } = await supabase.from("principles").insert({
-    book_id: bookId,
-    user_id: user.id,
-    category,
+  const { error } = await insertPrinciple({
+    bookId,
+    category: parseCategory(formData.get("category")),
     title,
     detail: parseDetail(formData.get("detail")),
-    sort_order: (last?.[0]?.sort_order ?? 0) + 1,
   });
 
-  if (error) return { error: error.message };
+  if (error) return { error };
 
   revalidatePath("/", "layout");
   return { message: "원칙을 추가했습니다." };

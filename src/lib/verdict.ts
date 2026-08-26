@@ -311,6 +311,247 @@ export function readCost(input: {
   };
 }
 
+/* ============ 매매 진단 ============ */
+
+/** 발견이 얼마나 단단한가. */
+export type Confidence = 'confirmed' | 'likely' | 'hypothesis';
+
+export const CONFIDENCE_LABEL: Record<Confidence, string> = {
+  confirmed: '확정',
+  likely: '유력',
+  hypothesis: '가설',
+};
+
+/** 정렬용 — 작을수록 단단하다. */
+export const CONFIDENCE_RANK: Record<Confidence, number> = {
+  confirmed: 0,
+  likely: 1,
+  hypothesis: 2,
+};
+
+/*
+ * 확정의 표본 하한 — 100건.
+ *
+ * 이 원장의 거래당 손익 표준편차는 122달러다. n=100 이면 표준오차가 12.2 로 기준선의
+ * 크기(10.64)와 같은 자리다. 그보다 얇은 칸은 자기 자신을 기준선 하나 폭만큼도
+ * 갈라내지 못한다.
+ */
+const CONFIRM_N = 100;
+
+/*
+ * 확정의 t 하한 — 3.0.
+ *
+ * 이 진단은 한 회차에 150개 넘는 칸을 동시에 검정한다. 관행값 |t|≥2(p≈0.05)를 쓰면
+ * 우연히 통과하는 칸이 150×0.05 ≈ 7.5개 나와 확정 목록의 상당수가 거짓이 된다.
+ * |t|≥3 은 p≈0.0027 이라 같은 검정 수에서 기대 오탐이 0.4개다.
+ */
+const CONFIRM_T = 3;
+
+/*
+ * 유력의 t 하한 — 2.0.
+ *
+ * 관행적 양측 5%. 다중검정 보정이 안 된 값이라 "스무 번에 한 번은 이렇게 보인다"가
+ * 그대로 남는다 — 그래서 확정이 아니라 유력이다.
+ */
+const LIKELY_T = 2;
+
+/*
+ * 표본 밖 검증에 필요한 한쪽 최소 표본 — 30건.
+ *
+ * 칸을 기간으로 다시 가르면 한쪽이 한 자릿수가 되는 일이 흔하다. 그때 "부호가 같다"는
+ * 정보가 아니라 잡음이므로 검정 자체를 하지 않은 것으로 둔다.
+ */
+const MIN_SPLIT_N = RELIABLE_SAMPLE;
+
+/** 발견 하나가 들고 있는 근거 — 등급과 문장이 같은 입력에서 나와야 서로 어긋나지 않는다. */
+export interface FindingEvidence {
+  n: number;
+  /** 이 칸의 거래당 손익 − 같은 코호트의 거래당 손익 */
+  lift: number;
+  /** 리프트를 표준오차로 나눈 값. 표본이 없어 못 내면 null */
+  t: number | null;
+  /** 기간 앞·뒤 절반의 리프트. 표본이 얇으면 null */
+  inLift: number | null;
+  outLift: number | null;
+  inN: number;
+  outN: number;
+  /** 정의에 결과가 들어 있는가 — true 면 t 검정이 구조적으로 무효다 */
+  tautological: boolean;
+}
+
+/** 앞뒤 절반이 같은 부호인가. 한쪽이라도 표본이 얇으면 null(검정 못 함). */
+export function heldOutOfSample(ev: FindingEvidence): boolean | null {
+  if (ev.inLift === null || ev.outLift === null) return null;
+  if (ev.inN < MIN_SPLIT_N || ev.outN < MIN_SPLIT_N) return null;
+  return Math.sign(ev.inLift) === Math.sign(ev.outLift);
+}
+
+/**
+ * 발견의 등급 — 표본·크기·기간 셋을 모두 본다.
+ *
+ * 셋 중 하나만 봐서는 안 되는 이유가 각각 있다. 표본만 보면 4,000건짜리의 거래당 0.3
+ * 차이가 확정이 된다. 크기만 보면 12건짜리 종목의 +70이 확정이 된다. 기간만 보면
+ * 우연히 앞뒤가 같은 방향으로 흔들린 축이 확정이 된다.
+ *
+ * 결과로 정의된 라벨은 절대 확정이 되지 않는다 — 리프트가 0이 아닌 것이 정의상 보장되어
+ * t 검정이 성립하지 않기 때문이다.
+ */
+export function gradeFinding(ev: FindingEvidence): Confidence {
+  if (ev.n < RELIABLE_SAMPLE) return 'hypothesis';
+  if (ev.t === null) return 'hypothesis';
+
+  const held = heldOutOfSample(ev);
+  // 기간 밖에서 부호가 뒤집힌 것은 "검정 안 한 것"보다 못하다 — 검정했고 떨어졌다.
+  if (held === false) return 'hypothesis';
+
+  const strong = Math.abs(ev.t) >= CONFIRM_T && ev.n >= CONFIRM_N && held === true;
+  if (strong && !ev.tautological) return 'confirmed';
+  if (Math.abs(ev.t) >= LIKELY_T) return 'likely';
+  return 'hypothesis';
+}
+
+/**
+ * 발견 하나를 문장으로 — 등급과 그 등급이 나온 이유를 함께 말한다.
+ *
+ * 배지가 「가설」이라고만 하면 왜 가설인지를 매번 되짚어야 한다. 표본이 얇아서인지,
+ * 차이가 작아서인지, 기간 밖에서 뒤집혀서인지에 따라 다음에 할 일이 다르다.
+ */
+export function readFinding(ev: FindingEvidence): Verdict {
+  if (ev.tautological) {
+    return {
+      tone: 'neutral',
+      text: '결과로 정의된 분류입니다 — 이 값은 효과가 아니라 그런 결과가 얼마나 잦았는지를 셉니다.',
+    };
+  }
+  if (ev.n < RELIABLE_SAMPLE) {
+    return { tone: 'warn', text: `표본 ${ev.n}건 — ${RELIABLE_SAMPLE}건이 안 돼 차이가 크게 흔들립니다.` };
+  }
+  if (ev.t === null) {
+    return { tone: 'neutral', text: '흔들리는 폭을 잴 수 없어 등급을 매기지 못합니다.' };
+  }
+
+  const held = heldOutOfSample(ev);
+  if (held === false) {
+    return {
+      tone: 'bad',
+      text: `앞 절반 ${signed(ev.inLift, 2)} / 뒤 절반 ${signed(ev.outLift, 2)} — 기간 밖에서 부호가 뒤집혔습니다. 발견이 아니라 그 구간의 사건이었습니다.`,
+    };
+  }
+  if (Math.abs(ev.t) < LIKELY_T) {
+    return {
+      tone: 'neutral',
+      text: `차이 ${signed(ev.lift, 2)}가 흔들리는 폭의 ${num(Math.abs(ev.t), 1)}배뿐입니다 — 표본 뽑기 운으로 설명되는 크기입니다.`,
+    };
+  }
+  if (held === null) {
+    return {
+      tone: 'warn',
+      text: `표본 ${ev.n}건은 충분하지만 기간을 반으로 가르면 ${ev.inN}건 / ${ev.outN}건이라 확정으로 올리지 못합니다.`,
+    };
+  }
+  if (Math.abs(ev.t) < CONFIRM_T || ev.n < CONFIRM_N) {
+    return {
+      tone: 'warn',
+      text: `기간 양쪽 부호는 같지만 차이가 흔들리는 폭의 ${num(Math.abs(ev.t), 1)}배로, 확정 기준 ${CONFIRM_T}배에 못 미칩니다.`,
+    };
+  }
+  return {
+    tone: ev.lift > 0 ? 'good' : 'bad',
+    text: `표본 ${ev.n}건에 기간 양쪽이 같은 부호이고 차이가 흔들리는 폭의 ${num(Math.abs(ev.t), 1)}배입니다 — 이 원장에서 가장 단단한 축에 듭니다.`,
+  };
+}
+
+/*
+ * 청산이 성적을 정하는 경계 — 손실의 절반.
+ *
+ * `COST_DOMINANT` 와 같은 논리다. 한 항목이 손실의 절반을 넘게 만들면 나머지를 다 고쳐도
+ * 성적은 그 항목이 정한다.
+ */
+const EXIT_DOMINANT = 0.5;
+
+/**
+ * 진입과 청산 중 어디가 더 비쌌나.
+ *
+ * 성적이 나쁠 때 사람은 진입을 먼저 의심한다 — 진입은 고른 것이고 청산은 당한 것처럼
+ * 느껴지기 때문이다. 하지만 이미 이익 구간에 닿았던 거래가 손실로 닫혔다면 그 손실에
+ * 진입은 관여하지 않았다. 그 몫을 갈라 보여 준다.
+ */
+export function readExitGap(input: {
+  /** 보유 중 문턱 이상 평가익에 닿은 거래 수 */
+  reached: number;
+  /** 그중 손실로 닫은 거래 수 */
+  gaveBack: number;
+  /** 그 거래들의 실현손익 합 — 보통 음수 */
+  gaveBackPnl: number;
+  /** 전 구간 순손익 */
+  netPnl: number;
+  /** 평가익 문턱 — 0.2 = 증거금의 +20% */
+  threshold: number;
+}): Verdict {
+  const { reached, gaveBack, gaveBackPnl, netPnl, threshold } = input;
+  if (reached === 0) {
+    return { tone: 'neutral', text: '이익 구간에 닿은 거래가 기록되지 않았습니다.' };
+  }
+  if (netPnl >= 0) {
+    return { tone: 'neutral', text: '전 구간이 흑자라 손실을 갈라 볼 뜻이 없습니다.' };
+  }
+
+  const rate = gaveBack / reached;
+  const share = Math.abs(gaveBackPnl) / Math.abs(netPnl);
+  const head = `증거금 대비 ${pct(threshold, 0)}까지 갔던 거래 ${num(reached, 0)}건 가운데 ${num(gaveBack, 0)}건(${pct(rate, 0)})이 손실로 닫혔고, 그것만으로 ${signed(gaveBackPnl, 0)}`;
+
+  if (share >= EXIT_DOMINANT) {
+    return {
+      tone: 'bad',
+      text: `${head} — 순손실의 ${pct(share, 0)}입니다. 진입 기준을 고쳐도 이 몫은 그대로 남습니다.`,
+    };
+  }
+  return { tone: 'warn', text: `${head} — 순손실의 ${pct(share, 0)}입니다.` };
+}
+
+/** 회차 사이에 발견이 어떻게 움직였나. */
+export type FindingChange = 'new' | 'held' | 'strengthened' | 'weakened' | 'resolved' | 'reversed' | 'gone';
+
+/**
+ * 회차 변화 — "좋아졌다"를 함부로 말하지 않는다.
+ *
+ * 차이가 줄었다는 것만으로는 고쳐진 게 아니다. 그 구간을 덜 거래해서 줄었을 수도, 이번
+ * 회차 표본이 얇아 흔들린 것일 수도 있다. 해결은 차이가 줄고 **거래 수도 줄었을 때만**
+ * 말한다 — 피했다는 증거가 있어야 한다.
+ */
+export function readFindingChange(input: {
+  change: FindingChange;
+  prevLift: number | null;
+  nowLift: number | null;
+  prevN: number | null;
+  nowN: number | null;
+}): Verdict {
+  const { change, prevLift, nowLift, prevN, nowN } = input;
+
+  switch (change) {
+    case 'new':
+      return { tone: 'neutral', text: '이번 회차에 새로 잡힌 항목입니다 — 다음 회차가 확인해야 등급이 올라갑니다.' };
+    case 'resolved':
+      return {
+        tone: 'good',
+        text: `차이가 ${signed(prevLift, 2)} → ${signed(nowLift, 2)}로 줄었고 거래 수도 ${num(prevN, 0)}→${num(nowN, 0)}건으로 줄었습니다 — 피한 것이 맞습니다.`,
+      };
+    case 'weakened':
+      return {
+        tone: 'warn',
+        text: `차이는 줄었지만 거래 수가 ${num(nowN, 0)}건으로 그대로입니다 — 고쳐진 것인지 이번 표본이 흔들린 것인지 아직 갈리지 않습니다.`,
+      };
+    case 'strengthened':
+      return { tone: 'bad', text: `차이가 ${signed(prevLift, 2)} → ${signed(nowLift, 2)}로 더 벌어졌습니다.` };
+    case 'reversed':
+      return { tone: 'bad', text: '부호가 뒤집혔습니다 — 지난 회차의 발견이 발견이 아니었습니다. 지우지 않고 남겨 둡니다.' };
+    case 'gone':
+      return { tone: 'neutral', text: '이번 회차에는 이 칸에 거래가 없습니다.' };
+    default:
+      return { tone: 'warn', text: '그대로입니다 — 회차를 한 번 더 지나며 아무것도 바뀌지 않았습니다.' };
+  }
+}
+
 /*
  * 계산 자금과 거래소 잔고의 차이 — 0.5% / 2%.
  *

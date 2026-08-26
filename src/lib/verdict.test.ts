@@ -5,7 +5,11 @@ import {
   readBalanceGap,
   readCost,
   readDrawdown,
+  gradeFinding,
+  readExitGap,
   readExpectancy,
+  readFinding,
+  readFindingChange,
   readKelly,
   readKellyFit,
   readLossStreak,
@@ -154,6 +158,105 @@ describe('readKellyFit', () => {
 
   it('켈리가 0 이하인데 잃고 있으면 걸수록 줄어드는 구간이다', () => {
     expect(readKellyFit(-0.1, 0.05).tone).toBe('bad');
+  });
+});
+
+describe('gradeFinding — 표본·크기·기간 셋을 모두 본다', () => {
+  const base = {
+    n: 400, lift: -8, t: -4, inLift: -7, outLift: -9, inN: 200, outN: 200, tautological: false,
+  };
+
+  it('셋을 모두 통과하면 확정', () => {
+    expect(gradeFinding(base)).toBe('confirmed');
+  });
+
+  it('표본이 30건 미만이면 무조건 가설', () => {
+    expect(gradeFinding({ ...base, n: 20 })).toBe('hypothesis');
+  });
+
+  it('기간 밖에서 부호가 뒤집히면 유력이 아니라 가설 — 검정했고 떨어졌다', () => {
+    expect(gradeFinding({ ...base, outLift: 5 })).toBe('hypothesis');
+  });
+
+  it('t 가 확정 문턱 3에 못 미치면 유력', () => {
+    expect(gradeFinding({ ...base, t: -2.5 })).toBe('likely');
+  });
+
+  it('t 가 2에도 못 미치면 가설 — 표본 뽑기 운으로 설명된다', () => {
+    expect(gradeFinding({ ...base, t: -1.5 })).toBe('hypothesis');
+  });
+
+  it('표본 100건 미만이면 t 가 커도 확정이 아니다', () => {
+    expect(gradeFinding({ ...base, n: 60, inN: 30, outN: 30 })).toBe('likely');
+  });
+
+  it('기간 검증을 못 하면 확정까지 가지 못한다', () => {
+    expect(gradeFinding({ ...base, inN: 10, outN: 390 })).toBe('likely');
+  });
+
+  it('결과로 정의된 라벨은 t 가 아무리 커도 확정이 아니다', () => {
+    expect(gradeFinding({ ...base, t: -20, tautological: true })).toBe('likely');
+  });
+});
+
+describe('readFinding — 왜 그 등급인지까지 말한다', () => {
+  const base = {
+    n: 400, lift: -8, t: -4, inLift: -7, outLift: -9, inN: 200, outN: 200, tautological: false,
+  };
+
+  it('동어반복은 효과가 아니라 빈도라고 알린다', () => {
+    expect(readFinding({ ...base, tautological: true }).text).toContain('결과로 정의된');
+  });
+
+  it('부호가 뒤집혔으면 그 구간의 사건이었다고 말한다', () => {
+    const v = readFinding({ ...base, outLift: 5 });
+    expect(v.tone).toBe('bad');
+    expect(v.text).toContain('뒤집');
+  });
+
+  it('확정이면 리프트 부호로 좋고 나쁨을 가른다', () => {
+    expect(readFinding(base).tone).toBe('bad');
+    expect(readFinding({ ...base, lift: 8, t: 4, inLift: 7, outLift: 9 }).tone).toBe('good');
+  });
+
+  it('표본이 얇으면 흔들린다고 알린다', () => {
+    expect(readFinding({ ...base, n: 12 }).text).toContain('12건');
+  });
+});
+
+describe('readExitGap — 진입과 청산 중 어디가 더 비쌌나', () => {
+  it('손실의 절반을 넘으면 진입을 고쳐도 남는다고 못 박는다', () => {
+    const v = readExitGap({ reached: 1429, gaveBack: 728, gaveBackPnl: -35420, netPnl: -42819, threshold: 0.2 });
+    expect(v.tone).toBe('bad');
+    expect(v.text).toContain('그대로 남습니다');
+    expect(v.text).toContain('83%');
+  });
+
+  it('절반 아래면 주의로만 말한다', () => {
+    expect(readExitGap({ reached: 100, gaveBack: 20, gaveBackPnl: -1000, netPnl: -10000, threshold: 0.2 }).tone).toBe('warn');
+  });
+
+  it('흑자면 손실을 갈라 볼 뜻이 없다', () => {
+    expect(readExitGap({ reached: 100, gaveBack: 20, gaveBackPnl: -1000, netPnl: 5000, threshold: 0.2 }).tone).toBe('neutral');
+  });
+});
+
+describe('readFindingChange — 좋아졌다를 함부로 말하지 않는다', () => {
+  it('거래 수까지 줄어야 해결이라고 부른다', () => {
+    const v = readFindingChange({ change: 'resolved', prevLift: -12, nowLift: -1, prevN: 400, nowN: 90 });
+    expect(v.tone).toBe('good');
+    expect(v.text).toContain('피한 것이 맞습니다');
+  });
+
+  it('차이만 줄고 거래 수가 그대로면 아직 갈리지 않았다고 말한다', () => {
+    const v = readFindingChange({ change: 'weakened', prevLift: -12, nowLift: -3, prevN: 400, nowN: 400 });
+    expect(v.tone).toBe('warn');
+    expect(v.text).toContain('아직 갈리지 않습니다');
+  });
+
+  it('뒤집힌 발견은 지우지 않고 남긴다고 말한다', () => {
+    expect(readFindingChange({ change: 'reversed', prevLift: -8, nowLift: 4, prevN: 300, nowN: 280 }).text)
+      .toContain('지우지 않고');
   });
 });
 
