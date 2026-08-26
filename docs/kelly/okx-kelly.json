@@ -1,0 +1,1283 @@
+{
+  "generatedAt": "2026-08-26T00:08:26.935Z",
+  "source": {
+    "file": "re_sys/data/manual-review.json",
+    "analyzedAt": "2026-08-18T07:38:36.350Z",
+    "origins": [
+      "OKX 매매계정(OKX 계정) uid 4966***",
+      "OKX 봇계정 uid 6419***",
+      "OKX 원장(app)"
+    ],
+    "symbols": 36
+  },
+  "period": {
+    "from": "2023-10-07",
+    "to": "2026-08-17",
+    "tradingDays": 675
+  },
+  "overall": {
+    "n": 4023,
+    "wins": 1164,
+    "losses": 2858,
+    "avgWin": 54.53,
+    "avgLoss": 37.19,
+    "netPnl": -42818.95,
+    "grossWin": 63477.85,
+    "grossLoss": -106296.79,
+    "feeUsd": -29893.77,
+    "fundingUsd": 1444.51,
+    "liqCount": 125
+  },
+  "lossMargin": {
+    "median": 15.57,
+    "mean": 22.63,
+    "n": 2858
+  },
+  "dimensions": [
+    {
+      "key": "hold",
+      "label": "보유시간",
+      "hint": "진입부터 청산까지. 이 데이터에서 켈리 부호가 갈리는 유일한 축입니다",
+      "ordered": true,
+      "rows": [
+        {
+          "key": "1분 미만",
+          "n": 51,
+          "wins": 6,
+          "losses": 45,
+          "avgWin": 35.65,
+          "avgLoss": 34.62,
+          "netPnl": -1343.92
+        },
+        {
+          "key": "1–5분",
+          "n": 383,
+          "wins": 48,
+          "losses": 334,
+          "avgWin": 120.27,
+          "avgLoss": 31.99,
+          "netPnl": -4910.2
+        },
+        {
+          "key": "5–15분",
+          "n": 605,
+          "wins": 90,
+          "losses": 515,
+          "avgWin": 36.4,
+          "avgLoss": 34.84,
+          "netPnl": -14666.27
+        },
+        {
+          "key": "15–30분",
+          "n": 546,
+          "wins": 102,
+          "losses": 444,
+          "avgWin": 19.3,
+          "avgLoss": 32.74,
+          "netPnl": -12568.29
+        },
+        {
+          "key": "30–60분",
+          "n": 569,
+          "wins": 144,
+          "losses": 425,
+          "avgWin": 35.86,
+          "avgLoss": 39.9,
+          "netPnl": -11795.88
+        },
+        {
+          "key": "1–2시간",
+          "n": 548,
+          "wins": 161,
+          "losses": 387,
+          "avgWin": 40.03,
+          "avgLoss": 47.07,
+          "netPnl": -11769.72
+        },
+        {
+          "key": "2–6시간",
+          "n": 713,
+          "wins": 285,
+          "losses": 428,
+          "avgWin": 52.61,
+          "avgLoss": 33.45,
+          "netPnl": 676.16
+        },
+        {
+          "key": "6–12시간",
+          "n": 301,
+          "wins": 156,
+          "losses": 145,
+          "avgWin": 66.37,
+          "avgLoss": 38.68,
+          "netPnl": 4745.5
+        },
+        {
+          "key": "12–24시간",
+          "n": 188,
+          "wins": 110,
+          "losses": 78,
+          "avgWin": 77.04,
+          "avgLoss": 43.29,
+          "netPnl": 5097.01
+        },
+        {
+          "key": "24시간 이상",
+          "n": 119,
+          "wins": 62,
+          "losses": 57,
+          "avgWin": 109.92,
+          "avgLoss": 54.36,
+          "netPnl": 3716.66
+        }
+      ]
+    },
+    {
+      "key": "lever",
+      "label": "레버리지",
+      "hint": "진입 배율",
+      "ordered": true,
+      "rows": [
+        {
+          "key": "10배 이하",
+          "n": 378,
+          "wins": 117,
+          "losses": 261,
+          "avgWin": 22.56,
+          "avgLoss": 23.36,
+          "netPnl": -3458.41
+        },
+        {
+          "key": "20배",
+          "n": 279,
+          "wins": 95,
+          "losses": 184,
+          "avgWin": 65.07,
+          "avgLoss": 52.02,
+          "netPnl": -3389.87
+        },
+        {
+          "key": "50배",
+          "n": 1579,
+          "wins": 447,
+          "losses": 1132,
+          "avgWin": 59.89,
+          "avgLoss": 37.88,
+          "netPnl": -16111.92
+        },
+        {
+          "key": "100배",
+          "n": 716,
+          "wins": 177,
+          "losses": 539,
+          "avgWin": 98.5,
+          "avgLoss": 56.52,
+          "netPnl": -13032.16
+        },
+        {
+          "key": "(미기재)",
+          "n": 1071,
+          "wins": 328,
+          "losses": 742,
+          "avgWin": 31.87,
+          "avgLoss": 23.29,
+          "netPnl": -6826.58
+        }
+      ]
+    },
+    {
+      "key": "intentGroup",
+      "label": "진입 의도 (묶음)",
+      "hint": "진입 시점 차트 상태로 역추정한 의도 — 기록에 근거가 비어 있어 유추한 값입니다",
+      "ordered": false,
+      "rows": [
+        {
+          "key": "역추세",
+          "n": 2034,
+          "wins": 603,
+          "losses": 1431,
+          "avgWin": 57.56,
+          "avgLoss": 39.32,
+          "netPnl": -21563.74
+        },
+        {
+          "key": "추세순응",
+          "n": 1119,
+          "wins": 327,
+          "losses": 792,
+          "avgWin": 46.63,
+          "avgLoss": 35.5,
+          "netPnl": -12872.21
+        },
+        {
+          "key": "추격",
+          "n": 813,
+          "wins": 215,
+          "losses": 598,
+          "avgWin": 61.61,
+          "avgLoss": 35.51,
+          "netPnl": -7990.64
+        },
+        {
+          "key": "모호",
+          "n": 57,
+          "wins": 19,
+          "losses": 37,
+          "avgWin": 14.46,
+          "avgLoss": 18.03,
+          "netPnl": -392.36
+        }
+      ]
+    },
+    {
+      "key": "intent",
+      "label": "진입 의도 (상세)",
+      "hint": "같은 유추를 더 잘게 나눈 것",
+      "ordered": false,
+      "rows": [
+        {
+          "key": "하락추세 역행 롱",
+          "n": 744,
+          "wins": 220,
+          "losses": 524,
+          "avgWin": 61.39,
+          "avgLoss": 40.43,
+          "netPnl": -7680.91
+        },
+        {
+          "key": "상승추세 눌림목 롱",
+          "n": 613,
+          "wins": 164,
+          "losses": 449,
+          "avgWin": 46.33,
+          "avgLoss": 31.94,
+          "netPnl": -6745.18
+        },
+        {
+          "key": "상승추세 역행 숏",
+          "n": 535,
+          "wins": 162,
+          "losses": 373,
+          "avgWin": 40.47,
+          "avgLoss": 31.83,
+          "netPnl": -5317.47
+        },
+        {
+          "key": "하락추세 되돌림 숏",
+          "n": 506,
+          "wins": 163,
+          "losses": 343,
+          "avgWin": 46.93,
+          "avgLoss": 40.17,
+          "netPnl": -6127.03
+        },
+        {
+          "key": "급락 저점매수 롱",
+          "n": 457,
+          "wins": 127,
+          "losses": 330,
+          "avgWin": 74.41,
+          "avgLoss": 45.42,
+          "netPnl": -5540.41
+        },
+        {
+          "key": "고점 돌파 추격 롱",
+          "n": 441,
+          "wins": 116,
+          "losses": 325,
+          "avgWin": 36.66,
+          "avgLoss": 31.84,
+          "netPnl": -6094.59
+        },
+        {
+          "key": "저점 이탈 추격 숏",
+          "n": 372,
+          "wins": 99,
+          "losses": 273,
+          "avgWin": 90.85,
+          "avgLoss": 39.89,
+          "netPnl": -1896.04
+        },
+        {
+          "key": "급등 반락 노림 숏",
+          "n": 298,
+          "wins": 94,
+          "losses": 204,
+          "avgWin": 55.29,
+          "avgLoss": 40.31,
+          "netPnl": -3024.95
+        },
+        {
+          "key": "판정 불가(워밍업 부족)",
+          "n": 57,
+          "wins": 19,
+          "losses": 37,
+          "avgWin": 14.46,
+          "avgLoss": 18.03,
+          "netPnl": -392.36
+        }
+      ]
+    },
+    {
+      "key": "year",
+      "label": "연도",
+      "hint": "방식이 시간에 따라 달라졌는지",
+      "ordered": false,
+      "rows": [
+        {
+          "key": "2025",
+          "n": 1768,
+          "wins": 517,
+          "losses": 1251,
+          "avgWin": 49.42,
+          "avgLoss": 33.2,
+          "netPnl": -15988.06
+        },
+        {
+          "key": "2024",
+          "n": 1501,
+          "wins": 454,
+          "losses": 1046,
+          "avgWin": 37.34,
+          "avgLoss": 28.65,
+          "netPnl": -13014.07
+        },
+        {
+          "key": "2026",
+          "n": 532,
+          "wins": 129,
+          "losses": 403,
+          "avgWin": 119.67,
+          "avgLoss": 70.86,
+          "netPnl": -13119.6
+        },
+        {
+          "key": "2023",
+          "n": 222,
+          "wins": 64,
+          "losses": 158,
+          "avgWin": 86.5,
+          "avgLoss": 39.45,
+          "netPnl": -697.22
+        }
+      ]
+    },
+    {
+      "key": "regime",
+      "label": "시장 국면",
+      "hint": "일봉이 SMA200 위인가 아래인가",
+      "ordered": false,
+      "rows": [
+        {
+          "key": "상승장(1D>SMA200)",
+          "n": 2121,
+          "wins": 606,
+          "losses": 1515,
+          "avgWin": 46.54,
+          "avgLoss": 34.08,
+          "netPnl": -23423.89
+        },
+        {
+          "key": "하락장(1D<SMA200)",
+          "n": 1466,
+          "wins": 414,
+          "losses": 1052,
+          "avgWin": 79.49,
+          "avgLoss": 46.83,
+          "netPnl": -16352.44
+        },
+        {
+          "key": "(미기재)",
+          "n": 436,
+          "wins": 144,
+          "losses": 291,
+          "avgWin": 16.43,
+          "avgLoss": 18.59,
+          "netPnl": -3042.62
+        }
+      ]
+    },
+    {
+      "key": "trendAlign",
+      "label": "추세 정렬",
+      "hint": "진입 방향이 그때 추세와 같았는가",
+      "ordered": false,
+      "rows": [
+        {
+          "key": "추세 역방향",
+          "n": 2075,
+          "wins": 594,
+          "losses": 1481,
+          "avgWin": 56.04,
+          "avgLoss": 36.5,
+          "netPnl": -20762.85
+        },
+        {
+          "key": "추세 순방향",
+          "n": 1891,
+          "wins": 551,
+          "losses": 1340,
+          "avgWin": 54.3,
+          "avgLoss": 38.49,
+          "netPnl": -21663.74
+        },
+        {
+          "key": "판정 불가",
+          "n": 57,
+          "wins": 19,
+          "losses": 37,
+          "avgWin": 14.46,
+          "avgLoss": 18.03,
+          "netPnl": -392.36
+        }
+      ]
+    },
+    {
+      "key": "session",
+      "label": "세션",
+      "hint": "한국시각 기준 시간대 묶음",
+      "ordered": false,
+      "rows": [
+        {
+          "key": "18–24시(유럽·미국장)",
+          "n": 1616,
+          "wins": 446,
+          "losses": 1170,
+          "avgWin": 57.52,
+          "avgLoss": 38.62,
+          "netPnl": -19532.01
+        },
+        {
+          "key": "00–09시(미국장)",
+          "n": 1267,
+          "wins": 369,
+          "losses": 897,
+          "avgWin": 66.68,
+          "avgLoss": 41.96,
+          "netPnl": -13034.06
+        },
+        {
+          "key": "09–18시(아시아장)",
+          "n": 1140,
+          "wins": 349,
+          "losses": 791,
+          "avgWin": 37.88,
+          "avgLoss": 29.67,
+          "netPnl": -10252.88
+        }
+      ]
+    },
+    {
+      "key": "hourKst",
+      "label": "진입 시각 (KST)",
+      "hint": "하루 중 언제 들어갔는가",
+      "ordered": true,
+      "rows": [
+        {
+          "key": "00시",
+          "n": 193,
+          "wins": 56,
+          "losses": 137,
+          "avgWin": 40.16,
+          "avgLoss": 45.85,
+          "netPnl": -4031.74
+        },
+        {
+          "key": "01시",
+          "n": 94,
+          "wins": 20,
+          "losses": 74,
+          "avgWin": 63.87,
+          "avgLoss": 45.99,
+          "netPnl": -2126.08
+        },
+        {
+          "key": "02시",
+          "n": 92,
+          "wins": 30,
+          "losses": 62,
+          "avgWin": 38.01,
+          "avgLoss": 27.65,
+          "netPnl": -574.33
+        },
+        {
+          "key": "03시",
+          "n": 76,
+          "wins": 18,
+          "losses": 58,
+          "avgWin": 62.86,
+          "avgLoss": 29.68,
+          "netPnl": -590.31
+        },
+        {
+          "key": "04시",
+          "n": 50,
+          "wins": 17,
+          "losses": 33,
+          "avgWin": 99.48,
+          "avgLoss": 53.67,
+          "netPnl": -79.88
+        },
+        {
+          "key": "05시",
+          "n": 258,
+          "wins": 79,
+          "losses": 178,
+          "avgWin": 53.2,
+          "avgLoss": 35.68,
+          "netPnl": -2148.42
+        },
+        {
+          "key": "06시",
+          "n": 253,
+          "wins": 84,
+          "losses": 169,
+          "avgWin": 118.93,
+          "avgLoss": 46.72,
+          "netPnl": 2093.64
+        },
+        {
+          "key": "07시",
+          "n": 145,
+          "wins": 32,
+          "losses": 113,
+          "avgWin": 69.97,
+          "avgLoss": 49.97,
+          "netPnl": -3407.92
+        },
+        {
+          "key": "08시",
+          "n": 106,
+          "wins": 33,
+          "losses": 73,
+          "avgWin": 20.68,
+          "avgLoss": 39.06,
+          "netPnl": -2169.02
+        },
+        {
+          "key": "09시",
+          "n": 134,
+          "wins": 38,
+          "losses": 96,
+          "avgWin": 35.8,
+          "avgLoss": 33.05,
+          "netPnl": -1812.16
+        },
+        {
+          "key": "10시",
+          "n": 147,
+          "wins": 41,
+          "losses": 106,
+          "avgWin": 42.44,
+          "avgLoss": 40.94,
+          "netPnl": -2599.21
+        },
+        {
+          "key": "11시",
+          "n": 138,
+          "wins": 34,
+          "losses": 104,
+          "avgWin": 66.42,
+          "avgLoss": 20.09,
+          "netPnl": 169.46
+        },
+        {
+          "key": "12시",
+          "n": 95,
+          "wins": 34,
+          "losses": 61,
+          "avgWin": 45.39,
+          "avgLoss": 31.34,
+          "netPnl": -368.7
+        },
+        {
+          "key": "13시",
+          "n": 162,
+          "wins": 53,
+          "losses": 109,
+          "avgWin": 27.55,
+          "avgLoss": 26.93,
+          "netPnl": -1475.51
+        },
+        {
+          "key": "14시",
+          "n": 106,
+          "wins": 36,
+          "losses": 70,
+          "avgWin": 21.55,
+          "avgLoss": 31.98,
+          "netPnl": -1462.76
+        },
+        {
+          "key": "15시",
+          "n": 117,
+          "wins": 40,
+          "losses": 77,
+          "avgWin": 24.07,
+          "avgLoss": 22.03,
+          "netPnl": -733.49
+        },
+        {
+          "key": "16시",
+          "n": 115,
+          "wins": 28,
+          "losses": 87,
+          "avgWin": 40.78,
+          "avgLoss": 24.94,
+          "netPnl": -1027.96
+        },
+        {
+          "key": "17시",
+          "n": 126,
+          "wins": 45,
+          "losses": 81,
+          "avgWin": 43.94,
+          "avgLoss": 36.05,
+          "netPnl": -942.54
+        },
+        {
+          "key": "18시",
+          "n": 221,
+          "wins": 60,
+          "losses": 161,
+          "avgWin": 36.03,
+          "avgLoss": 28.1,
+          "netPnl": -2362.39
+        },
+        {
+          "key": "19시",
+          "n": 232,
+          "wins": 64,
+          "losses": 168,
+          "avgWin": 60.99,
+          "avgLoss": 36.69,
+          "netPnl": -2260.73
+        },
+        {
+          "key": "20시",
+          "n": 215,
+          "wins": 58,
+          "losses": 157,
+          "avgWin": 48.22,
+          "avgLoss": 49.42,
+          "netPnl": -4962.32
+        },
+        {
+          "key": "21시",
+          "n": 279,
+          "wins": 72,
+          "losses": 207,
+          "avgWin": 56.66,
+          "avgLoss": 38.81,
+          "netPnl": -3954.21
+        },
+        {
+          "key": "22시",
+          "n": 343,
+          "wins": 97,
+          "losses": 246,
+          "avgWin": 77.26,
+          "avgLoss": 34.79,
+          "netPnl": -1062.59
+        },
+        {
+          "key": "23시",
+          "n": 326,
+          "wins": 95,
+          "losses": 231,
+          "avgWin": 54.93,
+          "avgLoss": 43.93,
+          "netPnl": -4929.77
+        }
+      ]
+    },
+    {
+      "key": "weekday",
+      "label": "요일",
+      "hint": "",
+      "ordered": true,
+      "rows": [
+        {
+          "key": "월",
+          "n": 568,
+          "wins": 164,
+          "losses": 404,
+          "avgWin": 41.18,
+          "avgLoss": 39.39,
+          "netPnl": -9161.34
+        },
+        {
+          "key": "화",
+          "n": 601,
+          "wins": 197,
+          "losses": 404,
+          "avgWin": 48.27,
+          "avgLoss": 35.88,
+          "netPnl": -4984.29
+        },
+        {
+          "key": "수",
+          "n": 517,
+          "wins": 133,
+          "losses": 384,
+          "avgWin": 45.81,
+          "avgLoss": 36.08,
+          "netPnl": -7760.47
+        },
+        {
+          "key": "목",
+          "n": 495,
+          "wins": 144,
+          "losses": 351,
+          "avgWin": 68.44,
+          "avgLoss": 32.64,
+          "netPnl": -1601.78
+        },
+        {
+          "key": "금",
+          "n": 562,
+          "wins": 182,
+          "losses": 380,
+          "avgWin": 48.14,
+          "avgLoss": 39.85,
+          "netPnl": -6382.76
+        },
+        {
+          "key": "토",
+          "n": 663,
+          "wins": 175,
+          "losses": 488,
+          "avgWin": 81.95,
+          "avgLoss": 39.19,
+          "netPnl": -4785.23
+        },
+        {
+          "key": "일",
+          "n": 617,
+          "wins": 169,
+          "losses": 447,
+          "avgWin": 48.3,
+          "avgLoss": 36.48,
+          "netPnl": -8143.09
+        }
+      ]
+    },
+    {
+      "key": "rsi",
+      "label": "진입 시점 RSI",
+      "hint": "진입 직전 확정봉 기준",
+      "ordered": true,
+      "rows": [
+        {
+          "key": "30 미만 (과매도)",
+          "n": 215,
+          "wins": 50,
+          "losses": 165,
+          "avgWin": 121.39,
+          "avgLoss": 48.68,
+          "netPnl": -1962.26
+        },
+        {
+          "key": "30–50",
+          "n": 1829,
+          "wins": 556,
+          "losses": 1273,
+          "avgWin": 61.09,
+          "avgLoss": 38.4,
+          "netPnl": -14920.78
+        },
+        {
+          "key": "50–70",
+          "n": 1705,
+          "wins": 479,
+          "losses": 1226,
+          "avgWin": 44.44,
+          "avgLoss": 35.16,
+          "netPnl": -21824.39
+        },
+        {
+          "key": "70 이상 (과매수)",
+          "n": 217,
+          "wins": 60,
+          "losses": 157,
+          "avgWin": 31.34,
+          "avgLoss": 35.67,
+          "netPnl": -3719.16
+        },
+        {
+          "key": "(미기재)",
+          "n": 57,
+          "wins": 19,
+          "losses": 37,
+          "avgWin": 14.46,
+          "avgLoss": 18.03,
+          "netPnl": -392.36
+        }
+      ]
+    },
+    {
+      "key": "side",
+      "label": "방향",
+      "hint": "롱/숏 편향",
+      "ordered": false,
+      "rows": [
+        {
+          "key": "롱",
+          "n": 2291,
+          "wins": 640,
+          "losses": 1650,
+          "avgWin": 54.63,
+          "avgLoss": 37.11,
+          "netPnl": -26271.76
+        },
+        {
+          "key": "숏",
+          "n": 1732,
+          "wins": 524,
+          "losses": 1208,
+          "avgWin": 54.42,
+          "avgLoss": 37.3,
+          "netPnl": -16547.18
+        }
+      ]
+    },
+    {
+      "key": "symbol",
+      "label": "종목",
+      "hint": "",
+      "ordered": false,
+      "rows": [
+        {
+          "key": "BTC",
+          "n": 1619,
+          "wins": 460,
+          "losses": 1159,
+          "avgWin": 54.74,
+          "avgLoss": 39.81,
+          "netPnl": -20956.43
+        },
+        {
+          "key": "SUI",
+          "n": 802,
+          "wins": 234,
+          "losses": 568,
+          "avgWin": 67.73,
+          "avgLoss": 34.18,
+          "netPnl": -3566.26
+        },
+        {
+          "key": "TRUMP",
+          "n": 468,
+          "wins": 134,
+          "losses": 334,
+          "avgWin": 40.21,
+          "avgLoss": 42.1,
+          "netPnl": -8671.45
+        },
+        {
+          "key": "DOGE",
+          "n": 399,
+          "wins": 120,
+          "losses": 279,
+          "avgWin": 62.53,
+          "avgLoss": 38.25,
+          "netPnl": -3167.25
+        },
+        {
+          "key": "NOT",
+          "n": 286,
+          "wins": 98,
+          "losses": 188,
+          "avgWin": 14.9,
+          "avgLoss": 16.19,
+          "netPnl": -1583.02
+        },
+        {
+          "key": "ETH",
+          "n": 115,
+          "wins": 30,
+          "losses": 85,
+          "avgWin": 115.23,
+          "avgLoss": 44.61,
+          "netPnl": -334.9
+        },
+        {
+          "key": "ICP",
+          "n": 65,
+          "wins": 19,
+          "losses": 46,
+          "avgWin": 71.57,
+          "avgLoss": 33.61,
+          "netPnl": -186.21
+        },
+        {
+          "key": "SOL",
+          "n": 55,
+          "wins": 13,
+          "losses": 42,
+          "avgWin": 60.74,
+          "avgLoss": 52.37,
+          "netPnl": -1410.06
+        },
+        {
+          "key": "AXS",
+          "n": 37,
+          "wins": 6,
+          "losses": 31,
+          "avgWin": 248.26,
+          "avgLoss": 95.38,
+          "netPnl": -1467.08
+        },
+        {
+          "key": "IOTA",
+          "n": 36,
+          "wins": 7,
+          "losses": 29,
+          "avgWin": 27.02,
+          "avgLoss": 13.16,
+          "netPnl": -192.6
+        },
+        {
+          "key": "VELO",
+          "n": 19,
+          "wins": 6,
+          "losses": 13,
+          "avgWin": 25.2,
+          "avgLoss": 23.66,
+          "netPnl": -156.37
+        },
+        {
+          "key": "ORDI",
+          "n": 18,
+          "wins": 6,
+          "losses": 12,
+          "avgWin": 3.66,
+          "avgLoss": 5.21,
+          "netPnl": -40.5
+        },
+        {
+          "key": "BCH",
+          "n": 16,
+          "wins": 2,
+          "losses": 14,
+          "avgWin": 21.35,
+          "avgLoss": 16.28,
+          "netPnl": -185.27
+        },
+        {
+          "key": "XRP",
+          "n": 13,
+          "wins": 3,
+          "losses": 10,
+          "avgWin": 3.14,
+          "avgLoss": 27.03,
+          "netPnl": -260.89
+        },
+        {
+          "key": "TON",
+          "n": 10,
+          "wins": 3,
+          "losses": 7,
+          "avgWin": 5.84,
+          "avgLoss": 20.25,
+          "netPnl": -124.25
+        },
+        {
+          "key": "GRAM-USDT-SWAP-OFF20260616-2",
+          "n": 8,
+          "wins": 2,
+          "losses": 6,
+          "avgWin": 8.58,
+          "avgLoss": 23.57,
+          "netPnl": -124.28
+        },
+        {
+          "key": "TIA",
+          "n": 6,
+          "wins": 1,
+          "losses": 5,
+          "avgWin": 1.14,
+          "avgLoss": 5.74,
+          "netPnl": -27.57
+        },
+        {
+          "key": "ATOM",
+          "n": 5,
+          "wins": 2,
+          "losses": 3,
+          "avgWin": 3.62,
+          "avgLoss": 10.31,
+          "netPnl": -23.7
+        },
+        {
+          "key": "SNX",
+          "n": 5,
+          "wins": 2,
+          "losses": 3,
+          "avgWin": 7.72,
+          "avgLoss": 11.47,
+          "netPnl": -18.97
+        },
+        {
+          "key": "AIDOGE",
+          "n": 5,
+          "wins": 4,
+          "losses": 1,
+          "avgWin": 16.38,
+          "avgLoss": 6.24,
+          "netPnl": 59.28
+        },
+        {
+          "key": "LSK",
+          "n": 5,
+          "wins": 1,
+          "losses": 3,
+          "avgWin": 11.41,
+          "avgLoss": 12.29,
+          "netPnl": -25.46
+        },
+        {
+          "key": "WLD",
+          "n": 4,
+          "wins": 1,
+          "losses": 3,
+          "avgWin": 338.99,
+          "avgLoss": 38.16,
+          "netPnl": 224.51
+        },
+        {
+          "key": "FOXY",
+          "n": 3,
+          "wins": 1,
+          "losses": 2,
+          "avgWin": 3.18,
+          "avgLoss": 3.97,
+          "netPnl": -4.76
+        },
+        {
+          "key": "PRCL",
+          "n": 3,
+          "wins": 0,
+          "losses": 3,
+          "avgWin": null,
+          "avgLoss": 7.35,
+          "netPnl": -22.04
+        },
+        {
+          "key": "AVAX",
+          "n": 3,
+          "wins": 1,
+          "losses": 2,
+          "avgWin": 7.04,
+          "avgLoss": 190.53,
+          "netPnl": -374.03
+        },
+        {
+          "key": "APT",
+          "n": 3,
+          "wins": 2,
+          "losses": 1,
+          "avgWin": 19.71,
+          "avgLoss": 78.54,
+          "netPnl": -39.11
+        },
+        {
+          "key": "SATS",
+          "n": 2,
+          "wins": 0,
+          "losses": 2,
+          "avgWin": null,
+          "avgLoss": 10.74,
+          "netPnl": -21.47
+        },
+        {
+          "key": "AGIX",
+          "n": 2,
+          "wins": 1,
+          "losses": 1,
+          "avgWin": 1.58,
+          "avgLoss": 2.98,
+          "netPnl": -1.4
+        },
+        {
+          "key": "ONE",
+          "n": 2,
+          "wins": 1,
+          "losses": 1,
+          "avgWin": 14.37,
+          "avgLoss": 146.47,
+          "netPnl": -132.1
+        },
+        {
+          "key": "ZIL",
+          "n": 2,
+          "wins": 1,
+          "losses": 1,
+          "avgWin": 0.39,
+          "avgLoss": 0.03,
+          "netPnl": 0.36
+        },
+        {
+          "key": "ENJ",
+          "n": 2,
+          "wins": 1,
+          "losses": 1,
+          "avgWin": 3.31,
+          "avgLoss": 15.55,
+          "netPnl": -12.23
+        },
+        {
+          "key": "DOT",
+          "n": 1,
+          "wins": 1,
+          "losses": 0,
+          "avgWin": 34.34,
+          "avgLoss": null,
+          "netPnl": 34.34
+        },
+        {
+          "key": "PYTH",
+          "n": 1,
+          "wins": 0,
+          "losses": 1,
+          "avgWin": null,
+          "avgLoss": 6.95,
+          "netPnl": -6.95
+        },
+        {
+          "key": "VRA",
+          "n": 1,
+          "wins": 0,
+          "losses": 1,
+          "avgWin": null,
+          "avgLoss": 0.16,
+          "netPnl": -0.16
+        },
+        {
+          "key": "GPT",
+          "n": 1,
+          "wins": 1,
+          "losses": 0,
+          "avgWin": 7.09,
+          "avgLoss": null,
+          "netPnl": 7.09
+        },
+        {
+          "key": "ANTHROPIC",
+          "n": 1,
+          "wins": 0,
+          "losses": 1,
+          "avgWin": null,
+          "avgLoss": 7.76,
+          "netPnl": -7.76
+        }
+      ]
+    },
+    {
+      "key": "consecLoss",
+      "label": "직전 연패 수",
+      "hint": "이 거래 전에 연달아 몇 번 졌는가 — 물타기·복구 매매를 가른다",
+      "ordered": true,
+      "rows": [
+        {
+          "key": "0",
+          "n": 1165,
+          "wins": 344,
+          "losses": 820,
+          "avgWin": 58.12,
+          "avgLoss": 40.08,
+          "netPnl": -12871.77
+        },
+        {
+          "key": "1",
+          "n": 820,
+          "wins": 240,
+          "losses": 580,
+          "avgWin": 51.49,
+          "avgLoss": 35.55,
+          "netPnl": -8261.04
+        },
+        {
+          "key": "2",
+          "n": 580,
+          "wins": 179,
+          "losses": 401,
+          "avgWin": 44.09,
+          "avgLoss": 36.38,
+          "netPnl": -6693.88
+        },
+        {
+          "key": "3",
+          "n": 401,
+          "wins": 103,
+          "losses": 298,
+          "avgWin": 58.92,
+          "avgLoss": 35.87,
+          "netPnl": -4622.24
+        },
+        {
+          "key": "4",
+          "n": 298,
+          "wins": 92,
+          "losses": 206,
+          "avgWin": 73.36,
+          "avgLoss": 33.45,
+          "netPnl": -140.79
+        },
+        {
+          "key": "5",
+          "n": 206,
+          "wins": 58,
+          "losses": 148,
+          "avgWin": 67.25,
+          "avgLoss": 36.18,
+          "netPnl": -1454.33
+        },
+        {
+          "key": "6",
+          "n": 148,
+          "wins": 43,
+          "losses": 105,
+          "avgWin": 44.47,
+          "avgLoss": 39.7,
+          "netPnl": -2256.02
+        },
+        {
+          "key": "7 이상",
+          "n": 405,
+          "wins": 105,
+          "losses": 300,
+          "avgWin": 43.86,
+          "avgLoss": 37.08,
+          "netPnl": -6518.87
+        }
+      ]
+    },
+    {
+      "key": "account",
+      "label": "계정",
+      "hint": "주 매매계정과 봇 서브계정",
+      "ordered": false,
+      "rows": [
+        {
+          "key": "주 매매계정",
+          "n": 3990,
+          "wins": 1153,
+          "losses": 2836,
+          "avgWin": 54.48,
+          "avgLoss": 37.13,
+          "netPnl": -42475.53
+        },
+        {
+          "key": "봇 서브계정",
+          "n": 33,
+          "wins": 11,
+          "losses": 22,
+          "avgWin": 60.42,
+          "avgLoss": 45.82,
+          "netPnl": -343.42
+        }
+      ]
+    }
+  ]
+}
