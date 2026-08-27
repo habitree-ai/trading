@@ -32,6 +32,8 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+# 양식 파일은 추적한다 — README 가 `cp .env.example .env.local` 을 안내하는데 정작 저장소에 없었다.
+!.env.example
 
 # vercel
 .vercel
