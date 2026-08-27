@@ -1,0 +1,739 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>선배님의 20년 — 내 생각</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nanum+Myeongjo:wght@400;700;800&family=IBM+Plex+Sans+KR:wght@300;400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style id="css">:root{
+  --bg:#FCFCFA; --surface:#FFFFFF; --surface-2:#F4F3EF; --line:#E2E0D9; --line-soft:#EDEBE5;
+  --ink:#1A1A18; --ink-2:#4A4842; --ink-3:#7C7A72;
+  --accent:#B3352C; --accent-soft:#F0DCD9; --accent-ink:#8E2822; --link:#2F5C8F;
+  --ok:#2E6B4F; --ok-soft:#DCEBE2;
+  --shadow:0 1px 2px rgba(26,26,24,.06),0 10px 30px rgba(26,26,24,.09);
+  --mono:'IBM Plex Mono','SFMono-Regular',Consolas,monospace;
+  --sans:'IBM Plex Sans KR','Malgun Gothic','Apple SD Gothic Neo',system-ui,sans-serif;
+  --serif:'Nanum Myeongjo','Batang','Apple SD Gothic Neo',serif;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#14161A; --surface:#1B1E23; --surface-2:#22262C; --line:#2E333A; --line-soft:#262A30;
+  --ink:#E8E6E1; --ink-2:#B2AFA8; --ink-3:#807D76;
+  --accent:#E06A5E; --accent-soft:#3A2523; --accent-ink:#F0968C; --link:#7FAADC;
+  --ok:#7FC3A0; --ok-soft:#1F332A;
+  --shadow:0 1px 2px rgba(0,0,0,.4),0 10px 30px rgba(0,0,0,.4);
+}}
+:root[data-theme="dark"]{
+  --bg:#14161A; --surface:#1B1E23; --surface-2:#22262C; --line:#2E333A; --line-soft:#262A30;
+  --ink:#E8E6E1; --ink-2:#B2AFA8; --ink-3:#807D76;
+  --accent:#E06A5E; --accent-soft:#3A2523; --accent-ink:#F0968C; --link:#7FAADC;
+  --ok:#7FC3A0; --ok-soft:#1F332A;
+  --shadow:0 1px 2px rgba(0,0,0,.4),0 10px 30px rgba(0,0,0,.4);
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:15px;line-height:1.6;
+  -webkit-font-smoothing:antialiased;display:flex;flex-direction:column;height:100vh;overflow:hidden}
+a{color:var(--link);text-decoration:none} a:hover{text-decoration:underline}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+input,textarea{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:4px}
+.tnum{font-variant-numeric:tabular-nums}
+
+header.top{flex:0 0 auto;display:flex;align-items:baseline;gap:14px;padding:13px 22px;flex-wrap:wrap;
+  border-bottom:1px solid var(--line);background:var(--bg)}
+.brand{font-family:var(--serif);font-weight:800;font-size:19px;margin:0;letter-spacing:-.01em}
+.brand small{font-family:var(--sans);font-weight:400;font-size:12px;color:var(--ink-3);margin-left:9px}
+.badge{font-size:10.5px;letter-spacing:.03em;padding:2px 8px;border-radius:999px;
+  background:var(--surface-2);color:var(--ink-3);border:1px solid var(--line)}
+.badge.live{background:var(--ok-soft);color:var(--ok);border-color:transparent}
+.topnav{margin-left:auto;display:flex;gap:7px;align-items:center;flex-wrap:wrap}
+.tbtn{border:1px solid var(--line);border-radius:999px;padding:4px 12px;font-size:12px;color:var(--ink-2)}
+.tbtn:hover{border-color:var(--ink-3);color:var(--ink);text-decoration:none}
+.tbtn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+.tbtn.primary:hover{background:var(--accent-ink);border-color:var(--accent-ink);color:#fff}
+.tbtn[disabled]{opacity:.45;cursor:default}
+
+main{flex:1 1 auto;min-height:0;display:grid;grid-template-columns:300px minmax(0,1fr)}
+nav.rail,section.pane{min-width:0;min-height:0}
+nav.rail{border-right:1px solid var(--line);overflow-y:auto;padding-bottom:50px;display:flex;flex-direction:column}
+.railtop{position:sticky;top:0;background:var(--bg);padding:12px 14px 10px;border-bottom:1px solid var(--line-soft);z-index:2}
+.railtop input{width:100%;background:var(--surface-2);border:1px solid transparent;border-radius:7px;
+  padding:7px 11px;font-size:13.5px}
+.railtop input:focus{outline:none;border-color:var(--accent);background:var(--surface)}
+.filters{display:flex;gap:5px;margin-top:8px}
+.fbtn{font-size:11.5px;padding:3px 10px;border-radius:999px;border:1px solid var(--line);color:var(--ink-3)}
+.fbtn.on{background:var(--accent-soft);border-color:transparent;color:var(--accent-ink);font-weight:500}
+.nlist{padding:6px 0}
+.nitem{display:block;width:100%;text-align:left;padding:11px 15px;border-bottom:1px solid var(--line-soft);
+  border-left:3px solid transparent}
+.nitem:hover{background:var(--surface-2)}
+.nitem.on{background:var(--accent-soft);border-left-color:var(--accent)}
+.nmeta{display:flex;align-items:center;gap:7px;margin-bottom:3px}
+.ndate{font-family:var(--mono);font-size:10.5px;color:var(--ink-3)}
+.ncat{font-size:10px;color:var(--ink-3);border:1px solid var(--line);border-radius:3px;padding:0 5px;
+  max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.nst{margin-left:auto;font-size:10px;padding:1px 7px;border-radius:999px;background:var(--surface-2);color:var(--ink-3)}
+.nst.done{background:var(--ok-soft);color:var(--ok)}
+.ntitle{font-family:var(--serif);font-weight:700;font-size:14px;line-height:1.4;
+  overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.nitem.on .ntitle{color:var(--accent-ink)}
+.nsnip{font-size:11.5px;color:var(--ink-3);margin-top:3px;overflow:hidden;
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.empty{padding:34px 18px;text-align:center;color:var(--ink-3);font-size:13px;line-height:1.75}
+
+section.pane{overflow-y:auto}
+.wrap{max-width:720px;margin:0 auto;padding:34px 32px 130px}
+.src{background:var(--surface-2);border-radius:9px;padding:15px 17px;margin-bottom:30px;border:1px solid var(--line-soft)}
+.src .lbl{font-size:10px;letter-spacing:.11em;color:var(--ink-3);text-transform:uppercase;margin-bottom:7px}
+.src h2{font-family:var(--serif);font-weight:800;font-size:20px;line-height:1.35;margin:0 0 8px;text-wrap:balance}
+.src .meta{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-bottom:10px}
+.chip{font-size:11.5px;color:var(--ink-2);background:var(--surface);border:1px solid var(--line);
+  border-radius:4px;padding:2px 8px}
+.chip.mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
+.chip.cat{background:var(--accent-soft);color:var(--accent-ink);border-color:transparent}
+.src .acts{display:flex;gap:7px;flex-wrap:wrap}
+.fld{margin-bottom:26px}
+.fld label{display:block;font-size:12.5px;font-weight:600;color:var(--ink-2);margin-bottom:5px;letter-spacing:.01em}
+.fld .hint{font-size:11.5px;color:var(--ink-3);margin-bottom:7px;line-height:1.6}
+.fld textarea,.fld input[type=text]{width:100%;background:var(--surface);border:1px solid var(--line);
+  border-radius:8px;padding:11px 13px;font-size:14.5px;line-height:1.8;resize:vertical}
+.fld textarea:focus,.fld input[type=text]:focus{outline:none;border-color:var(--accent);
+  box-shadow:0 0 0 3px var(--accent-soft)}
+.fld textarea::placeholder,.fld input::placeholder{color:var(--ink-3);line-height:1.7}
+.fld.quote textarea{font-family:var(--serif);font-size:15px;background:var(--surface-2);
+  border-left:3px solid var(--accent)}
+.linkrow{display:flex;align-items:center;gap:8px;padding:7px 10px;background:var(--surface);
+  border:1px solid var(--line);border-radius:7px;margin-bottom:6px}
+.linkrow .ld{font-family:var(--mono);font-size:11px;color:var(--ink-3)}
+.linkrow .lt{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px}
+.linkrow .x{color:var(--ink-3);font-size:15px;line-height:1;padding:2px 5px}
+.linkrow .x:hover{color:var(--accent)}
+.pick{position:relative}
+.pick input{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:8px;
+  padding:9px 12px;font-size:13.5px}
+.pick input:focus{outline:none;border-color:var(--accent)}
+.res{position:absolute;left:0;right:0;top:calc(100% + 4px);background:var(--surface);border:1px solid var(--line);
+  border-radius:9px;box-shadow:var(--shadow);max-height:320px;overflow-y:auto;z-index:20}
+.res button{display:block;width:100%;text-align:left;padding:9px 12px;border-bottom:1px solid var(--line-soft)}
+.res button:hover{background:var(--surface-2)}
+.res .rd{font-family:var(--mono);font-size:10.5px;color:var(--ink-3)}
+.res .rt{font-size:13.5px;font-family:var(--serif);font-weight:700;line-height:1.4}
+.res .rc{font-size:10.5px;color:var(--ink-3)}
+.tags{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.tag{font-size:11.5px;color:var(--ink-2);background:var(--surface-2);border-radius:999px;padding:2px 10px;
+  display:flex;align-items:center;gap:5px}
+.tag button{color:var(--ink-3);font-size:13px;line-height:1}
+.savebar{position:sticky;bottom:0;background:linear-gradient(transparent,var(--bg) 26%);
+  padding:22px 0 16px;display:flex;gap:9px;align-items:center;flex-wrap:wrap}
+.savebar .st{font-size:11.5px;color:var(--ink-3);margin-right:auto}
+.stat{display:flex;gap:16px;flex-wrap:wrap;padding:14px 15px;background:var(--surface-2);border-radius:9px;
+  margin-bottom:26px}
+.stat div{display:flex;align-items:baseline;gap:5px}
+.stat b{font-family:var(--mono);font-size:15px;font-variant-numeric:tabular-nums}
+.stat span{font-size:11px;color:var(--ink-3)}
+#toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%);background:var(--ink);color:var(--bg);
+  padding:9px 18px;border-radius:999px;font-size:13px;box-shadow:var(--shadow);opacity:0;
+  transition:opacity .18s;pointer-events:none;z-index:60;max-width:88vw;text-align:center}
+#toast.on{opacity:1}
+.guide{font-size:12.5px;color:var(--ink-3);line-height:1.85;background:var(--surface-2);border-radius:9px;
+  padding:14px 16px;margin-bottom:26px}
+.guide b{color:var(--ink-2)}
+@media (max-width:900px){
+  body{height:auto;overflow:visible}
+  main{grid-template-columns:minmax(0,1fr)}
+  nav.rail{border-right:0;border-bottom:1px solid var(--line);max-height:44vh}
+  section.pane{overflow:visible}
+  .wrap{padding:24px 18px 90px}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+
+#shell{display:contents}
+</style>
+</head>
+<body>
+<div id="shell"><header class="top"><h1 class="brand">선배님의 20년<small>내 생각</small></h1><span class="badge" id="mode">연결 확인 중</span><div class="topnav"><a class="tbtn" href="대시보드.html" target="_blank" rel="noopener">아카이브 ↗</a><a class="tbtn" href="정리.html" target="_blank" rel="noopener">정리 문서 ↗</a><button class="tbtn" id="exportbtn">MD 내보내기</button><button class="tbtn" id="themebtn">테마</button><button class="tbtn primary" id="newbtn">＋ 새 노트</button></div></header><main><nav class="rail"><div class="railtop"><input id="nsearch" type="search" placeholder="내 노트 검색" autocomplete="off"><div class="filters"><button class="fbtn on" data-st="all">전체</button><button class="fbtn" data-st="draft">초안</button><button class="fbtn" data-st="done">정리됨</button></div></div><div class="nlist" id="nlist"></div></nav><section class="pane" id="pane"></section></main></div>
+<div id="toast"></div>
+<script type="application/json" id="cfg">{"dash": "대시보드.html", "docs": "정리.html"}</script>
+<script type="application/json" id="posts">[{"i":"120025612268","d":"2006-06-17","t":"[공유] [알바트로스- 성필규, Theta Power 대표이사]","c":"트레이딩","u":"https://blog.naver.com/pillion21/120025612268"},{"i":"120025612477","d":"2006-06-17","t":"[공유] 나는 배웠다","c":"낙서장","u":"https://blog.naver.com/pillion21/120025612477"},{"i":"120025612455","d":"2006-06-17","t":"[공유] 아버지가 설 자리는 어디인가?","c":"낙서장","u":"https://blog.naver.com/pillion21/120025612455"},{"i":"120034351062","d":"2007-02-05","t":"꿈은 이뤄진다.","c":"트레이딩","u":"https://blog.naver.com/pillion21/120034351062"},{"i":"120034339836","d":"2007-02-05","t":"블로그를 해 볼까?","c":"끄적끄적","u":"https://blog.naver.com/pillion21/120034339836"},{"i":"120034392160","d":"2007-02-06","t":"Nobody Knows...","c":"트레이딩","u":"https://blog.naver.com/pillion21/120034392160"},{"i":"120034378534","d":"2007-02-06","t":"기념으로 가벼운 계좌 하나..","c":"트레이딩","u":"https://blog.naver.com/pillion21/120034378534"},{"i":"120034449220","d":"2007-02-08","t":" 당신은 당신의 위치를 아는지?","c":"트레이딩","u":"https://blog.naver.com/pillion21/120034449220"},{"i":"120034567589","d":"2007-02-11","t":"열심히 하면 되는 것일까?","c":"트레이딩","u":"https://blog.naver.com/pillion21/120034567589"},{"i":"120034938841","d":"2007-02-22","t":"즐기고 있는지...","c":"트레이딩","u":"https://blog.naver.com/pillion21/120034938841"},{"i":"120034931019","d":"2007-02-22","t":"소중한 인연.","c":"트레이딩","u":"https://blog.naver.com/pillion21/120034931019"},{"i":"120035094608","d":"2007-02-26","t":"아내의 가치.","c":"좋은 글","u":"https://blog.naver.com/pillion21/120035094608"},{"i":"120035251134","d":"2007-03-02","t":"칼날을 잡고 있는지...","c":"트레이딩","u":"https://blog.naver.com/pillion21/120035251134"},{"i":"120035381726","d":"2007-03-06","t":"나는 어느놈에게 먹이를 주는지..","c":"트레이딩","u":"https://blog.naver.com/pillion21/120035381726"},{"i":"120035615758","d":"2007-03-12","t":"동시 만기일의 아쉬움.","c":"트레이딩","u":"https://blog.naver.com/pillion21/120035615758"},{"i":"120035710031","d":"2007-03-15","t":"위야? 아래야?","c":"트레이딩","u":"https://blog.naver.com/pillion21/120035710031"},{"i":"120036316337","d":"2007-03-31","t":"라디오 스타.","c":"음악,영화,책.etc","u":"https://blog.naver.com/pillion21/120036316337"},{"i":"120036393662","d":"2007-04-02","t":"4월의 시작...","c":"트레이딩","u":"https://blog.naver.com/pillion21/120036393662"},{"i":"120036926397","d":"2007-04-18","t":"마음을 빼앗기면...","c":"트레이딩","u":"https://blog.naver.com/pillion21/120036926397"},{"i":"120037084925","d":"2007-04-22","t":"200p 를 앞두고..","c":"트레이딩","u":"https://blog.naver.com/pillion21/120037084925"},{"i":"120037158548","d":"2007-04-24","t":"삼산이수.. 필명처럼 여유로운 분.","c":"트레이딩","u":"https://blog.naver.com/pillion21/120037158548"},{"i":"120037616235","d":"2007-05-08","t":"아파서 보냈던 날들..","c":"트레이딩","u":"https://blog.naver.com/pillion21/120037616235"},{"i":"120037892304","d":"2007-05-15","t":"생각이 많았던 어제..","c":"트레이딩","u":"https://blog.naver.com/pillion21/120037892304"},{"i":"120039669289","d":"2007-07-03","t":"금연을 하자.","c":"트레이딩","u":"https://blog.naver.com/pillion21/120039669289"},{"i":"120039902536","d":"2007-07-09","t":"전북일보 기사.","c":"트레이딩","u":"https://blog.naver.com/pillion21/120039902536"},{"i":"120040602119","d":"2007-07-27","t":"황당한 시장.  유쾌한 대화.","c":"트레이딩","u":"https://blog.naver.com/pillion21/120040602119"},{"i":"120040879207","d":"2007-08-03","t":"삶은 하나의 게임이다..","c":"트레이딩","u":"https://blog.naver.com/pillion21/120040879207"},{"i":"120041207823","d":"2007-08-11","t":"몽상가 or 사기꾼?","c":"트레이딩","u":"https://blog.naver.com/pillion21/120041207823"},{"i":"120042377100","d":"2007-09-12","t":"내가 아는 고수.","c":"트레이딩","u":"https://blog.naver.com/pillion21/120042377100"},{"i":"120042545635","d":"2007-09-16","t":"지난 만기의 추억.","c":"트레이딩","u":"https://blog.naver.com/pillion21/120042545635"},{"i":"120042535223","d":"2007-09-16","t":"왜 그렇게 사는지...","c":"트레이딩","u":"https://blog.naver.com/pillion21/120042535223"},{"i":"120042981911","d":"2007-09-30","t":"9월의 마지막 날..","c":"트레이딩","u":"https://blog.naver.com/pillion21/120042981911"},{"i":"120043125263","d":"2007-10-04","t":"10월 4일.. 출발이다...","c":"매매일지","u":"https://blog.naver.com/pillion21/120043125263"},{"i":"120043246942","d":"2007-10-08","t":"10월 8일","c":"매매일지","u":"https://blog.naver.com/pillion21/120043246942"},{"i":"120043275685","d":"2007-10-09","t":"10월 9일","c":"매매일지","u":"https://blog.naver.com/pillion21/120043275685"},{"i":"120043305541","d":"2007-10-10","t":"10월 10일","c":"매매일지","u":"https://blog.naver.com/pillion21/120043305541"},{"i":"120043338129","d":"2007-10-11","t":"10월 11일","c":"매매일지","u":"https://blog.naver.com/pillion21/120043338129"},{"i":"120043368611","d":"2007-10-12","t":"10월 11일","c":"매매일지","u":"https://blog.naver.com/pillion21/120043368611"},{"i":"120043473379","d":"2007-10-15","t":"10월 15일","c":"매매일지","u":"https://blog.naver.com/pillion21/120043473379"},{"i":"120043507028","d":"2007-10-16","t":"10월 16일","c":"매매일지","u":"https://blog.naver.com/pillion21/120043507028"},{"i":"120043539025","d":"2007-10-17","t":"10월 16일","c":"매매일지","u":"https://blog.naver.com/pillion21/120043539025"},{"i":"120043575572","d":"2007-10-18","t":"10월 18일","c":"매매일지","u":"https://blog.naver.com/pillion21/120043575572"},{"i":"120043713341","d":"2007-10-22","t":"會當凌絶頂 一覽衆山小 10/22일","c":"매매일지","u":"https://blog.naver.com/pillion21/120043713341"},{"i":"120043713319","d":"2007-10-22","t":"會當凌絶頂 一覽衆山小 10/19일","c":"매매일지","u":"https://blog.naver.com/pillion21/120043713319"},{"i":"120043753787","d":"2007-10-23","t":"10월 23일","c":"매매일지","u":"https://blog.naver.com/pillion21/120043753787"},{"i":"120043786153","d":"2007-10-24","t":"10월 24일","c":"매매일지","u":"https://blog.naver.com/pillion21/120043786153"},{"i":"120043968838","d":"2007-10-29","t":"10월 29일","c":"매매일지","u":"https://blog.naver.com/pillion21/120043968838"},{"i":"120044257770","d":"2007-11-06","t":"會當凌絶頂 一覽衆山小 11/6","c":"매매일지","u":"https://blog.naver.com/pillion21/120044257770"},{"i":"120044331158","d":"2007-11-08","t":"會當凌絶頂 一覽衆山小 11/8","c":"매매일지","u":"https://blog.naver.com/pillion21/120044331158"},{"i":"120044560451","d":"2007-11-14","t":"會當凌絶頂 一覽衆山小 11/14","c":"매매일지","u":"https://blog.naver.com/pillion21/120044560451"},{"i":"120044604482","d":"2007-11-15","t":"會當凌絶頂 一覽衆山小 11/15","c":"매매일지","u":"https://blog.naver.com/pillion21/120044604482"},{"i":"120044749012","d":"2007-11-19","t":"11월 19일","c":"매매일지","u":"https://blog.naver.com/pillion21/120044749012"},{"i":"120044818195","d":"2007-11-21","t":"會當凌絶頂 一覽衆山小 11/21","c":"매매일지","u":"https://blog.naver.com/pillion21/120044818195"},{"i":"120044855647","d":"2007-11-22","t":"會當凌絶頂 一覽衆山小 11/22","c":"매매일지","u":"https://blog.naver.com/pillion21/120044855647"},{"i":"120044972683","d":"2007-11-25","t":"장학재단 출범식..","c":"트레이딩","u":"https://blog.naver.com/pillion21/120044972683"},{"i":"120045042285","d":"2007-11-27","t":"會當凌絶頂 一覽衆山小 11/27","c":"매매일지","u":"https://blog.naver.com/pillion21/120045042285"},{"i":"120045114307","d":"2007-11-29","t":"會當凌絶頂 一覽衆山小 11/29","c":"매매일지","u":"https://blog.naver.com/pillion21/120045114307"},{"i":"120045114296","d":"2007-11-29","t":"11월 28일","c":"매매일지","u":"https://blog.naver.com/pillion21/120045114296"},{"i":"120045233645","d":"2007-12-02","t":"11월을 마치면서..","c":"트레이딩","u":"https://blog.naver.com/pillion21/120045233645"},{"i":"120045247029","d":"2007-12-03","t":"고수의 어항","c":"열대어","u":"https://blog.naver.com/pillion21/120045247029"},{"i":"120045324186","d":"2007-12-05","t":"會當凌絶頂 一覽衆山小 12/5","c":"매매일지","u":"https://blog.naver.com/pillion21/120045324186"},{"i":"120045324161","d":"2007-12-05","t":"12월 4일","c":"매매일지","u":"https://blog.naver.com/pillion21/120045324161"},{"i":"120045360865","d":"2007-12-06","t":"會當凌絶頂 一覽衆山小 12/6","c":"매매일지","u":"https://blog.naver.com/pillion21/120045360865"},{"i":"120045396282","d":"2007-12-07","t":"會當凌絶頂 一覽衆山小 12/7","c":"매매일지","u":"https://blog.naver.com/pillion21/120045396282"},{"i":"120045510780","d":"2007-12-10","t":"會當凌絶頂 一覽衆山小 12/10","c":"매매일지","u":"https://blog.naver.com/pillion21/120045510780"},{"i":"120045548682","d":"2007-12-11","t":"會當凌絶頂 一覽衆山小 12/11","c":"매매일지","u":"https://blog.naver.com/pillion21/120045548682"},{"i":"120045587538","d":"2007-12-12","t":"會當凌絶頂 一覽衆山小 12/12","c":"매매일지","u":"https://blog.naver.com/pillion21/120045587538"},{"i":"120045623638","d":"2007-12-13","t":"會當凌絶頂 一覽衆山小 12/13","c":"매매일지","u":"https://blog.naver.com/pillion21/120045623638"},{"i":"120045661858","d":"2007-12-14","t":"會當凌絶頂 一覽衆山小 12/14","c":"매매일지","u":"https://blog.naver.com/pillion21/120045661858"},{"i":"120045806276","d":"2007-12-18","t":"會當凌絶頂 一覽衆山小 12/18","c":"매매일지","u":"https://blog.naver.com/pillion21/120045806276"},{"i":"120045926570","d":"2007-12-21","t":"가능할까..","c":"트레이딩","u":"https://blog.naver.com/pillion21/120045926570"},{"i":"120046104731","d":"2007-12-26","t":"정말 고수를 보고 싶은가?","c":"트레이딩","u":"https://blog.naver.com/pillion21/120046104731"},{"i":"120046349686","d":"2008-01-02","t":"한해 수고 많이 하셨습니다. !!","c":"매매일지","u":"https://blog.naver.com/pillion21/120046349686"},{"i":"120046430707","d":"2008-01-04","t":"會當凌絶頂 一覽衆山小 1/4","c":"매매일지","u":"https://blog.naver.com/pillion21/120046430707"},{"i":"120046444220","d":"2008-01-05","t":"생각치 못했던.. 그러나 생각했어야 했던 일..","c":"트레이딩","u":"https://blog.naver.com/pillion21/120046444220"},{"i":"120046579056","d":"2008-01-08","t":"會當凌絶頂 一覽衆山小 1/8","c":"매매일지","u":"https://blog.naver.com/pillion21/120046579056"},{"i":"120046662848","d":"2008-01-10","t":"會當凌絶頂 一覽衆山小 1/10","c":"매매일지","u":"https://blog.naver.com/pillion21/120046662848"},{"i":"120046707861","d":"2008-01-11","t":"會當凌絶頂 一覽衆山小 1/11","c":"매매일지","u":"https://blog.naver.com/pillion21/120046707861"},{"i":"120046981865","d":"2008-01-18","t":"會當凌絶頂 一覽衆山小 1/18","c":"매매일지","u":"https://blog.naver.com/pillion21/120046981865"},{"i":"120047097067","d":"2008-01-21","t":"會當凌絶頂 一覽衆山小 1/21","c":"매매일지","u":"https://blog.naver.com/pillion21/120047097067"},{"i":"120047135555","d":"2008-01-22","t":"會當凌絶頂 一覽衆山小 1/22","c":"매매일지","u":"https://blog.naver.com/pillion21/120047135555"},{"i":"120047149564","d":"2008-01-22","t":"검은 화요일.","c":"트레이딩","u":"https://blog.naver.com/pillion21/120047149564"},{"i":"120047223357","d":"2008-01-24","t":"會當凌絶頂 一覽衆山小 1/24","c":"매매일지","u":"https://blog.naver.com/pillion21/120047223357"},{"i":"120047263159","d":"2008-01-25","t":"會當凌絶頂 一覽衆山小 1/25","c":"매매일지","u":"https://blog.naver.com/pillion21/120047263159"},{"i":"120047305160","d":"2008-01-26","t":"mdd 갱신..","c":"트레이딩","u":"https://blog.naver.com/pillion21/120047305160"},{"i":"120047376958","d":"2008-01-28","t":"會當凌絶頂 一覽衆山小 1/28","c":"매매일지","u":"https://blog.naver.com/pillion21/120047376958"},{"i":"120047358978","d":"2008-01-28","t":"권토중래","c":"트레이딩","u":"https://blog.naver.com/pillion21/120047358978"},{"i":"120047376854","d":"2008-01-28","t":"내 첫 수초 어항","c":"열대어","u":"https://blog.naver.com/pillion21/120047376854"},{"i":"120047514621","d":"2008-01-31","t":"會當凌絶頂 一覽衆山小 1/31","c":"매매일지","u":"https://blog.naver.com/pillion21/120047514621"},{"i":"120047514604","d":"2008-01-31","t":"會當凌絶頂 一覽衆山小 1/30","c":"매매일지","u":"https://blog.naver.com/pillion21/120047514604"},{"i":"120047523433","d":"2008-01-31","t":"재미를 느껴라.","c":"트레이딩","u":"https://blog.naver.com/pillion21/120047523433"},{"i":"120047669211","d":"2008-02-04","t":"會當凌絶頂 一覽衆山小 2/4","c":"매매일지","u":"https://blog.naver.com/pillion21/120047669211"},{"i":"120047695343","d":"2008-02-05","t":"[공유] ADA갤러","c":"열대어","u":"https://blog.naver.com/pillion21/120047695343"},{"i":"120048054947","d":"2008-02-15","t":"會當凌絶頂 一覽衆山小 2/15","c":"매매일지","u":"https://blog.naver.com/pillion21/120048054947"},{"i":"120048145614","d":"2008-02-17","t":"다시 최고점 돌파.","c":"트레이딩","u":"https://blog.naver.com/pillion21/120048145614"},{"i":"120048889169","d":"2008-03-04","t":"3월의 시작. ","c":"트레이딩","u":"https://blog.naver.com/pillion21/120048889169"},{"i":"120048917142","d":"2008-03-05","t":"쉽지 않은 길..","c":"트레이딩","u":"https://blog.naver.com/pillion21/120048917142"},{"i":"120048970519","d":"2008-03-07","t":"부탁드립니다..","c":"트레이딩","u":"https://blog.naver.com/pillion21/120048970519"},{"i":"120049123094","d":"2008-03-11","t":"會當凌絶頂 一覽衆山小 3/11","c":"매매일지","u":"https://blog.naver.com/pillion21/120049123094"},{"i":"120049217299","d":"2008-03-14","t":"會當凌絶頂 一覽衆山小 3/14","c":"매매일지","u":"https://blog.naver.com/pillion21/120049217299"},{"i":"120049844752","d":"2008-03-30","t":"3월을 보내면서.","c":"트레이딩","u":"https://blog.naver.com/pillion21/120049844752"},{"i":"120050457016","d":"2008-04-16","t":"會當凌絶頂 一覽衆山小 4/16","c":"매매일지","u":"https://blog.naver.com/pillion21/120050457016"},{"i":"120051079029","d":"2008-05-05","t":"4월을 보내고..","c":"트레이딩","u":"https://blog.naver.com/pillion21/120051079029"},{"i":"120051422325","d":"2008-05-15","t":"최고점 돌파와 치통.","c":"트레이딩","u":"https://blog.naver.com/pillion21/120051422325"},{"i":"120051727409","d":"2008-05-24","t":"돈이 있으면 행복할까?...","c":"트레이딩","u":"https://blog.naver.com/pillion21/120051727409"},{"i":"120051761735","d":"2008-05-25","t":"천일야화 1","c":"매매일지","u":"https://blog.naver.com/pillion21/120051761735"},{"i":"120051794283","d":"2008-05-26","t":"천일야화 2","c":"매매일지","u":"https://blog.naver.com/pillion21/120051794283"},{"i":"120051831869","d":"2008-05-27","t":"천일야화 3","c":"매매일지","u":"https://blog.naver.com/pillion21/120051831869"},{"i":"120051863764","d":"2008-05-28","t":"천일야화 4","c":"매매일지","u":"https://blog.naver.com/pillion21/120051863764"},{"i":"120051896182","d":"2008-05-29","t":"천일야화 5","c":"매매일지","u":"https://blog.naver.com/pillion21/120051896182"},{"i":"120051939376","d":"2008-05-30","t":"천일야화 6","c":"매매일지","u":"https://blog.naver.com/pillion21/120051939376"},{"i":"120052107944","d":"2008-05-31","t":"5월을 보내고..","c":"트레이딩","u":"https://blog.naver.com/pillion21/120052107944"},{"i":"120052569404","d":"2008-06-02","t":"천일야화 7","c":"매매일지","u":"https://blog.naver.com/pillion21/120052569404"},{"i":"120052604054","d":"2008-06-03","t":"천일야화 8","c":"매매일지","u":"https://blog.naver.com/pillion21/120052604054"},{"i":"120052633064","d":"2008-06-04","t":"천일야화 9","c":"매매일지","u":"https://blog.naver.com/pillion21/120052633064"},{"i":"120052663847","d":"2008-06-05","t":"천일야화 10","c":"매매일지","u":"https://blog.naver.com/pillion21/120052663847"},{"i":"120052799007","d":"2008-06-09","t":"천일야화 11","c":"매매일지","u":"https://blog.naver.com/pillion21/120052799007"},{"i":"120052814721","d":"2008-06-09","t":"나를 놀라게 한분들.","c":"트레이딩","u":"https://blog.naver.com/pillion21/120052814721"},{"i":"120052832201","d":"2008-06-10","t":"천일야화 12","c":"매매일지","u":"https://blog.naver.com/pillion21/120052832201"},{"i":"120052866051","d":"2008-06-11","t":"천일야화 13","c":"매매일지","u":"https://blog.naver.com/pillion21/120052866051"},{"i":"120052896110","d":"2008-06-12","t":"천일야화 14","c":"매매일지","u":"https://blog.naver.com/pillion21/120052896110"},{"i":"120052924761","d":"2008-06-13","t":"천일야화 15","c":"매매일지","u":"https://blog.naver.com/pillion21/120052924761"},{"i":"120053019596","d":"2008-06-16","t":"천일야화 16","c":"매매일지","u":"https://blog.naver.com/pillion21/120053019596"},{"i":"120053049631","d":"2008-06-17","t":"천일야화 17","c":"매매일지","u":"https://blog.naver.com/pillion21/120053049631"},{"i":"120053080642","d":"2008-06-18","t":"천일야화 18","c":"매매일지","u":"https://blog.naver.com/pillion21/120053080642"},{"i":"120053121108","d":"2008-06-19","t":"천일야화 19","c":"매매일지","u":"https://blog.naver.com/pillion21/120053121108"},{"i":"120053152783","d":"2008-06-20","t":"천일야화 20","c":"매매일지","u":"https://blog.naver.com/pillion21/120053152783"},{"i":"120053177322","d":"2008-06-21","t":"뒤늦은 후회..","c":"트레이딩","u":"https://blog.naver.com/pillion21/120053177322"},{"i":"120053246431","d":"2008-06-23","t":"천일야화 21","c":"매매일지","u":"https://blog.naver.com/pillion21/120053246431"},{"i":"120053279760","d":"2008-06-24","t":"천일야화 22","c":"매매일지","u":"https://blog.naver.com/pillion21/120053279760"},{"i":"120053310765","d":"2008-06-25","t":"천일야화 23","c":"매매일지","u":"https://blog.naver.com/pillion21/120053310765"},{"i":"120053343715","d":"2008-06-26","t":"천일야화 24","c":"매매일지","u":"https://blog.naver.com/pillion21/120053343715"},{"i":"120053372959","d":"2008-06-27","t":"천일야화 25","c":"매매일지","u":"https://blog.naver.com/pillion21/120053372959"},{"i":"120053462175","d":"2008-06-30","t":"천일야화 26","c":"매매일지","u":"https://blog.naver.com/pillion21/120053462175"},{"i":"120053492667","d":"2008-07-01","t":"천일야화 27","c":"매매일지","u":"https://blog.naver.com/pillion21/120053492667"},{"i":"120053522034","d":"2008-07-02","t":"천일야화 28","c":"매매일지","u":"https://blog.naver.com/pillion21/120053522034"},{"i":"120053518185","d":"2008-07-02","t":"포넷에서의 소란..","c":"트레이딩","u":"https://blog.naver.com/pillion21/120053518185"},{"i":"120053513706","d":"2008-07-02","t":"6월을 보내고..","c":"트레이딩","u":"https://blog.naver.com/pillion21/120053513706"},{"i":"120053552828","d":"2008-07-03","t":"천일야화 29","c":"매매일지","u":"https://blog.naver.com/pillion21/120053552828"},{"i":"120053581793","d":"2008-07-04","t":"천일야화 30","c":"매매일지","u":"https://blog.naver.com/pillion21/120053581793"},{"i":"120053631250","d":"2008-07-06","t":"370 ...","c":"트레이딩","u":"https://blog.naver.com/pillion21/120053631250"},{"i":"120053667662","d":"2008-07-07","t":"천일야화 31","c":"매매일지","u":"https://blog.naver.com/pillion21/120053667662"},{"i":"120053696362","d":"2008-07-08","t":"천일야화 32","c":"매매일지","u":"https://blog.naver.com/pillion21/120053696362"},{"i":"120053727015","d":"2008-07-09","t":"천일야화 33","c":"매매일지","u":"https://blog.naver.com/pillion21/120053727015"},{"i":"120053715997","d":"2008-07-09","t":"드디어 고점 돌파..","c":"트레이딩","u":"https://blog.naver.com/pillion21/120053715997"},{"i":"120053755953","d":"2008-07-10","t":"천일야화 34","c":"매매일지","u":"https://blog.naver.com/pillion21/120053755953"},{"i":"120053785246","d":"2008-07-11","t":"천일야화 35","c":"매매일지","u":"https://blog.naver.com/pillion21/120053785246"},{"i":"120053874168","d":"2008-07-14","t":"천일야화 36","c":"매매일지","u":"https://blog.naver.com/pillion21/120053874168"},{"i":"120053904974","d":"2008-07-15","t":"천일야화 37","c":"매매일지","u":"https://blog.naver.com/pillion21/120053904974"},{"i":"120053936524","d":"2008-07-16","t":"천일야화 38","c":"매매일지","u":"https://blog.naver.com/pillion21/120053936524"},{"i":"120053968413","d":"2008-07-17","t":"천일야화 39","c":"매매일지","u":"https://blog.naver.com/pillion21/120053968413"},{"i":"120053998408","d":"2008-07-18","t":"천일야화 40","c":"매매일지","u":"https://blog.naver.com/pillion21/120053998408"},{"i":"120054092448","d":"2008-07-21","t":"천일야화 41","c":"매매일지","u":"https://blog.naver.com/pillion21/120054092448"},{"i":"120054126349","d":"2008-07-22","t":"천일야화 42","c":"매매일지","u":"https://blog.naver.com/pillion21/120054126349"},{"i":"120054159718","d":"2008-07-23","t":"천일야화 43","c":"매매일지","u":"https://blog.naver.com/pillion21/120054159718"},{"i":"120054194943","d":"2008-07-24","t":"천일야화 44","c":"매매일지","u":"https://blog.naver.com/pillion21/120054194943"},{"i":"120054229200","d":"2008-07-25","t":"천일야화 45","c":"매매일지","u":"https://blog.naver.com/pillion21/120054229200"},{"i":"120054321806","d":"2008-07-28","t":"천일야화 46","c":"매매일지","u":"https://blog.naver.com/pillion21/120054321806"},{"i":"120054357071","d":"2008-07-29","t":"천일야화 47","c":"매매일지","u":"https://blog.naver.com/pillion21/120054357071"},{"i":"120054388887","d":"2008-07-30","t":"천일야화 48","c":"매매일지","u":"https://blog.naver.com/pillion21/120054388887"},{"i":"120054421210","d":"2008-07-31","t":"천일야화 49","c":"매매일지","u":"https://blog.naver.com/pillion21/120054421210"},{"i":"120054451907","d":"2008-08-01","t":"천일야화 50","c":"매매일지","u":"https://blog.naver.com/pillion21/120054451907"},{"i":"120054515653","d":"2008-08-03","t":"7월을 보내고..","c":"트레이딩","u":"https://blog.naver.com/pillion21/120054515653"},{"i":"120054535215","d":"2008-08-04","t":"천일야화 51","c":"매매일지","u":"https://blog.naver.com/pillion21/120054535215"},{"i":"120054567421","d":"2008-08-05","t":"천일야화 52","c":"매매일지","u":"https://blog.naver.com/pillion21/120054567421"},{"i":"120054600618","d":"2008-08-06","t":"천일야화 53","c":"매매일지","u":"https://blog.naver.com/pillion21/120054600618"},{"i":"120054633108","d":"2008-08-07","t":"천일야화 54","c":"매매일지","u":"https://blog.naver.com/pillion21/120054633108"},{"i":"120054667409","d":"2008-08-08","t":"천일야화 55","c":"매매일지","u":"https://blog.naver.com/pillion21/120054667409"},{"i":"120054752603","d":"2008-08-11","t":"천일야화 56","c":"매매일지","u":"https://blog.naver.com/pillion21/120054752603"},{"i":"120054784044","d":"2008-08-12","t":"천일야화 57","c":"매매일지","u":"https://blog.naver.com/pillion21/120054784044"},{"i":"120054818065","d":"2008-08-13","t":"천일야화 58","c":"매매일지","u":"https://blog.naver.com/pillion21/120054818065"},{"i":"120054852443","d":"2008-08-14","t":"천일야화 59","c":"매매일지","u":"https://blog.naver.com/pillion21/120054852443"},{"i":"120054984464","d":"2008-08-18","t":"천일야화 60","c":"매매일지","u":"https://blog.naver.com/pillion21/120054984464"},{"i":"120055022472","d":"2008-08-19","t":"천일야화 61","c":"매매일지","u":"https://blog.naver.com/pillion21/120055022472"},{"i":"120055059184","d":"2008-08-20","t":"천일야화 62","c":"매매일지","u":"https://blog.naver.com/pillion21/120055059184"},{"i":"120055094703","d":"2008-08-21","t":"천일야화 63","c":"매매일지","u":"https://blog.naver.com/pillion21/120055094703"},{"i":"120055130661","d":"2008-08-22","t":"천일야화 64","c":"매매일지","u":"https://blog.naver.com/pillion21/120055130661"},{"i":"120055228201","d":"2008-08-25","t":"천일야화 65","c":"매매일지","u":"https://blog.naver.com/pillion21/120055228201"},{"i":"120055296986","d":"2008-08-26","t":"천일야화 66","c":"매매일지","u":"https://blog.naver.com/pillion21/120055296986"},{"i":"120055338693","d":"2008-08-27","t":"천일야화 67","c":"매매일지","u":"https://blog.naver.com/pillion21/120055338693"},{"i":"120055398876","d":"2008-08-28","t":"천일야화 68","c":"매매일지","u":"https://blog.naver.com/pillion21/120055398876"},{"i":"120055430542","d":"2008-08-29","t":"천일야화 69","c":"매매일지","u":"https://blog.naver.com/pillion21/120055430542"},{"i":"120055746936","d":"2008-09-01","t":"천일야화 70","c":"매매일지","u":"https://blog.naver.com/pillion21/120055746936"},{"i":"120055740868","d":"2008-09-01","t":"8월을 보내고..","c":"트레이딩","u":"https://blog.naver.com/pillion21/120055740868"},{"i":"120055784504","d":"2008-09-02","t":"천일야화 71","c":"매매일지","u":"https://blog.naver.com/pillion21/120055784504"},{"i":"120055820132","d":"2008-09-03","t":"천일야화 72","c":"매매일지","u":"https://blog.naver.com/pillion21/120055820132"},{"i":"120055851360","d":"2008-09-04","t":"천일야화 73","c":"매매일지","u":"https://blog.naver.com/pillion21/120055851360"},{"i":"120055886276","d":"2008-09-05","t":"천일야화 74","c":"매매일지","u":"https://blog.naver.com/pillion21/120055886276"},{"i":"120055980706","d":"2008-09-08","t":"천일야화 75","c":"매매일지","u":"https://blog.naver.com/pillion21/120055980706"},{"i":"120056011684","d":"2008-09-09","t":"천일야화 76","c":"매매일지","u":"https://blog.naver.com/pillion21/120056011684"},{"i":"120056041352","d":"2008-09-10","t":"천일야화 77","c":"매매일지","u":"https://blog.naver.com/pillion21/120056041352"},{"i":"120056070729","d":"2008-09-11","t":"천일야화 78","c":"매매일지","u":"https://blog.naver.com/pillion21/120056070729"},{"i":"120056102369","d":"2008-09-12","t":"천일야화 79","c":"매매일지","u":"https://blog.naver.com/pillion21/120056102369"},{"i":"120056208702","d":"2008-09-16","t":"천일야화 80","c":"매매일지","u":"https://blog.naver.com/pillion21/120056208702"},{"i":"120056241394","d":"2008-09-17","t":"천일야화 81","c":"매매일지","u":"https://blog.naver.com/pillion21/120056241394"},{"i":"120056270938","d":"2008-09-18","t":"천일야화 82","c":"매매일지","u":"https://blog.naver.com/pillion21/120056270938"},{"i":"120056301828","d":"2008-09-19","t":"천일야화 83","c":"매매일지","u":"https://blog.naver.com/pillion21/120056301828"},{"i":"120056393021","d":"2008-09-22","t":"천일야화 84","c":"매매일지","u":"https://blog.naver.com/pillion21/120056393021"},{"i":"120056424924","d":"2008-09-23","t":"천일야화 85","c":"매매일지","u":"https://blog.naver.com/pillion21/120056424924"},{"i":"120056454569","d":"2008-09-24","t":"천일야화 86","c":"매매일지","u":"https://blog.naver.com/pillion21/120056454569"},{"i":"120056487252","d":"2008-09-25","t":"천일야화 87","c":"매매일지","u":"https://blog.naver.com/pillion21/120056487252"},{"i":"120056518153","d":"2008-09-26","t":"천일야화 88","c":"매매일지","u":"https://blog.naver.com/pillion21/120056518153"},{"i":"120056611551","d":"2008-09-29","t":"천일야화 89","c":"매매일지","u":"https://blog.naver.com/pillion21/120056611551"},{"i":"120056645280","d":"2008-09-30","t":"천일야화 90","c":"매매일지","u":"https://blog.naver.com/pillion21/120056645280"},{"i":"120056677681","d":"2008-10-01","t":"천일야화 91","c":"매매일지","u":"https://blog.naver.com/pillion21/120056677681"},{"i":"120056709792","d":"2008-10-02","t":"천일야화 92","c":"매매일지","u":"https://blog.naver.com/pillion21/120056709792"},{"i":"120056775267","d":"2008-10-04","t":"9월을 보내고..","c":"트레이딩","u":"https://blog.naver.com/pillion21/120056775267"},{"i":"120056846900","d":"2008-10-06","t":"천일야화 93","c":"매매일지","u":"https://blog.naver.com/pillion21/120056846900"},{"i":"120056879910","d":"2008-10-07","t":"천일야화 94","c":"매매일지","u":"https://blog.naver.com/pillion21/120056879910"},{"i":"120056915565","d":"2008-10-08","t":"천일야화 95","c":"매매일지","u":"https://blog.naver.com/pillion21/120056915565"},{"i":"120056949672","d":"2008-10-09","t":"천일야화 96","c":"매매일지","u":"https://blog.naver.com/pillion21/120056949672"},{"i":"120056983912","d":"2008-10-10","t":"천일야화 97","c":"매매일지","u":"https://blog.naver.com/pillion21/120056983912"},{"i":"120057087543","d":"2008-10-13","t":"천일야화 98","c":"매매일지","u":"https://blog.naver.com/pillion21/120057087543"},{"i":"120057119966","d":"2008-10-14","t":"천일야화 99","c":"매매일지","u":"https://blog.naver.com/pillion21/120057119966"},{"i":"120057152230","d":"2008-10-15","t":"천일야화 100","c":"매매일지","u":"https://blog.naver.com/pillion21/120057152230"},{"i":"120057187144","d":"2008-10-16","t":"천일야화 101","c":"매매일지","u":"https://blog.naver.com/pillion21/120057187144"},{"i":"120057229583","d":"2008-10-17","t":"천일야화 102","c":"매매일지","u":"https://blog.naver.com/pillion21/120057229583"},{"i":"120057355440","d":"2008-10-20","t":"천일야화 103","c":"매매일지","u":"https://blog.naver.com/pillion21/120057355440"},{"i":"120057394308","d":"2008-10-21","t":"천일야화 104","c":"매매일지","u":"https://blog.naver.com/pillion21/120057394308"},{"i":"120057437495","d":"2008-10-22","t":"천일야화 105","c":"매매일지","u":"https://blog.naver.com/pillion21/120057437495"},{"i":"120057480702","d":"2008-10-23","t":"천일야화 106","c":"매매일지","u":"https://blog.naver.com/pillion21/120057480702"},{"i":"120057523317","d":"2008-10-24","t":"천일야화 107","c":"매매일지","u":"https://blog.naver.com/pillion21/120057523317"},{"i":"120057649109","d":"2008-10-27","t":"천일야화 108","c":"매매일지","u":"https://blog.naver.com/pillion21/120057649109"},{"i":"120057690864","d":"2008-10-28","t":"천일야화 109","c":"매매일지","u":"https://blog.naver.com/pillion21/120057690864"},{"i":"120057730908","d":"2008-10-29","t":"천일야화 110","c":"매매일지","u":"https://blog.naver.com/pillion21/120057730908"},{"i":"120057781521","d":"2008-10-30","t":"천일야화 111","c":"매매일지","u":"https://blog.naver.com/pillion21/120057781521"},{"i":"120057830889","d":"2008-10-31","t":"천일야화 112","c":"매매일지","u":"https://blog.naver.com/pillion21/120057830889"},{"i":"120057919875","d":"2008-11-02","t":"10월을 보내고..","c":"트레이딩","u":"https://blog.naver.com/pillion21/120057919875"},{"i":"120057977819","d":"2008-11-03","t":"천일야화 113","c":"매매일지","u":"https://blog.naver.com/pillion21/120057977819"},{"i":"120058029164","d":"2008-11-04","t":"천일야화 114","c":"매매일지","u":"https://blog.naver.com/pillion21/120058029164"},{"i":"120058078810","d":"2008-11-05","t":"천일야화 115","c":"매매일지","u":"https://blog.naver.com/pillion21/120058078810"},{"i":"120058130530","d":"2008-11-06","t":"천일야화 116","c":"매매일지","u":"https://blog.naver.com/pillion21/120058130530"},{"i":"120058178973","d":"2008-11-07","t":"천일야화 117","c":"매매일지","u":"https://blog.naver.com/pillion21/120058178973"},{"i":"120058322400","d":"2008-11-10","t":"천일야화 118","c":"매매일지","u":"https://blog.naver.com/pillion21/120058322400"},{"i":"120058371743","d":"2008-11-11","t":"천일야화 119","c":"매매일지","u":"https://blog.naver.com/pillion21/120058371743"},{"i":"120058421577","d":"2008-11-12","t":"천일야화 120","c":"매매일지","u":"https://blog.naver.com/pillion21/120058421577"},{"i":"120058478846","d":"2008-11-13","t":"천일야화 121","c":"매매일지","u":"https://blog.naver.com/pillion21/120058478846"},{"i":"120058523022","d":"2008-11-14","t":"천일야화 122","c":"매매일지","u":"https://blog.naver.com/pillion21/120058523022"},{"i":"120058663478","d":"2008-11-17","t":"천일야화 123","c":"매매일지","u":"https://blog.naver.com/pillion21/120058663478"},{"i":"120058713458","d":"2008-11-18","t":"천일야화 124","c":"매매일지","u":"https://blog.naver.com/pillion21/120058713458"},{"i":"120058760615","d":"2008-11-19","t":"천일야화 125","c":"매매일지","u":"https://blog.naver.com/pillion21/120058760615"},{"i":"120058806251","d":"2008-11-20","t":"천일야화 126","c":"매매일지","u":"https://blog.naver.com/pillion21/120058806251"},{"i":"120058853735","d":"2008-11-21","t":"천일야화 127","c":"매매일지","u":"https://blog.naver.com/pillion21/120058853735"},{"i":"120058995805","d":"2008-11-24","t":"천일야화 128","c":"매매일지","u":"https://blog.naver.com/pillion21/120058995805"},{"i":"120059045775","d":"2008-11-25","t":"천일야화 129","c":"매매일지","u":"https://blog.naver.com/pillion21/120059045775"},{"i":"120059096125","d":"2008-11-26","t":"천일야화 130","c":"매매일지","u":"https://blog.naver.com/pillion21/120059096125"},{"i":"120059145130","d":"2008-11-27","t":"천일야화 131","c":"매매일지","u":"https://blog.naver.com/pillion21/120059145130"},{"i":"120059193466","d":"2008-11-28","t":"천일야화 132","c":"매매일지","u":"https://blog.naver.com/pillion21/120059193466"},{"i":"120059305241","d":"2008-11-30","t":"11 월을 보내고...","c":"트레이딩","u":"https://blog.naver.com/pillion21/120059305241"},{"i":"120059335697","d":"2008-12-01","t":"천일야화 133","c":"매매일지","u":"https://blog.naver.com/pillion21/120059335697"},{"i":"120059348192","d":"2008-12-01","t":"제게 메일을 주신 분들께...","c":"트레이딩","u":"https://blog.naver.com/pillion21/120059348192"},{"i":"120059384792","d":"2008-12-02","t":"천일야화 134","c":"매매일지","u":"https://blog.naver.com/pillion21/120059384792"},{"i":"120059434173","d":"2008-12-03","t":"천일야화 135","c":"매매일지","u":"https://blog.naver.com/pillion21/120059434173"},{"i":"120059482756","d":"2008-12-04","t":"천일야화 136","c":"매매일지","u":"https://blog.naver.com/pillion21/120059482756"},{"i":"120059530378","d":"2008-12-05","t":"천일야화 137","c":"매매일지","u":"https://blog.naver.com/pillion21/120059530378"},{"i":"120059674570","d":"2008-12-08","t":"천일야화 138","c":"매매일지","u":"https://blog.naver.com/pillion21/120059674570"},{"i":"120059724633","d":"2008-12-09","t":"천일야화 139","c":"매매일지","u":"https://blog.naver.com/pillion21/120059724633"},{"i":"120059777121","d":"2008-12-10","t":"천일야화 140","c":"매매일지","u":"https://blog.naver.com/pillion21/120059777121"},{"i":"120059827962","d":"2008-12-11","t":"천일야화 141","c":"매매일지","u":"https://blog.naver.com/pillion21/120059827962"},{"i":"120059881306","d":"2008-12-12","t":"천일야화 142","c":"매매일지","u":"https://blog.naver.com/pillion21/120059881306"},{"i":"120060035930","d":"2008-12-15","t":"천일야화 143","c":"매매일지","u":"https://blog.naver.com/pillion21/120060035930"},{"i":"120060101840","d":"2008-12-16","t":"천일야화 144","c":"매매일지","u":"https://blog.naver.com/pillion21/120060101840"},{"i":"120060153494","d":"2008-12-17","t":"천일야화 145","c":"매매일지","u":"https://blog.naver.com/pillion21/120060153494"},{"i":"120060206484","d":"2008-12-18","t":"천일야화 146","c":"매매일지","u":"https://blog.naver.com/pillion21/120060206484"},{"i":"120060261779","d":"2008-12-19","t":"천일야화 147","c":"매매일지","u":"https://blog.naver.com/pillion21/120060261779"},{"i":"120060412787","d":"2008-12-22","t":"천일야화 148","c":"매매일지","u":"https://blog.naver.com/pillion21/120060412787"},{"i":"120060462451","d":"2008-12-23","t":"천일야화 149","c":"매매일지","u":"https://blog.naver.com/pillion21/120060462451"},{"i":"120060514053","d":"2008-12-24","t":"천일야화 150","c":"매매일지","u":"https://blog.naver.com/pillion21/120060514053"},{"i":"120060607650","d":"2008-12-26","t":"천일야화 151","c":"매매일지","u":"https://blog.naver.com/pillion21/120060607650"},{"i":"120060755002","d":"2008-12-29","t":"천일야화 152","c":"매매일지","u":"https://blog.naver.com/pillion21/120060755002"},{"i":"120060809682","d":"2008-12-30","t":"천일야화 153","c":"매매일지","u":"https://blog.naver.com/pillion21/120060809682"},{"i":"120060975133","d":"2009-01-02","t":"천일야화 154","c":"매매일지","u":"https://blog.naver.com/pillion21/120060975133"},{"i":"120061130250","d":"2009-01-05","t":"천일야화 155","c":"매매일지","u":"https://blog.naver.com/pillion21/120061130250"},{"i":"120061187149","d":"2009-01-06","t":"천일야화 156","c":"매매일지","u":"https://blog.naver.com/pillion21/120061187149"},{"i":"120061241949","d":"2009-01-07","t":"천일야화 157","c":"매매일지","u":"https://blog.naver.com/pillion21/120061241949"},{"i":"120061301111","d":"2009-01-08","t":"천일야화 158","c":"매매일지","u":"https://blog.naver.com/pillion21/120061301111"},{"i":"120061358937","d":"2009-01-09","t":"천일야화 159","c":"매매일지","u":"https://blog.naver.com/pillion21/120061358937"},{"i":"120061520011","d":"2009-01-12","t":"천일야화 160","c":"매매일지","u":"https://blog.naver.com/pillion21/120061520011"},{"i":"120061580673","d":"2009-01-13","t":"천일야화 161","c":"매매일지","u":"https://blog.naver.com/pillion21/120061580673"},{"i":"120061642119","d":"2009-01-14","t":"천일야화 162","c":"매매일지","u":"https://blog.naver.com/pillion21/120061642119"},{"i":"120061703519","d":"2009-01-15","t":"천일야화 163","c":"매매일지","u":"https://blog.naver.com/pillion21/120061703519"},{"i":"120061732723","d":"2009-01-15","t":"2008 년 한해를 접으면서..","c":"트레이딩","u":"https://blog.naver.com/pillion21/120061732723"},{"i":"120061767521","d":"2009-01-16","t":"천일야화 164","c":"매매일지","u":"https://blog.naver.com/pillion21/120061767521"},{"i":"120061937359","d":"2009-01-19","t":"천일야화 165","c":"매매일지","u":"https://blog.naver.com/pillion21/120061937359"},{"i":"120061999649","d":"2009-01-20","t":"천일야화 166","c":"매매일지","u":"https://blog.naver.com/pillion21/120061999649"},{"i":"120062063066","d":"2009-01-21","t":"천일야화 167","c":"매매일지","u":"https://blog.naver.com/pillion21/120062063066"},{"i":"120062130447","d":"2009-01-22","t":"천일야화 168","c":"매매일지","u":"https://blog.naver.com/pillion21/120062130447"},{"i":"120062199458","d":"2009-01-23","t":"천일야화 169","c":"매매일지","u":"https://blog.naver.com/pillion21/120062199458"},{"i":"120062424803","d":"2009-01-28","t":"천일야화 170","c":"매매일지","u":"https://blog.naver.com/pillion21/120062424803"},{"i":"120062487567","d":"2009-01-29","t":"천일야화 171","c":"매매일지","u":"https://blog.naver.com/pillion21/120062487567"},{"i":"120062551207","d":"2009-01-30","t":"천일야화 172","c":"매매일지","u":"https://blog.naver.com/pillion21/120062551207"},{"i":"120062727165","d":"2009-02-02","t":"천일야화 173","c":"매매일지","u":"https://blog.naver.com/pillion21/120062727165"},{"i":"120062792363","d":"2009-02-03","t":"천일야화 174","c":"매매일지","u":"https://blog.naver.com/pillion21/120062792363"},{"i":"120062855933","d":"2009-02-04","t":"천일야화 175","c":"매매일지","u":"https://blog.naver.com/pillion21/120062855933"},{"i":"120062921341","d":"2009-02-05","t":"천일야화 176","c":"매매일지","u":"https://blog.naver.com/pillion21/120062921341"},{"i":"120062987587","d":"2009-02-06","t":" 천일야화 177","c":"매매일지","u":"https://blog.naver.com/pillion21/120062987587"},{"i":"120063151834","d":"2009-02-09","t":"천일야화 178","c":"매매일지","u":"https://blog.naver.com/pillion21/120063151834"},{"i":"120063210747","d":"2009-02-10","t":"천일야화 179","c":"매매일지","u":"https://blog.naver.com/pillion21/120063210747"},{"i":"120063271137","d":"2009-02-11","t":"천일야화 180","c":"매매일지","u":"https://blog.naver.com/pillion21/120063271137"},{"i":"120063335857","d":"2009-02-12","t":"천일야화 181","c":"매매일지","u":"https://blog.naver.com/pillion21/120063335857"},{"i":"120063400392","d":"2009-02-13","t":"천일야화 182","c":"매매일지","u":"https://blog.naver.com/pillion21/120063400392"},{"i":"120063391386","d":"2009-02-13","t":"2008/01/01 ","c":"옛글 모음","u":"https://blog.naver.com/pillion21/120063391386"},{"i":"120063391299","d":"2009-02-13","t":"1월의 마지막 날.    ","c":"옛글 모음","u":"https://blog.naver.com/pillion21/120063391299"},{"i":"120063391138","d":"2009-02-13","t":"게시판에서 뵈어도.. 느낌이 .. ^^  ","c":"옛글 모음","u":"https://blog.naver.com/pillion21/120063391138"},{"i":"120063390744","d":"2009-02-13","t":"심리를 다스리는 자가 시장을 지배한다.","c":"옛글 모음","u":"https://blog.naver.com/pillion21/120063390744"},{"i":"120063390716","d":"2009-02-13","t":"손절매의 심리학","c":"옛글 모음","u":"https://blog.naver.com/pillion21/120063390716"},{"i":"120063390677","d":"2009-02-13","t":"먼길을 떠나려면 ...","c":"옛글 모음","u":"https://blog.naver.com/pillion21/120063390677"},{"i":"120063390648","d":"2009-02-13","t":"1만 2천원의 행복. ","c":"옛글 모음","u":"https://blog.naver.com/pillion21/120063390648"},{"i":"120063390602","d":"2009-02-13","t":"마지막 보루...","c":"옛글 모음","u":"https://blog.naver.com/pillion21/120063390602"},{"i":"120063390512","d":"2009-02-13","t":"매수세들 공격의 끝은...","c":"옛글 모음","u":"https://blog.naver.com/pillion21/120063390512"},{"i":"120063390474","d":"2009-02-13","t":"외인 - Buy Korea, 개인- Good bye Korea..","c":"옛글 모음","u":"https://blog.naver.com/pillion21/120063390474"},{"i":"120063390444","d":"2009-02-13","t":"돌파된 900 p.","c":"옛글 모음","u":"https://blog.naver.com/pillion21/120063390444"},{"i":"120063390415","d":"2009-02-13","t":"준비된 베팅","c":"옛글 모음","u":"https://blog.naver.com/pillion21/120063390415"},{"i":"120063390384","d":"2009-02-13","t":"2003년 알바트로스의 매매실적","c":"옛글 모음","u":"https://blog.naver.com/pillion21/120063390384"},{"i":"120063390359","d":"2009-02-13","t":"2003년 한국증시 정리 ","c":"옛글 모음","u":"https://blog.naver.com/pillion21/120063390359"},{"i":"120063390337","d":"2009-02-13","t":"메뉴얼을 읽는 여유를 가지시길.. ","c":"옛글 모음","u":"https://blog.naver.com/pillion21/120063390337"},{"i":"120063390304","d":"2009-02-13","t":"시스템 트레이딩에 대하여.. ","c":"옛글 모음","u":"https://blog.naver.com/pillion21/120063390304"},{"i":"120063390276","d":"2009-02-13","t":"고수와 하수.. ","c":"옛글 모음","u":"https://blog.naver.com/pillion21/120063390276"},{"i":"120063390218","d":"2009-02-13","t":"마음을 빼앗기면.. ","c":"옛글 모음","u":"https://blog.naver.com/pillion21/120063390218"},{"i":"120063390186","d":"2009-02-13","t":"즐기는 자와 노력하는자...  ","c":"옛글 모음","u":"https://blog.naver.com/pillion21/120063390186"},{"i":"120063390162","d":"2009-02-13","t":"지나간 만기일. 넘어선 저항선.. ","c":"옛글 모음","u":"https://blog.naver.com/pillion21/120063390162"},{"i":"120063390128","d":"2009-02-13","t":"不動如山(부동여산) ","c":"옛글 모음","u":"https://blog.naver.com/pillion21/120063390128"},{"i":"120063390100","d":"2009-02-13","t":"메이저들의 선택은.. ","c":"옛글 모음","u":"https://blog.naver.com/pillion21/120063390100"},{"i":"120063390077","d":"2009-02-13","t":"시장은 결코 바쁘지 않다...","c":"옛글 모음","u":"https://blog.naver.com/pillion21/120063390077"},{"i":"120063390054","d":"2009-02-13","t":"길을 아는것과 길을 걷는것의 차이..","c":"옛글 모음","u":"https://blog.naver.com/pillion21/120063390054"},{"i":"120063390026","d":"2009-02-13","t":"기술적 분석의 虛와 實.","c":"옛글 모음","u":"https://blog.naver.com/pillion21/120063390026"},{"i":"120063389992","d":"2009-02-13","t":"인식의 전환.. ","c":"옛글 모음","u":"https://blog.naver.com/pillion21/120063389992"},{"i":"120063389948","d":"2009-02-13","t":"유연성.. ","c":"옛글 모음","u":"https://blog.naver.com/pillion21/120063389948"},{"i":"120063389932","d":"2009-02-13","t":"어깨에 힘을 빼라..","c":"옛글 모음","u":"https://blog.naver.com/pillion21/120063389932"},{"i":"120063389897","d":"2009-02-13","t":"승부.. ","c":"옛글 모음","u":"https://blog.naver.com/pillion21/120063389897"},{"i":"120063389861","d":"2009-02-13","t":"지나간 폭풍.","c":"옛글 모음","u":"https://blog.naver.com/pillion21/120063389861"},{"i":"120063389734","d":"2009-02-13","t":"만기일을 하루 앞두고.","c":"옛글 모음","u":"https://blog.naver.com/pillion21/120063389734"},{"i":"120063389711","d":"2009-02-13","t":"system 과 심리..","c":"옛글 모음","u":"https://blog.naver.com/pillion21/120063389711"},{"i":"120063388896","d":"2009-02-13","t":"단순하고 쉬운 기술.. ","c":"옛글 모음","u":"https://blog.naver.com/pillion21/120063388896"},{"i":"120063388863","d":"2009-02-13","t":"주식 투자는 진검 승부.. ","c":"옛글 모음","u":"https://blog.naver.com/pillion21/120063388863"},{"i":"120063388821","d":"2009-02-13","t":"하루도 빠짐없이 상한가를 적중시키는 전문가 님들에게. ","c":"옛글 모음","u":"https://blog.naver.com/pillion21/120063388821"},{"i":"120063580161","d":"2009-02-16","t":"천일야화 183","c":"매매일지","u":"https://blog.naver.com/pillion21/120063580161"},{"i":"120063646067","d":"2009-02-17","t":"천일야화 184","c":"매매일지","u":"https://blog.naver.com/pillion21/120063646067"},{"i":"120063715148","d":"2009-02-18","t":"천일야화 185","c":"매매일지","u":"https://blog.naver.com/pillion21/120063715148"},{"i":"120064435778","d":"2009-03-01","t":"옛글 모음","c":"옛글 모음","u":"https://blog.naver.com/pillion21/120064435778"},{"i":"120072094767","d":"2009-03-16","t":"뉴질랜드 09.02.05 ~ 09.02.12","c":"포토로그 > 여행 스케치","u":"https://blog.naver.com/pillion21/120072094767"},{"i":"120072094759","d":"2009-03-16","t":"뉴질랜드 09.02.05 ~ 09.02.12","c":"포토로그 > 여행 스케치","u":"https://blog.naver.com/pillion21/120072094759"},{"i":"120072094753","d":"2009-03-16","t":"뉴질랜드 09.02.05 ~ 09.02.12","c":"포토로그 > 여행 스케치","u":"https://blog.naver.com/pillion21/120072094753"},{"i":"120072094736","d":"2009-03-16","t":"뉴질랜드 09.02.05 ~ 09.02.12","c":"포토로그 > 여행 스케치","u":"https://blog.naver.com/pillion21/120072094736"},{"i":"120065387664","d":"2009-03-19","t":"천일야화 206","c":"매매일지","u":"https://blog.naver.com/pillion21/120065387664"},{"i":"120067839612","d":"2009-05-03","t":"투자의 기본","c":"트레이딩","u":"https://blog.naver.com/pillion21/120067839612"},{"i":"120068792928","d":"2009-05-21","t":"Love Can Build A Bridge ","c":"음악,영화,책.etc","u":"https://blog.naver.com/pillion21/120068792928"},{"i":"120069399665","d":"2009-06-01","t":"천일야화 256","c":"매매일지","u":"https://blog.naver.com/pillion21/120069399665"},{"i":"120073312062","d":"2009-07-07","t":"시장이란...","c":"트레이딩","u":"https://blog.naver.com/pillion21/120073312062"},{"i":"120073392489","d":"2009-07-09","t":"성배는 없다... 적어도 내 경험으로는...","c":"트레이딩","u":"https://blog.naver.com/pillion21/120073392489"},{"i":"120075523224","d":"2009-07-15","t":"강의 후기","c":"트레이딩","u":"https://blog.naver.com/pillion21/120075523224"},{"i":"120094622727","d":"2009-11-11","t":"포기하지 말자","c":"트레이딩","u":"https://blog.naver.com/pillion21/120094622727"},{"i":"120102475135","d":"2010-02-24","t":"포기하지 말자 2","c":"트레이딩","u":"https://blog.naver.com/pillion21/120102475135"},{"i":"120105083597","d":"2010-04-07","t":"천일야화 471 (10.04.06)","c":"매매일지","u":"https://blog.naver.com/pillion21/120105083597"},{"i":"120106048833","d":"2010-04-23","t":"春蘭秋菊各有時","c":"트레이딩","u":"https://blog.naver.com/pillion21/120106048833"},{"i":"120106027236","d":"2010-04-23","t":"아들과 사진 촬영.","c":"포토로그","u":"https://blog.naver.com/pillion21/120106027236"},{"i":"120106446539","d":"2010-04-30","t":"안정적인 수익?","c":"트레이딩","u":"https://blog.naver.com/pillion21/120106446539"},{"i":"120107167821","d":"2010-05-12","t":"Life is What You Make it","c":"좋은 글","u":"https://blog.naver.com/pillion21/120107167821"},{"i":"120107235149","d":"2010-05-13","t":"천일야화 497 (5월 만기)","c":"매매일지","u":"https://blog.naver.com/pillion21/120107235149"},{"i":"120107334240","d":"2010-05-15","t":"보라는 달은 안보고. 왜 손가락만...","c":"트레이딩","u":"https://blog.naver.com/pillion21/120107334240"},{"i":"120108998210","d":"2010-06-10","t":"천일야화 515 ( 6월 만기 )","c":"매매일지","u":"https://blog.naver.com/pillion21/120108998210"},{"i":"120109281790","d":"2010-06-15","t":"질준비가 되어 있는가..","c":"트레이딩","u":"https://blog.naver.com/pillion21/120109281790"},{"i":"120110738865","d":"2010-07-08","t":"천일야화 535 (7월 만기)","c":"매매일지","u":"https://blog.naver.com/pillion21/120110738865"},{"i":"120113073776","d":"2010-08-12","t":"천일야화 560 (8월 만기)","c":"매매일지","u":"https://blog.naver.com/pillion21/120113073776"},{"i":"120113397458","d":"2010-08-17","t":"운외창천(雲外蒼天)","c":"트레이딩","u":"https://blog.naver.com/pillion21/120113397458"},{"i":"120114763761","d":"2010-09-09","t":"천일야화 580 (9월 만기)","c":"매매일지","u":"https://blog.naver.com/pillion21/120114763761"},{"i":"120116663163","d":"2010-10-14","t":"천일야화 602 (10월 만기)","c":"매매일지","u":"https://blog.naver.com/pillion21/120116663163"},{"i":"120118326460","d":"2010-11-12","t":"천일야화 622 (11월 만기)","c":"매매일지","u":"https://blog.naver.com/pillion21/120118326460"},{"i":"120119827330","d":"2010-12-09","t":"천일야화 642 (12월 만기)","c":"매매일지","u":"https://blog.naver.com/pillion21/120119827330"},{"i":"120120283047","d":"2010-12-17","t":"인내심.","c":"트레이딩","u":"https://blog.naver.com/pillion21/120120283047"},{"i":"120120795913","d":"2010-12-26","t":"하고 싶은일보다는  잘할수 있는일을 하자..","c":"트레이딩","u":"https://blog.naver.com/pillion21/120120795913"},{"i":"120121135420","d":"2010-12-31","t":"mental game","c":"트레이딩","u":"https://blog.naver.com/pillion21/120121135420"},{"i":"120122013347","d":"2011-01-14","t":"my way..","c":"매매일지","u":"https://blog.naver.com/pillion21/120122013347"},{"i":"120128463473","d":"2011-04-23","t":"대한민국에서 자문사 ceo로 산다는 것은 ...","c":"트레이딩","u":"https://blog.naver.com/pillion21/120128463473"},{"i":"120181244104","d":"2013-02-13","t":"질문에 대한 답변입니다..","c":"트레이딩","u":"https://blog.naver.com/pillion21/120181244104"},{"i":"120182246877","d":"2013-02-22","t":"세가지 이야기.","c":"트레이딩","u":"https://blog.naver.com/pillion21/120182246877"},{"i":"120186041456","d":"2013-03-25","t":"제목 짓기가 이렇게 어려울줄이야...","c":"트레이딩","u":"https://blog.naver.com/pillion21/120186041456"},{"i":"120187836988","d":"2013-04-12","t":"책이 나왔습니다. ","c":"트레이딩","u":"https://blog.naver.com/pillion21/120187836988"},{"i":"120188239713","d":"2013-04-18","t":"책을 보내 드렸습니다. ","c":"트레이딩","u":"https://blog.naver.com/pillion21/120188239713"},{"i":"120188704565","d":"2013-04-25","t":"2013년 4월 25일.","c":"트레이딩","u":"https://blog.naver.com/pillion21/120188704565"},{"i":"120189425527","d":"2013-05-06","t":"감사드립니다. ","c":"트레이딩","u":"https://blog.naver.com/pillion21/120189425527"},{"i":"120191708871","d":"2013-06-09","t":"빛과 그림자.","c":"트레이딩","u":"https://blog.naver.com/pillion21/120191708871"},{"i":"120194534690","d":"2013-07-21","t":"끈기. 열정. 배짱.","c":"트레이딩","u":"https://blog.naver.com/pillion21/120194534690"},{"i":"120198179514","d":"2013-09-15","t":"위기..","c":"트레이딩","u":"https://blog.naver.com/pillion21/120198179514"},{"i":"120204679780","d":"2013-12-31","t":"2013 년 한해를 마무리 하면서..","c":"트레이딩","u":"https://blog.naver.com/pillion21/120204679780"},{"i":"120204855777","d":"2014-01-03","t":"2014년 1주 매매일지.","c":"매매일지","u":"https://blog.naver.com/pillion21/120204855777"},{"i":"120205312566","d":"2014-01-10","t":"2014년 1월 2주차. - 돈은 어떻게 써야 할까? ","c":"매매일지","u":"https://blog.naver.com/pillion21/120205312566"},{"i":"120205782995","d":"2014-01-17","t":"2014년 1월 3주차 - 기억에 남는 두분..","c":"매매일지","u":"https://blog.naver.com/pillion21/120205782995"},{"i":"120207131661","d":"2014-02-07","t":"2014년 1월 4주. 5주차. 2월 1주차.","c":"매매일지","u":"https://blog.naver.com/pillion21/120207131661"},{"i":"120207507461","d":"2014-02-13","t":"2월 2주, 3주차 - 시장은 변한다.","c":"매매일지","u":"https://blog.naver.com/pillion21/120207507461"},{"i":"120208997279","d":"2014-03-07","t":"2월 4주. 3월 1주차 -  봄 느낌..","c":"매매일지","u":"https://blog.naver.com/pillion21/120208997279"},{"i":"120209449511","d":"2014-03-14","t":"2014년 3월 2주차. - 동시 만기일","c":"매매일지","u":"https://blog.naver.com/pillion21/120209449511"},{"i":"120209899735","d":"2014-03-21","t":"3월 3주차- 시장의 본질..","c":"매매일지","u":"https://blog.naver.com/pillion21/120209899735"},{"i":"120212976634","d":"2014-05-10","t":"5월 2주차.","c":"매매일지","u":"https://blog.naver.com/pillion21/120212976634"},{"i":"220031389691","d":"2014-06-15","t":"6월 2주차. -  내년에는 오늘을 꼭 기억하자..","c":"매매일지","u":"https://blog.naver.com/pillion21/220031389691"},{"i":"220065190637","d":"2014-07-19","t":"2014년 7월 3주차 - 최저 변동성.. 바닥을 모르겠다. ","c":"매매일지","u":"https://blog.naver.com/pillion21/220065190637"},{"i":"220234966664","d":"2015-01-09","t":"2014년을 정리하며..","c":"매매일지","u":"https://blog.naver.com/pillion21/220234966664"},{"i":"222178537747","d":"2020-12-19","t":"시작","c":"all in","u":"https://blog.naver.com/pillion21/222178537747"},{"i":"222185738266","d":"2020-12-26","t":"10 년동안의 꿈","c":"all in","u":"https://blog.naver.com/pillion21/222185738266"},{"i":"222186908005","d":"2020-12-27","t":"도박이라고?","c":"all in","u":"https://blog.naver.com/pillion21/222186908005"},{"i":"222187631327","d":"2020-12-28","t":"한권의 책을 추천하라면?","c":"all in","u":"https://blog.naver.com/pillion21/222187631327"},{"i":"222192538823","d":"2021-01-01","t":"수적석천(水滴石穿)","c":"all in","u":"https://blog.naver.com/pillion21/222192538823"},{"i":"222197606261","d":"2021-01-05","t":"거래의 핵심 첫번째","c":"all in","u":"https://blog.naver.com/pillion21/222197606261"},{"i":"222199960906","d":"2021-01-07","t":"코스피 3000p ...","c":"all in","u":"https://blog.naver.com/pillion21/222199960906"},{"i":"222208084054","d":"2021-01-15","t":"어느쪽을 볼것인가?","c":"all in","u":"https://blog.naver.com/pillion21/222208084054"},{"i":"222216384826","d":"2021-01-22","t":"공포라는 감정..","c":"all in","u":"https://blog.naver.com/pillion21/222216384826"},{"i":"222220638000","d":"2021-01-26","t":"공포라는 감정 2","c":"all in","u":"https://blog.naver.com/pillion21/222220638000"},{"i":"222230420149","d":"2021-02-03","t":"Insight..  통찰력.. 혜안..","c":"all in","u":"https://blog.naver.com/pillion21/222230420149"},{"i":"222247100839","d":"2021-02-17","t":"공포라는 감정 3.","c":"all in","u":"https://blog.naver.com/pillion21/222247100839"},{"i":"222250971295","d":"2021-02-21","t":"Comparison is the thief of joy !","c":"all in","u":"https://blog.naver.com/pillion21/222250971295"},{"i":"222256634949","d":"2021-02-25","t":"이웃 블로그에서..","c":"all in","u":"https://blog.naver.com/pillion21/222256634949"},{"i":"222264529723","d":"2021-03-04","t":"이 한장의 그림","c":"all in","u":"https://blog.naver.com/pillion21/222264529723"},{"i":"222266209769","d":"2021-03-06","t":"이 한장의 사진","c":"all in","u":"https://blog.naver.com/pillion21/222266209769"},{"i":"222266184356","d":"2021-03-06","t":"전업 투자자가 꿈이라고?","c":"all in","u":"https://blog.naver.com/pillion21/222266184356"},{"i":"222268367150","d":"2021-03-08","t":"결...","c":"all in","u":"https://blog.naver.com/pillion21/222268367150"},{"i":"222273184856","d":"2021-03-12","t":"그림의 의미..","c":"all in","u":"https://blog.naver.com/pillion21/222273184856"},{"i":"222274868587","d":"2021-03-14","t":"시스템 트레이딩에 대한 단상 1.","c":"all in","u":"https://blog.naver.com/pillion21/222274868587"},{"i":"222276953817","d":"2021-03-16","t":"[공유] 돈을 이기는 법 - 거래 이야기","c":"all in","u":"https://blog.naver.com/pillion21/222276953817"},{"i":"222284135280","d":"2021-03-22","t":"운은 승부를 결정짓지 못한다.","c":"all in","u":"https://blog.naver.com/pillion21/222284135280"},{"i":"222284946597","d":"2021-03-23","t":"시스템 트레이딩에 대한 단상 2.","c":"all in","u":"https://blog.naver.com/pillion21/222284946597"},{"i":"222289538234","d":"2021-03-27","t":"왕도는 없지만...","c":"all in","u":"https://blog.naver.com/pillion21/222289538234"},{"i":"222291715196","d":"2021-03-29","t":"왕도는 없지만.. 2","c":"all in","u":"https://blog.naver.com/pillion21/222291715196"},{"i":"222292175972","d":"2021-03-30","t":"투자의 성공 요인","c":"all in","u":"https://blog.naver.com/pillion21/222292175972"},{"i":"222294569896","d":"2021-04-01","t":"거래의 핵심 두번째.","c":"all in","u":"https://blog.naver.com/pillion21/222294569896"},{"i":"222298013272","d":"2021-04-04","t":"진실","c":"all in","u":"https://blog.naver.com/pillion21/222298013272"},{"i":"222301084441","d":"2021-04-06","t":"주식시장에서 복리가 가능할까 1.","c":"all in","u":"https://blog.naver.com/pillion21/222301084441"},{"i":"222306874022","d":"2021-04-12","t":"신용은 꺼..","c":"all in","u":"https://blog.naver.com/pillion21/222306874022"},{"i":"222310148052","d":"2021-04-14","t":"주식시장에서 복리가 가능할까? 2","c":"all in","u":"https://blog.naver.com/pillion21/222310148052"},{"i":"222313407491","d":"2021-04-17","t":"주식시장에서 복리가 가능할까? 3","c":"all in","u":"https://blog.naver.com/pillion21/222313407491"},{"i":"222320653872","d":"2021-04-23","t":"주식시장에서 복리가 가능할까? 4.","c":"all in","u":"https://blog.naver.com/pillion21/222320653872"},{"i":"222323161459","d":"2021-04-26","t":"정답은 없지만 성공한 사람은 많다.","c":"all in","u":"https://blog.naver.com/pillion21/222323161459"},{"i":"222332396822","d":"2021-05-02","t":"간절함...","c":"all in","u":"https://blog.naver.com/pillion21/222332396822"},{"i":"222339626674","d":"2021-05-06","t":"인내심..","c":"all in","u":"https://blog.naver.com/pillion21/222339626674"},{"i":"222342043145","d":"2021-05-07","t":"투자 vs 트레이딩..","c":"all in","u":"https://blog.naver.com/pillion21/222342043145"},{"i":"222344581658","d":"2021-05-10","t":"고수와 하수","c":"all in","u":"https://blog.naver.com/pillion21/222344581658"},{"i":"222356644628","d":"2021-05-19","t":"경험의 무게 ?","c":"all in","u":"https://blog.naver.com/pillion21/222356644628"},{"i":"222362759544","d":"2021-05-23","t":"자만하지 마라. 서둘지 마라. 망설이지 마라.","c":"all in","u":"https://blog.naver.com/pillion21/222362759544"},{"i":"222375444204","d":"2021-05-30","t":"과정의 중요성..","c":"all in","u":"https://blog.naver.com/pillion21/222375444204"},{"i":"222381597962","d":"2021-06-02","t":"여동생 부부","c":"all in","u":"https://blog.naver.com/pillion21/222381597962"},{"i":"222391599644","d":"2021-06-09","t":"원칙 1","c":"all in","u":"https://blog.naver.com/pillion21/222391599644"},{"i":"222393101024","d":"2021-06-10","t":"원칙 2.","c":"all in","u":"https://blog.naver.com/pillion21/222393101024"},{"i":"222397253799","d":"2021-06-14","t":"Perfect is the enemy of good.","c":"all in","u":"https://blog.naver.com/pillion21/222397253799"},{"i":"222408884960","d":"2021-06-24","t":"근성..","c":"all in","u":"https://blog.naver.com/pillion21/222408884960"},{"i":"222412539578","d":"2021-06-28","t":"포정해우(庖丁解牛)","c":"all in","u":"https://blog.naver.com/pillion21/222412539578"},{"i":"222418925862","d":"2021-07-03","t":"실패가 준 선물.","c":"all in","u":"https://blog.naver.com/pillion21/222418925862"},{"i":"222427474665","d":"2021-07-11","t":"몰입","c":"all in","u":"https://blog.naver.com/pillion21/222427474665"},{"i":"222429256925","d":"2021-07-12","t":"끝","c":"all in","u":"https://blog.naver.com/pillion21/222429256925"},{"i":"222970918860","d":"2022-12-31","t":"질문.","c":"후배들에게","u":"https://blog.naver.com/pillion21/222970918860"},{"i":"222972121391","d":"2023-01-01","t":"네 수준을 정확하게 알고...","c":"후배들에게","u":"https://blog.naver.com/pillion21/222972121391"},{"i":"222975002442","d":"2023-01-04","t":"대화 3.","c":"후배들에게","u":"https://blog.naver.com/pillion21/222975002442"},{"i":"222974560901","d":"2023-01-04","t":"대화2","c":"후배들에게","u":"https://blog.naver.com/pillion21/222974560901"},{"i":"222974514282","d":"2023-01-04","t":"대화 1.","c":"후배들에게","u":"https://blog.naver.com/pillion21/222974514282"},{"i":"222982317290","d":"2023-01-12","t":"네게 맞는 방식을 서둘지 말고 찾아라","c":"후배들에게","u":"https://blog.naver.com/pillion21/222982317290"},{"i":"222988818188","d":"2023-01-19","t":"대화 4","c":"후배들에게","u":"https://blog.naver.com/pillion21/222988818188"},{"i":"222995099327","d":"2023-01-26","t":"영혼을 갈아 넣어라.","c":"후배들에게","u":"https://blog.naver.com/pillion21/222995099327"},{"i":"223003139150","d":"2023-02-02","t":"매몰 비용의 오류","c":"후배들에게","u":"https://blog.naver.com/pillion21/223003139150"},{"i":"223008176144","d":"2023-02-07","t":"열명..","c":"후배들에게","u":"https://blog.naver.com/pillion21/223008176144"},{"i":"223009555753","d":"2023-02-08","t":"그림 한장.","c":"후배들에게","u":"https://blog.naver.com/pillion21/223009555753"},{"i":"223011357315","d":"2023-02-10","t":"잡담","c":"후배들에게","u":"https://blog.naver.com/pillion21/223011357315"},{"i":"223013208265","d":"2023-02-12","t":"게임의 본질 1.","c":"후배들에게","u":"https://blog.naver.com/pillion21/223013208265"},{"i":"223016400919","d":"2023-02-15","t":"게임의 본질 2.","c":"후배들에게","u":"https://blog.naver.com/pillion21/223016400919"},{"i":"223020258361","d":"2023-02-18","t":"음악 한곡.","c":"후배들에게","u":"https://blog.naver.com/pillion21/223020258361"},{"i":"223021596388","d":"2023-02-20","t":"잡담 2.","c":"후배들에게","u":"https://blog.naver.com/pillion21/223021596388"},{"i":"223025471397","d":"2023-02-23","t":"개인투자자의 모습.","c":"후배들에게","u":"https://blog.naver.com/pillion21/223025471397"},{"i":"223030140266","d":"2023-02-28","t":"투자의 동의어는 Risk.","c":"후배들에게","u":"https://blog.naver.com/pillion21/223030140266"},{"i":"223032557691","d":"2023-03-02","t":"잡담 3","c":"후배들에게","u":"https://blog.naver.com/pillion21/223032557691"},{"i":"223037224845","d":"2023-03-07","t":"트레이더를 꿈꾸는 분들께 1.","c":"후배들에게","u":"https://blog.naver.com/pillion21/223037224845"},{"i":"223038137794","d":"2023-03-08","t":"트레이더를 꿈꾸는 분들께 2.","c":"후배들에게","u":"https://blog.naver.com/pillion21/223038137794"},{"i":"223040543072","d":"2023-03-10","t":"끝","c":"후배들에게","u":"https://blog.naver.com/pillion21/223040543072"},{"i":"223069257059","d":"2023-04-09","t":"덧붙이는 글.","c":"후배들에게","u":"https://blog.naver.com/pillion21/223069257059"},{"i":"223214062540","d":"2023-09-17","t":"벼리와 첫만남","c":"벼리와 강탄이","u":"https://blog.naver.com/pillion21/223214062540"},{"i":"223215362804","d":"2023-09-19","t":"벼리와 산행 1","c":"벼리와 강탄이","u":"https://blog.naver.com/pillion21/223215362804"},{"i":"223216383809","d":"2023-09-20","t":"벼리와 산행 2","c":"벼리와 강탄이","u":"https://blog.naver.com/pillion21/223216383809"},{"i":"223219387085","d":"2023-09-23","t":"강탄이와의 만남.","c":"벼리와 강탄이","u":"https://blog.naver.com/pillion21/223219387085"},{"i":"223220717725","d":"2023-09-25","t":"벼리와 강탄이의 만남","c":"벼리와 강탄이","u":"https://blog.naver.com/pillion21/223220717725"},{"i":"223224900583","d":"2023-09-30","t":"다름에 대한 넉넉함.","c":"벼리와 강탄이","u":"https://blog.naver.com/pillion21/223224900583"},{"i":"223232849180","d":"2023-10-10","t":"가장 쉽게 돈버는 법","c":"단상 (斷想 )","u":"https://blog.naver.com/pillion21/223232849180"},{"i":"223234765564","d":"2023-10-12","t":"익히되 잊어라.","c":"단상 (斷想 )","u":"https://blog.naver.com/pillion21/223234765564"},{"i":"223235303144","d":"2023-10-13","t":"강탄이의 수난시대","c":"벼리와 강탄이","u":"https://blog.naver.com/pillion21/223235303144"},{"i":"223236607978","d":"2023-10-14","t":"23년전.","c":"단상 (斷想 )","u":"https://blog.naver.com/pillion21/223236607978"},{"i":"223237039143","d":"2023-10-15","t":"시간을 건너 뛰어서 2.","c":"벼리와 강탄이","u":"https://blog.naver.com/pillion21/223237039143"},{"i":"223236993754","d":"2023-10-15","t":"시간을 건너 뛰어서 1.","c":"벼리와 강탄이","u":"https://blog.naver.com/pillion21/223236993754"},{"i":"223238666142","d":"2023-10-17","t":"인간.","c":"단상 (斷想 )","u":"https://blog.naver.com/pillion21/223238666142"},{"i":"223242477317","d":"2023-10-21","t":"내가 만난 젊은 투자자 분들.","c":"단상 (斷想 )","u":"https://blog.naver.com/pillion21/223242477317"},{"i":"223249444906","d":"2023-10-29","t":"팬심에 손절은 없다.. ?","c":"단상 (斷想 )","u":"https://blog.naver.com/pillion21/223249444906"},{"i":"223251245007","d":"2023-10-31","t":"황태머리 사건","c":"벼리와 강탄이","u":"https://blog.naver.com/pillion21/223251245007"},{"i":"223253282993","d":"2023-11-02","t":"시작했으면, 끝은 봐라.","c":"단상 (斷想 )","u":"https://blog.naver.com/pillion21/223253282993"},{"i":"223255258357","d":"2023-11-04","t":"잊혀지지 않는 기억","c":"단상 (斷想 )","u":"https://blog.naver.com/pillion21/223255258357"},{"i":"223259032924","d":"2023-11-08","t":"아마.. 이게 달랐을거다.","c":"단상 (斷想 )","u":"https://blog.naver.com/pillion21/223259032924"},{"i":"223261051079","d":"2023-11-10","t":"추세추종 거래가 쉬울까?","c":"단상 (斷想 )","u":"https://blog.naver.com/pillion21/223261051079"},{"i":"223261662776","d":"2023-11-11","t":"데이트레이딩 ?","c":"단상 (斷想 )","u":"https://blog.naver.com/pillion21/223261662776"},{"i":"223263481307","d":"2023-11-13","t":"내가 아는 이야기만 하자.","c":"단상 (斷想 )","u":"https://blog.naver.com/pillion21/223263481307"},{"i":"223266392034","d":"2023-11-16","t":"내가 알아본 두 사람.","c":"단상 (斷想 )","u":"https://blog.naver.com/pillion21/223266392034"},{"i":"223268154352","d":"2023-11-18","t":"영혼을 갈아 넣는다는건..","c":"단상 (斷想 )","u":"https://blog.naver.com/pillion21/223268154352"},{"i":"223269419840","d":"2023-11-20","t":"세번째 승부수 1.","c":"단상 (斷想 )","u":"https://blog.naver.com/pillion21/223269419840"},{"i":"223270510797","d":"2023-11-21","t":"세번째 승부수 2.","c":"단상 (斷想 )","u":"https://blog.naver.com/pillion21/223270510797"},{"i":"223271520118","d":"2023-11-22","t":"세월.","c":"단상 (斷想 )","u":"https://blog.naver.com/pillion21/223271520118"},{"i":"223272394076","d":"2023-11-23","t":"세월 2.","c":"단상 (斷想 )","u":"https://blog.naver.com/pillion21/223272394076"},{"i":"223273366678","d":"2023-11-24","t":"그래서, 내가 사람 보는 눈이 좋다고?","c":"단상 (斷想 )","u":"https://blog.naver.com/pillion21/223273366678"},{"i":"223274768131","d":"2023-11-25","t":"13 년전 생각.","c":"단상 (斷想 )","u":"https://blog.naver.com/pillion21/223274768131"},{"i":"223275123874","d":"2023-11-26","t":"어려운 질문 1.","c":"단상 (斷想 )","u":"https://blog.naver.com/pillion21/223275123874"},{"i":"223276501604","d":"2023-11-27","t":"고민. 그리고 좋은 음악.","c":"단상 (斷想 )","u":"https://blog.naver.com/pillion21/223276501604"},{"i":"223275957253","d":"2023-11-27","t":"가난에 얽힌 기억.","c":"단상 (斷想 )","u":"https://blog.naver.com/pillion21/223275957253"},{"i":"223277349377","d":"2023-11-28","t":"고민. 그리고 좋은 음악 2.","c":"단상 (斷想 )","u":"https://blog.naver.com/pillion21/223277349377"},{"i":"223277710607","d":"2023-11-29","t":"과정.","c":"단상 (斷想 )","u":"https://blog.naver.com/pillion21/223277710607"},{"i":"223278930489","d":"2023-11-30","t":"수익은 열고, 손실은 닫아라.","c":"Trend following","u":"https://blog.naver.com/pillion21/223278930489"},{"i":"223278736307","d":"2023-11-30","t":"시작하면서..","c":"Trend following","u":"https://blog.naver.com/pillion21/223278736307"},{"i":"223279705897","d":"2023-12-01","t":"손익비.","c":"Trend following","u":"https://blog.naver.com/pillion21/223279705897"},{"i":"223282324693","d":"2023-12-04","t":"가치투자도 역시..","c":"Trend following","u":"https://blog.naver.com/pillion21/223282324693"},{"i":"223283357820","d":"2023-12-05","t":"낮은 승률..","c":"Trend following","u":"https://blog.naver.com/pillion21/223283357820"},{"i":"223284238673","d":"2023-12-06","t":"trend follower 에게, 지금 시장의 위치는?","c":"Trend following","u":"https://blog.naver.com/pillion21/223284238673"},{"i":"223285437312","d":"2023-12-07","t":"trading 의 핵심.","c":"Trend following","u":"https://blog.naver.com/pillion21/223285437312"},{"i":"223286429197","d":"2023-12-08","t":"추세를 적으로 삼지 마라.","c":"Trend following","u":"https://blog.naver.com/pillion21/223286429197"},{"i":"223288561580","d":"2023-12-10","t":"자금 관리에 대해서..","c":"Trend following","u":"https://blog.naver.com/pillion21/223288561580"},{"i":"223290332356","d":"2023-12-12","t":"마치면서..","c":"Trend following","u":"https://blog.naver.com/pillion21/223290332356"},{"i":"223292138789","d":"2023-12-14","t":"유연성.","c":"단상 (斷想 )","u":"https://blog.naver.com/pillion21/223292138789"},{"i":"223296079249","d":"2023-12-18","t":"Self confidence 1.","c":"단상 (斷想 )","u":"https://blog.naver.com/pillion21/223296079249"},{"i":"223297498586","d":"2023-12-19","t":"Self confidence 2.","c":"단상 (斷想 )","u":"https://blog.naver.com/pillion21/223297498586"},{"i":"223298035789","d":"2023-12-20","t":"귀신 씨나락 까먹는 소리.","c":"Trend following","u":"https://blog.naver.com/pillion21/223298035789"},{"i":"223300723977","d":"2023-12-22","t":"놀라운 배포.  아쉬웠던 자금관리.","c":"단상 (斷想 )","u":"https://blog.naver.com/pillion21/223300723977"},{"i":"223305501974","d":"2023-12-28","t":"슬럼프","c":"단상 (斷想 )","u":"https://blog.naver.com/pillion21/223305501974"},{"i":"223306908347","d":"2023-12-29","t":"어쩌면..","c":"단상 (斷想 )","u":"https://blog.naver.com/pillion21/223306908347"},{"i":"223308025613","d":"2023-12-31","t":"2023.12.31","c":"단상 (斷想 )","u":"https://blog.naver.com/pillion21/223308025613"},{"i":"223309017007","d":"2024-01-01","t":"턱걸이 Orientation.","c":"턱걸이","u":"https://blog.naver.com/pillion21/223309017007"},{"i":"223314109479","d":"2024-01-06","t":"질문과 답 1.","c":"단상 (斷想 )","u":"https://blog.naver.com/pillion21/223314109479"},{"i":"223317516067","d":"2024-01-09","t":"질문과 답 2.","c":"단상 (斷想 )","u":"https://blog.naver.com/pillion21/223317516067"},{"i":"223319747880","d":"2024-01-11","t":"너무 막나가는거 같은데..?","c":"단상 (斷想 )","u":"https://blog.naver.com/pillion21/223319747880"},{"i":"223321170430","d":"2024-01-13","t":"질문과 답 3","c":"단상 (斷想 )","u":"https://blog.naver.com/pillion21/223321170430"},{"i":"223322010673","d":"2024-01-14","t":"1회","c":"턱걸이","u":"https://blog.naver.com/pillion21/223322010673"},{"i":"223322240457","d":"2024-01-14","t":"질문과 답 4.","c":"단상 (斷想 )","u":"https://blog.naver.com/pillion21/223322240457"},{"i":"223330536616","d":"2024-01-22","t":"나는 내 길 가고.. 너는 네 길 가고..","c":"단상 (斷想 )","u":"https://blog.naver.com/pillion21/223330536616"},{"i":"223334843451","d":"2024-01-26","t":"내가 경험한 앵커링 효과.","c":"단상 (斷想 )","u":"https://blog.naver.com/pillion21/223334843451"},{"i":"223336288262","d":"2024-01-28","t":"2회","c":"턱걸이","u":"https://blog.naver.com/pillion21/223336288262"},{"i":"223341956473","d":"2024-02-02","t":"슬럼프 2.","c":"단상 (斷想 )","u":"https://blog.naver.com/pillion21/223341956473"},{"i":"223350417128","d":"2024-02-11","t":"3회.","c":"턱걸이","u":"https://blog.naver.com/pillion21/223350417128"},{"i":"223355330551","d":"2024-02-16","t":"아는 만큼 보이고, 들린다.","c":"단상 (斷想 )","u":"https://blog.naver.com/pillion21/223355330551"},{"i":"223359639712","d":"2024-02-20","t":"우리는 왜?","c":"단상 (斷想 )","u":"https://blog.naver.com/pillion21/223359639712"},{"i":"223364498946","d":"2024-02-25","t":"4회","c":"턱걸이","u":"https://blog.naver.com/pillion21/223364498946"},{"i":"223368026131","d":"2024-02-28","t":"4년전 그날.","c":"단상 (斷想 )","u":"https://blog.naver.com/pillion21/223368026131"},{"i":"223369876140","d":"2024-03-01","t":"오해의 여지.","c":"단상 (斷想 )","u":"https://blog.naver.com/pillion21/223369876140"},{"i":"223378913065","d":"2024-03-10","t":"5회","c":"턱걸이","u":"https://blog.naver.com/pillion21/223378913065"},{"i":"223384421219","d":"2024-03-15","t":"멋진 두분.","c":"단상 (斷想 )","u":"https://blog.naver.com/pillion21/223384421219"},{"i":"223393687795","d":"2024-03-24","t":"6회","c":"턱걸이","u":"https://blog.naver.com/pillion21/223393687795"},{"i":"223397746283","d":"2024-03-28","t":"not to be careless.","c":"단상 (斷想 )","u":"https://blog.naver.com/pillion21/223397746283"},{"i":"223400492912","d":"2024-03-30","t":"음악 한곡.","c":"단상 (斷想 )","u":"https://blog.naver.com/pillion21/223400492912"},{"i":"223405497420","d":"2024-04-04","t":"견지망월. (見指忘月)","c":"단상 (斷想 )","u":"https://blog.naver.com/pillion21/223405497420"},{"i":"223415173950","d":"2024-04-14","t":"7회","c":"턱걸이","u":"https://blog.naver.com/pillion21/223415173950"},{"i":"223429798705","d":"2024-04-28","t":"8회","c":"턱걸이","u":"https://blog.naver.com/pillion21/223429798705"},{"i":"223443440210","d":"2024-05-11","t":"20 년전.","c":"단상 (斷想 )","u":"https://blog.naver.com/pillion21/223443440210"},{"i":"223447538702","d":"2024-05-15","t":"9회","c":"턱걸이","u":"https://blog.naver.com/pillion21/223447538702"},{"i":"223447225675","d":"2024-05-15","t":"와인 한병..","c":"단상 (斷想 )","u":"https://blog.naver.com/pillion21/223447225675"},{"i":"223458986203","d":"2024-05-26","t":"10회","c":"턱걸이","u":"https://blog.naver.com/pillion21/223458986203"},{"i":"223465021788","d":"2024-05-31","t":"금투세에 대하여.","c":"단상 (斷想 )","u":"https://blog.naver.com/pillion21/223465021788"},{"i":"223473658478","d":"2024-06-09","t":"오답의 의미.","c":"단상 (斷想 )","u":"https://blog.naver.com/pillion21/223473658478"},{"i":"223478198581","d":"2024-06-13","t":"만남 2.","c":"단상 (斷想 )","u":"https://blog.naver.com/pillion21/223478198581"},{"i":"223477930477","d":"2024-06-13","t":"만남.","c":"단상 (斷想 )","u":"https://blog.naver.com/pillion21/223477930477"},{"i":"223481184508","d":"2024-06-16","t":"11회","c":"턱걸이","u":"https://blog.naver.com/pillion21/223481184508"},{"i":"223482294208","d":"2024-06-17","t":"우리는 그닥 많이 알지 못한다.","c":"단상 (斷想 )","u":"https://blog.naver.com/pillion21/223482294208"},{"i":"223483040218","d":"2024-06-18","t":"각자 자기길 가자.","c":"단상 (斷想 )","u":"https://blog.naver.com/pillion21/223483040218"},{"i":"223484273300","d":"2024-06-19","t":"이 문장이 왜 어렵다는거지?","c":"단상 (斷想 )","u":"https://blog.naver.com/pillion21/223484273300"},{"i":"223484063523","d":"2024-06-19","t":"강탄이 벼리 소식","c":"벼리와 강탄이","u":"https://blog.naver.com/pillion21/223484063523"},{"i":"223485685243","d":"2024-06-20","t":"내 생각.","c":"단상 (斷想 )","u":"https://blog.naver.com/pillion21/223485685243"},{"i":"223496062290","d":"2024-06-30","t":"12회","c":"턱걸이","u":"https://blog.naver.com/pillion21/223496062290"},{"i":"223506799638","d":"2024-07-09","t":"싱거운 질문.  싱거운 답","c":"단상 (斷想 )","u":"https://blog.naver.com/pillion21/223506799638"},{"i":"223512056936","d":"2024-07-14","t":"13회.","c":"턱걸이","u":"https://blog.naver.com/pillion21/223512056936"},{"i":"223525914794","d":"2024-07-26","t":"완벽함은 불가능하다.","c":"단상 (斷想 )","u":"https://blog.naver.com/pillion21/223525914794"},{"i":"223528255201","d":"2024-07-28","t":"14회","c":"턱걸이","u":"https://blog.naver.com/pillion21/223528255201"},{"i":"223528099757","d":"2024-07-28","t":"인생의 무게.","c":"단상 (斷想 )","u":"https://blog.naver.com/pillion21/223528099757"},{"i":"223535821251","d":"2024-08-04","t":"끝없는 rally.","c":"단상 (斷想 )","u":"https://blog.naver.com/pillion21/223535821251"},{"i":"223543110755","d":"2024-08-10","t":"역사적인 한주 1.","c":"단상 (斷想 )","u":"https://blog.naver.com/pillion21/223543110755"},{"i":"223544219230","d":"2024-08-11","t":"15회","c":"턱걸이","u":"https://blog.naver.com/pillion21/223544219230"},{"i":"223544414864","d":"2024-08-11","t":"역사적인 한주 2.","c":"단상 (斷想 )","u":"https://blog.naver.com/pillion21/223544414864"},{"i":"223554770735","d":"2024-08-20","t":"시장은 반복된다.","c":"단상 (斷想 )","u":"https://blog.naver.com/pillion21/223554770735"},{"i":"223555408665","d":"2024-08-21","t":"논쟁의 격.","c":"단상 (斷想 )","u":"https://blog.naver.com/pillion21/223555408665"},{"i":"223557853528","d":"2024-08-23","t":"악화가 양화를 구축하는 곳.","c":"단상 (斷想 )","u":"https://blog.naver.com/pillion21/223557853528"},{"i":"223560182196","d":"2024-08-25","t":"16회","c":"턱걸이","u":"https://blog.naver.com/pillion21/223560182196"},{"i":"223560056383","d":"2024-08-25","t":"하루를 두번 산다면..","c":"단상 (斷想 )","u":"https://blog.naver.com/pillion21/223560056383"},{"i":"223565639978","d":"2024-08-29","t":"여름을 좋아할수 없게 되었다.","c":"단상 (斷想 )","u":"https://blog.naver.com/pillion21/223565639978"},{"i":"223568241344","d":"2024-09-01","t":"개인투자자의 모습 2 -上","c":"단상 (斷想 )","u":"https://blog.naver.com/pillion21/223568241344"},{"i":"223569699267","d":"2024-09-02","t":"?. !","c":"단상 (斷想 )","u":"https://blog.naver.com/pillion21/223569699267"},{"i":"223570912589","d":"2024-09-03","t":"개인투자자의 모습 2- 中","c":"단상 (斷想 )","u":"https://blog.naver.com/pillion21/223570912589"},{"i":"223573742604","d":"2024-09-05","t":"귀가 좋아야 한다.","c":"단상 (斷想 )","u":"https://blog.naver.com/pillion21/223573742604"},{"i":"223575803300","d":"2024-09-07","t":"수학적 사고.","c":"단상 (斷想 )","u":"https://blog.naver.com/pillion21/223575803300"},{"i":"223576765419","d":"2024-09-08","t":"17 회","c":"턱걸이","u":"https://blog.naver.com/pillion21/223576765419"},{"i":"223579272042","d":"2024-09-10","t":"개인 투자자의 모습 2- 下","c":"단상 (斷想 )","u":"https://blog.naver.com/pillion21/223579272042"},{"i":"223581545222","d":"2024-09-12","t":"개인 투자자의 모습 2- 번외편","c":"단상 (斷想 )","u":"https://blog.naver.com/pillion21/223581545222"},{"i":"223584290839","d":"2024-09-14","t":"나를 잡았던 질문.","c":"단상 (斷想 )","u":"https://blog.naver.com/pillion21/223584290839"},{"i":"223585713383","d":"2024-09-16","t":"남자의 일생.","c":"단상 (斷想 )","u":"https://blog.naver.com/pillion21/223585713383"},{"i":"223592263925","d":"2024-09-22","t":"18회","c":"턱걸이","u":"https://blog.naver.com/pillion21/223592263925"},{"i":"223598765565","d":"2024-09-27","t":"가을이 너무 좋다.","c":"단상 (斷想 )","u":"https://blog.naver.com/pillion21/223598765565"},{"i":"223600502162","d":"2024-09-29","t":"P.S.","c":"단상 (斷想 )","u":"https://blog.naver.com/pillion21/223600502162"},{"i":"223612554656","d":"2024-10-09","t":"기막힌 우연.","c":"단상 (斷想 )","u":"https://blog.naver.com/pillion21/223612554656"},{"i":"223617078798","d":"2024-10-13","t":"19회","c":"턱걸이","u":"https://blog.naver.com/pillion21/223617078798"},{"i":"223634282481","d":"2024-10-26","t":"해석이 모두 다르니까 시장이다.","c":"단상 (斷想 )","u":"https://blog.naver.com/pillion21/223634282481"},{"i":"223635556189","d":"2024-10-27","t":"20회","c":"턱걸이","u":"https://blog.naver.com/pillion21/223635556189"},{"i":"223651055899","d":"2024-11-07","t":"Memento mori. 1","c":"단상 (斷想 )","u":"https://blog.naver.com/pillion21/223651055899"},{"i":"223653239430","d":"2024-11-09","t":"Memento mori. 2","c":"단상 (斷想 )","u":"https://blog.naver.com/pillion21/223653239430"},{"i":"223654658068","d":"2024-11-10","t":"21회","c":"턱걸이","u":"https://blog.naver.com/pillion21/223654658068"},{"i":"223671279650","d":"2024-11-24","t":"22회","c":"턱걸이","u":"https://blog.naver.com/pillion21/223671279650"},{"i":"223673524246","d":"2024-11-26","t":"가치와 수급.","c":"단상 (斷想 )","u":"https://blog.naver.com/pillion21/223673524246"},{"i":"223674667141","d":"2024-11-27","t":"수급의 의미를 물으셔서..","c":"단상 (斷想 )","u":"https://blog.naver.com/pillion21/223674667141"},{"i":"223678726905","d":"2024-12-01","t":"먼저 경험했을뿐, 답을 알지도 찾지도 못했다.","c":"단상 (斷想 )","u":"https://blog.naver.com/pillion21/223678726905"},{"i":"223683129217","d":"2024-12-05","t":"12월 4일.","c":"단상 (斷想 )","u":"https://blog.naver.com/pillion21/223683129217"},{"i":"223687627727","d":"2024-12-09","t":"23회","c":"턱걸이","u":"https://blog.naver.com/pillion21/223687627727"},{"i":"223693229067","d":"2024-12-14","t":"승(勝)을 대하는 자세.","c":"단상 (斷想 )","u":"https://blog.naver.com/pillion21/223693229067"},{"i":"223695369012","d":"2024-12-16","t":"아는것만 이야기 하라니깐..","c":"단상 (斷想 )","u":"https://blog.naver.com/pillion21/223695369012"},{"i":"223698355471","d":"2024-12-19","t":"향수.","c":"단상 (斷想 )","u":"https://blog.naver.com/pillion21/223698355471"},{"i":"223702025904","d":"2024-12-22","t":"트레이딩은 그렇게 하면, 할게 못되는것이 맞고..","c":"단상 (斷想 )","u":"https://blog.naver.com/pillion21/223702025904"},{"i":"223708409140","d":"2024-12-29","t":"24회.","c":"턱걸이","u":"https://blog.naver.com/pillion21/223708409140"},{"i":"223709854260","d":"2024-12-30","t":"지켜야 할 선.","c":"단상 (斷想 )","u":"https://blog.naver.com/pillion21/223709854260"},{"i":"223710822173","d":"2024-12-31","t":"2024.12.31","c":"단상 (斷想 )","u":"https://blog.naver.com/pillion21/223710822173"},{"i":"223713474029","d":"2025-01-03","t":"1회차.","c":"작심삼일","u":"https://blog.naver.com/pillion21/223713474029"},{"i":"223723325296","d":"2025-01-12","t":"2.3 회차.","c":"작심삼일","u":"https://blog.naver.com/pillion21/223723325296"},{"i":"223735934624","d":"2025-01-23","t":"문제는 실천력이다.","c":"단상 (斷想 )","u":"https://blog.naver.com/pillion21/223735934624"},{"i":"223739205543","d":"2025-01-26","t":"25년 1월.","c":"턱걸이","u":"https://blog.naver.com/pillion21/223739205543"},{"i":"223739901777","d":"2025-01-27","t":"6.7 회차.","c":"작심삼일","u":"https://blog.naver.com/pillion21/223739901777"},{"i":"223752734842","d":"2025-02-08","t":"8.9 회차.","c":"작심삼일","u":"https://blog.naver.com/pillion21/223752734842"},{"i":"223754079703","d":"2025-02-09","t":"답을 드리기에 앞서 1.","c":"단상 (斷想 )","u":"https://blog.naver.com/pillion21/223754079703"},{"i":"223758139716","d":"2025-02-12","t":"답을 드리기에 앞서 2.","c":"단상 (斷想 )","u":"https://blog.naver.com/pillion21/223758139716"},{"i":"223763364232","d":"2025-02-17","t":"좋은 인연. 그리고 아들.","c":"단상 (斷想 )","u":"https://blog.naver.com/pillion21/223763364232"},{"i":"223767325635","d":"2025-02-20","t":"10.11 회차.","c":"작심삼일","u":"https://blog.naver.com/pillion21/223767325635"},{"i":"223773592213","d":"2025-02-25","t":"날짜와 장소.","c":"턱걸이","u":"https://blog.naver.com/pillion21/223773592213"},{"i":"223783733326","d":"2025-03-04","t":"1.","c":"단상 (斷想 )","u":"https://blog.naver.com/pillion21/223783733326"},{"i":"223784971963","d":"2025-03-05","t":"2.","c":"단상 (斷想 )","u":"https://blog.naver.com/pillion21/223784971963"},{"i":"223785980255","d":"2025-03-06","t":"3.","c":"단상 (斷想 )","u":"https://blog.naver.com/pillion21/223785980255"},{"i":"223787959005","d":"2025-03-07","t":"4","c":"단상 (斷想 )","u":"https://blog.naver.com/pillion21/223787959005"},{"i":"223789517503","d":"2025-03-09","t":"5.","c":"단상 (斷想 )","u":"https://blog.naver.com/pillion21/223789517503"},{"i":"223790995946","d":"2025-03-10","t":"12. 13회차.","c":"작심삼일","u":"https://blog.naver.com/pillion21/223790995946"},{"i":"223794667143","d":"2025-03-13","t":"답을 마치면서.","c":"단상 (斷想 )","u":"https://blog.naver.com/pillion21/223794667143"},{"i":"223804996631","d":"2025-03-21","t":"드디어. 내일.","c":"턱걸이","u":"https://blog.naver.com/pillion21/223804996631"},{"i":"223806733561","d":"2025-03-23","t":"이 감정은 무얼까? 시원섭섭.. 아쉬움..","c":"턱걸이","u":"https://blog.naver.com/pillion21/223806733561"},{"i":"223813876784","d":"2025-03-29","t":"투자는 자신을 알아 가는 과정.","c":"단상 (斷想 )","u":"https://blog.naver.com/pillion21/223813876784"},{"i":"223814707985","d":"2025-03-30","t":"14 회차.","c":"작심삼일","u":"https://blog.naver.com/pillion21/223814707985"},{"i":"223817151119","d":"2025-04-01","t":"확신의 정도.","c":"단상 (斷想 )","u":"https://blog.naver.com/pillion21/223817151119"},{"i":"223823197596","d":"2025-04-05","t":"하던걸 하자.","c":"단상 (斷想 )","u":"https://blog.naver.com/pillion21/223823197596"},{"i":"223831834232","d":"2025-04-13","t":"벼리의 임신","c":"벼리와 강탄이","u":"https://blog.naver.com/pillion21/223831834232"},{"i":"223854128597","d":"2025-05-03","t":"이게 답은 아니겠지만..","c":"단상 (斷想 )","u":"https://blog.naver.com/pillion21/223854128597"},{"i":"223856203565","d":"2025-05-05","t":"댓글이 준 선물.","c":"단상 (斷想 )","u":"https://blog.naver.com/pillion21/223856203565"},{"i":"223874721726","d":"2025-05-23","t":"같은 듯 다른.","c":"단상 (斷想 )","u":"https://blog.naver.com/pillion21/223874721726"},{"i":"223891255122","d":"2025-06-07","t":"드디어 다음 주.","c":"벼리와 강탄이","u":"https://blog.naver.com/pillion21/223891255122"},{"i":"223896202447","d":"2025-06-11","t":"벼리야 애썼다.","c":"벼리와 강탄이","u":"https://blog.naver.com/pillion21/223896202447"},{"i":"223902098520","d":"2025-06-17","t":"모성본능.","c":"벼리와 강탄이","u":"https://blog.naver.com/pillion21/223902098520"},{"i":"223908447085","d":"2025-06-23","t":"알 수 없는 인간.","c":"단상 (斷想 )","u":"https://blog.naver.com/pillion21/223908447085"},{"i":"223915294636","d":"2025-06-29","t":"걷기 시작한 새끼들.","c":"벼리와 강탄이","u":"https://blog.naver.com/pillion21/223915294636"},{"i":"223930912084","d":"2025-07-12","t":"태도가 9할.","c":"단상 (斷想 )","u":"https://blog.naver.com/pillion21/223930912084"},{"i":"223940659035","d":"2025-07-20","t":"파생시장은..","c":"단상 (斷想 )","u":"https://blog.naver.com/pillion21/223940659035"},{"i":"223941705251","d":"2025-07-21","t":"사랑으로 키워 주실분 !!","c":"벼리와 강탄이","u":"https://blog.naver.com/pillion21/223941705251"},{"i":"223943102003","d":"2025-07-22","t":"분양 완료 되었습니다.","c":"벼리와 강탄이","u":"https://blog.naver.com/pillion21/223943102003"},{"i":"223947548993","d":"2025-07-26","t":"후생가외라더니..","c":"단상 (斷想 )","u":"https://blog.naver.com/pillion21/223947548993"},{"i":"223950308751","d":"2025-07-28","t":"한마디만 더.","c":"단상 (斷想 )","u":"https://blog.naver.com/pillion21/223950308751"},{"i":"223955448156","d":"2025-08-01","t":"이게 맞다고 생각해?","c":"단상 (斷想 )","u":"https://blog.naver.com/pillion21/223955448156"},{"i":"223954730293","d":"2025-08-01","t":"잘 살아. 이쁨 많이 받고...","c":"벼리와 강탄이","u":"https://blog.naver.com/pillion21/223954730293"},{"i":"223965682061","d":"2025-08-10","t":"순수한 영혼에게.","c":"단상 (斷想 )","u":"https://blog.naver.com/pillion21/223965682061"},{"i":"223970269167","d":"2025-08-14","t":"A님 / 코인 선물 투자에 대하여.","c":"질문에 대한 생각.","u":"https://blog.naver.com/pillion21/223970269167"},{"i":"223971168655","d":"2025-08-15","t":"한가해진 풍경","c":"벼리와 강탄이","u":"https://blog.naver.com/pillion21/223971168655"},{"i":"223972166355","d":"2025-08-16","t":"답이 없다면서.. 왜?","c":"단상 (斷想 )","u":"https://blog.naver.com/pillion21/223972166355"},{"i":"223977019362","d":"2025-08-20","t":"진짜 헛웃음 나와서..","c":"단상 (斷想 )","u":"https://blog.naver.com/pillion21/223977019362"},{"i":"223979311584","d":"2025-08-22","t":"B님 / 투자는 길고 긴 여정입니다.","c":"질문에 대한 생각.","u":"https://blog.naver.com/pillion21/223979311584"},{"i":"223981269018","d":"2025-08-24","t":"내년에는 여름을 좋아해 볼까?","c":"단상 (斷想 )","u":"https://blog.naver.com/pillion21/223981269018"},{"i":"223997427011","d":"2025-09-06","t":"다채로운 세상.","c":"단상 (斷想 )","u":"https://blog.naver.com/pillion21/223997427011"},{"i":"223998915501","d":"2025-09-07","t":"20명. 500명. 그걸 누가 알겠어..?","c":"단상 (斷想 )","u":"https://blog.naver.com/pillion21/223998915501"},{"i":"224002460633","d":"2025-09-10","t":"즐거웠지만..","c":"단상 (斷想 )","u":"https://blog.naver.com/pillion21/224002460633"},{"i":"224006353634","d":"2025-09-13","t":"이게 1년전이라니..","c":"단상 (斷想 )","u":"https://blog.naver.com/pillion21/224006353634"},{"i":"224006563616","d":"2025-09-13","t":"모두 떠나고..","c":"벼리와 강탄이","u":"https://blog.naver.com/pillion21/224006563616"},{"i":"224012545762","d":"2025-09-18","t":"그게 시작이었다.","c":"단상 (斷想 )","u":"https://blog.naver.com/pillion21/224012545762"},{"i":"224016381651","d":"2025-09-21","t":"C님 / 투자의 실패가 인생의 실패는 아닙니다.","c":"질문에 대한 생각.","u":"https://blog.naver.com/pillion21/224016381651"},{"i":"224023403813","d":"2025-09-27","t":"투자가 불로소득이라고?","c":"단상 (斷想 )","u":"https://blog.naver.com/pillion21/224023403813"},{"i":"224030882918","d":"2025-10-03","t":"실패의 시간을, 준비의 과정으로..","c":"단상 (斷想 )","u":"https://blog.naver.com/pillion21/224030882918"},{"i":"224035080855","d":"2025-10-08","t":"강연 참석자 분들께 질문.","c":"단상 (斷想 )","u":"https://blog.naver.com/pillion21/224035080855"},{"i":"224038810859","d":"2025-10-12","t":"번거롭게 해 드렸습니다.","c":"단상 (斷想 )","u":"https://blog.naver.com/pillion21/224038810859"},{"i":"224038264103","d":"2025-10-12","t":"길을 아는것과 걷는것의 차이.","c":"단상 (斷想 )","u":"https://blog.naver.com/pillion21/224038264103"},{"i":"224039714909","d":"2025-10-13","t":"뜬구름 잡는 이야기.","c":"단상 (斷想 )","u":"https://blog.naver.com/pillion21/224039714909"},{"i":"224045266456","d":"2025-10-18","t":"포즈랑의 투자 이야기.","c":"단상 (斷想 )","u":"https://blog.naver.com/pillion21/224045266456"},{"i":"224070729038","d":"2025-11-10","t":"11월 29일 강연안내. 그리고..","c":"단상 (斷想 )","u":"https://blog.naver.com/pillion21/224070729038"},{"i":"224073122850","d":"2025-11-12","t":"인생을 모르지만..","c":"단상 (斷想 )","u":"https://blog.naver.com/pillion21/224073122850"},{"i":"224074266823","d":"2025-11-13","t":"버블일까?.","c":"단상 (斷想 )","u":"https://blog.naver.com/pillion21/224074266823"},{"i":"224076605849","d":"2025-11-15","t":"확률투자 / 확신투자.","c":"단상 (斷想 )","u":"https://blog.naver.com/pillion21/224076605849"},{"i":"224079713426","d":"2025-11-18","t":"힘들었던 며칠.","c":"단상 (斷想 )","u":"https://blog.naver.com/pillion21/224079713426"},{"i":"224084259350","d":"2025-11-22","t":"돈을 무심히 보는 힘.","c":"단상 (斷想 )","u":"https://blog.naver.com/pillion21/224084259350"},{"i":"224086716616","d":"2025-11-24","t":"지나간 한 페이지.","c":"단상 (斷想 )","u":"https://blog.naver.com/pillion21/224086716616"},{"i":"224087710463","d":"2025-11-25","t":"그냥 그렇다는 거다.","c":"단상 (斷想 )","u":"https://blog.naver.com/pillion21/224087710463"},{"i":"224089597336","d":"2025-11-27","t":"내길을 내 리듬으로.","c":"단상 (斷想 )","u":"https://blog.naver.com/pillion21/224089597336"},{"i":"224090876785","d":"2025-11-28","t":"그게 전부다.","c":"단상 (斷想 )","u":"https://blog.naver.com/pillion21/224090876785"},{"i":"224093402115","d":"2025-11-30","t":"기억에 남을 금, 토요일.","c":"단상 (斷想 )","u":"https://blog.naver.com/pillion21/224093402115"},{"i":"224095606956","d":"2025-12-02","t":"확신보다 더 어려운 건, 유연함이다.","c":"단상 (斷想 )","u":"https://blog.naver.com/pillion21/224095606956"},{"i":"224097828174","d":"2025-12-04","t":"기운이라는게 있을까?","c":"단상 (斷想 )","u":"https://blog.naver.com/pillion21/224097828174"},{"i":"224100591941","d":"2025-12-06","t":"패(敗)를 대하는 자세 1.","c":"단상 (斷想 )","u":"https://blog.naver.com/pillion21/224100591941"},{"i":"224102770775","d":"2025-12-08","t":"돈을 대하는 상식.","c":"단상 (斷想 )","u":"https://blog.naver.com/pillion21/224102770775"},{"i":"224104902274","d":"2025-12-10","t":"확신과 기대.","c":"단상 (斷想 )","u":"https://blog.naver.com/pillion21/224104902274"},{"i":"224108067265","d":"2025-12-13","t":"시장은 익숙한데, 인생은 낯설다.","c":"단상 (斷想 )","u":"https://blog.naver.com/pillion21/224108067265"},{"i":"224112654418","d":"2025-12-17","t":"패를 대하는 자세 2.","c":"단상 (斷想 )","u":"https://blog.naver.com/pillion21/224112654418"},{"i":"224115527839","d":"2025-12-19","t":"이제는 상상력의 싸움.","c":"단상 (斷想 )","u":"https://blog.naver.com/pillion21/224115527839"},{"i":"224117202768","d":"2025-12-21","t":"목계 (木鷄) 1.","c":"단상 (斷想 )","u":"https://blog.naver.com/pillion21/224117202768"},{"i":"224119560748","d":"2025-12-23","t":"목계 (木鷄) 2.","c":"단상 (斷想 )","u":"https://blog.naver.com/pillion21/224119560748"},{"i":"224122151337","d":"2025-12-25","t":"목계(木鷄) 3.","c":"단상 (斷想 )","u":"https://blog.naver.com/pillion21/224122151337"},{"i":"224124327141","d":"2025-12-27","t":"목계(木鷄) 4.","c":"단상 (斷想 )","u":"https://blog.naver.com/pillion21/224124327141"},{"i":"224125171268","d":"2025-12-28","t":"목계(木鷄) 5.","c":"단상 (斷想 )","u":"https://blog.naver.com/pillion21/224125171268"},{"i":"224126418000","d":"2025-12-29","t":"뒷이야기.","c":"단상 (斷想 )","u":"https://blog.naver.com/pillion21/224126418000"},{"i":"224128928285","d":"2025-12-31","t":"2025.12.31 그리고 끝.","c":"단상 (斷想 )","u":"https://blog.naver.com/pillion21/224128928285"},{"i":"224141341159","d":"2026-01-10","t":"다시 턱걸이.","c":"턱걸이","u":"https://blog.naver.com/pillion21/224141341159"},{"i":"224142606288","d":"2026-01-11","t":"26년 1회","c":"턱걸이","u":"https://blog.naver.com/pillion21/224142606288"},{"i":"224159132891","d":"2026-01-25","t":"26년 2회","c":"턱걸이","u":"https://blog.naver.com/pillion21/224159132891"},{"i":"224176195716","d":"2026-02-08","t":"26년 3회.","c":"턱걸이","u":"https://blog.naver.com/pillion21/224176195716"},{"i":"224191560211","d":"2026-02-22","t":"26년 4회.","c":"턱걸이","u":"https://blog.naver.com/pillion21/224191560211"},{"i":"224208802224","d":"2026-03-08","t":"26년 5회.","c":"턱걸이","u":"https://blog.naver.com/pillion21/224208802224"},{"i":"224213185786","d":"2026-03-12","t":"취중.","c":"끄적끄적","u":"https://blog.naver.com/pillion21/224213185786"},{"i":"224224343941","d":"2026-03-21","t":"26년 6회. 부상.","c":"턱걸이","u":"https://blog.naver.com/pillion21/224224343941"},{"i":"224225324156","d":"2026-03-22","t":"끝난건 아니다.","c":"좋은 글","u":"https://blog.naver.com/pillion21/224225324156"},{"i":"224228001579","d":"2026-03-24","t":"주식 같은 것 때문에.","c":"좋은 글","u":"https://blog.naver.com/pillion21/224228001579"},{"i":"224241564175","d":"2026-04-05","t":"7회","c":"턱걸이","u":"https://blog.naver.com/pillion21/224241564175"},{"i":"224245471406","d":"2026-04-08","t":"벚꽃은 예뻤고, 경기는..","c":"끄적끄적","u":"https://blog.naver.com/pillion21/224245471406"},{"i":"224248653146","d":"2026-04-11","t":"바닥 어디까지 쳐봤어?","c":"좋은 글","u":"https://blog.naver.com/pillion21/224248653146"},{"i":"224256177227","d":"2026-04-17","t":"그걸로 충분해.","c":"끄적끄적","u":"https://blog.naver.com/pillion21/224256177227"},{"i":"224257725829","d":"2026-04-19","t":"8회","c":"턱걸이","u":"https://blog.naver.com/pillion21/224257725829"},{"i":"224264606961","d":"2026-04-25","t":"세상에 싼 주도주가 있어?","c":"끄적끄적","u":"https://blog.naver.com/pillion21/224264606961"},{"i":"224267169891","d":"2026-04-27","t":"내 생각일 뿐이다.","c":"끄적끄적","u":"https://blog.naver.com/pillion21/224267169891"},{"i":"224273425799","d":"2026-05-03","t":"9회","c":"턱걸이","u":"https://blog.naver.com/pillion21/224273425799"},{"i":"224283152424","d":"2026-05-12","t":"좋은 댓글이어서..","c":"좋은 글","u":"https://blog.naver.com/pillion21/224283152424"},{"i":"224288006429","d":"2026-05-17","t":"10회","c":"턱걸이","u":"https://blog.naver.com/pillion21/224288006429"},{"i":"224289354484","d":"2026-05-18","t":"이번이 아니면. 다음. 다음이 아니면. 그다음.","c":"끄적끄적","u":"https://blog.naver.com/pillion21/224289354484"},{"i":"224291090605","d":"2026-05-20","t":"높고 단단한 벽.","c":"끄적끄적","u":"https://blog.naver.com/pillion21/224291090605"},{"i":"224295013911","d":"2026-05-24","t":"부드러움 뒤의 야수성.","c":"끄적끄적","u":"https://blog.naver.com/pillion21/224295013911"},{"i":"224299466493","d":"2026-05-28","t":"날씨는 좋았고, 경기는..","c":"끄적끄적","u":"https://blog.naver.com/pillion21/224299466493"},{"i":"224301156771","d":"2026-05-30","t":"살아남았다는 건..","c":"끄적끄적","u":"https://blog.naver.com/pillion21/224301156771"},{"i":"224301801537","d":"2026-05-31","t":"11회","c":"턱걸이","u":"https://blog.naver.com/pillion21/224301801537"},{"i":"224304597556","d":"2026-06-03","t":"시장은 늘 옳다.","c":"끄적끄적","u":"https://blog.naver.com/pillion21/224304597556"},{"i":"224314092707","d":"2026-06-12","t":"1년전 그날.","c":"벼리와 강탄이","u":"https://blog.naver.com/pillion21/224314092707"},{"i":"224315584330","d":"2026-06-14","t":"12회","c":"턱걸이","u":"https://blog.naver.com/pillion21/224315584330"},{"i":"224317328950","d":"2026-06-16","t":"복기.","c":"끄적끄적","u":"https://blog.naver.com/pillion21/224317328950"},{"i":"224322029777","d":"2026-06-20","t":"인생을 걸고 들어온 사람.","c":"끄적끄적","u":"https://blog.naver.com/pillion21/224322029777"},{"i":"224322565375","d":"2026-06-21","t":"몇분이나?","c":"끄적끄적","u":"https://blog.naver.com/pillion21/224322565375"},{"i":"224325915147","d":"2026-06-24","t":"달은 안찼고. 경기는...","c":"끄적끄적","u":"https://blog.naver.com/pillion21/224325915147"},{"i":"224325539238","d":"2026-06-24","t":"편하게 가자.","c":"끄적끄적","u":"https://blog.naver.com/pillion21/224325539238"},{"i":"224332954637","d":"2026-07-01","t":"그릇 1.","c":"끄적끄적","u":"https://blog.naver.com/pillion21/224332954637"},{"i":"224335327233","d":"2026-07-03","t":"그릇 2.","c":"끄적끄적","u":"https://blog.naver.com/pillion21/224335327233"},{"i":"224337082044","d":"2026-07-05","t":"13회","c":"턱걸이","u":"https://blog.naver.com/pillion21/224337082044"},{"i":"224336949824","d":"2026-07-05","t":"그릇 3.","c":"끄적끄적","u":"https://blog.naver.com/pillion21/224336949824"},{"i":"224340750866","d":"2026-07-08","t":"심리를 읽어야 할 때.","c":"끄적끄적","u":"https://blog.naver.com/pillion21/224340750866"},{"i":"224342252618","d":"2026-07-10","t":"뒷이야기.","c":"끄적끄적","u":"https://blog.naver.com/pillion21/224342252618"},{"i":"224344378924","d":"2026-07-12","t":"싱거운 질문. 싱거운 답 2","c":"끄적끄적","u":"https://blog.naver.com/pillion21/224344378924"},{"i":"224351097936","d":"2026-07-19","t":"14회.","c":"턱걸이","u":"https://blog.naver.com/pillion21/224351097936"},{"i":"224350911561","d":"2026-07-19","t":"가장 어려운 상대.","c":"끄적끄적","u":"https://blog.naver.com/pillion21/224350911561"},{"i":"224354803712","d":"2026-07-22","t":"27년 초대장.","c":"27년 초대장.","u":"https://blog.naver.com/pillion21/224354803712"},{"i":"224358119078","d":"2026-07-26","t":"27년 초대장 2.","c":"27년 초대장.","u":"https://blog.naver.com/pillion21/224358119078"},{"i":"224359104873","d":"2026-07-27","t":"19년전. 칼날을 잡던 시절.","c":"좋은 글","u":"https://blog.naver.com/pillion21/224359104873"},{"i":"224359709498","d":"2026-07-27","t":"여동생의 멘탈.","c":"벼리와 강탄이","u":"https://blog.naver.com/pillion21/224359709498"},{"i":"224361273236","d":"2026-07-29","t":"생명선.","c":"끄적끄적","u":"https://blog.naver.com/pillion21/224361273236"},{"i":"224363045378","d":"2026-07-30","t":"2004년 5월 10일.","c":"끄적끄적","u":"https://blog.naver.com/pillion21/224363045378"},{"i":"224365627878","d":"2026-08-02","t":"15회.","c":"턱걸이","u":"https://blog.naver.com/pillion21/224365627878"},{"i":"224365515069","d":"2026-08-02","t":"위기는 사람을 가려낸다.","c":"끄적끄적","u":"https://blog.naver.com/pillion21/224365515069"},{"i":"224366539692","d":"2026-08-03","t":"시작.","c":"27년 초대장.","u":"https://blog.naver.com/pillion21/224366539692"},{"i":"224367977445","d":"2026-08-04","t":"좋아한다는 것.","c":"끄적끄적","u":"https://blog.naver.com/pillion21/224367977445"},{"i":"224370222997","d":"2026-08-06","t":"출발선.","c":"27년 초대장.","u":"https://blog.naver.com/pillion21/224370222997"},{"i":"224372442007","d":"2026-08-08","t":"포르쉐가 먼저일까? 100억이 먼저일까?","c":"끄적끄적","u":"https://blog.naver.com/pillion21/224372442007"},{"i":"224374436879","d":"2026-08-10","t":"100억이 먼저였다.","c":"끄적끄적","u":"https://blog.naver.com/pillion21/224374436879"},{"i":"224376109468","d":"2026-08-12","t":"뒷이야기.","c":"끄적끄적","u":"https://blog.naver.com/pillion21/224376109468"},{"i":"224379394662","d":"2026-08-15","t":"뒷이야기 외전.","c":"끄적끄적","u":"https://blog.naver.com/pillion21/224379394662"},{"i":"224384834821","d":"2026-08-20","t":"동기부여 1.","c":"27년 초대장.","u":"https://blog.naver.com/pillion21/224384834821"},{"i":"224386857744","d":"2026-08-22","t":"비대해진 자아.","c":"끄적끄적","u":"https://blog.naver.com/pillion21/224386857744"},{"i":"224388251957","d":"2026-08-24","t":"들은 이야기.","c":"끄적끄적","u":"https://blog.naver.com/pillion21/224388251957"}]</script>
+<script type="application/json" id="notes">[{"id": "n1", "post": "222284946597", "quote": "거래에 있어서, 레버리지 관리는 시작과 끝이라고 할 만큼 중요한 것인데..\n저는 이토록 날카로운 부분을, 너무 엉성하게 다루고 있었습니다.\n몇년째 저변동성으로 인해서, 수익을 크게 내기 어려운 시장..\n레버리지 증가를 생각할 필요가 없는 수익곡선.\n그 시장에 저는, 이미 많이 익숙해 져버린 상황이었고..\n그리고 그러한 익숙함은, 다른 시장에 대한 준비를 전혀 해 놓지 않은 것입니다.\n\n결국... 익숙함... 그 부분이 또 문제였습니다.\n\n그러나 그렇다고는 해도..\n왜. 굳이.. 아무 생각없이 끄적여뒀던 목표치를 딱 달성시켜서,\n레버리지를 50% 증액 시킨 그 날부터.. 이렇게까지 난타를 당할수 있는것인지..\n그 부분은 좀 당황스러웠습니다.\n\n나를 여기까지 끌고 와준..\n시스템 트레이딩을 얼마나 믿을수 있을것인가?\n왜 하필 내가 설정한 그 목표치. 딱 거기를 찍고..\n이렇게 시장은 변해버린것일까?", "think": "", "apply": "", "differ": "", "ask": "", "links": ["120198179514", "120113073776", "120056775267", "224336949824", "223473658478", "223288561580"], "tags": ["레버리지", "시스템트레이딩", "익숙함", "자만"], "status": "draft", "created": "2026-08-26", "updated": "2026-08-26"}]</script>
+<script type="text/plain" id="appsrc">(function(){
+"use strict";
+var $=function(s,r){return (r||document).querySelector(s)};
+var esc=function(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){
+  return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'})[c]})};
+var POSTS=JSON.parse($('#posts').textContent);
+var NOTES=JSON.parse($('#notes').textContent);
+var CFG=JSON.parse($('#cfg').textContent);
+var PMAP={}; POSTS.forEach(function(p){PMAP[p.i]=p});
+var LS='nb_thoughts_v1', SS='nb_draft_v1';
+var artifactNS=null, dlNS=null, resolved=false, localMode=false;
+var cur=null, dirty=false, filter={q:'',st:'all'}, SHELL='';
+
+var FIELDS=[
+ {k:'quote',cls:'quote',label:'인용 — 걸린 대목',rows:6,
+  hint:'원문에서 마음에 걸린 문장을 그대로 옮겨 둡니다. 나중에 다시 열었을 때 여기서 다시 출발하게 됩니다.',
+  ph:'원문에서 옮겨 붙이세요.'},
+ {k:'think',label:'내 생각',rows:11,
+  hint:'동의하든 아니든 내 언어로. 요약이 아니라 반응을 적습니다.',
+  ph:'이 대목이 왜 걸렸는가.\n내 경험 중 어디에 닿는가.\n저자가 말하지 않은 것은 무엇인가.'},
+ {k:'apply',label:'나에게 적용하면',rows:6,
+  hint:'내 계좌·내 상황에서 무엇을 바꿀 것인가. 숫자로 적을 수 있으면 숫자로.',
+  ph:'바꿀 것 하나.\n그 판단의 기준선(숫자).\n언제 점검할 것인가.'},
+ {k:'differ',label:'다른 점 · 동의하지 않는 부분',rows:6,
+  hint:'그대로 따라 하면 안 되는 이유를 먼저 적어둡니다. 이 칸이 비어 있으면 대개 아직 소화가 안 된 것입니다.',
+  ph:'내 조건이 저자와 다른 지점.\n저자의 전제 중 나에게 성립하지 않는 것.'},
+ {k:'ask',label:'남는 질문',rows:5,
+  hint:'답을 못 찾은 것. 다음에 확인할 것.',
+  ph:'아직 모르겠는 것.'}
+];
+
+function uid(){return 'n'+Date.now().toString(36)+Math.floor(Math.random()*1e4).toString(36)}
+function today(){var d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')}
+function toast(m){var t=$('#toast');t.textContent=m;t.classList.add('on');clearTimeout(t._t);t._t=setTimeout(function(){t.classList.remove('on')},2600)}
+function saveLocal(){try{localStorage.setItem(LS,JSON.stringify(NOTES))}catch(e){}}
+function stash(){try{sessionStorage.setItem(SS,JSON.stringify({cur:cur}))}catch(e){}}
+function noteById(id){for(var i=0;i<NOTES.length;i++) if(NOTES[i].id===id) return NOTES[i]; return null}
+function jsonSafe(o){return JSON.stringify(o).replace(/</g,'\\u003c')}
+
+function buildDoc(){
+  var css=$('#css').textContent, app=$('#appsrc').textContent, cfg=$('#cfg').textContent;
+  var fonts='<link rel="preconnect" href="https://fonts.googleapis.com">'+
+    '<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>'+
+    '<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nanum+Myeongjo:wght@400;700;800'+
+    '&family=IBM+Plex+Sans+KR:wght@300;400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">';
+  return '<!doctype html>\n<html lang="ko">\n<head>\n<meta charset="utf-8">\n'+
+    '<meta name="viewport" content="width=device-width,initial-scale=1">\n'+
+    '<title>선배님의 20년 — 내 생각</title>\n'+fonts+'\n<style id="css">'+css+'<\/style>\n</head>\n<body>\n'+
+    SHELL+'\n<div id="toast"><\/div>\n'+
+    '<script type="application/json" id="cfg">'+cfg.replace(/</g,'\\u003c')+'<\/script>\n'+
+    '<script type="application/json" id="posts">'+jsonSafe(POSTS)+'<\/script>\n'+
+    '<script type="application/json" id="notes">'+jsonSafe(NOTES)+'<\/script>\n'+
+    '<script type="text/plain" id="appsrc">'+app+'<\/script>\n'+
+    '<script>'+app+'<\/script>\n</body>\n</html>\n';
+}
+function setBusy(b){var el=$('#savebtn'); if(el){el.disabled=b; el.textContent=b?'저장 중…':'저장'}}
+function persist(){
+  var n=noteById(cur); if(n) n.updated=today();
+  if(artifactNS){
+    stash(); setBusy(true);
+    artifactNS.publish(buildDoc()).then(function(){}).catch(function(e){
+      setBusy(false);
+      var c=e&&e.code;
+      if(c==='conflict'){ toast('다른 곳에서 먼저 저장되었습니다. 화면이 갱신됩니다.'); return }
+      if(c==='not_writer'||c==='not_granted'||c==='not_declared'){
+        localMode=true; artifactNS=null; saveLocal(); dirty=false; render();
+        toast('읽기 전용 화면이라 이 브라우저에만 저장했습니다.'); return }
+      if(c==='too_large'){ toast('내용이 너무 커서 저장하지 못했습니다.'); return }
+      if(c==='rate_limited'){ toast('저장이 너무 잦습니다. 잠시 후 다시 눌러 주세요.'); return }
+      toast('저장 실패: '+(e&&e.message||'알 수 없는 오류'));
+    });
+  } else { saveLocal(); dirty=false; renderSaveBar(); toast('이 브라우저에 저장했습니다'); }
+}
+
+function toMD(){
+  var L=['# 내 생각 — 선배님 블로그 아카이브','','원문 760편(2006~2026) 기준. 내보낸 날짜: '+today(),'','---',''];
+  NOTES.slice().sort(function(a,b){
+    var da=PMAP[a.post]?PMAP[a.post].d:'0', db=PMAP[b.post]?PMAP[b.post].d:'0';
+    return da<db?-1:da>db?1:0}).forEach(function(n){
+    var p=PMAP[n.post];
+    L.push('## '+(p?p.t:'(글 미지정)'),'');
+    if(p) L.push('- 원문: ['+p.d+' · '+p.c+' · '+p.t+']('+p.u+')');
+    L.push('- 상태: '+(n.status==='done'?'정리됨':'초안')+' · 작성 '+(n.created||'')+' · 수정 '+(n.updated||''));
+    if(n.tags&&n.tags.length) L.push('- 태그: '+n.tags.map(function(t){return '#'+t}).join(' '));
+    if(n.links&&n.links.length){ L.push('- 연결되는 글:');
+      n.links.forEach(function(id){var q=PMAP[id]; if(q) L.push('    - ['+q.d+' '+q.t+']('+q.u+')')}) }
+    L.push('');
+    FIELDS.forEach(function(f){
+      var v=(n[f.k]||'').trim(); if(!v) return;
+      L.push('### '+f.label.replace(/\s*—.*$/,''),'');
+      if(f.k==='quote') v=v.split('\n').map(function(x){return '> '+x}).join('\n');
+      L.push(v,'');
+    });
+    L.push('---','');
+  });
+  return L.join('\n');
+}
+function fallbackDL(md,fn){
+  try{ var b=new Blob([md],{type:'text/markdown;charset=utf-8'});
+    var a=document.createElement('a'); a.href=URL.createObjectURL(b); a.download=fn;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(function(){URL.revokeObjectURL(a.href)},20000); toast('내려받았습니다');
+  }catch(e){ toast('내보내기를 지원하지 않는 화면입니다') }
+}
+function exportMD(){
+  var md=toMD(), fn='내생각_'+today()+'.md';
+  if(dlNS){ dlNS.save({filename:fn,data:md}).then(function(){toast('저장했습니다')})
+    .catch(function(e){ if(e&&e.code==='declined') return; fallbackDL(md,fn) }); return }
+  fallbackDL(md,fn);
+}
+function newNote(){
+  NOTES.unshift({id:uid(),post:'',quote:'',think:'',apply:'',differ:'',ask:'',links:[],tags:[],
+    status:'draft',created:today(),updated:today()});
+  cur=NOTES[0].id; dirty=true; render();
+  setTimeout(function(){var el=$('#pickpost'); if(el) el.focus()},60);
+}
+function delNote(){
+  if(!noteById(cur)) return;
+  if(!confirm('이 노트를 지웁니다. 되돌릴 수 없습니다.')) return;
+  NOTES=NOTES.filter(function(x){return x.id!==cur});
+  cur=NOTES.length?sortedNotes()[0].id:null; dirty=true; render(); persist();
+}
+function sortedNotes(){
+  return NOTES.slice().sort(function(a,b){
+    var da=PMAP[a.post]?PMAP[a.post].d:'0', db=PMAP[b.post]?PMAP[b.post].d:'0';
+    return da<db?1:da>db?-1:0});
+}
+function visibleNotes(){
+  var q=filter.q.toLowerCase();
+  return sortedNotes().filter(function(n){
+    if(filter.st!=='all' && n.status!==filter.st) return false;
+    if(!q) return true;
+    var p=PMAP[n.post];
+    var hay=[(p?p.t+' '+p.c+' '+p.d:''),n.quote,n.think,n.apply,n.differ,n.ask,(n.tags||[]).join(' ')].join(' ').toLowerCase();
+    return hay.indexOf(q)>=0});
+}
+
+function renderBadge(){
+  var b=$('#mode'); if(!b) return;
+  if(!resolved){ b.textContent='연결 확인 중'; b.className='badge'; return }
+  if(artifactNS){ b.textContent='저장됨 · 어디서나'; b.className='badge live' }
+  else { b.textContent='이 브라우저에만 저장'; b.className='badge' }
+}
+function renderSaveBar(){ var el=$('#savestate'); if(el) el.textContent=dirty?'저장하지 않은 변경이 있습니다':'' }
+function renderList(){
+  var v=visibleNotes(), el=$('#nlist');
+  if(!v.length){ el.innerHTML='<div class="empty">'+(NOTES.length?'조건에 맞는 노트가 없습니다.':
+    '아직 노트가 없습니다.<br>위 <b>새 노트</b>로 시작하세요.')+'</div>'; return }
+  el.innerHTML=v.map(function(n){
+    var p=PMAP[n.post];
+    var snip=(n.think||n.quote||'').replace(/\s+/g,' ').trim().slice(0,90);
+    return '<button class="nitem'+(n.id===cur?' on':'')+'" data-id="'+n.id+'"><div class="nmeta">'+
+      (p?'<span class="ndate">'+p.d+'</span><span class="ncat">'+esc(p.c.split(' > ').pop())+'</span>'
+        :'<span class="ndate">미지정</span>')+
+      '<span class="nst'+(n.status==='done'?' done':'')+'">'+(n.status==='done'?'정리됨':'초안')+'</span></div>'+
+      '<div class="ntitle">'+esc(p?p.t:'(글을 고르세요)')+'</div>'+
+      (snip?'<div class="nsnip">'+esc(snip)+'</div>':'')+'</button>'}).join('');
+}
+function resultsHTML(q,exclude){
+  var s=q.trim().toLowerCase(); if(!s) return '';
+  var hit=POSTS.filter(function(p){
+    if(exclude&&exclude.indexOf(p.i)>=0) return false;
+    return (p.t+' '+p.c+' '+p.d).toLowerCase().indexOf(s)>=0}).slice(0,40);
+  if(!hit.length) return '<div class="empty" style="padding:18px">검색 결과가 없습니다.</div>';
+  return hit.map(function(p){
+    return '<button data-pick="'+p.i+'"><span class="rd">'+p.d+'</span> <span class="rc">'+
+      esc(p.c.split(' > ').pop())+'</span><div class="rt">'+esc(p.t)+'</div></button>'}).join('');
+}
+function renderEditor(){
+  var pane=$('#pane'), n=noteById(cur);
+  if(!n){
+    var done=NOTES.filter(function(x){return x.status==='done'}).length, cov={};
+    NOTES.forEach(function(x){if(x.post) cov[x.post]=1});
+    pane.innerHTML='<div class="wrap"><div class="stat">'+
+      '<div><b class="tnum">'+NOTES.length+'</b><span>노트</span></div>'+
+      '<div><b class="tnum">'+Object.keys(cov).length+'</b><span>다룬 글</span></div>'+
+      '<div><b class="tnum">'+done+'</b><span>정리됨</span></div>'+
+      '<div><b class="tnum">760</b><span>전체 글</span></div></div>'+
+      '<div class="guide"><b>여기는 원문을 읽는 곳이 아니라, 원문에 내 답을 다는 곳입니다.</b><br>'+
+      '글을 하나 고르고 다섯 칸을 채웁니다 — 인용 / 내 생각 / 나에게 적용하면 / 다른 점 / 남는 질문.<br>'+
+      '그중 <b>‘다른 점’</b>이 이 노트의 핵심입니다. 그 칸이 비어 있으면 대개 아직 소화되지 않은 것입니다.<br>'+
+      '<b>연결되는 글</b>을 걸어 두면 20년치 안에서 같은 이야기가 어떻게 반복되는지 보입니다.</div>'+
+      '<div class="empty">왼쪽에서 노트를 고르거나 <b>새 노트</b>를 눌러 시작하세요.</div></div>';
+    return }
+  var p=PMAP[n.post], h=['<div class="wrap">'];
+  h.push('<div class="src"><div class="lbl">대상 글</div>');
+  if(p){ h.push('<h2>'+esc(p.t)+'</h2><div class="meta"><span class="chip cat">'+esc(p.c)+
+      '</span><span class="chip mono">'+p.d+'</span></div><div class="acts">'+
+      '<a class="tbtn" href="'+esc(p.u)+'" target="_blank" rel="noopener">네이버 원문 ↗</a>'+
+      '<a class="tbtn" href="'+esc(CFG.dash)+'" target="_blank" rel="noopener">아카이브 대시보드 ↗</a>'+
+      '<button class="tbtn" id="changepost">글 바꾸기</button></div>') }
+  else { h.push('<div class="pick"><input id="pickpost" type="text" autocomplete="off" '+
+      'placeholder="760편에서 글 찾기 — 제목·게시판·날짜"><div class="res" id="pickres" hidden></div></div>') }
+  h.push('</div>');
+  FIELDS.forEach(function(f){
+    h.push('<div class="fld'+(f.cls?' '+f.cls:'')+'"><label for="f_'+f.k+'">'+f.label+'</label>'+
+      '<div class="hint">'+f.hint+'</div><textarea id="f_'+f.k+'" data-k="'+f.k+'" rows="'+f.rows+
+      '" placeholder="'+esc(f.ph)+'">'+esc(n[f.k]||'')+'</textarea></div>')});
+  h.push('<div class="fld"><label>연결되는 글</label><div class="hint">'+
+    '같은 이야기가 나오는 다른 글을 걸어 둡니다. 20년치 안에서 반복되는 지점을 찾는 장치입니다.</div>');
+  (n.links||[]).forEach(function(id){var q=PMAP[id]; if(!q) return;
+    h.push('<div class="linkrow"><span class="ld">'+q.d+'</span><span class="lt">'+esc(q.t)+'</span>'+
+      '<a class="ld" href="'+esc(q.u)+'" target="_blank" rel="noopener">↗</a>'+
+      '<button class="x" data-unlink="'+id+'" title="빼기">×</button></div>')});
+  h.push('<div class="pick"><input id="picklink" type="text" autocomplete="off" placeholder="글 검색해서 추가">'+
+    '<div class="res" id="linkres" hidden></div></div></div>');
+  h.push('<div class="fld"><label for="f_tags">태그</label><div class="hint">'+
+    '쉼표로 구분. 나중에 주제별로 모아 볼 때 씁니다.</div>'+
+    '<input id="f_tags" type="text" placeholder="레버리지, 손절, 심리" value="'+esc((n.tags||[]).join(', '))+'">'+
+    '<div class="tags">'+(n.tags||[]).map(function(t){return '<span class="tag">#'+esc(t)+'</span>'}).join('')+
+    '</div></div>');
+  h.push('<div class="savebar"><span class="st" id="savestate"></span>'+
+    '<button class="tbtn" id="statusbtn">'+(n.status==='done'?'✓ 정리됨':'초안')+'</button>'+
+    '<button class="tbtn" id="delbtn">삭제</button>'+
+    '<button class="tbtn primary" id="savebtn">저장</button></div></div>');
+  pane.innerHTML=h.join(''); renderSaveBar();
+}
+function render(){renderList();renderEditor();renderBadge()}
+
+document.addEventListener('input',function(e){
+  var t=e.target, n=noteById(cur);
+  if(t.dataset&&t.dataset.k){ if(n){n[t.dataset.k]=t.value; dirty=true; renderSaveBar()} }
+  else if(t.id==='f_tags'){ if(n){n.tags=t.value.split(',').map(function(x){return x.trim()}).filter(Boolean);
+    dirty=true; renderSaveBar()} }
+  else if(t.id==='nsearch'){ filter.q=t.value; renderList() }
+  else if(t.id==='pickpost'){ var r=$('#pickres'); r.innerHTML=resultsHTML(t.value); r.hidden=!t.value.trim() }
+  else if(t.id==='picklink'){ var r2=$('#linkres');
+    r2.innerHTML=resultsHTML(t.value,((n&&n.links)||[]).concat(n&&n.post?[n.post]:[]));
+    r2.hidden=!t.value.trim() }
+});
+document.addEventListener('click',function(e){
+  var b, n;
+  if(b=e.target.closest('.nitem')){ cur=b.dataset.id; render(); return }
+  if(b=e.target.closest('[data-pick]')){ n=noteById(cur); if(!n) return;
+    if(e.target.closest('#linkres')){ n.links=n.links||[];
+      if(n.links.indexOf(b.dataset.pick)<0) n.links.push(b.dataset.pick) }
+    else { n.post=b.dataset.pick }
+    dirty=true; render(); return }
+  if(b=e.target.closest('[data-unlink]')){ n=noteById(cur);
+    if(n) n.links=(n.links||[]).filter(function(x){return x!==b.dataset.unlink});
+    dirty=true; render(); return }
+  if(e.target.closest('#changepost')){ n=noteById(cur); if(n){n.post=''; dirty=true; render()} return }
+  if(e.target.closest('#newbtn')){ newNote(); return }
+  if(e.target.closest('#savebtn')){ persist(); return }
+  if(e.target.closest('#delbtn')){ delNote(); return }
+  if(e.target.closest('#exportbtn')){ exportMD(); return }
+  if(e.target.closest('#statusbtn')){ n=noteById(cur);
+    if(n){n.status=n.status==='done'?'draft':'done'; dirty=true; render()} return }
+  if(b=e.target.closest('.fbtn')){ filter.st=b.dataset.st;
+    Array.prototype.forEach.call(document.querySelectorAll('.fbtn'),function(x){
+      x.classList.toggle('on',x.dataset.st===filter.st)});
+    renderList(); return }
+  if(e.target.closest('#themebtn')){
+    var c=document.documentElement.getAttribute('data-theme');
+    var dk=window.matchMedia('(prefers-color-scheme:dark)').matches;
+    var nx=c?(c==='dark'?'light':'dark'):(dk?'light':'dark');
+    document.documentElement.setAttribute('data-theme',nx);
+    try{localStorage.setItem('nb_theme',nx)}catch(err){} return }
+  if(!e.target.closest('.pick')){
+    var a=$('#pickres'), c2=$('#linkres'); if(a)a.hidden=true; if(c2)c2.hidden=true }
+});
+document.addEventListener('keydown',function(e){
+  if((e.ctrlKey||e.metaKey)&&(e.key==='s'||e.key==='S')){e.preventDefault(); if(noteById(cur)) persist()}
+});
+window.addEventListener('beforeunload',function(e){ if(dirty){e.preventDefault(); e.returnValue=''} });
+
+SHELL=$('#shell').outerHTML;
+try{var th=localStorage.getItem('nb_theme'); if(th) document.documentElement.setAttribute('data-theme',th)}catch(e){}
+try{var s=sessionStorage.getItem(SS); if(s){var d=JSON.parse(s); sessionStorage.removeItem(SS);
+  if(d&&d.cur) cur=d.cur}}catch(e){}
+if(!cur&&NOTES.length) cur=sortedNotes()[0].id;
+render();
+function goLocal(){
+  localMode=true; resolved=true;
+  var lv=null; try{lv=localStorage.getItem(LS)}catch(e){}
+  if(lv){ try{ var arr=JSON.parse(lv);
+    if(arr&&arr.length){ NOTES=arr; if(!noteById(cur)) cur=NOTES.length?sortedNotes()[0].id:null } }catch(e){} }
+  render();
+}
+if(window.claude&&window.claude.use){
+  window.claude.use('artifact').then(function(a){
+    artifactNS=a; resolved=true;
+    if(!a) goLocal(); else renderBadge();
+  }).catch(function(){goLocal()});
+  window.claude.use('downloads').then(function(d){dlNS=d}).catch(function(){});
+  setTimeout(function(){ if(!resolved) goLocal() },11000);
+} else { goLocal() }
+})();
+</script>
+<script>(function(){
+"use strict";
+var $=function(s,r){return (r||document).querySelector(s)};
+var esc=function(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){
+  return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'})[c]})};
+var POSTS=JSON.parse($('#posts').textContent);
+var NOTES=JSON.parse($('#notes').textContent);
+var CFG=JSON.parse($('#cfg').textContent);
+var PMAP={}; POSTS.forEach(function(p){PMAP[p.i]=p});
+var LS='nb_thoughts_v1', SS='nb_draft_v1';
+var artifactNS=null, dlNS=null, resolved=false, localMode=false;
+var cur=null, dirty=false, filter={q:'',st:'all'}, SHELL='';
+
+var FIELDS=[
+ {k:'quote',cls:'quote',label:'인용 — 걸린 대목',rows:6,
+  hint:'원문에서 마음에 걸린 문장을 그대로 옮겨 둡니다. 나중에 다시 열었을 때 여기서 다시 출발하게 됩니다.',
+  ph:'원문에서 옮겨 붙이세요.'},
+ {k:'think',label:'내 생각',rows:11,
+  hint:'동의하든 아니든 내 언어로. 요약이 아니라 반응을 적습니다.',
+  ph:'이 대목이 왜 걸렸는가.\n내 경험 중 어디에 닿는가.\n저자가 말하지 않은 것은 무엇인가.'},
+ {k:'apply',label:'나에게 적용하면',rows:6,
+  hint:'내 계좌·내 상황에서 무엇을 바꿀 것인가. 숫자로 적을 수 있으면 숫자로.',
+  ph:'바꿀 것 하나.\n그 판단의 기준선(숫자).\n언제 점검할 것인가.'},
+ {k:'differ',label:'다른 점 · 동의하지 않는 부분',rows:6,
+  hint:'그대로 따라 하면 안 되는 이유를 먼저 적어둡니다. 이 칸이 비어 있으면 대개 아직 소화가 안 된 것입니다.',
+  ph:'내 조건이 저자와 다른 지점.\n저자의 전제 중 나에게 성립하지 않는 것.'},
+ {k:'ask',label:'남는 질문',rows:5,
+  hint:'답을 못 찾은 것. 다음에 확인할 것.',
+  ph:'아직 모르겠는 것.'}
+];
+
+function uid(){return 'n'+Date.now().toString(36)+Math.floor(Math.random()*1e4).toString(36)}
+function today(){var d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')}
+function toast(m){var t=$('#toast');t.textContent=m;t.classList.add('on');clearTimeout(t._t);t._t=setTimeout(function(){t.classList.remove('on')},2600)}
+function saveLocal(){try{localStorage.setItem(LS,JSON.stringify(NOTES))}catch(e){}}
+function stash(){try{sessionStorage.setItem(SS,JSON.stringify({cur:cur}))}catch(e){}}
+function noteById(id){for(var i=0;i<NOTES.length;i++) if(NOTES[i].id===id) return NOTES[i]; return null}
+function jsonSafe(o){return JSON.stringify(o).replace(/</g,'\\u003c')}
+
+function buildDoc(){
+  var css=$('#css').textContent, app=$('#appsrc').textContent, cfg=$('#cfg').textContent;
+  var fonts='<link rel="preconnect" href="https://fonts.googleapis.com">'+
+    '<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>'+
+    '<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nanum+Myeongjo:wght@400;700;800'+
+    '&family=IBM+Plex+Sans+KR:wght@300;400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">';
+  return '<!doctype html>\n<html lang="ko">\n<head>\n<meta charset="utf-8">\n'+
+    '<meta name="viewport" content="width=device-width,initial-scale=1">\n'+
+    '<title>선배님의 20년 — 내 생각</title>\n'+fonts+'\n<style id="css">'+css+'<\/style>\n</head>\n<body>\n'+
+    SHELL+'\n<div id="toast"><\/div>\n'+
+    '<script type="application/json" id="cfg">'+cfg.replace(/</g,'\\u003c')+'<\/script>\n'+
+    '<script type="application/json" id="posts">'+jsonSafe(POSTS)+'<\/script>\n'+
+    '<script type="application/json" id="notes">'+jsonSafe(NOTES)+'<\/script>\n'+
+    '<script type="text/plain" id="appsrc">'+app+'<\/script>\n'+
+    '<script>'+app+'<\/script>\n</body>\n</html>\n';
+}
+function setBusy(b){var el=$('#savebtn'); if(el){el.disabled=b; el.textContent=b?'저장 중…':'저장'}}
+function persist(){
+  var n=noteById(cur); if(n) n.updated=today();
+  if(artifactNS){
+    stash(); setBusy(true);
+    artifactNS.publish(buildDoc()).then(function(){}).catch(function(e){
+      setBusy(false);
+      var c=e&&e.code;
+      if(c==='conflict'){ toast('다른 곳에서 먼저 저장되었습니다. 화면이 갱신됩니다.'); return }
+      if(c==='not_writer'||c==='not_granted'||c==='not_declared'){
+        localMode=true; artifactNS=null; saveLocal(); dirty=false; render();
+        toast('읽기 전용 화면이라 이 브라우저에만 저장했습니다.'); return }
+      if(c==='too_large'){ toast('내용이 너무 커서 저장하지 못했습니다.'); return }
+      if(c==='rate_limited'){ toast('저장이 너무 잦습니다. 잠시 후 다시 눌러 주세요.'); return }
+      toast('저장 실패: '+(e&&e.message||'알 수 없는 오류'));
+    });
+  } else { saveLocal(); dirty=false; renderSaveBar(); toast('이 브라우저에 저장했습니다'); }
+}
+
+function toMD(){
+  var L=['# 내 생각 — 선배님 블로그 아카이브','','원문 760편(2006~2026) 기준. 내보낸 날짜: '+today(),'','---',''];
+  NOTES.slice().sort(function(a,b){
+    var da=PMAP[a.post]?PMAP[a.post].d:'0', db=PMAP[b.post]?PMAP[b.post].d:'0';
+    return da<db?-1:da>db?1:0}).forEach(function(n){
+    var p=PMAP[n.post];
+    L.push('## '+(p?p.t:'(글 미지정)'),'');
+    if(p) L.push('- 원문: ['+p.d+' · '+p.c+' · '+p.t+']('+p.u+')');
+    L.push('- 상태: '+(n.status==='done'?'정리됨':'초안')+' · 작성 '+(n.created||'')+' · 수정 '+(n.updated||''));
+    if(n.tags&&n.tags.length) L.push('- 태그: '+n.tags.map(function(t){return '#'+t}).join(' '));
+    if(n.links&&n.links.length){ L.push('- 연결되는 글:');
+      n.links.forEach(function(id){var q=PMAP[id]; if(q) L.push('    - ['+q.d+' '+q.t+']('+q.u+')')}) }
+    L.push('');
+    FIELDS.forEach(function(f){
+      var v=(n[f.k]||'').trim(); if(!v) return;
+      L.push('### '+f.label.replace(/\s*—.*$/,''),'');
+      if(f.k==='quote') v=v.split('\n').map(function(x){return '> '+x}).join('\n');
+      L.push(v,'');
+    });
+    L.push('---','');
+  });
+  return L.join('\n');
+}
+function fallbackDL(md,fn){
+  try{ var b=new Blob([md],{type:'text/markdown;charset=utf-8'});
+    var a=document.createElement('a'); a.href=URL.createObjectURL(b); a.download=fn;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(function(){URL.revokeObjectURL(a.href)},20000); toast('내려받았습니다');
+  }catch(e){ toast('내보내기를 지원하지 않는 화면입니다') }
+}
+function exportMD(){
+  var md=toMD(), fn='내생각_'+today()+'.md';
+  if(dlNS){ dlNS.save({filename:fn,data:md}).then(function(){toast('저장했습니다')})
+    .catch(function(e){ if(e&&e.code==='declined') return; fallbackDL(md,fn) }); return }
+  fallbackDL(md,fn);
+}
+function newNote(){
+  NOTES.unshift({id:uid(),post:'',quote:'',think:'',apply:'',differ:'',ask:'',links:[],tags:[],
+    status:'draft',created:today(),updated:today()});
+  cur=NOTES[0].id; dirty=true; render();
+  setTimeout(function(){var el=$('#pickpost'); if(el) el.focus()},60);
+}
+function delNote(){
+  if(!noteById(cur)) return;
+  if(!confirm('이 노트를 지웁니다. 되돌릴 수 없습니다.')) return;
+  NOTES=NOTES.filter(function(x){return x.id!==cur});
+  cur=NOTES.length?sortedNotes()[0].id:null; dirty=true; render(); persist();
+}
+function sortedNotes(){
+  return NOTES.slice().sort(function(a,b){
+    var da=PMAP[a.post]?PMAP[a.post].d:'0', db=PMAP[b.post]?PMAP[b.post].d:'0';
+    return da<db?1:da>db?-1:0});
+}
+function visibleNotes(){
+  var q=filter.q.toLowerCase();
+  return sortedNotes().filter(function(n){
+    if(filter.st!=='all' && n.status!==filter.st) return false;
+    if(!q) return true;
+    var p=PMAP[n.post];
+    var hay=[(p?p.t+' '+p.c+' '+p.d:''),n.quote,n.think,n.apply,n.differ,n.ask,(n.tags||[]).join(' ')].join(' ').toLowerCase();
+    return hay.indexOf(q)>=0});
+}
+
+function renderBadge(){
+  var b=$('#mode'); if(!b) return;
+  if(!resolved){ b.textContent='연결 확인 중'; b.className='badge'; return }
+  if(artifactNS){ b.textContent='저장됨 · 어디서나'; b.className='badge live' }
+  else { b.textContent='이 브라우저에만 저장'; b.className='badge' }
+}
+function renderSaveBar(){ var el=$('#savestate'); if(el) el.textContent=dirty?'저장하지 않은 변경이 있습니다':'' }
+function renderList(){
+  var v=visibleNotes(), el=$('#nlist');
+  if(!v.length){ el.innerHTML='<div class="empty">'+(NOTES.length?'조건에 맞는 노트가 없습니다.':
+    '아직 노트가 없습니다.<br>위 <b>새 노트</b>로 시작하세요.')+'</div>'; return }
+  el.innerHTML=v.map(function(n){
+    var p=PMAP[n.post];
+    var snip=(n.think||n.quote||'').replace(/\s+/g,' ').trim().slice(0,90);
+    return '<button class="nitem'+(n.id===cur?' on':'')+'" data-id="'+n.id+'"><div class="nmeta">'+
+      (p?'<span class="ndate">'+p.d+'</span><span class="ncat">'+esc(p.c.split(' > ').pop())+'</span>'
+        :'<span class="ndate">미지정</span>')+
+      '<span class="nst'+(n.status==='done'?' done':'')+'">'+(n.status==='done'?'정리됨':'초안')+'</span></div>'+
+      '<div class="ntitle">'+esc(p?p.t:'(글을 고르세요)')+'</div>'+
+      (snip?'<div class="nsnip">'+esc(snip)+'</div>':'')+'</button>'}).join('');
+}
+function resultsHTML(q,exclude){
+  var s=q.trim().toLowerCase(); if(!s) return '';
+  var hit=POSTS.filter(function(p){
+    if(exclude&&exclude.indexOf(p.i)>=0) return false;
+    return (p.t+' '+p.c+' '+p.d).toLowerCase().indexOf(s)>=0}).slice(0,40);
+  if(!hit.length) return '<div class="empty" style="padding:18px">검색 결과가 없습니다.</div>';
+  return hit.map(function(p){
+    return '<button data-pick="'+p.i+'"><span class="rd">'+p.d+'</span> <span class="rc">'+
+      esc(p.c.split(' > ').pop())+'</span><div class="rt">'+esc(p.t)+'</div></button>'}).join('');
+}
+function renderEditor(){
+  var pane=$('#pane'), n=noteById(cur);
+  if(!n){
+    var done=NOTES.filter(function(x){return x.status==='done'}).length, cov={};
+    NOTES.forEach(function(x){if(x.post) cov[x.post]=1});
+    pane.innerHTML='<div class="wrap"><div class="stat">'+
+      '<div><b class="tnum">'+NOTES.length+'</b><span>노트</span></div>'+
+      '<div><b class="tnum">'+Object.keys(cov).length+'</b><span>다룬 글</span></div>'+
+      '<div><b class="tnum">'+done+'</b><span>정리됨</span></div>'+
+      '<div><b class="tnum">760</b><span>전체 글</span></div></div>'+
+      '<div class="guide"><b>여기는 원문을 읽는 곳이 아니라, 원문에 내 답을 다는 곳입니다.</b><br>'+
+      '글을 하나 고르고 다섯 칸을 채웁니다 — 인용 / 내 생각 / 나에게 적용하면 / 다른 점 / 남는 질문.<br>'+
+      '그중 <b>‘다른 점’</b>이 이 노트의 핵심입니다. 그 칸이 비어 있으면 대개 아직 소화되지 않은 것입니다.<br>'+
+      '<b>연결되는 글</b>을 걸어 두면 20년치 안에서 같은 이야기가 어떻게 반복되는지 보입니다.</div>'+
+      '<div class="empty">왼쪽에서 노트를 고르거나 <b>새 노트</b>를 눌러 시작하세요.</div></div>';
+    return }
+  var p=PMAP[n.post], h=['<div class="wrap">'];
+  h.push('<div class="src"><div class="lbl">대상 글</div>');
+  if(p){ h.push('<h2>'+esc(p.t)+'</h2><div class="meta"><span class="chip cat">'+esc(p.c)+
+      '</span><span class="chip mono">'+p.d+'</span></div><div class="acts">'+
+      '<a class="tbtn" href="'+esc(p.u)+'" target="_blank" rel="noopener">네이버 원문 ↗</a>'+
+      '<a class="tbtn" href="'+esc(CFG.dash)+'" target="_blank" rel="noopener">아카이브 대시보드 ↗</a>'+
+      '<button class="tbtn" id="changepost">글 바꾸기</button></div>') }
+  else { h.push('<div class="pick"><input id="pickpost" type="text" autocomplete="off" '+
+      'placeholder="760편에서 글 찾기 — 제목·게시판·날짜"><div class="res" id="pickres" hidden></div></div>') }
+  h.push('</div>');
+  FIELDS.forEach(function(f){
+    h.push('<div class="fld'+(f.cls?' '+f.cls:'')+'"><label for="f_'+f.k+'">'+f.label+'</label>'+
+      '<div class="hint">'+f.hint+'</div><textarea id="f_'+f.k+'" data-k="'+f.k+'" rows="'+f.rows+
+      '" placeholder="'+esc(f.ph)+'">'+esc(n[f.k]||'')+'</textarea></div>')});
+  h.push('<div class="fld"><label>연결되는 글</label><div class="hint">'+
+    '같은 이야기가 나오는 다른 글을 걸어 둡니다. 20년치 안에서 반복되는 지점을 찾는 장치입니다.</div>');
+  (n.links||[]).forEach(function(id){var q=PMAP[id]; if(!q) return;
+    h.push('<div class="linkrow"><span class="ld">'+q.d+'</span><span class="lt">'+esc(q.t)+'</span>'+
+      '<a class="ld" href="'+esc(q.u)+'" target="_blank" rel="noopener">↗</a>'+
+      '<button class="x" data-unlink="'+id+'" title="빼기">×</button></div>')});
+  h.push('<div class="pick"><input id="picklink" type="text" autocomplete="off" placeholder="글 검색해서 추가">'+
+    '<div class="res" id="linkres" hidden></div></div></div>');
+  h.push('<div class="fld"><label for="f_tags">태그</label><div class="hint">'+
+    '쉼표로 구분. 나중에 주제별로 모아 볼 때 씁니다.</div>'+
+    '<input id="f_tags" type="text" placeholder="레버리지, 손절, 심리" value="'+esc((n.tags||[]).join(', '))+'">'+
+    '<div class="tags">'+(n.tags||[]).map(function(t){return '<span class="tag">#'+esc(t)+'</span>'}).join('')+
+    '</div></div>');
+  h.push('<div class="savebar"><span class="st" id="savestate"></span>'+
+    '<button class="tbtn" id="statusbtn">'+(n.status==='done'?'✓ 정리됨':'초안')+'</button>'+
+    '<button class="tbtn" id="delbtn">삭제</button>'+
+    '<button class="tbtn primary" id="savebtn">저장</button></div></div>');
+  pane.innerHTML=h.join(''); renderSaveBar();
+}
+function render(){renderList();renderEditor();renderBadge()}
+
+document.addEventListener('input',function(e){
+  var t=e.target, n=noteById(cur);
+  if(t.dataset&&t.dataset.k){ if(n){n[t.dataset.k]=t.value; dirty=true; renderSaveBar()} }
+  else if(t.id==='f_tags'){ if(n){n.tags=t.value.split(',').map(function(x){return x.trim()}).filter(Boolean);
+    dirty=true; renderSaveBar()} }
+  else if(t.id==='nsearch'){ filter.q=t.value; renderList() }
+  else if(t.id==='pickpost'){ var r=$('#pickres'); r.innerHTML=resultsHTML(t.value); r.hidden=!t.value.trim() }
+  else if(t.id==='picklink'){ var r2=$('#linkres');
+    r2.innerHTML=resultsHTML(t.value,((n&&n.links)||[]).concat(n&&n.post?[n.post]:[]));
+    r2.hidden=!t.value.trim() }
+});
+document.addEventListener('click',function(e){
+  var b, n;
+  if(b=e.target.closest('.nitem')){ cur=b.dataset.id; render(); return }
+  if(b=e.target.closest('[data-pick]')){ n=noteById(cur); if(!n) return;
+    if(e.target.closest('#linkres')){ n.links=n.links||[];
+      if(n.links.indexOf(b.dataset.pick)<0) n.links.push(b.dataset.pick) }
+    else { n.post=b.dataset.pick }
+    dirty=true; render(); return }
+  if(b=e.target.closest('[data-unlink]')){ n=noteById(cur);
+    if(n) n.links=(n.links||[]).filter(function(x){return x!==b.dataset.unlink});
+    dirty=true; render(); return }
+  if(e.target.closest('#changepost')){ n=noteById(cur); if(n){n.post=''; dirty=true; render()} return }
+  if(e.target.closest('#newbtn')){ newNote(); return }
+  if(e.target.closest('#savebtn')){ persist(); return }
+  if(e.target.closest('#delbtn')){ delNote(); return }
+  if(e.target.closest('#exportbtn')){ exportMD(); return }
+  if(e.target.closest('#statusbtn')){ n=noteById(cur);
+    if(n){n.status=n.status==='done'?'draft':'done'; dirty=true; render()} return }
+  if(b=e.target.closest('.fbtn')){ filter.st=b.dataset.st;
+    Array.prototype.forEach.call(document.querySelectorAll('.fbtn'),function(x){
+      x.classList.toggle('on',x.dataset.st===filter.st)});
+    renderList(); return }
+  if(e.target.closest('#themebtn')){
+    var c=document.documentElement.getAttribute('data-theme');
+    var dk=window.matchMedia('(prefers-color-scheme:dark)').matches;
+    var nx=c?(c==='dark'?'light':'dark'):(dk?'light':'dark');
+    document.documentElement.setAttribute('data-theme',nx);
+    try{localStorage.setItem('nb_theme',nx)}catch(err){} return }
+  if(!e.target.closest('.pick')){
+    var a=$('#pickres'), c2=$('#linkres'); if(a)a.hidden=true; if(c2)c2.hidden=true }
+});
+document.addEventListener('keydown',function(e){
+  if((e.ctrlKey||e.metaKey)&&(e.key==='s'||e.key==='S')){e.preventDefault(); if(noteById(cur)) persist()}
+});
+window.addEventListener('beforeunload',function(e){ if(dirty){e.preventDefault(); e.returnValue=''} });
+
+SHELL=$('#shell').outerHTML;
+try{var th=localStorage.getItem('nb_theme'); if(th) document.documentElement.setAttribute('data-theme',th)}catch(e){}
+try{var s=sessionStorage.getItem(SS); if(s){var d=JSON.parse(s); sessionStorage.removeItem(SS);
+  if(d&&d.cur) cur=d.cur}}catch(e){}
+if(!cur&&NOTES.length) cur=sortedNotes()[0].id;
+render();
+function goLocal(){
+  localMode=true; resolved=true;
+  var lv=null; try{lv=localStorage.getItem(LS)}catch(e){}
+  if(lv){ try{ var arr=JSON.parse(lv);
+    if(arr&&arr.length){ NOTES=arr; if(!noteById(cur)) cur=NOTES.length?sortedNotes()[0].id:null } }catch(e){} }
+  render();
+}
+if(window.claude&&window.claude.use){
+  window.claude.use('artifact').then(function(a){
+    artifactNS=a; resolved=true;
+    if(!a) goLocal(); else renderBadge();
+  }).catch(function(){goLocal()});
+  window.claude.use('downloads').then(function(d){dlNS=d}).catch(function(){});
+  setTimeout(function(){ if(!resolved) goLocal() },11000);
+} else { goLocal() }
+})();
+</script>
+</body>
+</html>
