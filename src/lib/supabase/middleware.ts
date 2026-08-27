@@ -8,8 +8,10 @@ import { isAllowedEmail } from '@/lib/auth/allowlist';
  *
  * `/api/cron`은 로그인 세션이 아니라 `Authorization: Bearer $CRON_SECRET`으로
  * 자기를 증명한다. 여기서 막으면 라우트에 닿지도 못하고 로그인 페이지로 튕긴다.
+ *
+ * `/blog`는 누구나 읽는 공개 페이지다. 쓰기는 서버 액션이 관리자 계정을 따로 확인한다.
  */
-const PUBLIC_PREFIXES = ['/login', '/auth', '/api/cron'];
+const PUBLIC_PREFIXES = ['/login', '/auth', '/api/cron', '/blog'];
 
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request });

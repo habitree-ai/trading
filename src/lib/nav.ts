@@ -87,6 +87,8 @@ export const AREAS: Area[] = [
       { href: "/kelly", label: "과거데이터 분석", icon: "🎲", hint: "OKX 전 이력 켈리 기준" },
       { href: "/diagnosis", label: "매매 진단", icon: "🩺", hint: "문제·강점·사각지대" },
       { href: "/lab", label: "자료실", icon: "🗄️", hint: "복기·백테스트 리포트" },
+      // 앱 레이아웃 밖의 공개 페이지 — 여기서는 드나드는 문일 뿐이다.
+      { href: "/blog", label: "선배님 아카이브", icon: "📖", hint: "정리 문서 · 내 생각 노트 (공개)" },
     ],
   },
 ];

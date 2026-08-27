@@ -19,7 +19,7 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "14.5"
+    PostgrestVersion: "14.17"
   }
   public: {
     Tables: {
@@ -385,6 +385,54 @@ export type Database = {
           symbol?: string
           user_id?: string
           volume_24h_usd?: number | null
+        }
+        Relationships: []
+      }
+      senior_notes: {
+        Row: {
+          apply: string
+          ask: string
+          created_at: string
+          differ: string
+          id: string
+          links: string[]
+          post_id: string | null
+          quote: string
+          status: Database["public"]["Enums"]["senior_note_status"]
+          tags: string[]
+          think: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          apply?: string
+          ask?: string
+          created_at?: string
+          differ?: string
+          id?: string
+          links?: string[]
+          post_id?: string | null
+          quote?: string
+          status?: Database["public"]["Enums"]["senior_note_status"]
+          tags?: string[]
+          think?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          apply?: string
+          ask?: string
+          created_at?: string
+          differ?: string
+          id?: string
+          links?: string[]
+          post_id?: string | null
+          quote?: string
+          status?: Database["public"]["Enums"]["senior_note_status"]
+          tags?: string[]
+          think?: string
+          updated_at?: string
+          user_id?: string
         }
         Relationships: []
       }
@@ -1036,6 +1084,7 @@ export type Database = {
         | "social"
         | "macro"
         | "briefing"
+      senior_note_status: "draft" | "done"
       system_mode: "paper" | "demo" | "live" | "cand" | "ens" | "swing" | "manual"
       trade_result: "win" | "loss" | "be" | "open"
       trade_side: "long" | "short"
@@ -1192,6 +1241,7 @@ export const Constants = {
         "macro",
         "briefing",
       ],
+      senior_note_status: ["draft", "done"],
       system_mode: ["paper", "demo", "live", "cand", "ens", "swing", "manual"],
       trade_result: ["win", "loss", "be", "open"],
       trade_side: ["long", "short"],

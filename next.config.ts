@@ -13,6 +13,18 @@ const nextConfig: NextConfig = {
   outputFileTracingIncludes: {
     "/lab": ["./docs/backtest/**/*.html", "./system-trading/docs/**/*.html"],
     "/api/lab": ["./docs/backtest/**/*.html", "./system-trading/docs/**/*.html"],
+    // 선배님 공개 페이지 — 정리 문서(md)와 글 색인(csv)을 요청 시점에 읽는다. 같은 이유다.
+    "/blog": ["./선배님/*.md", "./선배님/인덱스.csv"],
+    "/blog/**": ["./선배님/*.md", "./선배님/인덱스.csv"],
+  },
+  /**
+   * 정적 분석기는 `readFileSync(join(cwd, "선배님", …))` 을 보고 폴더를 통째로 넣는다 —
+   * 로컬에는 gitignore 된 원본 HTML·이미지 358MB 가 있어 그대로 두면 번들이 터진다.
+   * 페이지가 읽는 것은 위의 md·csv 뿐이다.
+   */
+  outputFileTracingExcludes: {
+    "/blog": ["./선배님/_수집원본/**", "./선배님/아카이브/**", "./선배님/이미지/**", "./선배님/_수집스크립트/**", "./선배님/*.html"],
+    "/blog/**": ["./선배님/_수집원본/**", "./선배님/아카이브/**", "./선배님/이미지/**", "./선배님/_수집스크립트/**", "./선배님/*.html"],
   },
 };
 
