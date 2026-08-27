@@ -257,6 +257,24 @@ export async function listGoals(bookId: string): Promise<Goal[]> {
 }
 
 /**
+ * 목표를 한꺼번에 저장한다 — 표의 `unique (book_id, tier, period, metric)` 이 키라
+ * 같은 칸은 덮어쓰고 없는 칸은 만든다. 계획 β/목표 α 는 늘 묶음으로 바뀐다.
+ */
+export async function upsertGoals(
+  bookId: string,
+  rows: readonly Pick<Goal, "tier" | "period" | "metric" | "target_value">[],
+): Promise<void> {
+  const { supabase, user } = await requireUser();
+  const { error } = await supabase
+    .from("goals")
+    .upsert(
+      rows.map((r) => ({ ...r, book_id: bookId, user_id: user.id })),
+      { onConflict: "book_id,tier,period,metric" },
+    );
+  if (error) throw new Error(error.message);
+}
+
+/**
  * 북의 매매 원칙 — 묶음·순서대로.
  *
  * `activeOnly`는 거래 화면용이다. 접어 둔 원칙까지 체크 목록에 내밀면 지금 지키지도
