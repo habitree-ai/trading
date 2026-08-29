@@ -6,6 +6,7 @@ import { Fragment, useEffect, useMemo, useRef, useState, useTransition } from "r
 import { deleteTrade } from "@/app/(app)/trades/actions";
 import { ExitPlanLines } from "@/components/exit-plan";
 import { TradeChart } from "@/components/trade-chart";
+import { TradesOverviewChart } from "@/components/trades-overview-chart";
 import { RESULT_LABEL, SIDE_LABEL, type TradeFill, type TradeResult } from "@/lib/domain";
 import { activeTargetPrices, summarizeExits } from "@/lib/exit-plan";
 import { dateTime, num, pct, pnlClass, signed, signedPct } from "@/lib/format";
@@ -46,6 +47,8 @@ export function TradeTable({
   const [onlyPending, setOnlyPending] = useState(false);
   /** 한 번에 하나만 펼친다 — 여러 개를 열면 OKX 요청이 동시에 쏟아진다. */
   const [openChart, setOpenChart] = useState<string | null>(null);
+  /** 전체 차트 — 첫 거래부터 전 거래의 진입·청산을 한 장에. 표 위에 편다. */
+  const [overview, setOverview] = useState(false);
 
   /**
    * 가로 스크롤 영역의 보이는 폭.
@@ -145,8 +148,25 @@ export function TradeTable({
         >
           복기 대기 {pendingCount}
         </button>
+        <button
+          type="button"
+          aria-pressed={overview}
+          className={`${SELECT} ${overview ? "border-accent text-accent" : ""}`}
+          onClick={() => setOverview((v) => !v)}
+        >
+          {overview ? "전체 차트 닫기" : "전체 차트"}
+        </button>
         <span className="ml-auto text-xs text-dim">{visible.length}건 표시</span>
       </div>
+
+      {/* 전체 차트는 승패·복기 필터와 무관하게 북의 거래 전부를 올린다 — 종목만 안에서 가른다. */}
+      {overview ? (
+        <TradesOverviewChart
+          trades={rows.map((r) => r.trade)}
+          preferredSymbol={symbol === "all" ? null : symbol}
+          now={now}
+        />
+      ) : null}
 
       <div ref={scrollRef} className="scroll-x rounded-xl border border-border">
         <table className="w-full min-w-[1320px] text-sm">
