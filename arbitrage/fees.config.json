@@ -1,0 +1,33 @@
+{
+  "asOf": "2026-08-26",
+  "note": "verified=true 는 공식 공지·고객센터 본문으로 확인한 값. false 는 제3자 집계 또는 미확인 — 리포트에 배지로 표시한다. null 은 값을 못 찾은 것이며 assumptions 의 가정값으로 계산한다.",
+  "items": [
+    { "key": "upbit_krw_fee", "label": "업비트 KRW 마켓 수수료 (지정가·시장가, 메이커=테이커)", "value": 0.05, "unit": "%", "verified": true, "source": "https://support.upbit.com/hc/ko/articles/900006143046", "asOf": "2026-08-25" },
+    { "key": "upbit_krw_reserved_fee", "label": "업비트 KRW 마켓 예약주문 수수료", "value": 0.139, "unit": "%", "verified": true, "source": "https://support.upbit.com/hc/ko/articles/900006143046", "asOf": "2026-08-25" },
+    { "key": "upbit_btc_fee", "label": "업비트 BTC 마켓 수수료", "value": 0.25, "unit": "%", "verified": true, "source": "https://api-manager.upbit.com/api/v1/announcements/4916", "asOf": "2025-03-08" },
+    { "key": "upbit_usdt_fee", "label": "업비트 USDT 마켓 수수료 (할인 종료 후)", "value": 0.25, "unit": "%", "verified": true, "source": "https://api-manager.upbit.com/api/v1/announcements/4916", "asOf": "2025-03-08" },
+    { "key": "upbit_withdraw_krw", "label": "업비트 KRW 출금", "value": 1000, "unit": "KRW", "verified": true, "source": "https://support.upbit.com/hc/ko/articles/900006050706", "asOf": "2026-07-31" },
+    { "key": "upbit_withdraw_BTC", "label": "업비트 BTC 출금", "value": 0.0002, "unit": "BTC", "verified": true, "source": "https://api-manager.upbit.com/api/v1/announcements/5311", "asOf": "2025-07-10" },
+    { "key": "upbit_withdraw_ETH", "label": "업비트 ETH 출금", "value": 0.007, "unit": "ETH", "verified": true, "source": "https://api-manager.upbit.com/api/v1/announcements/4446", "asOf": "2024-08-23", "note": "이후 변동 여부 미확인" },
+    { "key": "upbit_withdraw_XRP", "label": "업비트 XRP 출금", "value": null, "unit": "XRP", "verified": false, "source": null, "note": "정본은 upbit.com 수수료 안내(JS 렌더) — 미확인" },
+    { "key": "upbit_withdraw_SOL", "label": "업비트 SOL 출금", "value": null, "unit": "SOL", "verified": false, "source": null },
+    { "key": "upbit_withdraw_TRX", "label": "업비트 TRX 출금", "value": null, "unit": "TRX", "verified": false, "source": null },
+    { "key": "upbit_withdraw_DOGE", "label": "업비트 DOGE 출금", "value": null, "unit": "DOGE", "verified": false, "source": null },
+    { "key": "upbit_withdraw_USDT", "label": "업비트 USDT 출금 (Tron)", "value": null, "unit": "USDT", "verified": false, "source": null, "note": "비공식 Q&A 에 무료 언급 — 정본 아님" },
+    { "key": "okx_spot_maker", "label": "OKX 현물 메이커 (Regular Lv1)", "value": 0.08, "unit": "%", "verified": false, "source": "https://www.bitdegree.org/crypto/tutorials/okx-fees", "asOf": "2026-08-07", "note": "제3자 집계. 공식 fees 페이지는 JS 렌더라 본문 미확인" },
+    { "key": "okx_spot_taker", "label": "OKX 현물 테이커 (Regular Lv1)", "value": 0.10, "unit": "%", "verified": false, "source": "https://www.bitdegree.org/crypto/tutorials/okx-fees", "asOf": "2026-08-07" },
+    { "key": "okx_swap_maker", "label": "OKX 무기한 스왑 메이커 (Regular Lv1)", "value": 0.02, "unit": "%", "verified": false, "source": "https://www.bitdegree.org/crypto/tutorials/okx-fees", "asOf": "2026-08-07" },
+    { "key": "okx_swap_taker", "label": "OKX 무기한 스왑 테이커 (Regular Lv1)", "value": 0.05, "unit": "%", "verified": false, "source": "https://www.bitdegree.org/crypto/tutorials/okx-fees", "asOf": "2026-08-07", "note": "봇 엔진도 feePct 0.1(왕복) 로 같은 값을 가정한다" },
+    { "key": "okx_withdraw_USDT_TRC20", "label": "OKX USDT 출금 (TRC20)", "value": null, "unit": "USDT", "verified": false, "source": null, "note": "동적 수수료. 정본은 인증 API /api/v5/asset/currencies" },
+    { "key": "okx_withdraw_BTC", "label": "OKX BTC 출금", "value": null, "unit": "BTC", "verified": false, "source": null },
+    { "key": "okx_funding_interval_h", "label": "OKX 펀딩 주기", "value": 8, "unit": "h", "verified": true, "source": "backtest-lab/lib/data.mjs 실측 주석", "asOf": "2026-08" },
+    { "key": "upbit_travel_rule_krw", "label": "업비트 트래블룰 적용 기준(원화 환산 출금액)", "value": 1000000, "unit": "KRW", "verified": true, "source": "https://support.upbit.com/hc/ko/articles/4498679629337", "asOf": "2026-08-20" }
+  ],
+  "assumptions": {
+    "note": "null 항목과 체결 조건에 쓰는 가정값. 리포트 비용 모델에 '가정' 배지로 표기.",
+    "withdrawFee": { "XRP": 1, "SOL": 0.01, "TRX": 1, "DOGE": 5, "USDT": 1, "BTC": 0.0002, "ETH": 0.007 },
+    "transferMinutes": { "BTC": 45, "ETH": 10, "XRP": 5, "SOL": 5, "DOGE": 30, "TRX": 5, "USDT": 5 },
+    "slippageBps": { "upbitKrw": 3, "upbitUsdtMarket": 10, "okxSpot": 2, "okxSwap": 1 },
+    "capitalKrw": [10000000, 50000000, 200000000]
+  }
+}

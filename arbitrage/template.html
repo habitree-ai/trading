@@ -1,0 +1,518 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>아비트라지 타당성 — OKX ↔ 업비트 김프·현선·수수료·규제</title>
+<style>
+  :root {
+    color-scheme: dark;
+    --bg:#0e1116; --surface:#161a21; --surface-2:#1e232c; --border:#2a3039;
+    --ink:#e6e9ee; --dim:#8b95a3; --accent:#5b8cff; --accent-2:#b98cff;
+    --up:#26c281; --dn:#f0616d; --warn:#c98500; --grid:#232935;
+  }
+  @media (prefers-color-scheme: light) {
+    :root:not([data-theme="dark"]) {
+      color-scheme: light;
+      --bg:#f7f8fa; --surface:#ffffff; --surface-2:#f1f3f6; --border:#e2e5ea;
+      --ink:#14171c; --dim:#666e7a; --accent:#3b6ef5; --accent-2:#8b5cf6;
+      --up:#0f9d58; --dn:#dc3545; --warn:#b06f00; --grid:#eceef2;
+    }
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font:14px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans KR", sans-serif; -webkit-font-smoothing:antialiased; }
+  .wrap { max-width:1240px; margin:0 auto; padding:28px 20px 80px; }
+  .tnum { font-variant-numeric:tabular-nums; }
+  h1 { font-size:22px; margin:0 0 6px; letter-spacing:-.01em; }
+  h2 { font-size:16px; margin:40px 0 10px; letter-spacing:-.01em; padding-top:8px; border-top:1px solid var(--border); }
+  h3 { font-size:13.5px; margin:14px 0 6px; }
+  p { margin:0 0 10px; }
+  .lede { color:var(--dim); font-size:13px; max-width:78ch; }
+  .sub { color:var(--dim); font-size:12px; max-width:90ch; }
+  code { background:var(--surface-2); border-radius:4px; padding:1px 5px; font-size:12px; }
+  a { color:var(--accent); }
+  .panel { background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:16px; }
+  .grid { display:grid; gap:12px; }
+  .g2 { grid-template-columns:repeat(auto-fit,minmax(320px,1fr)); }
+  .g3 { grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); }
+  .g4 { grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); }
+  .kpi { background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:14px 16px; }
+  .kpi .label { color:var(--dim); font-size:11.5px; }
+  .kpi .value { font-size:22px; font-weight:600; margin-top:2px; letter-spacing:-.02em; }
+  .kpi .note { color:var(--dim); font-size:11px; margin-top:2px; }
+  table { width:100%; border-collapse:collapse; font-size:12.5px; }
+  th, td { padding:6px 8px; text-align:right; border-bottom:1px solid var(--border); white-space:nowrap; vertical-align:top; }
+  th { color:var(--dim); font-weight:500; font-size:11.5px; position:sticky; top:0; background:var(--surface); }
+  th:first-child, td:first-child { text-align:left; }
+  td.l, th.l { text-align:left; white-space:normal; }
+  tbody tr:hover { background:var(--surface-2); }
+  .scroll { overflow-x:auto; }
+  .tall { max-height:520px; overflow-y:auto; }
+  .up { color:var(--up); } .dn { color:var(--dn); } .muted { color:var(--dim); } .warn { color:var(--warn); }
+  .badge { display:inline-block; font-size:11px; padding:1px 8px; border-radius:6px; border:1px solid var(--border); color:var(--dim); white-space:nowrap; }
+  .badge.ok { background:rgba(38,194,129,.15); color:var(--up); border-color:transparent; }
+  .badge.cond { background:rgba(201,133,0,.15); color:var(--warn); border-color:transparent; }
+  .badge.no { background:rgba(240,97,109,.15); color:var(--dn); border-color:transparent; }
+  .badge.hold { background:var(--surface-2); }
+  .badge.unv { background:rgba(240,97,109,.12); color:var(--dn); border-color:transparent; }
+  .badge.ver { background:rgba(38,194,129,.12); color:var(--up); border-color:transparent; }
+  .callout { border-left:3px solid var(--warn); background:var(--surface); border-radius:0 10px 10px 0; padding:12px 14px; font-size:12.5px; color:var(--dim); }
+  .callout b { color:var(--ink); }
+  .callout.blue { border-left-color:var(--accent); }
+  ul.tight { margin:6px 0 0; padding-left:18px; } ul.tight li { margin-bottom:5px; }
+  .chart { width:100%; display:block; }
+  .legend { font-size:10.5px; color:var(--dim); margin-top:6px; }
+  .legend i { display:inline-block; width:14px; height:2px; vertical-align:middle; margin:0 4px 0 8px; }
+  .seg { display:inline-flex; border:1px solid var(--border); border-radius:9px; overflow:hidden; margin:0 8px 8px 0; }
+  .seg button { background:var(--surface); color:var(--dim); border:0; padding:5px 12px; font-size:12px; cursor:pointer; font-family:inherit; border-right:1px solid var(--border); }
+  .seg button:last-child { border-right:0; }
+  .seg button[aria-pressed="true"] { background:var(--accent); color:#fff; }
+  .verdict-card { display:grid; grid-template-columns:auto 1fr; gap:10px 14px; align-items:start; background:var(--surface-2); border:1px solid var(--border); border-radius:10px; padding:12px 14px; margin:10px 0; font-size:12.5px; }
+  .verdict-card .v { font-size:15px; font-weight:600; }
+  .flow { display:flex; flex-wrap:wrap; gap:8px; align-items:center; font-size:12px; }
+  .flow .node { background:var(--surface-2); border:1px solid var(--border); border-radius:8px; padding:6px 10px; }
+  .flow .arrow { color:var(--dim); }
+  .foot { margin-top:48px; padding-top:16px; border-top:1px solid var(--border); color:var(--dim); font-size:11.5px; }
+  .toc { display:flex; flex-wrap:wrap; gap:6px 12px; font-size:12px; margin:10px 0 0; }
+  .toc a { color:var(--dim); text-decoration:none; } .toc a:hover { color:var(--accent); }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>아비트라지 타당성 — OKX ↔ 업비트 김프 · 현선 베이시스 · 수수료 · 규제</h1>
+<p class="lede" id="lede"></p>
+<div class="toc" id="toc"></div>
+
+<h2 id="s0">0. 결론 판정표</h2>
+<p class="sub">판정 기준은 데이터를 보기 전에 고정했다(§2 기준표). <b>가능</b>·<b>조건부</b>·<b>불가</b>·<b>보류</b>(표본 부족)의 네 단계. 규제 열은 이 구조에 법적 확인이 필요한지를 적고, 마지막 열은 규제·전송이 전혀 없는 OKX 내부 캐리(D)를 기준선으로 삼아 비교한다.</p>
+<div class="panel scroll"><table id="verdict"></table></div>
+<div class="panel" style="margin-top:12px"><ul class="tight" id="headline"></ul></div>
+
+<h2 id="s1">1. 이 자료가 답하는 것 / 답하지 않는 것</h2>
+<div class="grid g2">
+  <div class="callout blue"><b>답하는 것.</b> 업비트와 OKX 의 같은 코인 가격 차이(김치프리미엄)를 달러 기준과 테더 기준으로 분리해 3년 일봉·90일 분봉으로 재고, 수수료·슬리피지·출금비·전송시간을 넣은 뒤 여섯 구조(전송형·헤지형·상대 프리미엄·OKX 캐리·업비트 삼각·테더 괴리)가 각각 손익분기를 넘는지, 넘는다면 현 봇에 어떤 모양으로 붙는지.</div>
+  <div class="callout"><b>답하지 않는 것.</b> 실제 체결(호가 로거가 있으면 §부록 에 실행 가능 스프레드를 싣지만 주문은 내지 않았다) · 세금(2027 과세 예정, §10) · 개인 자기자본 차익거래의 외국환거래법 해당 여부(미확인, 법률 자문 항목) · 두 거래소의 입출금 중단 빈도(공지 실측 없음) · 수수료 등급 할인(VIP0 기준).</div>
+</div>
+
+<h2 id="s2">2. 데이터 · 출처 · 검증</h2>
+<div class="grid g2">
+  <div class="panel scroll"><h3>출처</h3><table id="sources"></table></div>
+  <div class="panel"><h3>수집 창</h3><div id="windows"></div><h3 style="margin-top:12px">불변식 (위반 시 분석 중단)</h3><ul class="tight" id="invariants"></ul></div>
+</div>
+<h3>사전 등록 판정 기준</h3>
+<div class="panel scroll"><table id="criteria"></table></div>
+<h3>시리즈 검증 — 결측률·단조증가·봉경계</h3>
+<p class="sub">업비트는 체결이 없는 분에 봉을 만들지 않으므로 알트 1m 의 결측은 정상이고 허용치를 5% 로 뒀다. 조인은 inner-join 이라 결측 분은 통계에서 빠진다(커버리지 열).</p>
+<div class="panel scroll tall"><table id="verify"></table></div>
+
+<h2 id="s3">3. 김치프리미엄 개요</h2>
+<p class="sub"><b>달러 김프</b> P<sub>usd</sub> = 업비트 KRW-X ÷ (OKX X-USDT × ECB 환율) − 1. <b>테더 김프</b> P<sub>coin</sub> = 업비트 KRW-X ÷ (OKX X-USDT × 업비트 KRW-USDT) − 1 — 실제로 KRW↔USDT 를 바꿔야 하는 실행자가 마주하는 값. <b>테더 프리미엄</b> P<sub>usdt</sub> = KRW-USDT ÷ 환율 − 1. 항등식 (1+P<sub>usd</sub>) = (1+P<sub>coin</sub>)(1+P<sub>usdt</sub>).</p>
+<div class="grid g4" id="kpi3"></div>
+<div class="panel" style="margin-top:12px">
+  <h3>BTC 3년 일봉 — 달러 김프 · 테더 김프 · 테더 프리미엄</h3>
+  <canvas class="chart" id="chDaily"></canvas>
+  <div class="legend"><i style="background:var(--accent)"></i>달러 김프 <i style="background:var(--up)"></i>테더 김프(2024-06~) <i style="background:var(--warn)"></i>테더 프리미엄 · 점선 0</div>
+</div>
+<div class="panel" style="margin-top:12px">
+  <h3>90일 분봉 테더 김프 — 핵심 종목</h3>
+  <div id="minSeg" class="seg"></div>
+  <canvas class="chart" id="chMinute"></canvas>
+  <div class="legend" id="minLegend"></div>
+</div>
+<h3>종목별 통계 — 일봉(3년) · 분봉(90일)</h3>
+<div class="panel scroll tall"><table id="premTable"></table></div>
+
+<h2 id="s4">4. 전략 A — 전송형 김프 (자금 이동)</h2>
+<p class="sub">정방향 = 업비트가 비쌀 때 OKX 에서 사서 보내 업비트에서 팔고, KRW-USDT 를 사서 OKX 로 되돌린다. 역방향 = 역김프일 때 업비트에서 사서 OKX 로 보내 팔고 USDT 를 업비트로 되돌려 KRW 로 바꾼다. <b>순스프레드</b> S = (방향 부호 × P<sub>coin</sub>) − 비용. 사이클은 S&gt;0 인 첫 봉에서 시작해 전송시간 뒤의 프리미엄으로 실현한다 — <b>비헤지</b>는 전송 중 코인 가격 변동을 그대로 떠안고, <b>헤지</b>는 OKX 스왑으로 가격을 잠근 대신 스왑 왕복 0.10% 를 더 낸다(헤지는 가격 위험을 없앨 뿐 도착 시점의 프리미엄 위험은 남는다).</p>
+<div id="aVerdict"></div>
+<div class="grid g2">
+  <div class="panel scroll"><h3>비용 모델 — 종목 × 자본 (헤지, 정방향)</h3><table id="aCost"></table><p class="sub" style="margin-top:8px">출금비는 코인 개수 정액이라 자본이 작을수록 비중이 커진다. <span class="badge unv">가정</span> 은 정본을 못 찾아 가정값을 쓴 항목.</p></div>
+  <div class="panel"><h3>BTC 테더 김프 — KST 시간대 프로파일 (90일 1m)</h3><canvas class="chart" id="chHourly"></canvas><div class="legend">막대 = 평균 · 점 = |P| 90분위</div></div>
+</div>
+<h3>결과 — 종목 × 방향</h3>
+<div class="seg" id="aCapSeg"></div>
+<div class="panel scroll"><table id="aResult"></table></div>
+<h3>최근 사이클 (BTC, 선택 자본, 정방향 → 역방향)</h3>
+<div class="panel scroll tall"><table id="aCycles"></table></div>
+
+<h2 id="s5">5. 전략 B — 헤지형 김프 (자금 이동 없음)</h2>
+<p class="sub">업비트 현물 롱 + OKX 스왑 숏. 프리미엄이 낮을 때(하위 20분위) 들어가 중앙값으로 돌아오면 나온다(최대 30일). 순손익 = 프리미엄 변화 + 보유 중 숏 펀딩 수취 − 0.20%. 전구간 임계는 사후 정보를 쓰므로 <b>후반 검증</b>(전반 분위로 후반 시뮬)을 판정에 쓴다. 1분봉 변형은 90일 · 최대 1일 보유 · 펀딩 무시.</p>
+<div id="bVerdict"></div>
+<div class="panel scroll"><table id="bTable"></table></div>
+<div class="panel" style="margin-top:12px">
+  <h3>BTC 테더 김프 일봉과 진입·청산 임계</h3>
+  <canvas class="chart" id="chB"></canvas>
+  <div class="legend"><i style="background:var(--up)"></i>테더 김프 · 점선 = 전반 20분위(진입) / 50분위(청산)</div>
+</div>
+<h3>BTC 최근 사이클 (후반 검증)</h3>
+<div class="panel scroll"><table id="bCycles"></table></div>
+
+<h2 id="s6">6. 전략 C — 종목 간 상대 프리미엄</h2>
+<p class="sub">R<sub>X</sub> = P<sub>coin,X</sub> − P<sub>coin,BTC</sub>. |R|&gt;1% 인 날 4다리(업비트 X 롱·BTC 매도 + OKX X 숏·BTC 롱)로 들어가 3일 뒤 |R| 이 비용(0.40%) 이상 줄었으면 수렴. 환율 변동은 두 다리가 상쇄한다.</p>
+<div id="cVerdict"></div>
+<div class="grid g2">
+  <div class="panel"><h3>횡단면 분산 — 날마다 종목 간 R 의 표준편차</h3><canvas class="chart" id="chDisp"></canvas></div>
+  <div class="panel"><h3>주간 히트맵 — 종목 × 주 (R 평균)</h3><canvas class="chart" id="chHeat"></canvas><div class="legend"><i style="background:var(--dn)"></i>BTC 보다 싸다 <i style="background:var(--up)"></i>BTC 보다 비싸다 · 진할수록 |R| 큼(±3% 포화)</div></div>
+</div>
+<div class="panel scroll tall" style="margin-top:12px"><table id="cTable"></table></div>
+
+<h2 id="s7">7. 전략 D — OKX 현물–스왑 펀딩 캐리 · 만기 베이시스 (기준선)</h2>
+<p class="sub">현물 롱 + 스왑 숏으로 펀딩을 받는다. 한국 규제·전송과 무관한 OKX 내부 구조라 다른 전략의 <b>기준선</b>이다. OKX 는 펀딩 이력을 약 95일만 보존하므로 3년은 Binance 를 대리로 쓰고 겹치는 구간의 상관으로 타당성을 본다. USDT 만기선물은 2026-06 폐지 → 코인마진 BTC-USD 분기물을 BTC-USD 지수 대비 연환산했다.</p>
+<div id="dVerdict"></div>
+<div class="panel scroll"><table id="dTable"></table></div>
+<div class="grid g2" style="margin-top:12px">
+  <div class="panel"><h3>BTC 펀딩 30일 롤링 연환산 (Binance 3년)</h3><canvas class="chart" id="chFund"></canvas><div class="legend">점선 = 연 비용 1.2% (분기 1회 재진입 가정) · 8% 기준선</div></div>
+  <div class="panel"><h3>BTC 스왑/현물 베이시스 (일봉)</h3><canvas class="chart" id="chBasis"></canvas></div>
+</div>
+<div class="grid g2" style="margin-top:12px">
+  <div class="panel scroll"><h3>연도별 펀딩</h3><table id="dYear"></table></div>
+  <div class="panel scroll"><h3>코인마진 분기물 — 지수 대비 연환산 베이시스</h3><table id="dFut"></table></div>
+</div>
+
+<h2 id="s8">8. 전략 E — 업비트 내부 삼각 (KRW · BTC · USDT 마켓)</h2>
+<p class="sub">D = KRW-BTC ÷ (USDT-BTC × KRW-USDT) − 1. 손익분기 = 0.05 + 0.25 + 0.05 = 0.35% + 스프레드 가정. 캔들은 종가 대 종가라 실제 실행 괴리는 호가 로거 결과(있으면 아래)로 본다.</p>
+<div id="eVerdict"></div>
+<div class="grid g2">
+  <div class="panel scroll"><table id="eTable"></table></div>
+  <div class="panel"><h3>BTC 삼각 괴리 (90일, 15분 다운샘플)</h3><canvas class="chart" id="chTri"></canvas><div class="legend">점선 = ±손익분기</div></div>
+</div>
+
+<h2 id="s9">9. 전략 F — 테더 프리미엄 vs 코인 프리미엄 (진단)</h2>
+<p class="sub">"김프" 라고 부르는 것의 얼마가 사실 테더 프리미엄인가. 달러 김프를 테더 프리미엄에 회귀한 β 가 1 에 가까우면 코인 자체의 괴리(테더 김프)는 작고, A·B 가 먹을 것이 없다.</p>
+<div id="fVerdict"></div>
+<div class="grid g2">
+  <div class="panel scroll"><h3>일별 통계 (ECB 영업일만)</h3><table id="fTable"></table></div>
+  <div class="panel scroll"><h3>달러 김프가 가장 크게 움직인 10일 — 그날 테더·코인 몫</h3><table id="fMoves"></table></div>
+</div>
+
+<h2 id="s10">10. 규제 · 세금 · 운영</h2>
+<p class="sub"><span class="badge ver">확인</span> 은 공식 문서·판례 본문으로 확인한 항목, <span class="badge unv">미확인</span> 은 찾지 못했거나 법률 자문이 필요한 항목이다. 이 표의 미확인 항목이 남아 있는 한 전송형(A)은 수익성과 무관하게 실행할 수 없다.</p>
+<div class="panel scroll"><table id="regTable"></table></div>
+
+<h2 id="s11">11. 자본 배치 시나리오</h2>
+<p class="sub">자본 규모별로 정액 수수료의 비중과 각 전략의 90일 실측 기반 월 기대치를 견준다. B·D 는 자본에 비례하고, A 는 출금비 때문에 규모가 커야 산다.</p>
+<div class="panel scroll"><table id="capTable"></table></div>
+
+<h2 id="s12">12. 시스템 통합 설계 — 붙인다면 어디에</h2>
+<div class="grid g2">
+  <div class="panel">
+    <h3>현 봇과의 관계</h3>
+    <ul class="tight">
+      <li>봇 엔진(<code>system-trading/bot/engine.mjs</code>)은 <code>cfg.instId</code> 단일 종목·<code>instType=SWAP</code> 가정이다. 아비트라지는 두 거래소·두 다리라 엔진에 멤버로 넣지 않고 <b>별도 페이퍼 러너</b>(<code>bot/swing-paper.mjs</code> 패턴: 주문 코드 없음, <code>state.mjs</code> 파일 정본, <code>state-mirror.mjs</code> 로 DB 거울)로 시작한다.</li>
+      <li>신규 부품: 업비트 공개·개인 REST 클라이언트(현재 저장소에 없음), USD/KRW 환율 소스, KRW 표시 계층(<code>src/lib/format.ts</code> 는 USD 고정), 두 거래소 시각 정렬(<code>arbitrage/lib/align.mjs</code> 재사용).</li>
+      <li>승격 사다리는 <code>system-trading/docs/operations.md</code> 의 5단계를 그대로 쓴다 — 페이퍼 → 데모(업비트는 데모 없음 → 최소 주문) → 소액 → 본격.</li>
+    </ul>
+  </div>
+  <div class="panel">
+    <h3>구조별 최소 실행 경로</h3>
+    <div class="flow" id="flowD"></div>
+    <p class="sub" style="margin:8px 0 4px">D · OKX 캐리 — 한 거래소, 두 다리, 전송 없음</p>
+    <div class="flow" id="flowB"></div>
+    <p class="sub" style="margin:8px 0 4px">B · 헤지형 — 두 거래소에 자본 상주, 전송 없음</p>
+    <div class="flow" id="flowA"></div>
+    <p class="sub" style="margin:8px 0 0">A · 전송형 — 전송·트래블룰·법률 확인이 경로 안에 있다</p>
+  </div>
+</div>
+<div class="panel" style="margin-top:12px"><h3>승격 게이트 제안 (페이퍼 → 소액)</h3><ul class="tight" id="gates"></ul></div>
+
+<h2 id="s13">13. 한계와 다음 단계</h2>
+<div class="panel"><ul class="tight" id="limits"></ul></div>
+
+<h2 id="s14">부록 A — 호가 로거 (실행 가능 스프레드 · 선후행)</h2>
+<div id="booksWrap"></div>
+
+<h2 id="s15">부록 B — 수수료 정본 · 재실행</h2>
+<div class="panel scroll"><table id="feeTable"></table></div>
+<div class="foot">
+  <span id="footMeta"></span><br>
+  재실행: <code>node arbitrage/universe.mjs</code> → <code>node arbitrage/fetch-fx.mjs</code> ‖ <code>node arbitrage/fetch-upbit.mjs</code> ‖ <code>node arbitrage/fetch-okx.mjs</code> → (<code>node arbitrage/book-logger.mjs --hours 48</code> → <code>node arbitrage/book-summarize.mjs</code>) → <code>node --max-old-space-size=4096 arbitrage/analyze.mjs</code> → <code>node arbitrage/report.mjs</code>
+</div>
+</div>
+
+<script id="data" type="application/json">__DATA_JSON__</script>
+<script>
+(function () {
+  "use strict";
+  var R = JSON.parse(document.getElementById("data").textContent);
+  var S = R.strategies;
+  var CORE = R.universe.core;
+  var CAPS = R.meta.fees.assumptions.capitalKrw;
+  var $ = function (id) { return document.getElementById(id); };
+  var css = function (name) { return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); };
+  var fmtPct = function (x, d) { return x == null || !isFinite(x) ? "-" : (x * 100).toFixed(d == null ? 2 : d) + "%"; };
+  var fmtNum = function (x, d) { return x == null || !isFinite(x) ? "-" : Number(x).toLocaleString("ko-KR", { maximumFractionDigits: d == null ? 0 : d, minimumFractionDigits: d == null ? 0 : d }); };
+  var fmtKrw = function (x) { return x == null ? "-" : x >= 1e8 ? (x / 1e8).toFixed(x >= 1e9 ? 0 : 1) + "억원" : x >= 1e4 ? (x / 1e4).toFixed(0) + "만원" : fmtNum(x) + "원"; };
+  var dstr = function (t) { return new Date(t).toISOString().slice(0, 10); };
+  var dtstr = function (t) { var d = new Date(t + 9 * 3600e3); return d.toISOString().slice(0, 16).replace("T", " ") + " KST"; };
+  var signCls = function (x) { return x == null ? "" : x > 0 ? "up" : x < 0 ? "dn" : ""; };
+  var esc = function (s) { return String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;"); };
+  var verdictBadge = function (v) {
+    var cls = v === "가능" ? "ok" : v === "조건부" ? "cond" : v === "불가" ? "no" : v === "난망 신호" ? "no" : v === "여지 있음" ? "cond" : "hold";
+    return '<span class="badge ' + cls + '">' + esc(v) + "</span>";
+  };
+  var table = function (id, head, rows) {
+    var h = "<thead><tr>" + head.map(function (c) { return "<th" + (c.l ? ' class="l"' : "") + ">" + c.t + "</th>"; }).join("") + "</tr></thead>";
+    var b = "<tbody>" + rows.map(function (r) { return "<tr>" + r.map(function (c, i) { return "<td" + (head[i] && head[i].l ? ' class="l"' : "") + ">" + (c == null ? "-" : c) + "</td>"; }).join("") + "</tr>"; }).join("") + "</tbody>";
+    $(id).innerHTML = h + b;
+  };
+
+  // ── 차트 도우미 ──
+  function lineChart(canvas, series, opt) {
+    opt = opt || {};
+    var dpr = window.devicePixelRatio || 1;
+    var W = canvas.parentNode.clientWidth - 2 || 600;
+    var H = opt.height || 220;
+    canvas.width = W * dpr; canvas.height = H * dpr; canvas.style.height = H + "px"; canvas.style.width = W + "px";
+    var ctx = canvas.getContext("2d"); ctx.scale(dpr, dpr);
+    var pad = { l: 56, r: 10, t: 10, b: 22 };
+    var tmin = Infinity, tmax = -Infinity, vmin = Infinity, vmax = -Infinity;
+    series.forEach(function (s) { s.data.forEach(function (p) { if (p[1] == null) return; if (p[0] < tmin) tmin = p[0]; if (p[0] > tmax) tmax = p[0]; if (p[1] < vmin) vmin = p[1]; if (p[1] > vmax) vmax = p[1]; }); });
+    (opt.hlines || []).forEach(function (h) { if (h.y < vmin) vmin = h.y; if (h.y > vmax) vmax = h.y; });
+    if (opt.zero !== false) { if (vmin > 0) vmin = 0; if (vmax < 0) vmax = 0; }
+    if (!isFinite(tmin) || !isFinite(vmin)) { ctx.fillStyle = css("--dim"); ctx.fillText("데이터 없음", pad.l, 40); return; }
+    var vr = vmax - vmin || 1; vmin -= vr * 0.06; vmax += vr * 0.06;
+    var x = function (t) { return pad.l + ((t - tmin) / (tmax - tmin || 1)) * (W - pad.l - pad.r); };
+    var y = function (v) { return pad.t + ((vmax - v) / (vmax - vmin)) * (H - pad.t - pad.b); };
+    ctx.font = "10.5px sans-serif"; ctx.fillStyle = css("--dim"); ctx.strokeStyle = css("--grid"); ctx.lineWidth = 1;
+    var fmt = opt.yFmt || function (v) { return fmtPct(v, 1); };
+    for (var i = 0; i <= 4; i++) { var v = vmin + ((vmax - vmin) * i) / 4; ctx.beginPath(); ctx.moveTo(pad.l, y(v)); ctx.lineTo(W - pad.r, y(v)); ctx.stroke(); ctx.textAlign = "right"; ctx.fillText(fmt(v), pad.l - 6, y(v) + 3.5); }
+    var span = tmax - tmin; var n = 6;
+    ctx.textAlign = "center";
+    for (var k = 0; k <= n; k++) { var t = tmin + (span * k) / n; var lab = span > 200 * 864e5 ? dstr(t).slice(0, 7) : span > 3 * 864e5 ? dstr(t).slice(5) : new Date(t + 9 * 3600e3).toISOString().slice(11, 16); ctx.textAlign = k === 0 ? "left" : k === n ? "right" : "center"; ctx.fillText(lab, x(t), H - 6); }
+    (opt.hlines || []).forEach(function (h) { ctx.save(); ctx.setLineDash([4, 4]); ctx.strokeStyle = h.color || css("--dim"); ctx.beginPath(); ctx.moveTo(pad.l, y(h.y)); ctx.lineTo(W - pad.r, y(h.y)); ctx.stroke(); ctx.restore(); if (h.label) { ctx.textAlign = "left"; ctx.fillStyle = h.color || css("--dim"); ctx.fillText(h.label, pad.l + 4, y(h.y) - 3); } });
+    series.forEach(function (s) {
+      ctx.strokeStyle = s.color; ctx.lineWidth = s.width || 1.4; ctx.beginPath(); var pen = false;
+      s.data.forEach(function (p) { if (p[1] == null) { pen = false; return; } if (!pen) { ctx.moveTo(x(p[0]), y(p[1])); pen = true; } else ctx.lineTo(x(p[0]), y(p[1])); });
+      ctx.stroke();
+    });
+  }
+  function barChart(canvas, labels, vals, dots, opt) {
+    opt = opt || {};
+    var dpr = window.devicePixelRatio || 1; var W = canvas.parentNode.clientWidth - 2 || 600; var H = opt.height || 200;
+    canvas.width = W * dpr; canvas.height = H * dpr; canvas.style.height = H + "px"; canvas.style.width = W + "px";
+    var ctx = canvas.getContext("2d"); ctx.scale(dpr, dpr);
+    var pad = { l: 50, r: 10, t: 10, b: 22 };
+    var all = vals.concat(dots || []).filter(function (v) { return v != null; });
+    var vmin = Math.min(0, Math.min.apply(null, all)), vmax = Math.max(0, Math.max.apply(null, all)); var vr = vmax - vmin || 1; vmin -= vr * 0.08; vmax += vr * 0.08;
+    var y = function (v) { return pad.t + ((vmax - v) / (vmax - vmin)) * (H - pad.t - pad.b); };
+    var bw = (W - pad.l - pad.r) / labels.length;
+    ctx.font = "10.5px sans-serif"; ctx.fillStyle = css("--dim"); ctx.strokeStyle = css("--grid");
+    for (var i = 0; i <= 4; i++) { var v = vmin + ((vmax - vmin) * i) / 4; ctx.beginPath(); ctx.moveTo(pad.l, y(v)); ctx.lineTo(W - pad.r, y(v)); ctx.stroke(); ctx.textAlign = "right"; ctx.fillText(fmtPct(v, 2), pad.l - 6, y(v) + 3.5); }
+    ctx.textAlign = "center";
+    labels.forEach(function (l, i) {
+      var v = vals[i]; if (v != null) { ctx.fillStyle = v >= 0 ? css("--up") : css("--dn"); var top = y(Math.max(v, 0)), bot = y(Math.min(v, 0)); ctx.fillRect(pad.l + i * bw + bw * 0.2, top, bw * 0.6, Math.max(1, bot - top)); }
+      if (dots && dots[i] != null) { ctx.fillStyle = css("--accent"); ctx.beginPath(); ctx.arc(pad.l + i * bw + bw / 2, y(dots[i]), 2.5, 0, Math.PI * 2); ctx.fill(); }
+      ctx.fillStyle = css("--dim"); if (i % 2 === 0) ctx.fillText(l, pad.l + i * bw + bw / 2, H - 6);
+    });
+    ctx.save(); ctx.setLineDash([3, 3]); ctx.strokeStyle = css("--dim"); ctx.beginPath(); ctx.moveTo(pad.l, y(0)); ctx.lineTo(W - pad.r, y(0)); ctx.stroke(); ctx.restore();
+  }
+  function heatmap(canvas, syms, weeks, matrix) {
+    var dpr = window.devicePixelRatio || 1; var W = canvas.parentNode.clientWidth - 2 || 600; var rowH = 11; var H = syms.length * rowH + 26;
+    canvas.width = W * dpr; canvas.height = H * dpr; canvas.style.height = H + "px"; canvas.style.width = W + "px";
+    var ctx = canvas.getContext("2d"); ctx.scale(dpr, dpr);
+    var pad = { l: 50, r: 6, t: 4, b: 20 }; var cw = (W - pad.l - pad.r) / weeks.length;
+    ctx.font = "9.5px sans-serif";
+    syms.forEach(function (s, r) {
+      ctx.fillStyle = css("--dim"); ctx.textAlign = "right"; ctx.fillText(s, pad.l - 4, pad.t + r * rowH + 8.5);
+      weeks.forEach(function (w, c) {
+        var v = matrix[s] && matrix[s][w]; if (v == null) return;
+        var a = Math.min(1, Math.abs(v) / 0.03);
+        ctx.fillStyle = v >= 0 ? css("--up") : css("--dn"); ctx.globalAlpha = 0.12 + a * 0.88;
+        ctx.fillRect(pad.l + c * cw, pad.t + r * rowH, Math.max(1, cw - 0.5), rowH - 1); ctx.globalAlpha = 1;
+      });
+    });
+    ctx.fillStyle = css("--dim"); ctx.textAlign = "left"; var last = ""; var lastC = -99; var minGap = Math.ceil(52 / cw);
+    weeks.forEach(function (w, c) { var m = dstr(w).slice(0, 7); if (m !== last && c - lastC >= minGap) { ctx.fillText(m, pad.l + c * cw, H - 6); last = m; lastC = c; } });
+  }
+
+  // ── 0. 판정표 ──
+  var vt = R.verdictTable;
+  table("verdict", [{ t: "구조", l: true }, { t: "판정" }, { t: "핵심 숫자", l: true }, { t: "손익분기(왕복)" }, { t: "막는 요인", l: true }, { t: "규제" }, { t: "기준선(D) 대비" }],
+    vt.map(function (v) { return [v.key + " · " + esc(v.name), verdictBadge(v.verdict), esc(v.keyNumber), esc(v.breakeven), esc(v.blocker), esc(v.regulation), v.key === "D" ? "기준선" : v.key === "F" ? "-" : (function () { var rk = { "가능": 3, "조건부": 2, "보류": 1, "불가": 0 }; var a = rk[v.verdict], b = rk[v.vsBenchmark]; return a == null || b == null ? "-" : a > b ? "기준선 이상" : a === b ? "기준선과 같음" : "기준선 아래"; })()]; }));
+  var A = S.A, B = S.B, C = S.C, Dd = S.D, E = S.E, F = S.F;
+  var head = [];
+  var dBTC = Dd.perSymbol.BTC;
+  if (dBTC && dBTC.binance) head.push("<b>기준선.</b> OKX 안에서 전송·규제 없이 되는 펀딩 캐리(D)는 BTC 3년 연환산 " + fmtPct(dBTC.binance.annualized) + ", 양(+) 펀딩 비율 " + fmtPct(dBTC.binance.positiveShare, 0) + ", 최근 95일 실측 " + (dBTC.okx ? fmtPct(dBTC.okx.annualized) : "-") + " → 판정 " + Dd.verdict.verdict + ". 김프 구조는 이 숫자를 넘어야 의미가 있다.");
+  var sm = R.premium.statsMinute.BTC, sdd = R.premium.statsDaily.BTC;
+  if (sm && sdd) head.push("<b>김프의 크기.</b> BTC 테더 김프는 90일 1분봉에서 중앙값 " + fmtPct(sm.pCoin.p50) + " (5~95분위 " + fmtPct(sm.pCoin.p5) + " ~ " + fmtPct(sm.pCoin.p95) + "), 일봉 sd " + fmtPct(sdd.pCoin.sd) + ". 달러 김프 3년 중앙값 " + fmtPct(sdd.pUsd.p50) + " — 그중 테더 프리미엄이 β=" + (F.tetherShareOfUsdPremium == null ? "-" : F.tetherShareOfUsdPremium.toFixed(2)) + " 만큼을 설명한다.");
+  if (A.verdict && A.verdict.best) head.push("<b>전송형(A).</b> 5천만원 기준 가장 나은 종목·방향은 " + esc(A.verdict.keyNumber) + " → " + A.verdict.verdict + ". 게다가 개인 자기자본 차익거래의 외국환거래법 해당 여부가 미확인이라 수익성과 무관하게 실행 전 법률 자문이 필요하다.");
+  if (B.perSymbol.BTC) head.push("<b>헤지형(B).</b> " + esc(B.verdict.keyNumber) + " → " + B.verdict.verdict + ". 자금 전송이 없어 규제 부담은 적지만 증거금 보충이 필요할 때는 결국 전송이 필요하다.");
+  if (C.all) head.push("<b>상대 프리미엄(C).</b> " + esc(C.verdict.keyNumber) + " → " + C.verdict.verdict + ".");
+  if (E.perSymbol.BTC) head.push("<b>업비트 삼각(E).</b> " + esc(E.verdict.keyNumber) + " → " + E.verdict.verdict + (R.books ? " (호가 실행 괴리 정방향 p50 " + fmtPct(R.books.triangle.execFwd.p50, 3) + " · 역방향 " + fmtPct(R.books.triangle.execRev.p50, 3) + ")" : "") + ".");
+  $("headline").innerHTML = head.map(function (h) { return "<li>" + h + "</li>"; }).join("");
+  $("lede").textContent = "생성 " + dtstr(Date.parse(R.meta.generatedAt)) + " · 유니버스 " + R.universe.list.length + "종(핵심 " + CORE.join("·") + " 1m, 나머지 5m) · 분봉 " + (R.meta.windows.minute ? Math.round(R.meta.windows.minute.days) + "일" : "-") + " · 일봉 " + (R.meta.windows.daily ? R.meta.windows.daily.from + " ~ " + R.meta.windows.daily.to : "-") + " · 테더 김프는 KRW-USDT 상장(" + R.meta.windows.tetherFrom + ") 이후만.";
+  $("toc").innerHTML = ["0 판정표", "1 범위", "2 데이터", "3 김프 개요", "4 A 전송형", "5 B 헤지형", "6 C 상대", "7 D 캐리", "8 E 삼각", "9 F 테더", "10 규제", "11 자본", "12 통합", "13 한계", "부록 A 호가", "부록 B 수수료"].map(function (t, i) { return '<a href="#s' + i + '">' + t + "</a>"; }).join("");
+
+  // ── 2. 데이터 ──
+  table("sources", [{ t: "출처", l: true }, { t: "비고", l: true }], R.meta.sources.map(function (s) { return ['<a href="' + esc(s.url) + '" target="_blank" rel="noopener">' + esc(s.name) + "</a>", esc(s.note)]; }));
+  var w = R.meta.windows;
+  $("windows").innerHTML = "<ul class='tight'><li>분봉: " + (w.minute ? dtstr(Date.parse(w.minute.from)) + " → " + dtstr(Date.parse(w.minute.to)) + " (" + w.minute.days + "일)" : "-") + "</li><li>일봉: " + (w.daily ? w.daily.from + " → " + w.daily.to + " (" + w.daily.days + "일)" : "-") + "</li><li>테더 김프 시작: " + esc(w.tetherFrom) + " (KRW-USDT 상장)</li><li>호가 로거: " + (R.meta.loggerStatus ? esc(R.meta.loggerStatus.startedAt) + " 시작 · 틱 " + fmtNum(R.meta.loggerStatus.ticks) + " · 오류 " + R.meta.loggerStatus.errors + (R.books ? " · 요약 " + R.books.hours + "시간 반영" : " · <b>요약 미반영(24h 후 book-summarize 실행)</b>") : "미실행") + "</li></ul>";
+  $("invariants").innerHTML = R.meta.invariants.map(function (s) { return "<li>" + esc(s) + ' <span class="badge ver">통과</span></li>'; }).join("");
+  table("criteria", [{ t: "구조", l: true }, { t: "가능 조건", l: true }, { t: "조건부", l: true }, { t: "비용 모델", l: true }], Object.keys(R.meta.criteria).map(function (k) { var c = R.meta.criteria[k]; return [k + " · " + esc(c.name), esc(c.rule), esc(c.conditional), esc(c.cost)]; }));
+  var ver = R.meta.verification.slice().sort(function (a, b) { return a.name < b.name ? -1 : 1; });
+  table("verify", [{ t: "시리즈", l: true }, { t: "판정" }, { t: "봉" }, { t: "일수" }, { t: "결측" }, { t: "허용" }, { t: "단조위반" }, { t: "경계위반" }, { t: "구간", l: true }],
+    ver.map(function (v) { return [esc(v.name), v.ok ? '<span class="badge ver">ok</span>' : '<span class="badge ' + (v.thin ? "hold" : "unv") + '">' + (v.thin ? "얇음" : "실패") + "</span>", fmtNum(v.bars), v.spanDays == null ? "-" : v.spanDays, v.missPct == null ? "-" : v.missPct.toFixed(2) + "%", v.maxMissPct == null ? "-" : v.maxMissPct + "%", v.nonMono == null ? "-" : v.nonMono, v.offGrid == null ? "-" : v.offGrid, esc((v.from || "") + " → " + (v.to || ""))]; }));
+
+  // ── 3. 개요 ──
+  var kp = [];
+  var lastD = R.premium.daily.BTC ? R.premium.daily.BTC[R.premium.daily.BTC.length - 1] : null;
+  var lastT = R.fx.tetherPremiumDaily[R.fx.tetherPremiumDaily.length - 1];
+  var lastFx = R.fx.daily[R.fx.daily.length - 1];
+  if (lastD) kp.push({ label: "BTC 달러 김프 (최근 일봉)", value: fmtPct(lastD[1]), note: dstr(lastD[0]) + " · 3년 중앙값 " + fmtPct(sdd.pUsd.p50) + " · sd " + fmtPct(sdd.pUsd.sd) });
+  if (lastD && lastD[2] != null) kp.push({ label: "BTC 테더 김프 (최근 일봉)", value: fmtPct(lastD[2]), note: "2024-06~ 중앙값 " + fmtPct(sdd.pCoin.p50) + " · sd " + fmtPct(sdd.pCoin.sd) });
+  if (lastT) kp.push({ label: "테더 프리미엄 (KRW-USDT ÷ 환율)", value: fmtPct(lastT[1]), note: "중앙값 " + fmtPct(R.fx.stats.tether.p50) + " · sd " + fmtPct(R.fx.stats.tether.sd) });
+  if (lastFx) kp.push({ label: "USD/KRW (ECB)", value: fmtNum(lastFx[1], 1), note: dstr(lastFx[0]) + " · 주말 채움 " + R.fx.stats.filledDays + "일" });
+  $("kpi3").innerHTML = kp.map(function (k) { return '<div class="kpi"><div class="label">' + k.label + '</div><div class="value tnum">' + k.value + '</div><div class="note">' + k.note + "</div></div>"; }).join("");
+  var tetherMap = {}; R.fx.tetherPremiumDaily.forEach(function (r) { tetherMap[r[0]] = r[1]; });
+  var dailyBTC = R.premium.daily.BTC || [];
+  var chartsToDraw = [];
+  chartsToDraw.push(function () { lineChart($("chDaily"), [
+    { name: "달러 김프", data: dailyBTC.map(function (r) { return [r[0], r[1]]; }), color: css("--accent") },
+    { name: "테더 김프", data: dailyBTC.map(function (r) { return [r[0], r[2]]; }), color: css("--up") },
+    { name: "테더 프리미엄", data: dailyBTC.map(function (r) { return [r[0], tetherMap[r[0]] == null ? null : tetherMap[r[0]]]; }), color: css("--warn") }
+  ], { hlines: [{ y: 0 }], height: 240 }); });
+  var minSym = "BTC";
+  var drawMinute = function () {
+    var d = R.premium.minuteChart[minSym] || [];
+    var st = R.premium.statsMinute[minSym];
+    lineChart($("chMinute"), [{ name: minSym, data: d, color: css("--up") }], { hlines: st ? [{ y: 0 }, { y: st.pCoin.p50, label: "p50 " + fmtPct(st.pCoin.p50), color: css("--dim") }] : [{ y: 0 }], height: 220 });
+    $("minLegend").textContent = st ? minSym + " · " + fmtNum(st.bars) + "봉(커버 " + fmtPct(st.coverage, 1) + ") · p5 " + fmtPct(st.pCoin.p5) + " · p50 " + fmtPct(st.pCoin.p50) + " · p95 " + fmtPct(st.pCoin.p95) + " · 반감기 " + (st.halfLifeMin == null ? "없음" : fmtNum(st.halfLifeMin) + "분") : "";
+  };
+  $("minSeg").innerHTML = CORE.map(function (s) { return '<button type="button" data-s="' + s + '" aria-pressed="' + (s === minSym) + '">' + s + "</button>"; }).join("");
+  $("minSeg").addEventListener("click", function (e) { var b = e.target.closest("button"); if (!b) return; minSym = b.dataset.s; Array.prototype.forEach.call($("minSeg").children, function (x) { x.setAttribute("aria-pressed", x === b); }); drawMinute(); });
+  chartsToDraw.push(drawMinute);
+  table("premTable", [{ t: "종목", l: true }, { t: "봉" }, { t: "일봉 수" }, { t: "달러 김프 p50" }, { t: "달러 sd" }, { t: "달러 반감기(일)" }, { t: "테더 김프 p50" }, { t: "테더 sd" }, { t: "테더 반감기(일)" }, { t: "분봉 커버" }, { t: "분봉 p5" }, { t: "분봉 p50" }, { t: "분봉 p95" }, { t: "분봉 반감기(분)" }],
+    R.universe.list.map(function (u) {
+      var d = R.premium.statsDaily[u.symbol], m = R.premium.statsMinute[u.symbol];
+      return [esc(u.symbol) + ' <span class="muted">' + esc(u.korean) + "</span>", u.tier, d ? d.days : "-", d ? fmtPct(d.pUsd.p50) : "-", d ? fmtPct(d.pUsd.sd) : "-", d && d.ar1Usd.halfLife != null ? d.ar1Usd.halfLife.toFixed(1) : "∞", d && d.pCoin.n ? fmtPct(d.pCoin.p50) : "-", d && d.pCoin.n ? fmtPct(d.pCoin.sd) : "-", d && d.ar1Coin.halfLife != null ? d.ar1Coin.halfLife.toFixed(1) : "∞", m ? fmtPct(m.coverage, 1) : "-", m ? fmtPct(m.pCoin.p5) : "-", m ? fmtPct(m.pCoin.p50) : "-", m ? fmtPct(m.pCoin.p95) : "-", m ? (m.halfLifeMin == null ? "∞" : fmtNum(m.halfLifeMin)) : "-"];
+    }));
+
+  // ── 4. A ──
+  var vcard = function (id, v, extra) { $(id).innerHTML = '<div class="verdict-card"><div class="v">' + verdictBadge(v.verdict) + '</div><div><div>' + esc(v.keyNumber) + "</div>" + (extra ? '<div class="muted" style="margin-top:4px">' + extra + "</div>" : "") + "</div></div>"; };
+  vcard("aVerdict", A.verdict, "판정 기준: 5천만원 · 헤지 · 종목별 최선 방향. 규제 미확인(§10)이라 '가능' 이 나와도 법률 확인 전에는 실행 불가.");
+  var aCap = CAPS[1];
+  var costRows = [];
+  CORE.forEach(function (s) { var ps = A.perSymbol[s]; if (!ps) return; CAPS.forEach(function (cap) { var c = ps.byCapital[cap].fwd.cost; costRows.push([s + (cap === CAPS[0] ? "" : ""), fmtKrw(cap), fmtPct(c.trade), fmtPct(c.slip), fmtPct(c.coinFeePct, 3) + (c.withdrawFeeVerified ? "" : ' <span class="badge unv">가정</span>'), fmtPct(c.usdtFeePct, 3), fmtPct(ps.byCapital[cap].fwd.costHedged), ps.transferMin + "분"]); }); });
+  table("aCost", [{ t: "종목", l: true }, { t: "자본" }, { t: "거래 수수료" }, { t: "슬리피지" }, { t: "코인 출금비" }, { t: "USDT 출금비" }, { t: "합계(헤지)" }, { t: "전송시간" }], costRows);
+  if (A.hourlyKst) chartsToDraw.push(function () { barChart($("chHourly"), A.hourlyKst.map(function (h) { return h.hour + "시"; }), A.hourlyKst.map(function (h) { return h.mean; }), A.hourlyKst.map(function (h) { return h.p90abs; })); });
+  var drawA = function () {
+    var rows = [];
+    CORE.forEach(function (s) { var ps = A.perSymbol[s]; if (!ps) return; ["fwd", "rev"].forEach(function (dir) { var r = ps.byCapital[aCap][dir]; rows.push([s + " · " + (dir === "fwd" ? "정방향(OKX→업비트)" : "역방향(업비트→OKX)"), fmtPct(r.cost.total), fmtPct(r.pctBarsAbove, 2), r.runsCount, r.runMedianMin == null ? "-" : fmtNum(r.runMedianMin) + "분", r.runP90Min == null ? "-" : fmtNum(r.runP90Min) + "분", r.runsAtLeastTransfer, r.cycles, '<span class="' + signCls(r.hedged.monthly) + '">' + fmtPct(r.hedged.monthly) + "</span>", fmtPct(r.hedged.mean, 3), fmtPct(r.hedged.winRate, 0), '<span class="' + signCls(r.unhedged.monthly) + '">' + fmtPct(r.unhedged.monthly) + "</span>", fmtPct(r.unhedged.worst)]); }); });
+    table("aResult", [{ t: "종목 · 방향", l: true }, { t: "비용(비헤지)" }, { t: "S>0 분 비율" }, { t: "구간 수" }, { t: "구간 중앙" }, { t: "구간 90분위" }, { t: "전송시간 이상 구간" }, { t: "사이클(90일)" }, { t: "헤지 월수익" }, { t: "헤지 사이클 평균" }, { t: "헤지 승률" }, { t: "비헤지 월수익" }, { t: "비헤지 최악" }], rows);
+    var ps = A.perSymbol.BTC; var cyc = [];
+    if (ps) ["fwd", "rev"].forEach(function (dir) { ps.byCapital[aCap][dir].sampleCycles.forEach(function (c) { cyc.push([dtstr(c.t), dir === "fwd" ? "정방향" : "역방향", fmtPct(c.entryP), fmtPct(c.exitP), fmtPct(c.coinRet), '<span class="' + signCls(c.hedged) + '">' + fmtPct(c.hedged, 3) + "</span>", '<span class="' + signCls(c.unhedged) + '">' + fmtPct(c.unhedged, 3) + "</span>"]); }); });
+    table("aCycles", [{ t: "시작", l: true }, { t: "방향" }, { t: "진입 P" }, { t: "도착 P" }, { t: "전송 중 가격변동" }, { t: "헤지 순" }, { t: "비헤지 순" }], cyc.length ? cyc : [["사이클 없음 — 90일 동안 순스프레드가 양수인 봉이 없었다", "", "", "", "", "", ""]]);
+  };
+  $("aCapSeg").innerHTML = CAPS.map(function (c) { return '<button type="button" data-c="' + c + '" aria-pressed="' + (c === aCap) + '">' + fmtKrw(c) + "</button>"; }).join("");
+  $("aCapSeg").addEventListener("click", function (e) { var b = e.target.closest("button"); if (!b) return; aCap = Number(b.dataset.c); Array.prototype.forEach.call($("aCapSeg").children, function (x) { x.setAttribute("aria-pressed", x === b); }); drawA(); });
+  drawA();
+
+  // ── 5. B ──
+  vcard("bVerdict", B.verdict, (B.perSymbol.BTC && B.perSymbol.BTC.walkForward.tStat !== null && Math.abs(B.perSymbol.BTC.walkForward.tStat) < 2 ? "<b>주의:</b> 사전 등록 기준(반감기·순기대값·표본)은 통과했지만 후반 검증 평균 순 " + fmtPct(B.perSymbol.BTC.walkForward.meanNet, 3) + " 는 t=" + B.perSymbol.BTC.walkForward.tStat + " 로 0 과 구분되지 않는다 — 기준을 't ≥ 2' 로 두면 보류다. " : "") + "판정은 BTC 후반 검증 기준. 비용 " + fmtPct(B.cost) + " (업비트 0.05×2 + 스왑 0.05×2). 펀딩: 최근 95일 OKX 실측, 그 이전 Binance 대리.");
+  table("bTable", [{ t: "종목", l: true }, { t: "일수" }, { t: "반감기(일)" }, { t: "전구간 사이클" }, { t: "전구간 평균 순" }, { t: "전구간 승률" }, { t: "후반 사이클" }, { t: "후반 평균 순" }, { t: "후반 승률" }, { t: "후반 목표 도달" }, { t: "후반 최악 MAE" }, { t: "1분봉 변형 사이클" }, { t: "1분봉 평균 순" }, { t: "1분봉 승률" }],
+    CORE.map(function (s) { var b = B.perSymbol[s]; if (!b) return [s, "-"]; var mv = b.minuteVariant || {}; return [s, b.days, b.halfLifeDays == null ? "∞" : b.halfLifeDays.toFixed(1), b.inSample.n, '<span class="' + signCls(b.inSample.meanNet) + '">' + fmtPct(b.inSample.meanNet, 3) + "</span>", fmtPct(b.inSample.winRate, 0), b.walkForward.n, '<span class="' + signCls(b.walkForward.meanNet) + '">' + fmtPct(b.walkForward.meanNet, 3) + "</span>", fmtPct(b.walkForward.winRate, 0), fmtPct(b.walkForward.targetRate, 0), fmtPct(b.walkForward.worstMae), mv.n == null ? "-" : mv.n, '<span class="' + signCls(mv.meanNet) + '">' + fmtPct(mv.meanNet, 3) + "</span>", fmtPct(mv.winRate, 0)]; }));
+  var bb = B.perSymbol.BTC;
+  if (bb) {
+    chartsToDraw.push(function () { lineChart($("chB"), [{ name: "P_coin", data: dailyBTC.map(function (r) { return [r[0], r[2]]; }), color: css("--up") }], { hlines: [{ y: 0 }, { y: bb.walkForward.lo, label: "진입 " + fmtPct(bb.walkForward.lo), color: css("--dn") }, { y: bb.walkForward.mid, label: "청산 " + fmtPct(bb.walkForward.mid), color: css("--accent") }], height: 220 }); });
+    table("bCycles", [{ t: "진입일", l: true }, { t: "보유일" }, { t: "진입 P" }, { t: "청산 P" }, { t: "ΔP" }, { t: "펀딩" }, { t: "순" }, { t: "MAE" }, { t: "청산 사유" }], bb.walkForward.cycles.map(function (c) { return [dstr(c.t), c.hold, fmtPct(c.entry), fmtPct(c.exit), fmtPct(c.delta), fmtPct(c.funding, 3), '<span class="' + signCls(c.net) + '">' + fmtPct(c.net, 3) + "</span>", fmtPct(c.mae), c.exitReason === "target" ? "목표" : c.exitReason === "timeout" ? "30일" : "끝"]; }));
+  }
+
+  // ── 6. C ──
+  vcard("cVerdict", C.verdict, "비용 " + fmtPct(C.cost) + " · 임계 |R|>" + fmtPct(C.threshold, 0) + " · " + C.horizonDays + "일 뒤 판정 · 종목별 사건은 겹치지 않게 셌다." + (C.all && C.all.byDir ? " <b>방향:</b> R&gt;0(업비트 알트 펌핑 — 업비트에서 그 알트를 팔아야 하므로 보유 재고 필요) " + C.all.byDir.up.events + "건 · 수렴 " + fmtPct(C.all.byDir.up.convergeRate, 0) + " · 순 " + fmtPct(C.all.byDir.up.meanNet) + " / R&lt;0(업비트 매수·OKX 숏으로 재고 없이 가능) " + C.all.byDir.down.events + "건 · 수렴 " + fmtPct(C.all.byDir.down.convergeRate, 0) + " · 순 " + fmtPct(C.all.byDir.down.meanNet) + ". 수렴은 |R| 축소로 잰 것이라 펌핑 정점에서 실제로 팔 수 있었는지는 호가가 없어 모른다." : ""));
+  if (C.all && C.all.top) {
+    var topEl = document.createElement("div"); topEl.className = "panel scroll"; topEl.style.marginTop = "12px"; topEl.innerHTML = "<h3>|R| 상위 사건 15건</h3><table id='cTop'></table>";
+    $("cTable").parentNode.parentNode.insertBefore(topEl, $("cTable").parentNode);
+    table("cTop", [{ t: "날짜", l: true }, { t: "종목" }, { t: "R 진입" }, { t: "R 3일 뒤" }, { t: "순" }, { t: "수렴" }], C.all.top.map(function (e) { return [dstr(e.t), e.sym, '<span class="' + signCls(e.r0) + '">' + fmtPct(e.r0) + "</span>", fmtPct(e.r1), '<span class="' + signCls(e.net) + '">' + fmtPct(e.net) + "</span>", e.converged ? "예" : "아니오"]; }));
+  }
+  chartsToDraw.push(function () { lineChart($("chDisp"), [{ name: "sd", data: C.dispersion.map(function (r) { return [r[0], r[1]]; }), color: css("--accent-2") }], { height: 200 }); });
+  var weekSet = {}; Object.keys(C.weekly).forEach(function (s) { C.weekly[s].forEach(function (r) { weekSet[r[0]] = 1; }); });
+  var weeks = Object.keys(weekSet).map(Number).sort(function (a, b) { return a - b; });
+  var mat = {}; Object.keys(C.weekly).forEach(function (s) { mat[s] = {}; C.weekly[s].forEach(function (r) { mat[s][r[0]] = r[1]; }); });
+  var heatSyms = Object.keys(C.perSymbol).sort(function (a, b) { return (C.perSymbol[b].stats.sd || 0) - (C.perSymbol[a].stats.sd || 0); });
+  chartsToDraw.push(function () { heatmap($("chHeat"), heatSyms, weeks, mat); });
+  table("cTable", [{ t: "종목", l: true }, { t: "일수" }, { t: "R p50" }, { t: "R sd" }, { t: "R p5" }, { t: "R p95" }, { t: "반감기(일)" }, { t: "|R|>1% 사건" }, { t: "월 사건" }, { t: "3일 수렴률" }, { t: "평균 순" }],
+    heatSyms.map(function (s) { var c = C.perSymbol[s]; return [s, c.days, fmtPct(c.stats.p50), fmtPct(c.stats.sd), fmtPct(c.stats.p5), fmtPct(c.stats.p95), c.ar1.halfLife == null ? "∞" : c.ar1.halfLife.toFixed(1), c.events, c.eventsPerMonth, fmtPct(c.convergeRate, 0), '<span class="' + signCls(c.meanNet) + '">' + fmtPct(c.meanNet, 2) + "</span>"]; }));
+
+  // ── 7. D ──
+  vcard("dVerdict", Dd.verdict, "비용 " + fmtPct(Dd.cost) + "/회, 분기 1회 재진입 가정 → 연 " + fmtPct(Dd.annualCost) + ". 기준선 8%/양(+)65%.");
+  table("dTable", [{ t: "종목", l: true }, { t: "Binance 3년 연환산" }, { t: "양(+) 비율" }, { t: "순(연 비용 차감)" }, { t: "OKX 실측 기간", l: true }, { t: "OKX 연환산" }, { t: "OKX 양(+)" }, { t: "OKX·Binance 상관" }, { t: "겹침" }, { t: "베이시스 p50" }, { t: "베이시스 sd" }],
+    CORE.map(function (s) { var d = Dd.perSymbol[s]; if (!d) return [s]; return [s, d.binance ? fmtPct(d.binance.annualized) : "-", d.binance ? fmtPct(d.binance.positiveShare, 0) : "-", '<span class="' + signCls(d.netAnnualized) + '">' + fmtPct(d.netAnnualized) + "</span>", d.okx ? esc(d.okx.from + " → " + d.okx.to) : "-", d.okx ? fmtPct(d.okx.annualized) : "-", d.okx ? fmtPct(d.okx.positiveShare, 0) : "-", d.corrOkxBinance == null ? "-" : d.corrOkxBinance.toFixed(2), d.overlap, d.basisDaily ? fmtPct(d.basisDaily.stats.p50, 3) : "-", d.basisDaily ? fmtPct(d.basisDaily.stats.sd, 3) : "-"]; }));
+  if (dBTC) {
+    chartsToDraw.push(function () { lineChart($("chFund"), [{ name: "30d", data: dBTC.rolling30d, color: css("--accent") }], { hlines: [{ y: 0 }, { y: Dd.annualCost, label: "연 비용", color: css("--dn") }, { y: 0.08, label: "8%", color: css("--up") }], height: 200 }); });
+    if (dBTC.basisDaily && dBTC.basisDaily.series) chartsToDraw.push(function () { lineChart($("chBasis"), [{ name: "basis", data: dBTC.basisDaily.series, color: css("--warn") }], { hlines: [{ y: 0 }], height: 200, yFmt: function (v) { return fmtPct(v, 2); } }); });
+    table("dYear", [{ t: "연도", l: true }, { t: "펀딩 수" }, { t: "연환산" }, { t: "양(+) 비율" }], dBTC.yearly.map(function (y) { return [y.year, y.n, '<span class="' + signCls(y.annualized) + '">' + fmtPct(y.annualized) + "</span>", fmtPct(y.positiveShare, 0)]; }));
+  }
+  table("dFut", [{ t: "계약", l: true }, { t: "결제" }, { t: "만기" }, { t: "일수" }, { t: "연환산 p50" }, { t: "p5" }, { t: "p95" }, { t: "최근" }, { t: "최근 단순 베이시스" }], Dd.futures.map(function (f) { return [esc(f.instId) + ' <span class="muted">' + esc(f.alias) + "</span>", f.settleCcy, f.expiry, f.days, fmtPct(f.annualized.p50), fmtPct(f.annualized.p5), fmtPct(f.annualized.p95), f.last ? fmtPct(f.last[1]) : "-", f.last ? fmtPct(f.last[2], 3) + " (" + f.last[3] + "일)" : "-"]; }));
+
+  // ── 8. E ──
+  vcard("eVerdict", E.verdict, E.verdict.note + " 손익분기 " + fmtPct(E.breakeven) + " = 수수료 " + fmtPct(E.cost) + " + 스프레드 가정 " + fmtPct(E.spreadAssumed) + ".");
+  table("eTable", [{ t: "종목", l: true }, { t: "봉" }, { t: "커버" }, { t: "D p5" }, { t: "D p50" }, { t: "D p95" }, { t: "D sd" }, { t: "|D|>손익분기 분 비율" }, { t: "구간 수" }, { t: "구간 중앙(분)" }], Object.keys(E.perSymbol).map(function (s) { var e = E.perSymbol[s]; return [s, fmtNum(e.bars), fmtPct(e.coverage, 1), fmtPct(e.stats.p5), fmtPct(e.stats.p50), fmtPct(e.stats.p95), fmtPct(e.stats.sd), fmtPct(e.pctAboveBreakeven, 2), e.runs, e.runMedianMin == null ? "-" : e.runMedianMin]; }));
+  if (E.perSymbol.BTC && E.perSymbol.BTC.chart) chartsToDraw.push(function () { lineChart($("chTri"), [{ name: "D", data: E.perSymbol.BTC.chart, color: css("--accent-2") }], { hlines: [{ y: 0 }, { y: E.breakeven, color: css("--dn") }, { y: -E.breakeven, color: css("--dn") }], height: 200 }); });
+
+  // ── 9. F ──
+  if (F.verdict) {
+    vcard("fVerdict", F.verdict, "β = 달러 김프를 테더 프리미엄에 회귀한 기울기 (1 이면 달러 김프의 변동이 전부 테더 값에서 온다). corr(테더, 코인) = " + (F.corrTetherCoin == null ? "-" : F.corrTetherCoin.toFixed(2)) + ".");
+    var st = F.stats;
+    table("fTable", [{ t: "지표", l: true }, { t: "평균" }, { t: "sd" }, { t: "p5" }, { t: "p50" }, { t: "p95" }, { t: "반감기(일)" }], [["달러 김프 P_usd", fmtPct(st.pUsd.mean), fmtPct(st.pUsd.sd), fmtPct(st.pUsd.p5), fmtPct(st.pUsd.p50), fmtPct(st.pUsd.p95), "-"], ["테더 김프 P_coin", fmtPct(st.pCoin.mean), fmtPct(st.pCoin.sd), fmtPct(st.pCoin.p5), fmtPct(st.pCoin.p50), fmtPct(st.pCoin.p95), st.ar1Coin.halfLife == null ? "∞" : st.ar1Coin.halfLife.toFixed(1)], ["테더 프리미엄 P_usdt", fmtPct(st.pUsdt.mean), fmtPct(st.pUsdt.sd), fmtPct(st.pUsdt.p5), fmtPct(st.pUsdt.p50), fmtPct(st.pUsdt.p95), st.ar1Usdt.halfLife == null ? "∞" : st.ar1Usdt.halfLife.toFixed(1)]]);
+    table("fMoves", [{ t: "날짜", l: true }, { t: "Δ달러 김프" }, { t: "Δ테더 프리미엄" }, { t: "Δ테더 김프" }], F.topMoves.map(function (m) { return [dstr(m.t), '<span class="' + signCls(m.dUsd) + '">' + fmtPct(m.dUsd) + "</span>", fmtPct(m.dUsdt), fmtPct(m.dCoin)]; }));
+  }
+
+  // ── 10. 규제 ──
+  table("regTable", [{ t: "항목", l: true }, { t: "상태" }, { t: "내용", l: true }, { t: "출처 · 기준일", l: true }], R.regulation.map(function (r) { return [esc(r.item), '<span class="badge ' + (r.status.indexOf("미확인") === 0 ? "unv" : "ver") + '">' + esc(r.status) + "</span>", esc(r.value), (r.source ? '<a href="' + esc(r.source) + '" target="_blank" rel="noopener">출처</a> · ' : "") + esc(r.asOf || "-")]; }));
+
+  // ── 11. 자본 ──
+  var capRows = CAPS.map(function (cap) {
+    var a = A.perSymbol.BTC ? A.perSymbol.BTC.byCapital[cap] : null;
+    var aBest = a ? Math.max(a.fwd.hedged.monthly, a.rev.hedged.monthly) : null;
+    var bM = bb && bb.walkForward.n ? (bb.walkForward.sumNet / Math.max(1, bb.walkForward.days)) * 30 : null;
+    var dM = dBTC && dBTC.netAnnualized != null ? dBTC.netAnnualized / 12 : null;
+    return [fmtKrw(cap), a ? fmtPct(a.fwd.cost.coinFeePct + a.fwd.cost.usdtFeePct, 3) : "-", a ? fmtPct(a.fwd.costHedged) : "-", '<span class="' + signCls(aBest) + '">' + fmtPct(aBest) + "</span>", aBest == null ? "-" : fmtKrw(cap * aBest), '<span class="' + signCls(bM) + '">' + fmtPct(bM) + "</span>", bM == null ? "-" : fmtKrw(cap * bM), '<span class="' + signCls(dM) + '">' + fmtPct(dM) + "</span>", dM == null ? "-" : fmtKrw(cap * dM)];
+  });
+  table("capTable", [{ t: "자본" }, { t: "A 정액비 비중(BTC)" }, { t: "A 왕복 비용(헤지)" }, { t: "A 월 기대(BTC 최선)" }, { t: "A 월 원화" }, { t: "B 월 기대(후반 검증)" }, { t: "B 월 원화" }, { t: "D 월 기대(3년 순)" }, { t: "D 월 원화" }], capRows);
+
+  // ── 12. 통합 ──
+  var flow = function (id, nodes) { $(id).innerHTML = nodes.map(function (n, i) { return '<span class="node">' + n + "</span>" + (i < nodes.length - 1 ? '<span class="arrow">→</span>' : ""); }).join(""); };
+  flow("flowD", ["펀딩 예측 (다음 정산 &gt; 비용)", "현물 매수 + 스왑 숏 (OKX, 동시)", "펀딩 수취", "펀딩 음전 시 청산"]);
+  flow("flowB", ["P_coin ≤ 진입 분위", "업비트 현물 매수 (KRW)", "OKX 스왑 숏 (USDT 증거금)", "P_coin ≥ 청산 분위", "양쪽 청산"]);
+  flow("flowA", ["S&gt;0", "OKX 매수 (+스왑 숏)", "출금 → 트래블룰 명의 확인", "체인 전송 5~60분", "업비트 매도 → KRW-USDT 매수", "USDT 출금 → OKX", "법률·세무 기록"]);
+  $("gates").innerHTML = ["<b>D 캐리</b>: 페이퍼 30일 · 펀딩 수취 − 비용 &gt; 0 인 달 비율 ≥ 70% · 베이시스 급변 시 청산 규칙 검증 → 소액(자본 5%)", "<b>B 헤지형</b>: 업비트 클라이언트·환율·상태 파일 완성 · 페이퍼 60일 · 후반 검증 사이클 ≥ 10 · 증거금 보충 경로(전송) 문서화 → 소액", "<b>A 전송형</b>: 법률 자문 결과 문서화 · 미확인 출금비 정본 확보 · 소액 1회 왕복으로 실제 전송시간·명의 확인 절차 실측 → 그 다음에야 페이퍼", "<b>공통</b>: 두 거래소 잔고 스냅샷을 <code>equity</code> 로그에 KRW·USDT 양쪽으로 남기고, 한쪽 API 장애 시 반대 다리 강제 청산 규칙을 먼저 만든다"].map(function (s) { return "<li>" + s + "</li>"; }).join("");
+
+  // ── 13. 한계 ──
+  $("limits").innerHTML = [
+    "캔들 종가는 체결 가능한 가격이 아니다 — 호가 로거(부록 A)가 " + (R.books ? R.books.hours + "시간" : "아직 반영 전") + " 이라 실행 가능 스프레드는 그 시간대의 표본일 뿐이다.",
+    "테더 김프는 KRW-USDT 상장(2024-06-07) 이후만 있다. 2021년식 20% 김프 시대는 달러 김프로만 보인다.",
+    "B 의 진입·청산 분위는 후반 검증을 했지만 표본이 적다(사이클 수 참고). 30건 미만이면 '보류' 로 두었다.",
+    "펀딩 3년은 Binance 대리다. OKX 실측과의 상관을 표에 실었으니 그 값이 낮은 종목은 D 판정을 믿지 말 것.",
+    "수수료는 VIP0 기준이고 OKX 값은 제3자 집계(미확인 배지). 출금비는 XRP·SOL·TRX·DOGE·USDT 가 가정값이다.",
+    "규제: 개인 자기자본 차익거래의 외국환거래법 해당 여부는 판례·해석을 찾지 못했다. 이 항목이 열려 있는 한 A 는 실행할 수 없다.",
+    "다음 단계: (1) 로거 48시간 완료 후 book-summarize → analyze → report 재실행, (2) D 캐리를 페이퍼 러너로 먼저 붙여 봇 구조가 두 다리를 감당하는지 확인, (3) 업비트 API 키·계좌 준비 여부와 법률 자문을 사용자가 결정."
+  ].map(function (s) { return "<li>" + s + "</li>"; }).join("");
+
+  // ── 부록 A. 호가 ──
+  if (R.books) {
+    var bk = R.books;
+    var h = '<p class="sub">' + esc(bk.from) + " → " + esc(bk.to) + " · " + bk.hours + "시간 · 틱 " + fmtNum(bk.ticks) + " (기대 대비 " + fmtPct(bk.coverage, 1) + ") · 5초 간격 · 8단계. <b>실행 프리미엄</b>은 같은 틱의 호가를 규모만큼 걸어 낸 VWAP 로 계산한 값이며, 정방향 = OKX ask 매수 → 업비트 bid 매도(테더는 KRW-USDT ask), 역방향 = 업비트 ask 매수 → OKX bid 매도(테더는 KRW-USDT bid). 정방향 값이 양수면 그 순간 이미 실행 가능한 순 프리미엄이 있었다는 뜻(수수료 전).</p>";
+    h += '<div class="panel scroll"><table id="bkTable"></table></div>';
+    h += '<div class="grid g2" style="margin-top:12px"><div class="panel scroll"><h3>선후행 — OKX 스왑 5초 수익률 vs 업비트 (지연 상관)</h3><table id="bkLag"></table><p class="sub" style="margin-top:6px">lag&gt;0 = OKX 가 앞선다(OKX 의 과거 수익률이 업비트 현재 수익률과 상관). 0 에서 가장 높고 양의 lag 에 꼬리가 있으면 업비트가 OKX 를 따라간다.</p></div><div class="panel scroll"><h3>삼각 실행 괴리</h3><table id="bkTri"></table></div></div>';
+    $("booksWrap").innerHTML = h;
+    var rows = [];
+    CORE.forEach(function (s) { var p = bk.perSymbol[s]; if (!p || !p.ticks) return; bk.sizesKrw.forEach(function (sz, i) { var e = p.exec[sz]; rows.push([i === 0 ? s : "", fmtKrw(sz), i === 0 ? p.spreadBps.upbit.p50.toFixed(1) : "", i === 0 ? p.spreadBps.okxSpot.p50.toFixed(1) : "", i === 0 ? p.spreadBps.okxSwap.p50.toFixed(1) : "", i === 0 ? fmtKrw(p.depthKrw8.upbitBid.p50) : "", i === 0 ? fmtKrw(p.depthKrw8.okxSpotAsk.p50) : "", i === 0 ? fmtPct(p.midPremium.p50, 3) : "", fmtPct(e.fwdFillRate, 0), e.fwd.n ? fmtPct(e.fwd.p50, 3) : "-", e.fwd.n ? fmtPct(e.fwd.p95, 3) : "-", fmtPct(e.revFillRate, 0), e.rev.n ? fmtPct(e.rev.p50, 3) : "-", e.rev.n ? fmtPct(e.rev.p5, 3) : "-"]); }); });
+    table("bkTable", [{ t: "종목", l: true }, { t: "규모" }, { t: "업비트 스프레드 bp" }, { t: "OKX 현물 bp" }, { t: "OKX 스왑 bp" }, { t: "업비트 bid 깊이(8단)" }, { t: "OKX ask 깊이(8단)" }, { t: "중간가 김프 p50" }, { t: "정방향 채움" }, { t: "정방향 실행 p50" }, { t: "정방향 p95" }, { t: "역방향 채움" }, { t: "역방향 실행 p50" }, { t: "역방향 p5" }], rows);
+    table("bkLag", [{ t: "종목", l: true }].concat(bk.leadLag.BTC.lags.map(function (l) { return { t: (l.lagSec > 0 ? "+" : "") + l.lagSec + "s" }; })), CORE.map(function (s) { var l = bk.leadLag[s]; return [s + ' <span class="muted">n=' + (l ? l.n : 0) + "</span>"].concat(l ? l.lags.map(function (x) { return x.corr == null ? "-" : x.corr.toFixed(2); }) : []); }));
+    table("bkTri", [{ t: "지표", l: true }, { t: "p5" }, { t: "p50" }, { t: "p95" }, { t: "n" }], [["중간가 D", fmtPct(bk.triangle.mid.p5, 3), fmtPct(bk.triangle.mid.p50, 3), fmtPct(bk.triangle.mid.p95, 3), bk.triangle.mid.n], ["정방향 실행 (USDT→BTC→KRW)", fmtPct(bk.triangle.execFwd.p5, 3), fmtPct(bk.triangle.execFwd.p50, 3), fmtPct(bk.triangle.execFwd.p95, 3), bk.triangle.execFwd.n], ["역방향 실행 (KRW→BTC→USDT)", fmtPct(bk.triangle.execRev.p5, 3), fmtPct(bk.triangle.execRev.p50, 3), fmtPct(bk.triangle.execRev.p95, 3), bk.triangle.execRev.n]]);
+  } else {
+    $("booksWrap").innerHTML = '<div class="callout">호가 로거 요약이 아직 없다. ' + (R.meta.loggerStatus ? "로거는 " + esc(R.meta.loggerStatus.startedAt) + " 부터 돌고 있다(틱 " + fmtNum(R.meta.loggerStatus.ticks) + "). " : "") + "24시간 이상 쌓이면 <code>node arbitrage/book-summarize.mjs</code> → <code>analyze.mjs</code> → <code>report.mjs</code> 를 다시 돌리면 이 자리에 실행 가능 스프레드·선후행·삼각 실행 괴리가 들어온다.</div>";
+  }
+
+  // ── 부록 B. 수수료 ──
+  table("feeTable", [{ t: "항목", l: true }, { t: "값" }, { t: "상태" }, { t: "출처 · 기준일", l: true }, { t: "비고", l: true }], R.meta.fees.items.map(function (f) { return [esc(f.label), f.value == null ? "-" : fmtNum(f.value, f.unit === "%" ? 3 : f.unit === "BTC" ? 4 : 0) + " " + esc(f.unit), '<span class="badge ' + (f.verified ? "ver" : "unv") + '">' + (f.verified ? "확인" : f.value == null ? "미확인" : "제3자") + "</span>", (f.source ? '<a href="' + esc(f.source) + '" target="_blank" rel="noopener">출처</a> · ' : "") + esc(f.asOf || "-"), esc(f.note || "")]; }));
+  $("footMeta").textContent = "arbitrage/out/arbitrage.json · 생성 " + R.meta.generatedAt + " · 수수료 기준일 " + R.meta.fees.asOf + " · 자기완결 HTML(외부 요청 없음)";
+
+  var drawAll = function () { chartsToDraw.forEach(function (f) { try { f(); } catch (e) { console.error(e); } }); };
+  drawAll();
+  var tm; window.addEventListener("resize", function () { clearTimeout(tm); tm = setTimeout(drawAll, 150); });
+})();
+</script>
+</body>
+</html>
