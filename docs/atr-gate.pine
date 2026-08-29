@@ -1,0 +1,51 @@
+//@version=5
+// ATR ÷ 왕복비용 게이트
+//
+// 수동거래 4,023건(2023-10 ~ 2026-08) 실측에서 나온 유일한 확정 진입 조건.
+// 진입 시점 ATR이 왕복 거래비용의 4배에 못 미치면 그 구간의 거래는
+// 승률 20.8% / 거래당 -$20.45 였고, 4배를 넘긴 구간은 44.0% / +$7.70 이었다.
+// gross(수수료 제외) 손익까지 같은 방향으로 뒤집히므로 비용만의 문제가 아니다.
+//
+// 사용: 하단 별도 패널. 붉은 배경 = 진입 금지.
+
+indicator("ATR ÷ 왕복비용 게이트", shorttitle="ATR Gate", overlay=false, precision=3)
+
+lenATR   = input.int(14, "ATR 길이", minval=1, group="지표")
+feeRT    = input.float(0.10, "왕복 비용 %", minval=0.001, step=0.01, group="비용",
+     tooltip="진입+청산 수수료의 합. OKX 테이커 0.05%×2 = 0.10, 메이커 0.02%×2 = 0.04.\n슬리피지를 감안하려면 조금 더 크게 잡는다.")
+gateMult = input.float(4.0, "게이트 배수", minval=1.0, step=0.5, group="비용",
+     tooltip="ATR이 왕복 비용의 몇 배 이상일 때 진입을 허용할지.\n실측에서 손익 부호가 뒤집히는 지점이 4배다.")
+showBG   = input.bool(true, "게이트 닫힘 구간 배경 표시", group="표시")
+showTbl  = input.bool(true, "현재값 표 표시", group="표시")
+
+atrVal = ta.atr(lenATR)
+atrPct = close != 0 ? atrVal / close * 100 : na
+gate   = feeRT * gateMult
+ratio  = feeRT != 0 ? atrPct / feeRT : na
+isOpen = not na(atrPct) and atrPct >= gate
+
+// 1:1 대칭(목표=손절=1 ATR) 가정에서 본전에 필요한 승률
+beWin = not na(ratio) and ratio > 0 ? 50.0 + 100.0 / (2.0 * ratio) : na
+
+cOpen  = color.new(#2f6b4f, 0)
+cShut  = color.new(#9a3b30, 0)
+
+plot(atrPct, "ATR %", color = isOpen ? cOpen : cShut, linewidth = 2)
+plot(gate, "게이트", color = color.new(color.red, 25), linewidth = 1)
+bgcolor(showBG and not isOpen ? color.new(color.red, 90) : na, title = "게이트 닫힘")
+
+var table t = table.new(position.top_right, 2, 4, border_width = 1, frame_width = 1)
+if showTbl and barstate.islast
+    table.cell(t, 0, 0, "ATR", text_size = size.small, text_halign = text.align_left)
+    table.cell(t, 1, 0, str.tostring(atrPct, "#.###") + "%", text_size = size.small)
+    table.cell(t, 0, 1, "ATR ÷ 비용", text_size = size.small, text_halign = text.align_left)
+    table.cell(t, 1, 1, str.tostring(ratio, "#.#") + "배", text_size = size.small,
+         text_color = isOpen ? color.green : color.red)
+    table.cell(t, 0, 2, "본전 승률", text_size = size.small, text_halign = text.align_left)
+    table.cell(t, 1, 2, str.tostring(beWin, "#.#") + "%", text_size = size.small)
+    table.cell(t, 0, 3, "판정", text_size = size.small, text_halign = text.align_left)
+    table.cell(t, 1, 3, isOpen ? "진입 허용" : "진입 금지", text_size = size.small,
+         text_color = isOpen ? color.green : color.red)
+
+alertcondition(ta.crossover(atrPct, gate),  title = "게이트 열림", message = "ATR이 게이트를 넘었다 — 진입 조건 충족")
+alertcondition(ta.crossunder(atrPct, gate), title = "게이트 닫힘", message = "ATR이 게이트 아래로 내려갔다 — 진입 금지")
