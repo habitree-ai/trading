@@ -49,6 +49,19 @@ export function TradeTable({
   const [openChart, setOpenChart] = useState<string | null>(null);
   /** 전체 차트 — 첫 거래부터 전 거래의 진입·청산을 한 장에. 표 위에 편다. */
   const [overview, setOverview] = useState(false);
+  /**
+   * 전체 차트에서 화살표로 고른 거래 — 행이 그려진 뒤 그 행으로 스크롤한다.
+   *
+   * 고르는 순간 필터를 풀 수 있어 행이 아직 없을 수 있다. 렌더가 끝난 뒤(effect) 찾아야
+   * 스크롤할 대상이 있다.
+   */
+  const [scrollTo, setScrollTo] = useState<{ id: string; n: number } | null>(null);
+
+  useEffect(() => {
+    // `n` 은 같은 거래를 다시 눌러도 다시 스크롤하게 하는 일련번호다.
+    if (scrollTo === null) return;
+    document.getElementById(`trade-${scrollTo.id}`)?.scrollIntoView({ block: "center", behavior: "smooth" });
+  }, [scrollTo]);
 
   /**
    * 가로 스크롤 영역의 보이는 폭.
@@ -165,6 +178,16 @@ export function TradeTable({
           trades={rows.map((r) => r.trade)}
           preferredSymbol={symbol === "all" ? null : symbol}
           now={now}
+          onPick={(id) => {
+            // 필터에 가려 있으면 보이지 않는 행이 펼쳐진다 — 승패·복기 필터는 풀고 종목은 맞춘다.
+            const target = rows.find((r) => r.trade.id === id);
+            if (!target) return;
+            setResult("all");
+            setOnlyPending(false);
+            if (symbol !== "all" && symbol !== target.trade.symbol) setSymbol(target.trade.symbol);
+            setOpenChart(id);
+            setScrollTo((prev) => ({ id, n: (prev?.n ?? 0) + 1 }));
+          }}
         />
       ) : null}
 
@@ -189,7 +212,8 @@ export function TradeTable({
               const { trade, equityAfter, drawdownPct, pnlPct, net, result: outcome } = row;
               return (
               <Fragment key={trade.id}>
-                <tr className="border-t border-border hover:bg-surface-2/60">
+                {/* id 는 전체 차트의 화살표가 이 행으로 스크롤할 때 쓴다. */}
+                <tr id={`trade-${trade.id}`} className="border-t border-border hover:bg-surface-2/60">
                 <td className="tnum pin-col px-3 py-2 text-dim">{trade.seq}</td>
                 <td className="px-3 py-2">
                   <span className={trade.side === "long" ? "text-profit" : "text-loss"}>

@@ -6,7 +6,7 @@
  * 올라간다 — 어느 종목을 먼저 보여줄지도 여기서 정한다.
  */
 import type { Trade } from "@/lib/domain";
-import { type Bar, floorToBar, pickBar, windowFor } from "@/lib/okx";
+import { BAR_MS, type Bar, floorToBar, pickBar, windowFor } from "@/lib/okx";
 
 /**
  * 전체 구간이 담길 봉 수의 목표.
@@ -49,6 +49,20 @@ export interface OverviewWindow {
   from: number;
   to: number;
   bar: Bar;
+  /** 첫 진입부터 끝까지(여유 제외) — 봉 단위를 손으로 고를 때 상한 판정에 쓴다 */
+  spanMs: number;
+}
+
+/**
+ * 한 구간에 담을 수 있는 최대 봉 수 — `MAX_CANDLE_PAGES`(40) × 페이지 100봉.
+ *
+ * 이보다 촘촘한 봉을 고르면 OKX 요청이 최근 4,000봉에서 잘려 앞쪽 거래가 캔들 없는
+ * 자리에 찍힌다. 그래서 그런 봉은 고를 수 없게 막는다.
+ */
+export const MAX_OVERVIEW_CANDLES = 4_000;
+
+export function barFits(spanMs: number, bar: Bar): boolean {
+  return spanMs / BAR_MS[bar] <= MAX_OVERVIEW_CANDLES;
 }
 
 /**
@@ -56,10 +70,13 @@ export interface OverviewWindow {
  *
  * 끝은 마지막 청산이지만 보유중인 거래가 하나라도 있으면 **지금**이다 — 그 거래가 들어간
  * 뒤 시세가 어디로 갔는지가 빠지면 안 된다. 지금은 봉 눈금에 맞춰 내린다(캐시 안정, `floorToBar`).
+ *
+ * `manualBar` 를 주면 자동 선택 대신 그 봉으로 구간을 잡는다(여유·눈금도 그 봉 기준).
  */
 export function overviewWindow(
   trades: readonly Pick<Trade, "entry_at" | "exit_at">[],
   now: number,
+  manualBar: Bar | null = null,
 ): OverviewWindow | null {
   if (trades.length === 0) return null;
 
@@ -77,7 +94,8 @@ export function overviewWindow(
   }
   if (open) end = Math.max(end, now);
 
-  const bar = pickBar(Math.max(end - start, 1), OVERVIEW_BARS);
+  const spanMs = Math.max(end - start, 1);
+  const bar = manualBar ?? pickBar(spanMs, OVERVIEW_BARS);
   const { from, to } = windowFor(start, open ? floorToBar(end, bar) : end, bar, OVERVIEW_PAD_BARS);
-  return { from, to, bar };
+  return { from, to, bar, spanMs };
 }

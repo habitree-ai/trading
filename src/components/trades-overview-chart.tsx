@@ -9,6 +9,7 @@ import {
   createSeriesMarkers,
   type IChartApi,
   type ISeriesApi,
+  type MouseEventParams,
   type SeriesMarker,
   type TickMarkType,
   type Time,
@@ -18,8 +19,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 
 import { formatKst, formatTick, readTheme } from "@/components/trade-chart";
 import { dateTime } from "@/lib/format";
-import { BAR_MS, type Candle } from "@/lib/okx";
-import { type OverviewTrade, mostTradedSymbol, overviewWindow } from "@/lib/trade-overview";
+import { BARS, BAR_MS, type Bar, type Candle } from "@/lib/okx";
+import { type OverviewTrade, barFits, mostTradedSymbol, overviewWindow } from "@/lib/trade-overview";
 
 /**
  * 화살표 크기 — 기본(1)보다 작게.
@@ -29,17 +30,21 @@ import { type OverviewTrade, mostTradedSymbol, overviewWindow } from "@/lib/trad
  */
 const MARKER_SIZE = 0.75;
 
+/** 한 봉에 찍힌 화살표들 — 클릭한 봉에서 거래를 되찾는 색인. 같은 봉에 여럿이면 가격으로 가른다. */
+type MarkerIndex = Map<number, { id: string; price: number }[]>;
+
 /**
  * 전체 차트 — 한 종목의 거래 전부를 캔들 한 장 위에 진입 ▲ · 청산 ▼ 으로 찍는다.
  *
  * 행마다 펼치는 `TradeChart` 와 달리 거래량·RSI·메모·도구가 없다. 어디서 들어가고
  * 어디서 나왔는지의 **분포**를 보는 자리라 캔들과 화살표만 남긴다. 캔들은 같은
- * `/api/candles` 프록시로 받는다.
+ * `/api/candles` 프록시로 받는다. 화살표를 누르면 `onPick` 으로 그 거래를 알린다.
  */
 export function TradesOverviewChart({
   trades,
   preferredSymbol = null,
   now,
+  onPick,
 }: {
   /** 목록의 거래 전부 — 종목은 안에서 가른다 */
   trades: readonly OverviewTrade[];
@@ -47,6 +52,8 @@ export function TradesOverviewChart({
   preferredSymbol?: string | null;
   /** 페이지를 그린 시각(ms) — 보유중인 거래의 끝. `TradeChart` 와 같은 이유로 서버가 준다 */
   now: number;
+  /** 화살표를 눌렀을 때 — 표가 그 거래의 행 차트를 편다 */
+  onPick?: (tradeId: string) => void;
 }) {
   const symbols = useMemo(() => [...new Set(trades.map((t) => t.symbol))].sort(), [trades]);
   const [picked, setPicked] = useState<string | null>(null);
@@ -64,7 +71,12 @@ export function TradesOverviewChart({
         .sort((a, b) => Date.parse(a.entry_at) - Date.parse(b.entry_at)),
     [trades, symbol],
   );
-  const range = useMemo(() => overviewWindow(shown, now), [shown, now]);
+  /** 손으로 고른 봉. null 이면 자동 */
+  const [manualBar, setManualBar] = useState<Bar | null>(null);
+  const auto = useMemo(() => overviewWindow(shown, now), [shown, now]);
+  // 손으로 고른 봉이 상한을 넘으면(종목을 바꿔 구간이 길어진 경우) 자동으로 되돌린다.
+  const usable = manualBar !== null && auto !== null && barFits(auto.spanMs, manualBar) ? manualBar : null;
+  const range = useMemo(() => overviewWindow(shown, now, usable), [shown, now, usable]);
   const from = range?.from ?? null;
   const to = range?.to ?? null;
   const bar = range?.bar ?? null;
@@ -72,6 +84,12 @@ export function TradesOverviewChart({
   const hostRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const seriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
+  const indexRef = useRef<MarkerIndex>(new Map());
+  // 클릭 처리기는 차트를 만들 때 한 번 붙는다 — 최신 onPick 은 ref 로 읽는다.
+  const onPickRef = useRef(onPick);
+  useEffect(() => {
+    onPickRef.current = onPick;
+  }, [onPick]);
 
   /**
    * 받은 캔들은 요청 키(종목·봉·구간)와 함께 둔다.
@@ -129,6 +147,29 @@ export function TradesOverviewChart({
       wickDownColor: theme.down,
     });
 
+    /** 마우스가 가리키는 봉의 화살표들 — 없으면 빈 배열 */
+    const under = (param: MouseEventParams<Time>) =>
+      param.time === undefined ? [] : (indexRef.current.get(param.time as number) ?? []);
+
+    // 화살표 자체는 클릭 이벤트를 내지 않는다 — 클릭한 봉에 찍힌 화살표를 색인에서 되찾는다.
+    // 같은 봉에 여럿이면 클릭한 가격에 가장 가까운 거래다.
+    const onClick = (param: MouseEventParams<Time>) => {
+      const hits = under(param);
+      if (hits.length === 0 || !param.point) return;
+      const price = series.coordinateToPrice(param.point.y);
+      const best =
+        price === null
+          ? hits[0]
+          : hits.reduce((a, b) => (Math.abs(b.price - price) < Math.abs(a.price - price) ? b : a));
+      onPickRef.current?.(best.id);
+    };
+    // 화살표가 있는 봉 위에서는 손가락 커서 — 누를 수 있다는 신호.
+    const onMove = (param: MouseEventParams<Time>) => {
+      host.style.cursor = under(param).length > 0 ? "pointer" : "";
+    };
+    chart.subscribeClick(onClick);
+    chart.subscribeCrosshairMove(onMove);
+
     chartRef.current = chart;
     seriesRef.current = series;
 
@@ -138,6 +179,8 @@ export function TradesOverviewChart({
 
     return () => {
       observer.disconnect();
+      chart.unsubscribeClick(onClick);
+      chart.unsubscribeCrosshairMove(onMove);
       chart.remove();
       chartRef.current = null;
       seriesRef.current = null;
@@ -197,26 +240,42 @@ export function TradesOverviewChart({
     );
 
     // 화살표는 봉 눈금에 맞춰 찍는다 — 봉 사이 시각은 축에 없다.
-    const onBar = (iso: string) => ((Math.floor(Date.parse(iso) / BAR_MS[bar]) * BAR_MS[bar]) / 1000) as UTCTimestamp;
+    const onBar = (iso: string) => (Math.floor(Date.parse(iso) / BAR_MS[bar]) * BAR_MS[bar]) / 1000;
     const markers: SeriesMarker<Time>[] = [];
+    const index: MarkerIndex = new Map();
+    const put = (sec: number, id: string, price: number) => {
+      const list = index.get(sec) ?? [];
+      list.push({ id, price });
+      index.set(sec, list);
+    };
     for (const t of shown) {
       if (t.entry_price !== null) {
-        markers.push({ time: onBar(t.entry_at), position: "belowBar", shape: "arrowUp", color: theme.accent, size: MARKER_SIZE });
+        const sec = onBar(t.entry_at);
+        markers.push({ time: sec as UTCTimestamp, position: "belowBar", shape: "arrowUp", color: theme.accent, size: MARKER_SIZE });
+        put(sec, t.id, t.entry_price);
       }
       if (t.exit_at !== null && t.exit_price !== null) {
-        markers.push({ time: onBar(t.exit_at), position: "aboveBar", shape: "arrowDown", color: theme.beta, size: MARKER_SIZE });
+        const sec = onBar(t.exit_at);
+        markers.push({ time: sec as UTCTimestamp, position: "aboveBar", shape: "arrowDown", color: theme.beta, size: MARKER_SIZE });
+        put(sec, t.id, t.exit_price);
       }
     }
     markers.sort((a, b) => (a.time as number) - (b.time as number));
     const markerApi = createSeriesMarkers(series, markers);
+    indexRef.current = index;
 
     chart.timeScale().fitContent();
-    return () => markerApi.detach();
+    return () => {
+      markerApi.detach();
+      indexRef.current = new Map();
+    };
   }, [candles, shown, bar]);
 
   const first = shown[0] ?? null;
   const last = shown[shown.length - 1] ?? null;
   const hasOpen = shown.some((t) => t.exit_at === null);
+  const SELECT =
+    "rounded-lg border border-border bg-surface px-2 py-1 text-xs text-text outline-none focus:border-accent";
 
   return (
     <div className="space-y-2 rounded-xl border border-border p-3">
@@ -224,7 +283,7 @@ export function TradesOverviewChart({
         {symbols.length > 1 ? (
           <select
             aria-label="전체 차트 종목"
-            className="rounded-lg border border-border bg-surface px-2 py-1 text-xs text-text outline-none focus:border-accent"
+            className={SELECT}
             value={symbol ?? ""}
             onChange={(e) => setPicked(e.target.value)}
           >
@@ -237,14 +296,27 @@ export function TradesOverviewChart({
         ) : (
           <span className="font-medium text-text">{symbol}</span>
         )}
+        {/* 봉 단위 — 자동이 기본. 4,000봉을 넘기는 봉은 앞쪽 거래가 잘려 고를 수 없다. */}
+        <select
+          aria-label="전체 차트 봉 단위"
+          className={SELECT}
+          value={usable ?? "auto"}
+          onChange={(e) => setManualBar(e.target.value === "auto" ? null : (e.target.value as Bar))}
+        >
+          <option value="auto">자동{auto ? ` (${auto.bar})` : ""}</option>
+          {BARS.map((b) => (
+            <option key={b} value={b} disabled={auto !== null && !barFits(auto.spanMs, b)}>
+              {b}봉
+            </option>
+          ))}
+        </select>
         {first ? (
           <span className="tnum">
             {shown.length}건 · {dateTime(first.entry_at)} ~ {hasOpen ? "보유중" : dateTime(last?.exit_at ?? null)}
-            {bar ? ` · ${bar}봉` : null}
           </span>
         ) : null}
         <span className="ml-auto">
-          <span className="text-accent">▲</span> 진입 · <span className="text-beta">▼</span> 청산
+          <span className="text-accent">▲</span> 진입 · <span className="text-beta">▼</span> 청산 · 누르면 행 차트
         </span>
       </div>
 

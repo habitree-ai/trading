@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest';
 
 import { BAR_MS, floorToBar } from '@/lib/okx';
 import {
+  MAX_OVERVIEW_CANDLES,
   OVERVIEW_PAD_BARS,
+  barFits,
   mostTradedSymbol,
   overviewWindow,
 } from '@/lib/trade-overview';
@@ -66,5 +68,29 @@ describe('overviewWindow — 첫 진입부터 마지막 청산까지', () => {
       { entry_at: new Date(t0).toISOString(), exit_at: new Date(t0 + 365 * day).toISOString() },
     ];
     expect(overviewWindow(year, t0 + 400 * day)!.bar).toBe('1D');
+  });
+
+  it('봉을 손으로 주면 그 봉으로 구간·여유를 잡는다', () => {
+    const trades = [
+      { entry_at: new Date(t0).toISOString(), exit_at: new Date(t0 + 4 * day).toISOString() },
+    ];
+    const w = overviewWindow(trades, t0 + 9 * day, '1H')!;
+    expect(w.bar).toBe('1H');
+    expect(w.from).toBe(t0 - BAR_MS['1H'] * OVERVIEW_PAD_BARS);
+    expect(w.spanMs).toBe(4 * day);
+  });
+});
+
+describe('barFits — 한 구간 4,000봉 상한', () => {
+  const day = 24 * 60 * 60_000;
+
+  it('5일을 1분봉으로 보면 7,200봉이라 못 고른다. 5분봉(1,440)은 된다', () => {
+    expect(barFits(5 * day, '1m')).toBe(false);
+    expect(barFits(5 * day, '5m')).toBe(true);
+  });
+
+  it('상한 딱 맞는 것은 허용한다', () => {
+    expect(barFits(MAX_OVERVIEW_CANDLES * BAR_MS['15m'], '15m')).toBe(true);
+    expect(barFits(MAX_OVERVIEW_CANDLES * BAR_MS['15m'] + 1, '15m')).toBe(false);
   });
 });
