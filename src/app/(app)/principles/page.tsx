@@ -1,3 +1,4 @@
+import { AutoRuleCard } from "@/app/(app)/principles/auto-rule-card";
 import { PrincipleForm } from "@/app/(app)/principles/principle-form";
 import { PrincipleRow } from "@/app/(app)/principles/principle-row";
 import { EmptyBook } from "@/components/empty-book";
@@ -15,6 +16,7 @@ import {
   listPrinciples,
   listTrades,
 } from "@/lib/queries";
+import { TRADE_RULES, judgeTradeRules, summarizeTradeRules } from "@/lib/trade-rules";
 
 /** 묶음마다 무엇을 적는 자리인지 — 빈 칸을 보고도 뭘 쓸지 알 수 있게. */
 const CATEGORY_HINT: Record<PrincipleCategory, string> = {
@@ -38,6 +40,8 @@ export default async function PrinciplesPage() {
 
   const outcomes = summarizePrinciples(deriveTrades(book, trades, flows), checks);
   const activeCount = principles.filter((p) => p.active).length;
+  // 기록만으로 판정되는 원칙 — 손 판단을 기다리지 않고 통계가 나온다.
+  const autoStats = summarizeTradeRules(trades, judgeTradeRules(trades));
 
   const byCategory = new Map<PrincipleCategory, Principle[]>();
   for (const p of principles) {
@@ -54,6 +58,24 @@ export default async function PrinciplesPage() {
           거래를 열면 이 목록이 체크리스트로 뜹니다.
         </p>
       </header>
+
+      {/* 자동 판정 원칙 — 거래 기록이 곧 판정이라 맨 위에 둔다. 손 원칙과 같은 통계 줄. */}
+      <section className="space-y-2">
+        <h2 className="text-sm font-medium">
+          자동으로 재는 원칙
+          <span className="ml-2 text-xs font-normal text-dim">
+            손절가·목표가·진입 시각·손익만으로 판정 — 누를 것이 없습니다
+          </span>
+        </h2>
+        {TRADE_RULES.map((rule) => (
+          <AutoRuleCard
+            key={rule.id}
+            rule={rule}
+            stats={autoStats.get(rule.id) ?? { judged: 0, broken: 0, brokenPnl: null, brokenTrades: [] }}
+            currency={book.base_currency}
+          />
+        ))}
+      </section>
 
       <section className="rounded-xl border border-border bg-surface p-4">
         <h2 className="text-sm font-medium">원칙 추가</h2>
