@@ -231,6 +231,23 @@ export async function getLatestBalance(bookId: string): Promise<BalanceSnapshot 
 }
 
 /**
+ * 북의 잔액 스냅샷 전부 — 시각순.
+ *
+ * 자금 곡선이 거래소 잔액 선을 그리는 데 쓴다. 시작일 전 것은 정의가 달라 여기서
+ * 거르지 않고 곡선 쪽(`dailySnapshots`)이 한국 시간 날짜로 거른다.
+ */
+export async function listBalanceSnapshots(bookId: string): Promise<BalanceSnapshot[]> {
+  const { supabase } = await requireUser();
+  const { data, error } = await supabase
+    .from("balance_snapshots")
+    .select("*")
+    .eq("book_id", bookId)
+    .order("at", { ascending: true });
+  if (error) throw new Error(error.message);
+  return data as BalanceSnapshot[];
+}
+
+/**
  * 마지막으로 성공한 동기화.
  *
  * OKX는 3개월치만 준다 — 얼마나 밀렸는지 눈에 보여야 유실을 알아챌 수 있다.

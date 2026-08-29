@@ -81,6 +81,11 @@ export interface EquityPoint {
   pnl: number | null;
   /** 같은 시점의 벤치마크 시세 — 축이 달라 우측 눈금에 붙는다. 못 받았으면 null */
   benchmark?: number | null;
+  /**
+   * 거래소가 말한 잔액(스냅샷, 미실현 포함) — 장부(`equity`)와 벌어진 만큼이 미실현 손익과
+   * 장부가 놓친 비용이다. 스냅샷이 없는 행은 null 이고, 이어지지 않는 날 사이는 null 로 끊는다.
+   */
+  snapshot?: number | null;
 }
 
 /** 색 단독에 기대지 않도록 선 모양(실선/점선)까지 다르게 쓰고 범례에 그대로 옮긴다. */
@@ -151,6 +156,8 @@ type CurveRow = EquityPoint & {
   performancePct: number;
   /** 벤치마크는 구간 앞쪽이 비어 있을 수 있다 — 기준점을 못 잡으면 null. */
   benchmarkPct: number | null;
+  /** 거래소 잔액을 장부와 같은 분모로 환산한 값. 스냅샷이 없는 행은 null. */
+  snapshotPct: number | null;
 };
 
 /**
@@ -193,6 +200,8 @@ export function EquityCurve({
   // 못 받아 온 벤치마크로 빈 축을 세우지 않는다.
   const hasBenchmark =
     benchmarkLabel !== null && data.some((d) => typeof d.benchmark === "number");
+  // 스냅샷이 한 점도 없으면(수동 북) 그 선과 범례를 아예 두지 않는다.
+  const hasSnapshot = data.some((d) => typeof d.snapshot === "number");
   // 분모가 0 이하면 수익률을 낼 수 없다 — 토글을 감추고 금액 축으로 고정한다.
   const base = returnBase ?? initialCapital;
   const canPct = base > 0;
@@ -212,6 +221,8 @@ export function EquityCurve({
         mark !== null && mark !== 0 && typeof d.benchmark === "number"
           ? (d.benchmark - mark) / mark
           : null,
+      snapshotPct:
+        canPct && typeof d.snapshot === "number" ? (d.snapshot - initialCapital) / base : null,
     }));
   }, [data, initialCapital, base, canPct]);
 
@@ -220,8 +231,15 @@ export function EquityCurve({
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
         <Legend
           items={[
-            ["실제 잔액", "var(--accent)", false],
+            [hasSnapshot ? "장부 잔액 (거래 기반)" : "실제 잔액", "var(--accent)", false],
             ["매매 성과 (입출금 제외)", "var(--alpha)", true],
+            ...(hasSnapshot
+              ? ([["실제 잔액 (거래소 스냅샷 · 미실현 포함)", "var(--beta)", false]] as [
+                  string,
+                  string,
+                  boolean,
+                ][])
+              : []),
             ...(hasBenchmark
               ? ([
                   [
@@ -283,7 +301,19 @@ export function EquityCurve({
                 <TooltipBox
                   rows={[
                     [p.label, ""],
-                    [`실제 잔액 (${currency})`, num(p.equity, 2)],
+                    [`${hasSnapshot ? "장부 잔액" : "실제 잔액"} (${currency})`, num(p.equity, 2)],
+                    ...(hasSnapshot
+                      ? ([
+                          [
+                            "실제 잔액 (거래소)",
+                            typeof p.snapshot === "number" ? num(p.snapshot, 2) : "—",
+                            typeof p.snapshot === "number" ? "text-beta" : "",
+                          ],
+                          ...(canPct && p.snapshotPct !== null
+                            ? [["거래소 수익률", signedPct(p.snapshotPct), pnlClass(p.snapshotPct)]]
+                            : []),
+                        ] as [string, string, string?][])
+                      : []),
                     ...(canPct
                       ? ([["잔액 수익률", signedPct(p.equityPct), pnlClass(p.equityPct)]] as [
                           string,
@@ -390,8 +420,27 @@ export function EquityCurve({
             }}
             activeDot={{ r: 4, strokeWidth: 2, stroke: "var(--surface)" }}
           />
+          {/* 거래소 잔액 — 이어지지 않는 날 사이는 null 이라 여기서 끊긴다(connectNulls 금지). */}
+          {hasSnapshot ? (
+            <Line
+              yAxisId="left"
+              type="monotone"
+              dataKey={pctMode ? "snapshotPct" : "snapshot"}
+              stroke="var(--beta)"
+              strokeWidth={1.5}
+              dot={false}
+              activeDot={{ r: 3, strokeWidth: 2, stroke: "var(--surface)" }}
+            />
+          ) : null}
         </LineChart>
       </ResponsiveContainer>
+      {hasSnapshot ? (
+        <p className="text-[11px] text-dim">
+          <span className="text-beta">—</span> 거래소 잔액은 하루에 마지막 스냅샷 하나로 그립니다.
+          이어지지 않는 날 사이는 선을 끊어 두었습니다 — 빈 구간을 &ldquo;변동 없음&rdquo;으로 읽지
+          않게. 장부 선과의 간격이 미실현 손익과 장부가 놓친 비용입니다.
+        </p>
+      ) : null}
       {pctMode && hasBenchmark ? (
         <p className="text-[11px] text-dim">
           시장과 견줄 선은 <span className="text-alpha">매매 성과</span>입니다 — 실제 잔액에는

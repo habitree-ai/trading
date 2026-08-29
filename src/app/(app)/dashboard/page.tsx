@@ -29,11 +29,13 @@ import {
   getActiveBook,
   getLastSync,
   getLatestBalance,
+  listBalanceSnapshots,
   listCashFlows,
   listFillsByTrade,
   listTrades,
 } from "@/lib/queries";
 import { reconcileEquity } from "@/lib/reconcile";
+import { dailySnapshots, mergeSnapshotLine } from "@/lib/snapshot-curve";
 import {
   readDrawdown,
   readExpectancy,
@@ -67,11 +69,13 @@ export default async function DashboardPage() {
   const book = await getActiveBook();
   if (!book) return <EmptyBook />;
 
-  const [trades, flows, balance, lastSync] = await Promise.all([
+  const [trades, flows, balance, lastSync, snapshots] = await Promise.all([
     listTrades(book.id),
     listCashFlows(book.id),
     getLatestBalance(book.id),
     book.exchange_account_id ? getLastSync(book.id) : null,
+    // 자금 곡선의 거래소 잔액 선 — 캡쳐·수동 스냅샷도 같은 표라 북 종류를 가리지 않는다.
+    listBalanceSnapshots(book.id),
   ]);
 
   const derived = deriveTrades(book, trades, flows);
@@ -134,6 +138,9 @@ export default async function DashboardPage() {
       benchmark: priceAt(p.at),
     })),
   ];
+  // 거래소 잔액 선 — 한국 시간 하루에 마지막 스냅샷, 시작일 전 제외, 빈 날 사이는 끊는다.
+  // 드로다운 차트는 거래 행만 쓰므로 `curve` 를 그대로 둔다.
+  const curveWithSnapshots = mergeSnapshotLine(curve, dailySnapshots(snapshots, book.start_date));
 
   /* ============ 해석 ============ */
 
@@ -361,7 +368,7 @@ export default async function DashboardPage() {
             </h2>
             <div className="mt-3">
               <EquityCurve
-                data={curve}
+                data={curveWithSnapshots}
                 currency={book.base_currency}
                 initialCapital={book.initial_capital}
                 returnBase={m.investedCapital}
