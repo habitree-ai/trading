@@ -187,7 +187,7 @@ function renderEditor(){
   if(p){ h.push('<h2>'+esc(p.t)+'</h2><div class="meta"><span class="chip cat">'+esc(p.c)+
       '</span><span class="chip mono">'+p.d+'</span></div><div class="acts">'+
       '<a class="tbtn" href="'+esc(p.u)+'" target="_blank" rel="noopener">네이버 원문 ↗</a>'+
-      '<a class="tbtn" href="'+esc(CFG.dash)+'" target="_blank" rel="noopener">아카이브 대시보드 ↗</a>'+
+      '<a class="tbtn" href="'+esc(CFG.dash)+'" target="_blank" rel="noopener">아카이브에서 보기 ↗</a>'+
       '<button class="tbtn" id="changepost">글 바꾸기</button></div>') }
   else { h.push('<div class="pick"><input id="pickpost" type="text" autocomplete="off" '+
       'placeholder="760편에서 글 찾기 — 제목·게시판·날짜"><div class="res" id="pickres" hidden></div></div>') }
