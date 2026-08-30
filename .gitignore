@@ -89,3 +89,6 @@ arbitrage/.cache/
 
 # Supabase CLI 캐시 — 버전 확인용 임시 파일.
 supabase/.temp/
+
+# 작업 지시 메모 — 개인 지시서·캡처. 이 머신에만 둔다.
+지시사항/
