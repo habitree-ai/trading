@@ -83,3 +83,9 @@ arbitrage/.cache/
 선배님/_수집스크립트/__pycache__/
 # 수집 스크립트의 파이썬 캐시.
 선배님/_수집스크립트/__pycache__/
+
+# 브라우저 자동화 로그 — Playwright MCP 가 세션마다 남기는 콘솔·페이지 덤프.
+.playwright-mcp/
+
+# Supabase CLI 캐시 — 버전 확인용 임시 파일.
+supabase/.temp/
