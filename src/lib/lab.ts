@@ -66,6 +66,13 @@ const CATALOG: LabEntry[] = [
     path: "re_sys/out/index.html",
   },
   {
+    key: "bt-spot-signal",
+    group: "backtest",
+    title: "현물신호 게이트 — 업비트 KRW 전 종목 8종 검증",
+    desc: "추세추종 4종 전부 기각, 역발상 중 급락 반전(crash×T1)만 채택된 근거. 청산 방식·연도·유동성 분해 전체 표",
+    path: "docs/backtest/spot-signal-report.html",
+  },
+  {
     key: "bt-asym",
     group: "backtest",
     title: "비대칭 회차 — 손익 구조를 기울여 얻는 것",

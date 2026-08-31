@@ -48,7 +48,17 @@ export default async function SpotSignalsPage() {
           승률 {ADOPTED_STATS.winPct}% · PF {ADOPTED_STATS.pf} (표본 {ADOPTED_STATS.n}) ·
           2026년 +{ADOPTED_STATS.y2026.avgPct}% · 승률 {ADOPTED_STATS.y2026.winPct}%
         </p>
-        <p className="mt-1">과거 통계이며 미래를 보장하지 않습니다. 자동 매수 없음 — 판단은 사람 몫입니다.</p>
+        <p className="mt-1">
+          과거 통계이며 미래를 보장하지 않습니다. 자동 매수 없음 — 판단은 사람 몫입니다.{" "}
+          <a
+            href="/api/lab?key=bt-spot-signal"
+            target="_blank"
+            rel="noreferrer"
+            className="text-alpha hover:underline"
+          >
+            전체 백테스트 리포트 →
+          </a>
+        </p>
       </section>
 
       {signals.length === 0 ? (
