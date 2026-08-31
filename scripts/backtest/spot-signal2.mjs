@@ -218,7 +218,15 @@ function analyzeMarket(market, h1, d1, btcCloseByT) {
         if (ret === null && i + ATR_HORIZON < h1.length) ret = h1[i + ATR_HORIZON][1] / entry - 1 - cost;
         if (ret !== null) exits.atr = ret;
       }
-      trades.push({ market, sig, t, entry, tier: slip.tier, exits });
+      // 상세 내역 표에 쓰는 부가 정보 — crash 의 발화 근거를 함께 남긴다.
+      const detail =
+        sig === "crash"
+          ? {
+              drop72Pct: +((c1[i] / c1[i - 72] - 1) * 100).toFixed(1),
+              volMult: volMA20[i - 1] > 0 ? +(v1[i] / volMA20[i - 1]).toFixed(1) : null,
+            }
+          : {};
+      trades.push({ market, sig, t, entry, tier: slip.tier, ...detail, exits });
     }
   }
   return trades;
