@@ -496,6 +496,114 @@ export type Database = {
           },
         ]
       }
+      kakao_tokens: {
+        Row: {
+          access_token: string
+          expires_at: string
+          refresh_expires_at: string | null
+          refresh_token: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          access_token: string
+          expires_at: string
+          refresh_expires_at?: string | null
+          refresh_token: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          access_token?: string
+          expires_at?: string
+          refresh_expires_at?: string | null
+          refresh_token?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      spot_scan_runs: {
+        Row: {
+          bar_ts: string | null
+          duration_ms: number | null
+          error: string | null
+          id: string
+          markets_scanned: number
+          notify_status: string | null
+          ran_at: string
+          signals_found: number
+          user_id: string
+        }
+        Insert: {
+          bar_ts?: string | null
+          duration_ms?: number | null
+          error?: string | null
+          id?: string
+          markets_scanned?: number
+          notify_status?: string | null
+          ran_at?: string
+          signals_found?: number
+          user_id: string
+        }
+        Update: {
+          bar_ts?: string | null
+          duration_ms?: number | null
+          error?: string | null
+          id?: string
+          markets_scanned?: number
+          notify_status?: string | null
+          ran_at?: string
+          signals_found?: number
+          user_id?: string
+        }
+        Relationships: []
+      }
+      spot_signals: {
+        Row: {
+          bar_ts: string
+          created_at: string
+          drop72_pct: number | null
+          id: string
+          indicators: Json | null
+          market: string
+          notified_at: string | null
+          price: number
+          signal: string
+          turnover_med30: number | null
+          user_id: string
+          volume_mult: number | null
+        }
+        Insert: {
+          bar_ts: string
+          created_at?: string
+          drop72_pct?: number | null
+          id?: string
+          indicators?: Json | null
+          market: string
+          notified_at?: string | null
+          price: number
+          signal: string
+          turnover_med30?: number | null
+          user_id: string
+          volume_mult?: number | null
+        }
+        Update: {
+          bar_ts?: string
+          created_at?: string
+          drop72_pct?: number | null
+          id?: string
+          indicators?: Json | null
+          market?: string
+          notified_at?: string | null
+          price?: number
+          signal?: string
+          turnover_med30?: number | null
+          user_id?: string
+          volume_mult?: number | null
+        }
+        Relationships: []
+      }
       system_decisions: {
         Row: {
           action: string | null

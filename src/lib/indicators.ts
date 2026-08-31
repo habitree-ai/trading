@@ -39,6 +39,21 @@ export function rsi(closes: readonly number[], period = 14): (number | null)[] {
   return out;
 }
 
+/**
+ * 단순이동평균 — 앞 `period-1`개는 재료가 모자라 null.
+ * 롤링 합으로 O(n) — 현물 스캐너가 종목마다 부르므로 반복 합산을 피한다.
+ */
+export function sma(values: readonly number[], period: number): (number | null)[] {
+  const out: (number | null)[] = new Array(values.length).fill(null);
+  let sum = 0;
+  for (let i = 0; i < values.length; i += 1) {
+    sum += values[i];
+    if (i >= period) sum -= values[i - period];
+    if (i >= period - 1) out[i] = sum / period;
+  }
+  return out;
+}
+
 /** 내림폭 평균이 0이면 나눗셈이 터진다 — 전부 올랐으면 100이다. */
 function toRsi(gain: number, loss: number): number {
   if (loss === 0) return gain === 0 ? 50 : 100;
