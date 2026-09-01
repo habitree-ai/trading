@@ -9,7 +9,7 @@ import { TradeChart } from "@/components/trade-chart";
 import { TradesOverviewChart } from "@/components/trades-overview-chart";
 import { RESULT_LABEL, SIDE_LABEL, type TradeFill, type TradeResult } from "@/lib/domain";
 import { activeTargetPrices, summarizeExits } from "@/lib/exit-plan";
-import { dateTime, num, pct, pnlClass, signed, signedPct } from "@/lib/format";
+import { DASH, dateTime, num, pct, pnlClass, signed, signedPct } from "@/lib/format";
 import type { TradeDerived } from "@/lib/metrics";
 
 type ResultFilter = TradeResult | "all";
@@ -107,6 +107,7 @@ export function TradeTable({
     "종목",
     "진입 (가격 · 시각)",
     "손절 · 목표",
+    "손익비",
     "청산 (가격 · 시각)",
     "승패",
     "투입",
@@ -192,13 +193,14 @@ export function TradeTable({
       ) : null}
 
       <div ref={scrollRef} className="scroll-x rounded-xl border border-border">
-        <table className="w-full min-w-[1320px] text-sm">
+        {/* 최소폭은 사이드바를 뺀 1280px 급 화면에 스크롤 없이 들어가는 선 — 열을 더하면 다시 잰다. */}
+        <table className="w-full min-w-[1200px] text-sm">
           <thead className="bg-surface-2 text-xs text-dim">
             <tr>
               {columns.map((h, i) => (
                 <th
                   key={h}
-                  className={`px-3 py-2 text-left font-medium whitespace-nowrap ${
+                  className={`px-2 py-1.5 text-left font-medium whitespace-nowrap ${
                     i === 0 ? "pin-col" : ""
                   }`}
                 >
@@ -210,35 +212,49 @@ export function TradeTable({
           <tbody>
             {visible.map((row) => {
               const { trade, equityAfter, drawdownPct, pnlPct, net, result: outcome } = row;
+              // 한 행에서 두 칸(손절·목표, 손익비)이 같은 계획을 읽는다 — 한 번만 계산한다.
+              const exits = summarizeExits(trade, fills[trade.id] ?? NO_FILLS, outcome === "open");
+              const hasRationale = (trade.rationale ?? "").trim() !== "";
               return (
               <Fragment key={trade.id}>
                 {/* id 는 전체 차트의 화살표가 이 행으로 스크롤할 때 쓴다. */}
                 <tr id={`trade-${trade.id}`} className="border-t border-border hover:bg-surface-2/60">
-                <td className="tnum pin-col px-3 py-2 text-dim">{trade.seq}</td>
-                <td className="px-3 py-2">
+                <td className="tnum pin-col px-2 py-1.5 text-dim">{trade.seq}</td>
+                <td className="px-2 py-1.5">
                   <span className={trade.side === "long" ? "text-profit" : "text-loss"}>
                     {SIDE_LABEL[trade.side]}
                   </span>
                 </td>
-                <td className="px-3 py-2 font-medium">{trade.symbol}</td>
+                <td className="px-2 py-1.5 font-medium">{trade.symbol}</td>
                 <FillCell price={trade.entry_price} at={trade.entry_at} />
                 {/* 진입 옆 — 단계별 청산. 체결된 차수는 실현값, 아직이면 등록된 TP 기준 예상치. */}
-                <td className="px-3 py-2 whitespace-nowrap">
-                  <ExitPlanLines
-                    summary={summarizeExits(trade, fills[trade.id] ?? NO_FILLS, outcome === "open")}
-                  />
+                <td className="px-2 py-1.5 whitespace-nowrap">
+                  <ExitPlanLines summary={exits} />
+                </td>
+                {/* 기록된 손절·목표로 잰 계획 손익비 — 다단 TP 는 비중 혼합 R. 둘 중 하나라도 없으면 − */}
+                <td className="tnum px-2 py-1.5">
+                  {exits.plan.total.blendedR === null ? DASH : num(exits.plan.total.blendedR, 2)}
                 </td>
                 <FillCell price={trade.exit_price} at={trade.exit_at} />
-                <td className="px-3 py-2 whitespace-nowrap">
+                <td className="px-2 py-1.5 whitespace-nowrap">
                   <ResultBadge result={outcome} />
+                  {/* 근거 입력 여부 — 어느 쪽이든 누르면 수정 화면에서 바로 적거나 읽는다. */}
+                  <Link
+                    href={`/trades/${trade.id}`}
+                    className={`ml-1 rounded border px-1 py-0.5 text-[10px] ${
+                      hasRationale ? "border-border text-dim" : "border-accent/40 text-accent"
+                    }`}
+                  >
+                    {hasRationale ? "근거 ✓" : "근거 쓰기"}
+                  </Link>
                   {needsReview(row) ? (
                     <span className="ml-1 rounded border border-accent/40 px-1 py-0.5 text-[10px] text-accent">
                       복기
                     </span>
                   ) : null}
                 </td>
-                <td className="tnum px-3 py-2 text-dim">{num(trade.notional, 0)}</td>
-                <td className="tnum px-3 py-2 text-dim">{num(trade.leverage, 1)}</td>
+                <td className="tnum px-2 py-1.5 text-dim">{num(trade.notional, 0)}</td>
+                <td className="tnum px-2 py-1.5 text-dim">{num(trade.leverage, 1)}</td>
                 {/*
                   계좌가 실제로 움직인 값(=손익+수수료)을 앞세우고, 내역은 아래 작게.
                   아직 들고 있는 거래는 확정된 게 없어 평가손익을 대신 세운다 — 시세를
@@ -246,7 +262,7 @@ export function TradeTable({
                   둘을 구분할 수가 없다.
                 */}
                 <td
-                  className={`px-3 py-2 whitespace-nowrap ${
+                  className={`px-2 py-1.5 whitespace-nowrap ${
                     outcome === "open" ? pnlClass(trade.unrealized_pnl) : pnlClass(net)
                   }`}
                 >
@@ -266,12 +282,12 @@ export function TradeTable({
                     </>
                   )}
                 </td>
-                <td className={`tnum px-3 py-2 ${pnlClass(pnlPct)}`}>{signedPct(pnlPct)}</td>
-                <td className="tnum px-3 py-2">{num(equityAfter, 0)}</td>
-                <td className={`tnum px-3 py-2 ${drawdownPct < 0 ? "text-loss" : "text-dim"}`}>
+                <td className={`tnum px-2 py-1.5 ${pnlClass(pnlPct)}`}>{signedPct(pnlPct)}</td>
+                <td className="tnum px-2 py-1.5">{num(equityAfter, 0)}</td>
+                <td className={`tnum px-2 py-1.5 ${drawdownPct < 0 ? "text-loss" : "text-dim"}`}>
                   {pct(drawdownPct)}
                 </td>
-                <td className="px-3 py-2 whitespace-nowrap">
+                <td className="px-2 py-1.5 whitespace-nowrap">
                   <button
                     type="button"
                     onClick={() => setOpenChart((id) => (id === trade.id ? null : trade.id))}
@@ -280,7 +296,7 @@ export function TradeTable({
                   >
                     {openChart === trade.id ? "차트 닫기" : "차트"}
                   </button>
-                  <Link href={`/trades/${trade.id}`} className="ml-3 text-xs text-accent">
+                  <Link href={`/trades/${trade.id}`} className="ml-2 text-xs text-accent">
                     수정
                   </Link>
                   <button
@@ -292,7 +308,7 @@ export function TradeTable({
                       );
                       if (ok) startTransition(() => void deleteTrade(trade.id));
                     }}
-                    className="ml-3 text-xs text-loss disabled:opacity-50"
+                    className="ml-2 text-xs text-loss disabled:opacity-50"
                   >
                     삭제
                   </button>
@@ -338,7 +354,7 @@ export function TradeTable({
 /** 체결 한 칸에 가격과 시각을 함께 담는다 — 둘을 따로 보면 짝짓기가 어렵다. */
 function FillCell({ price, at }: { price: number | null; at: string | null }) {
   return (
-    <td className="px-3 py-2 whitespace-nowrap">
+    <td className="px-2 py-1.5 whitespace-nowrap">
       <div className="tnum text-sm">{num(price)}</div>
       <div className="tnum text-[11px] text-dim">{dateTime(at)}</div>
     </td>
