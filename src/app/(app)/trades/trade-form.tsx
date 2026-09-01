@@ -61,8 +61,9 @@ function readTpSplit(form: HTMLFormElement, okxTpPrice: number | null): string |
   });
 }
 
+// 항목 수가 많아 한 화면에 담기려면 칸이 얇아야 한다 — 패딩을 줄이고 넓은 화면은 4열로 편다.
 const INPUT =
-  "w-full rounded-lg border border-border bg-bg px-3 py-2 text-sm outline-none focus:border-accent";
+  "w-full rounded-lg border border-border bg-bg px-2.5 py-1.5 text-sm outline-none focus:border-accent";
 const LABEL = "block text-xs text-dim mb-1";
 
 function Field({
@@ -185,7 +186,8 @@ function SuggestTextarea({
 }) {
   const [value, setValue] = useState(defaultValue ?? "");
   return (
-    <div className="sm:col-span-3">
+    // 넓은 화면에서는 근거·복기가 나란히 선다 — 두 긴 칸이 쌓이면 폼이 그만큼 길어진다.
+    <div className="sm:col-span-3 xl:col-span-2">
       <div className="mb-1 flex items-baseline gap-2">
         <label className="text-xs text-dim" htmlFor={`f-${name}`}>
           {label}
@@ -224,9 +226,9 @@ function SuggestTextarea({
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <fieldset className="rounded-xl border border-border bg-surface p-4">
+    <fieldset className="rounded-xl border border-border bg-surface p-3">
       <legend className="px-1 text-xs font-medium text-dim">{title}</legend>
-      <div className="grid gap-3 sm:grid-cols-3">{children}</div>
+      <div className="grid gap-2.5 sm:grid-cols-3 xl:grid-cols-4">{children}</div>
     </fieldset>
   );
 }
@@ -322,7 +324,7 @@ export function TradeForm({
     <form
       ref={formRef}
       action={action}
-      className="space-y-4"
+      className="space-y-3"
       onInput={(e) => {
         setCheck(readCrossCheck(e.currentTarget, side));
         setTpNote(readTpSplit(e.currentTarget, trade?.okx_tp_price ?? null));
@@ -484,7 +486,7 @@ export function TradeForm({
         <Field name="tp2_price" label="TP2" numeric defaultValue={v("tp2_price")} />
         <Field name="tp3_price" label="TP3" numeric defaultValue={v("tp3_price")} />
         {/* 비중은 셋 다 비우면 균등, 하나라도 적으면 빈 칸은 0 이다 — 합이 안 맞으면 아래 경고. */}
-        <div className="sm:col-span-3">
+        <div className="sm:col-span-3 xl:col-span-4">
           <span className={LABEL}>
             TP 비중
             <span className="ml-1 text-dim/70">
@@ -525,7 +527,7 @@ export function TradeForm({
           <input type="hidden" name="tp_share_unit" value={shareUnit} />
         </div>
         {tpNote ? (
-          <p className="sm:col-span-3 rounded-lg border border-beta/50 bg-beta/10 px-3 py-2 text-xs text-beta">
+          <p className="sm:col-span-3 xl:col-span-4 rounded-lg border border-beta/50 bg-beta/10 px-3 py-2 text-xs text-beta">
             ⚠ {tpNote}
           </p>
         ) : null}
@@ -559,7 +561,7 @@ export function TradeForm({
           defaultValue={v("review")}
           options={suggestions.review}
         />
-        <div className="sm:col-span-3">
+        <div className="sm:col-span-3 xl:col-span-4">
           <label className={LABEL} htmlFor="f-note">
             비고
           </label>
