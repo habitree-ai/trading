@@ -38,13 +38,14 @@ import { edgePointIndex } from "@/lib/position-tool";
 import { BARS, BAR_MS, floorToBar, type Bar, type Candle } from "@/lib/okx";
 
 /**
- * 한 창에 담는 봉 수.
+ * 한 창에 담는 봉 수 — 거래 차트의 2배 확대와 함께 두 배(550→1100)로 맞췄다.
  *
- * 창당 6페이지 — 4개 창이 첫 로드에서 동시에 당기면 OKX 한도(IP당 20회/2초)에
- * 닿을 수 있다. 지나간 봉은 서버 캐시(24h)에 얹혀 두 번째부터는 요청이 나가지
- * 않으므로, 걸리는 자리는 새 봉이 열린 직후의 첫 로드뿐이다.
+ * 창당 11페이지 — 4개 창이 콜드 캐시에서 동시에 당기면 OKX 한도(IP당 20회/2초)를
+ * 넘을 수 있다. 지나간 봉은 서버 캐시(24h)에 얹혀 두 번째부터는 요청이 나가지
+ * 않으므로, 걸리는 자리는 새 봉이 열린 직후의 첫 로드뿐이고, 실패한 창은 오류
+ * 표시 뒤 다시 열면 성공한 페이지부터 이어받는다.
  */
-const PANE_BARS = 550;
+const PANE_BARS = 1100;
 
 const BAR_LABEL: Record<Bar, string> = {
   "1m": "1분",
@@ -145,6 +146,8 @@ export function QuadPane({
   const volumeRef = useRef<ISeriesApi<"Histogram"> | null>(null);
   const rsiRef = useRef<ISeriesApi<"Line"> | null>(null);
   const layerRef = useRef<AnnotationPrimitive | null>(null);
+  /** 캔들 범위 밖 좌표 역산용 — 첫 봉 시각(초)·봉 간격(초). 포인터 처리기가 ref 로 읽는다. */
+  const rangeRef = useRef<{ t0: number; barSec: number } | null>(null);
 
   const [candles, setCandles] = useState<Candle[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -161,6 +164,13 @@ export function QuadPane({
   });
 
   const barSeconds = BAR_MS[bar] / 1000;
+
+  useEffect(() => {
+    rangeRef.current =
+      candles !== null && candles.length > 0
+        ? { t0: candles[0].t / 1000, barSec: barSeconds }
+        : null;
+  }, [candles, barSeconds]);
 
   /* ---------- 차트 생성 (한 번만) — trade-chart와 같은 설정 ---------- */
   useEffect(() => {
@@ -399,10 +409,23 @@ export function QuadPane({
     // RSI 패널 위의 좌표는 본 창의 가격이 아니다 — 그대로 넘기면 축 밖 가격으로 풀린다.
     if (y > chart.paneSize(0).height) return null;
 
-    const time = chart.timeScale().coordinateToTime(x);
     const price = series.coordinateToPrice(y);
-    if (time === null || price === null) return null;
-    return { time: time as number, price };
+    if (price === null) return null;
+
+    const time = chart.timeScale().coordinateToTime(x);
+    if (time !== null) return { time: time as number, price };
+
+    /*
+     * 캔들 범위 밖 — 주로 마지막 봉 오른쪽의 빈 영역이다.
+     *
+     * `coordinateToTime`은 자료 밖에서 null 이라 추세선이 마지막 캔들에서 끊겼다.
+     * 논리 좌표는 빈 영역에서도 나오므로, 봉 간격을 곱해 시각으로 되돌린다.
+     * 범위 안과 똑같이 봉 눈금에 맞춰(round) 찍는다. (trade-chart 와 같은 방식)
+     */
+    const logical = chart.timeScale().coordinateToLogical(x);
+    const range = rangeRef.current;
+    if (logical === null || range === null) return null;
+    return { time: range.t0 + Math.round(logical as number) * range.barSec, price };
   }, []);
 
   /* ---------- 그리기 — trade-chart의 상태 머신에서 저장만 부모로 넘긴 판 ---------- */

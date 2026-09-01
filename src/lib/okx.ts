@@ -114,16 +114,28 @@ async function fetchPage(instId: string, bar: Bar, after: number): Promise<strin
     instId,
   )}&bar=${bar}&after=${after}&limit=${PAGE_SIZE}`;
 
-  const res = await fetch(url, {
-    // 지나간 캔들은 변하지 않는다 — 하루 캐시.
-    next: { revalidate: 86_400 },
-    headers: { accept: "application/json" },
-  });
-  if (!res.ok) throw new Error(`OKX 응답 오류 ${res.status}`);
+  for (let attempt = 0; ; attempt += 1) {
+    const res = await fetch(url, {
+      // 지나간 캔들은 변하지 않는다 — 하루 캐시.
+      next: { revalidate: 86_400 },
+      headers: { accept: "application/json" },
+    });
 
-  const json = (await res.json()) as OkxResponse;
-  if (json.code !== "0") throw new Error(`OKX 오류: ${json.msg || json.code}`);
-  return json.data;
+    /*
+     * 한도(IP당 20회/2초) 초과 — 4분할처럼 여러 창이 콜드 캐시에서 동시에 당기면
+     * 나온다. 429 는 캐시에 남지 않으므로, 한도 창(2초)을 넘겨 다시 부르면 된다.
+     * 두 번 물러서도 안 되면 그때는 진짜 문제다 — 오류로 올린다.
+     */
+    if (res.status === 429 && attempt < 2) {
+      await new Promise((resolve) => setTimeout(resolve, 2_100 * (attempt + 1)));
+      continue;
+    }
+    if (!res.ok) throw new Error(`OKX 응답 오류 ${res.status}`);
+
+    const json = (await res.json()) as OkxResponse;
+    if (json.code !== "0") throw new Error(`OKX 오류: ${json.msg || json.code}`);
+    return json.data;
+  }
 }
 
 /** `[from, to]` 구간의 캔들을 가져온다. 페이지는 묶어서 동시에 받는다. */
