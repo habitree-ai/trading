@@ -47,6 +47,8 @@ export function TradeTable({
   const [onlyPending, setOnlyPending] = useState(false);
   /** 한 번에 하나만 펼친다 — 여러 개를 열면 OKX 요청이 동시에 쏟아진다. */
   const [openChart, setOpenChart] = useState<string | null>(null);
+  /** "복기"로 연 거래 — 그 차트는 진입 봉부터 한 봉씩 다시 보는 모드로 시작한다. */
+  const [replayFor, setReplayFor] = useState<string | null>(null);
   /** 목록에서 TP 만 바로 고친다 — 보유 중 계획 입력이 수정 화면 왕복 없이 끝나게. */
   const [tpEdit, setTpEdit] = useState<{ id: string; values: string[] } | null>(null);
   const [tpError, setTpError] = useState<string | null>(null);
@@ -207,6 +209,7 @@ export function TradeTable({
             setResult("all");
             setOnlyPending(false);
             if (symbol !== "all" && symbol !== target.trade.symbol) setSymbol(target.trade.symbol);
+            setReplayFor(null);
             setOpenChart(id);
             setScrollTo((prev) => ({ id, n: (prev?.n ?? 0) + 1 }));
           }}
@@ -376,11 +379,25 @@ export function TradeTable({
                 <td className="px-2 py-1.5 whitespace-nowrap">
                   <button
                     type="button"
-                    onClick={() => setOpenChart((id) => (id === trade.id ? null : trade.id))}
+                    onClick={() => {
+                      setReplayFor(null);
+                      setOpenChart((id) => (id === trade.id ? null : trade.id));
+                    }}
                     className={`text-xs ${openChart === trade.id ? "text-text" : "text-accent"}`}
                     aria-expanded={openChart === trade.id}
                   >
                     {openChart === trade.id ? "차트 닫기" : "차트"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setReplayFor(trade.id);
+                      setOpenChart(trade.id);
+                    }}
+                    className="ml-2 text-xs text-accent"
+                    title="진입 봉부터 한 봉씩 다시 봅니다"
+                  >
+                    복기
                   </button>
                   <Link href={`/trades/${trade.id}`} className="ml-2 text-xs text-accent">
                     수정
@@ -422,6 +439,7 @@ export function TradeTable({
                           targets={activeTargetPrices(trade)}
                           notional={trade.notional}
                           now={now}
+                          startInReplay={replayFor === trade.id}
                         />
                       </div>
                     </td>

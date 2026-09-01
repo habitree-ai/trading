@@ -124,6 +124,16 @@ function isStylableKind(kind: AnnotationKind): boolean {
 /** 이보다 짧게 끌면 그릴 뜻이 없었던 것으로 본다 — 클릭 한 번에 길이 0짜리 선이 남지 않게. */
 const MIN_DRAG_PX = 4;
 
+/** 복기를 켜는 순간 진입 봉 양옆에 두는 봉 수 — 진입이 화면 가운데에 온다. */
+const REPLAY_HALF_BARS = 60;
+
+/** 진입 시각이 담긴 봉의 인덱스 — 없으면 그 앞의 마지막 봉. */
+function entryIndexOf(candles: readonly Candle[], entryMs: number): number {
+  let idx = candles.findIndex((c) => c.t > entryMs);
+  if (idx === -1) idx = candles.length;
+  return Math.max(0, idx - 1);
+}
+
 function toChartPoint(point: MeasurePoint): ChartPoint {
   return { t: point.time, p: point.price };
 }
@@ -194,6 +204,7 @@ export function TradeChart({
   targets = NO_TARGETS,
   notional = null,
   now,
+  startInReplay = false,
 }: {
   /** 메모를 어느 거래에 붙일지 — 차트에서 바로 저장한다 */
   tradeId: string;
@@ -218,6 +229,8 @@ export function TradeChart({
    * 시계를 읽는 것 자체가 순수하지 않다. 그 사이 흐른 시간은 앞뒤 여유 봉이 덮는다.
    */
   now: number;
+  /** 목록의 "복기"로 열렸는가 — 켜지면 캔들이 도착하는 대로 복기를 시작한다. */
+  startInReplay?: boolean;
 }) {
   const entryMs = Date.parse(entryAt);
   const exitMs = exitAt ? Date.parse(exitAt) : null;
@@ -239,6 +252,66 @@ export function TradeChart({
   const [loading, setLoading] = useState(false);
   const [tool, setTool] = useState<Tool>("none");
   const [state, setState] = useState<MeasureState | null>(null);
+
+  /*
+   * ── 복기 — 진입 봉부터 한 봉씩 다시 본다 ──────────────────────────────────
+   *
+   * `replayIdx`는 마지막으로 보여줄 봉의 인덱스, null 이면 꺼짐. 켜면 진입 이후
+   * 봉·마커·청산 기준선을 감춰 "앞을 모르는 상태"를 만들고, →/← 키나 버튼으로
+   * 한 봉씩 넘긴다. 시작·되감기 하한은 진입 봉이다.
+   */
+  const [replayIdx, setReplayIdx] = useState<number | null>(null);
+  /** 켜는 순간 한 번만 진입 봉을 가운데로 — 스텝마다 다시 세우면 시야가 튄다. */
+  const centerOnNextRender = useRef(false);
+  const candlesRef = useRef<Candle[] | null>(null);
+  useEffect(() => {
+    candlesRef.current = candles;
+  }, [candles]);
+
+  /** 진입 봉 인덱스 — 복기의 시작점이자 되감기 하한. */
+  const entryIdx = useMemo(
+    () => (candles && candles.length > 0 ? entryIndexOf(candles, entryMs) : 0),
+    [candles, entryMs],
+  );
+
+  const startReplay = useCallback(() => {
+    const list = candlesRef.current;
+    if (!list || list.length === 0) return;
+    centerOnNextRender.current = true;
+    setReplayIdx(entryIdx);
+  }, [entryIdx]);
+
+  const stepReplay = useCallback(
+    (delta: 1 | -1) => {
+      setReplayIdx((cur) => {
+        const list = candlesRef.current;
+        if (cur === null || !list || list.length === 0) return cur;
+        return Math.min(Math.max(cur + delta, entryIdx), list.length - 1);
+      });
+    },
+    [entryIdx],
+  );
+
+  const replayIdxRef = useRef<number | null>(null);
+  useEffect(() => {
+    replayIdxRef.current = replayIdx;
+  }, [replayIdx]);
+
+  /** 목록의 "복기"로 열렸으면 캔들이 오는 대로 시작한다. 봉을 바꾸면 진입부터 다시. */
+  const replayArmed = useRef(startInReplay);
+  useEffect(() => {
+    if (startInReplay) replayArmed.current = true;
+  }, [startInReplay]);
+  useEffect(() => {
+    if (!candles || candles.length === 0) return;
+    if (replayArmed.current) {
+      replayArmed.current = false;
+      startReplay();
+      return;
+    }
+    // 복기 중에 봉 간격·구간이 바뀌면 인덱스가 다른 배열을 가리킨다 — 진입부터 다시.
+    if (replayIdxRef.current !== null) startReplay();
+  }, [candles, startReplay]);
 
   /** 그리는 중이거나 라벨을 기다리는 메모 — 점선으로 미리 그려진다. */
   const [pending, setPending] = useState<AnnotationDraft | null>(null);
@@ -577,8 +650,15 @@ export function TradeChart({
 
     const theme = readTheme(host);
 
+    // 복기 중에는 진입 이후 봉을 감춘다 — 앞을 모르는 상태로 다시 본다.
+    const visible =
+      replayIdx === null ? candles : candles.slice(0, Math.min(replayIdx + 1, candles.length));
+    if (visible.length === 0) return;
+    const lastBarSec = (visible[visible.length - 1].t / 1000) as UTCTimestamp;
+    const lastVisMs = visible[visible.length - 1].t + BAR_MS[bar];
+
     series.setData(
-      candles.map((c) => ({
+      visible.map((c) => ({
         time: (c.t / 1000) as UTCTimestamp,
         open: c.o,
         high: c.h,
@@ -589,7 +669,7 @@ export function TradeChart({
 
     // 거래량은 캔들 방향 색으로, 반투명하게 — 캔들을 가리지 않아야 한다.
     volumeRef.current?.setData(
-      candles.map((c) => ({
+      visible.map((c) => ({
         time: (c.t / 1000) as UTCTimestamp,
         value: c.v,
         color: (c.c >= c.o ? theme.up : theme.down) + "66",
@@ -597,9 +677,10 @@ export function TradeChart({
     );
 
     // RSI — 앞 14봉은 재료가 모자라 비어 있다. 선이 그만큼 늦게 시작하는 게 맞다.
+    // 과거만 쓰는 지표라 전체로 계산해도 앞선 구간 값은 같다 — 보이는 봉까지만 얹는다.
     const rsiValues = rsi(candles.map((c) => c.c));
     const rsiData: { time: UTCTimestamp; value: number }[] = [];
-    candles.forEach((c, i) => {
+    visible.forEach((c, i) => {
       const value = rsiValues[i];
       if (value !== null) rsiData.push({ time: (c.t / 1000) as UTCTimestamp, value });
     });
@@ -645,7 +726,13 @@ export function TradeChart({
         text: `${isOpen ? "진입" : "청산"}${count > 1 ? ` ${order}` : ""} ${num(p.price)}`,
       };
     });
-    const markerApi = createSeriesMarkers(series, markers);
+    // 복기 중에는 아직 오지 않은 봉의 마커(청산 등)를 감춘다.
+    const shownMarkers =
+      replayIdx === null ? markers : markers.filter((m) => (m.time as number) <= lastBarSec);
+    const markerApi = createSeriesMarkers(series, shownMarkers);
+
+    // 청산 기준선도 그 봉에 닿기 전에는 숨긴다 — 어디서 나갔는지 미리 보이면 복기가 아니다.
+    const exitReached = replayIdx === null || (exitMs !== null && exitMs < lastVisMs);
 
     const lines = [
       stopPrice !== null && { price: stopPrice, color: theme.down, title: "손절" },
@@ -658,7 +745,7 @@ export function TradeChart({
       tp2 !== null && { price: tp2, color: theme.up, title: "목표 2", style: LineStyle.Dotted },
       tp3 !== null && { price: tp3, color: theme.up, title: "목표 3", style: LineStyle.Dotted },
       entryPrice !== null && { price: entryPrice, color: theme.accent, title: fills.length > 2 ? "평균진입" : "진입" },
-      exitPrice !== null && { price: exitPrice, color: theme.beta, title: fills.length > 2 ? "평균청산" : "청산" },
+      exitPrice !== null && exitReached && { price: exitPrice, color: theme.beta, title: fills.length > 2 ? "평균청산" : "청산" },
     ]
       .filter(
         (l): l is { price: number; color: string; title: string; style?: LineStyle } => Boolean(l),
@@ -674,13 +761,30 @@ export function TradeChart({
         }),
       );
 
-    chart.timeScale().fitContent();
+    if (replayIdx === null) {
+      // 복기 시작 직전의 중간 렌더가 fitContent 를 예약하면 다음 프레임에 센터링을 덮는다.
+      // 시작이 잡혀 있으면(centerOnNextRender) 이 패스의 맞춤은 건너뛴다.
+      if (!centerOnNextRender.current) chart.timeScale().fitContent();
+    } else if (centerOnNextRender.current) {
+      // 켜는 순간 — 진입 봉을 가운데로. 오른쪽 절반은 아직 오지 않은 시간(빈 영역)이다.
+      centerOnNextRender.current = false;
+      chart.timeScale().setVisibleLogicalRange({
+        from: entryIdx - REPLAY_HALF_BARS,
+        to: entryIdx + REPLAY_HALF_BARS,
+      });
+    } else {
+      // 스텝 — 시야는 그대로 두고, 새 봉이 오른쪽 끝에 닿으면 한 칸씩 따라간다.
+      const range = chart.timeScale().getVisibleLogicalRange();
+      if (range && replayIdx > range.to - 2) {
+        chart.timeScale().setVisibleLogicalRange({ from: range.from + 1, to: range.to + 1 });
+      }
+    }
 
     return () => {
       markerApi.detach();
       for (const line of lines) series.removePriceLine(line);
     };
-  }, [candles, fills, entryPrice, exitPrice, stopPrice, tp1, tp2, tp3, entryMs, exitMs, bar]);
+  }, [candles, fills, entryPrice, exitPrice, stopPrice, tp1, tp2, tp3, entryMs, exitMs, bar, replayIdx, entryIdx]);
 
   /* ---------- 측정(자)·메모 도구 ---------- */
   const toPoint = useCallback((x: number, y: number): MeasurePoint | null => {
@@ -1147,6 +1251,22 @@ export function TradeChart({
     });
   }, [tool]);
 
+  /* ---------- 복기 키 — →/← 로 한 봉씩 ---------- */
+  const replayActive = replayIdx !== null;
+  useEffect(() => {
+    if (!replayActive) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "ArrowRight" && e.key !== "ArrowLeft") return;
+      const target = e.target as HTMLElement | null;
+      if (target?.isContentEditable) return;
+      if (target && /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName)) return;
+      e.preventDefault();
+      stepReplay(e.key === "ArrowRight" ? 1 : -1);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [replayActive, stepReplay]);
+
   const cancelDraft = () => {
     stepsRef.current = [];
     setPending(null);
@@ -1318,8 +1438,12 @@ export function TradeChart({
    * 거래에 적힌 청산가는 없고, 화면에는 이미 지금까지의 봉이 들어와 있다 — 굳이 시세를
    * 한 번 더 부를 이유가 없다.
    */
-  const lastClose = candles && candles.length > 0 ? candles[candles.length - 1].c : null;
-  const markPrice = exitPrice ?? lastClose;
+  const lastClose =
+    candles && candles.length > 0
+      ? candles[Math.min(replayIdx ?? candles.length - 1, candles.length - 1)].c
+      : null;
+  // 복기 중의 '현재'는 지금 보이는 봉이다 — 청산가를 먼저 세우면 결과를 미리 안다.
+  const markPrice = replayActive ? lastClose : exitPrice ?? lastClose;
   const viewLabel = exitAt === null ? OPEN_VIEW_LABEL : VIEW_LABEL;
   const held =
     markPrice !== null && entryPrice !== null
@@ -1334,6 +1458,44 @@ export function TradeChart({
         </h2>
 
         <div className="ml-auto flex flex-wrap items-center gap-1">
+          <button
+            type="button"
+            onClick={() => (replayActive ? setReplayIdx(null) : startReplay())}
+            aria-pressed={replayActive}
+            className={`rounded-lg border px-2.5 py-1 text-xs ${
+              replayActive
+                ? "border-accent bg-accent text-white"
+                : "border-border text-dim hover:text-text"
+            }`}
+            title="진입 봉부터 한 봉씩 다시 봅니다 — →/← 키나 버튼으로 넘깁니다"
+          >
+            ⏵ 복기
+          </button>
+          {replayActive && replayIdx !== null ? (
+            <>
+              <button
+                type="button"
+                onClick={() => stepReplay(-1)}
+                disabled={replayIdx <= entryIdx}
+                aria-label="이전 봉"
+                className="rounded-lg border border-border px-2.5 py-1 text-xs text-dim hover:text-text disabled:opacity-40"
+              >
+                ◀
+              </button>
+              <button
+                type="button"
+                onClick={() => stepReplay(1)}
+                disabled={candles !== null && replayIdx >= candles.length - 1}
+                className="rounded-lg border border-border px-2.5 py-1 text-xs text-dim hover:text-text disabled:opacity-40"
+              >
+                다음 봉 ▶
+              </button>
+              <span className="tnum px-1 text-[11px] text-dim">
+                진입 +{Math.max(0, replayIdx - entryIdx)}봉
+              </span>
+            </>
+          ) : null}
+          <span className="mx-1 w-px self-stretch bg-border" aria-hidden />
           <button
             type="button"
             onClick={() => pickTool("measure")}
@@ -1403,7 +1565,7 @@ export function TradeChart({
         {view === "auto" ? `${bar} 봉 자동 선택 · ` : ""}
         앞뒤 {padBars}봉 ·{" "}
         {/* 들고 있는 거래는 청산가가 없다 — 마지막 봉의 종가를 지금 값으로 세운다. */}
-        진입 {num(entryPrice)} → {exitAt === null ? "현재" : "청산"} {num(markPrice)}
+        진입 {num(entryPrice)} → {exitAt === null || replayActive ? "현재" : "청산"} {num(markPrice)}
         {held !== null ? (
           <span className={held >= 0 ? "text-profit" : "text-loss"}> ({signed(held * 100, 2)}%)</span>
         ) : null}
