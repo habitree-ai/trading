@@ -629,8 +629,7 @@ export class AnnotationPrimitive implements ISeriesPrimitive<Time> {
     if (!chart || !series) return null;
 
     const scale = chart.timeScale();
-    // 봉 간격을 바꾸면 그 시각의 봉이 없다 — 가장 가까운 봉에 붙인다.
-    const index = scale.timeToIndex(point.t as Time, true);
+    const index = this.indexFor(point.t);
     if (index === null) return null;
 
     const x = scale.logicalToCoordinate(index as unknown as Logical);
@@ -638,5 +637,31 @@ export class AnnotationPrimitive implements ISeriesPrimitive<Time> {
     if (x === null || y === null) return null;
 
     return { x, y };
+  }
+
+  /**
+   * 시각 → 논리 좌표.
+   *
+   * 자료 범위 안에서는 기존대로 가장 가까운 봉에 붙인다 — 봉 간격을 바꾸면 그 시각의
+   * 봉이 없기 때문이다. 범위 밖은 `timeToIndex` 가 끝 봉으로 눌러 붙여 버려, 마지막
+   * 캔들 너머로 그은 추세선 끝점이 전부 마지막 봉 위로 접혔다. 봉 간격으로 이어
+   * 계산해 캔들 이후(그리고 이전) 영역까지 그대로 뻗게 한다.
+   */
+  private indexFor(t: number): number | null {
+    const { chart, series } = this;
+    if (!chart || !series) return null;
+
+    const scale = chart.timeScale();
+    const data = series.data();
+    const first = data[0]?.time as number | undefined;
+    const last = data[data.length - 1]?.time as number | undefined;
+
+    if (first === undefined || last === undefined || data.length < 2 || (t >= first && t <= last)) {
+      return scale.timeToIndex(t as Time, true) as number | null;
+    }
+
+    // 빈 봉이 섞여도 평균 간격이면 충분하다 — 범위 밖은 눈으로 잇는 자리다.
+    const barSec = (last - first) / (data.length - 1);
+    return t > last ? data.length - 1 + (t - last) / barSec : (t - first) / barSec;
   }
 }

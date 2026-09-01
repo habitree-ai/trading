@@ -90,9 +90,10 @@ const PAD_BARS = 60;
  * 한 화면에 담는 봉을 기본 보기의 몇 배로 넓힐지.
  *
  * 거래 구간은 사실이라 늘릴 수 없다 — 늘어나는 몫은 전부 앞뒤 여유로 간다.
- * 4분할 차트의 `PANE_BARS`와 같은 배율이라 두 화면이 비슷한 폭을 보여 준다.
+ * 원래 4분할 차트의 `PANE_BARS`와 같은 2.5였는데, 추세 맥락이 좁다는 요청으로
+ * 두 배(5)로 넓혔다 — 4분할은 네 창이 나눠 쓰는 화면이라 그대로 둔다.
  */
-const VIEW_SCALE = 2.5;
+const VIEW_SCALE = 5;
 
 /**
  * 지금 켜 둔 도구. 한 번에 하나만 켠다 — 도구가 켜져 있으면 차트의 드래그 이동을 끄기
@@ -229,6 +230,8 @@ export function TradeChart({
   const volumeRef = useRef<ISeriesApi<"Histogram"> | null>(null);
   const rsiRef = useRef<ISeriesApi<"Line"> | null>(null);
   const layerRef = useRef<AnnotationPrimitive | null>(null);
+  /** 캔들 범위 밖 좌표 역산용 — 첫 봉 시각(초)·봉 간격(초). 포인터 처리기가 ref 로 읽는다. */
+  const rangeRef = useRef<{ t0: number; barSec: number } | null>(null);
 
   const [view, setView] = useState<View>("auto");
   const [candles, setCandles] = useState<Candle[] | null>(null);
@@ -388,6 +391,13 @@ export function TradeChart({
     const tradeBars = Math.max(1, Math.ceil((endMs - entryMs) / BAR_MS[bar]));
     return Math.round(((tradeBars + PAD_BARS * 2) * VIEW_SCALE - tradeBars) / 2);
   }, [entryMs, endMs, bar]);
+
+  useEffect(() => {
+    rangeRef.current =
+      candles !== null && candles.length > 0
+        ? { t0: candles[0].t / 1000, barSec: barSeconds }
+        : null;
+  }, [candles, barSeconds]);
 
   /* ---------- 차트 생성 (한 번만) ---------- */
   useEffect(() => {
@@ -681,10 +691,23 @@ export function TradeChart({
     // RSI 패널 위의 좌표는 본 창의 가격이 아니다 — 그대로 넘기면 축 밖 가격으로 풀린다.
     if (y > chart.paneSize(0).height) return null;
 
-    const time = chart.timeScale().coordinateToTime(x);
     const price = series.coordinateToPrice(y);
-    if (time === null || price === null) return null;
-    return { time: time as number, price };
+    if (price === null) return null;
+
+    const time = chart.timeScale().coordinateToTime(x);
+    if (time !== null) return { time: time as number, price };
+
+    /*
+     * 캔들 범위 밖 — 주로 마지막 봉 오른쪽의 빈 영역이다.
+     *
+     * `coordinateToTime`은 자료 밖에서 null 이라 추세선이 마지막 캔들에서 끊겼다.
+     * 논리 좌표는 빈 영역에서도 나오므로, 봉 간격을 곱해 시각으로 되돌린다.
+     * 범위 안과 똑같이 봉 눈금에 맞춰(round) 찍는다.
+     */
+    const logical = chart.timeScale().coordinateToLogical(x);
+    const range = rangeRef.current;
+    if (logical === null || range === null) return null;
+    return { time: range.t0 + Math.round(logical as number) * range.barSec, price };
   }, []);
 
   useEffect(() => {
