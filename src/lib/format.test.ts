@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { date, dateTime, fromLocalInput, toLocalInput } from "@/lib/format";
+import { date, dateTime, fromLocalInput, keepIfSameMinute, toLocalInput } from "@/lib/format";
 
 describe("시각 포맷 — 서버/브라우저가 같은 문자열을 만들어야 한다", () => {
   it("표시 타임존(KST) 기준으로 찍는다", () => {
@@ -43,5 +43,30 @@ describe("fromLocalInput — datetime-local 입력을 KST 벽시계로 해석한
     expect(fromLocalInput("")).toBeNull();
     expect(fromLocalInput("2026-07-02")).toBeNull();
     expect(fromLocalInput("nonsense")).toBeNull();
+  });
+});
+
+describe("keepIfSameMinute — 시각을 안 바꾼 저장이 초를 잘라먹지 않게", () => {
+  // 실사례(2026-09-01): 진입 18:17:58.121 KST 거래를 수정 저장하자 18:17:00으로 잘려,
+  // 같은 분의 이체(18:17:48)보다 앞으로 가며 자금 곡선·MDD가 통째로 어긋났다.
+  const stored = "2026-09-01T09:17:58.121+00:00"; // 18:17:58.121 KST
+
+  it("재현 — 폼 왕복만으로 초가 잘린다 (이 유실을 걸러야 한다)", () => {
+    expect(fromLocalInput(toLocalInput(stored))).toBe("2026-09-01T09:17:00.000Z");
+  });
+
+  it("같은 분이면 기존 시각을 지킨다 — 안 바꾼 것이다", () => {
+    const submitted = fromLocalInput(toLocalInput(stored));
+    expect(keepIfSameMinute(submitted, stored)).toBe(stored);
+  });
+
+  it("분이 다르면 제출값이 이긴다 — 실제로 바꾼 것이다", () => {
+    const submitted = fromLocalInput("2026-09-01T18:20");
+    expect(keepIfSameMinute(submitted, stored)).toBe(submitted);
+  });
+
+  it("어느 쪽이든 비어 있으면 제출값 그대로", () => {
+    expect(keepIfSameMinute(null, stored)).toBeNull();
+    expect(keepIfSameMinute("2026-09-01T09:17:00.000Z", null)).toBe("2026-09-01T09:17:00.000Z");
   });
 });

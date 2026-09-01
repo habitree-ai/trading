@@ -122,3 +122,18 @@ export function fromLocalInput(local: string): string | null {
 
   return new Date(asUtc.getTime() - (shown - asUtc.getTime())).toISOString();
 }
+
+/**
+ * datetime-local 폼값(분 단위)이 기존 시각과 같은 분이면 기존 시각을 돌려준다.
+ *
+ * 폼 입력은 초를 담지 못한다 — 시각을 건드리지 않고 저장해도 초·밀리초가 잘려 나간다.
+ * 같은 분이면 "안 바꾼 것"으로 보고 초까지 있는 기존 값을 지킨다. 같은 분 안의 이체와
+ * 순서가 뒤집혀 자금 곡선이 통째로 어긋난 실사례(2026-09-01)가 있다.
+ */
+export function keepIfSameMinute(
+  submitted: string | null,
+  current: string | null,
+): string | null {
+  if (submitted === null || current === null) return submitted;
+  return fromLocalInput(toLocalInput(current)) === submitted ? current : submitted;
+}

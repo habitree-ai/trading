@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
 import type { Side, TradeResult } from "@/lib/domain";
-import { fromLocalInput } from "@/lib/format";
+import { fromLocalInput, keepIfSameMinute } from "@/lib/format";
 import { loadOkxCredentials } from "@/lib/okx/credentials";
 import { syncOkx } from "@/lib/okx/sync";
 import { resolveSyncTarget } from "@/lib/okx/sync-target";
@@ -251,10 +251,28 @@ export async function updateTrade(
   if (!id) return { error: "거래를 찾을 수 없습니다." };
 
   const values = readForm(formData);
+
+  const { supabase } = await requireUser();
+
+  /*
+   * 폼의 진입/종료는 분 단위다 — 그대로 덮어쓰면 시각을 안 바꾼 저장에서도 초가
+   * 잘려 나간다(동기화가 채운 18:17:58 이 18:17:00 이 되어, 같은 분의 이체보다
+   * 앞으로 밀리며 자금 곡선이 어긋난 실사례). 같은 분이면 기존 값을 지킨다.
+   * validate 는 보존이 끝난 최종 시각으로 돌려야 순서 검사가 실제 값과 같다.
+   */
+  const { data: existing, error: readError } = await supabase
+    .from("trades")
+    .select("entry_at, exit_at")
+    .eq("id", id)
+    .maybeSingle();
+  if (readError) return { error: readError.message };
+
+  values.entry_at = keepIfSameMinute(values.entry_at, existing?.entry_at ?? null);
+  values.exit_at = keepIfSameMinute(values.exit_at, existing?.exit_at ?? null);
+
   const invalid = validate(values);
   if (invalid) return { error: invalid };
 
-  const { supabase } = await requireUser();
   const { error } = await supabase
     .from("trades")
     .update({ ...values, entry_at: values.entry_at! })
