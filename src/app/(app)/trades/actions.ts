@@ -332,3 +332,42 @@ export async function deleteTrade(id: string) {
   if (error) throw new Error(error.message);
   revalidatePath("/", "layout");
 }
+
+export interface TargetsState {
+  error?: string;
+}
+
+/**
+ * 목록에서 TP 가격만 바로 고친다 — 수정 화면 전체를 열지 않고.
+ *
+ * 빈 칸은 그 단의 해제다. 방향 검증은 수정 화면과 같은 기준으로 하지 않는다 —
+ * 거기서도 경고일 뿐 저장을 막지 않는다.
+ */
+export async function updateTradeTargets(
+  tradeId: string,
+  targets: { tp1: string; tp2: string; tp3: string },
+): Promise<TargetsState> {
+  if (!tradeId) return { error: "거래를 찾을 수 없습니다." };
+
+  const parsed: (number | null)[] = [];
+  for (const [i, raw] of [targets.tp1, targets.tp2, targets.tp3].entries()) {
+    const value = parseNumber(raw);
+    if (value === null && raw.trim() !== "") {
+      return { error: `TP${i + 1} 가격을 숫자로 입력해 주세요.` };
+    }
+    if (value !== null && value <= 0) {
+      return { error: `TP${i + 1} 가격은 0보다 커야 합니다.` };
+    }
+    parsed.push(value);
+  }
+
+  const { supabase } = await requireUser();
+  const { error } = await supabase
+    .from("trades")
+    .update({ tp1_price: parsed[0], tp2_price: parsed[1], tp3_price: parsed[2] })
+    .eq("id", tradeId);
+  if (error) return { error: error.message };
+
+  revalidatePath("/", "layout");
+  return {};
+}

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { Fragment, useEffect, useMemo, useRef, useState, useTransition } from "react";
 
-import { deleteTrade } from "@/app/(app)/trades/actions";
+import { deleteTrade, updateTradeTargets } from "@/app/(app)/trades/actions";
 import { ExitPlanLines } from "@/components/exit-plan";
 import { TradeChart } from "@/components/trade-chart";
 import { TradesOverviewChart } from "@/components/trades-overview-chart";
@@ -47,6 +47,27 @@ export function TradeTable({
   const [onlyPending, setOnlyPending] = useState(false);
   /** 한 번에 하나만 펼친다 — 여러 개를 열면 OKX 요청이 동시에 쏟아진다. */
   const [openChart, setOpenChart] = useState<string | null>(null);
+  /** 목록에서 TP 만 바로 고친다 — 보유 중 계획 입력이 수정 화면 왕복 없이 끝나게. */
+  const [tpEdit, setTpEdit] = useState<{ id: string; values: string[] } | null>(null);
+  const [tpError, setTpError] = useState<string | null>(null);
+
+  const saveTargets = (id: string) => {
+    const edit = tpEdit;
+    if (edit === null || edit.id !== id) return;
+    startTransition(async () => {
+      const result = await updateTradeTargets(id, {
+        tp1: edit.values[0] ?? "",
+        tp2: edit.values[1] ?? "",
+        tp3: edit.values[2] ?? "",
+      });
+      if (result.error) {
+        setTpError(result.error);
+      } else {
+        setTpEdit(null);
+        setTpError(null);
+      }
+    });
+  };
   /** 전체 차트 — 첫 거래부터 전 거래의 진입·청산을 한 장에. 표 위에 편다. */
   const [overview, setOverview] = useState(false);
   /**
@@ -230,6 +251,71 @@ export function TradeTable({
                 {/* 진입 옆 — 단계별 청산. 체결된 차수는 실현값, 아직이면 등록된 TP 기준 예상치. */}
                 <td className="px-2 py-1.5 whitespace-nowrap">
                   <ExitPlanLines summary={exits} />
+                  {tpEdit?.id === trade.id ? (
+                    <div className="mt-1.5 space-y-1">
+                      {tpEdit.values.map((v, i) => (
+                        <div key={i} className="flex items-center gap-1">
+                          <span className="w-7 text-[10px] text-dim">TP{i + 1}</span>
+                          <input
+                            aria-label={`TP${i + 1} 가격`}
+                            value={v}
+                            inputMode="decimal"
+                            placeholder="비우면 해제"
+                            onChange={(e) =>
+                              setTpEdit((cur) =>
+                                cur === null
+                                  ? cur
+                                  : {
+                                      ...cur,
+                                      values: cur.values.map((x, j) => (j === i ? e.target.value : x)),
+                                    },
+                              )
+                            }
+                            className="tnum w-24 rounded border border-border bg-bg px-1.5 py-0.5 text-[11px] outline-none focus:border-accent"
+                          />
+                        </div>
+                      ))}
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          disabled={pending}
+                          onClick={() => saveTargets(trade.id)}
+                          className="text-[11px] text-accent disabled:opacity-50"
+                        >
+                          {pending ? "저장 중…" : "저장"}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setTpEdit(null);
+                            setTpError(null);
+                          }}
+                          className="text-[11px] text-dim"
+                        >
+                          취소
+                        </button>
+                      </div>
+                      {tpError ? <p className="text-[10px] text-loss">{tpError}</p> : null}
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setTpError(null);
+                        setTpEdit({
+                          id: trade.id,
+                          values: [trade.tp1_price, trade.tp2_price, trade.tp3_price].map((p) =>
+                            p === null ? "" : String(p),
+                          ),
+                        });
+                      }}
+                      className="mt-1 text-[10px] text-accent"
+                    >
+                      {trade.tp1_price !== null || trade.tp2_price !== null || trade.tp3_price !== null
+                        ? "TP 수정"
+                        : "TP 입력"}
+                    </button>
+                  )}
                 </td>
                 {/* 기록된 손절·목표로 잰 계획 손익비 — 다단 TP 는 비중 혼합 R. 둘 중 하나라도 없으면 − */}
                 <td className="tnum px-2 py-1.5">
