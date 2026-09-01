@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useRef, useState } from "react";
 import { useFormStatus } from "react-dom";
 
 import { createTrade, updateTrade, type TradeFormState } from "@/app/(app)/trades/actions";
@@ -44,9 +44,20 @@ function readCrossCheck(form: HTMLFormElement, side: "long" | "short"): PnlCross
 function readTpSplit(form: HTMLFormElement, okxTpPrice: number | null): string | null {
   const data = new FormData(form);
   const n = (key: string) => numberField(data, key);
+  // 금액 단위면 명목가 기준 %로 바꿔 같은 잣대로 경고한다. 명목가가 없으면 서버가 거른다.
+  const unit = String(data.get("tp_share_unit") ?? "pct");
+  const notional = n("notional");
+  const toPct = (v: number | null) =>
+    v === null
+      ? null
+      : unit === "amount"
+        ? notional !== null && notional > 0
+          ? (v / notional) * 100
+          : null
+        : v;
   return checkTpSplit({
     prices: [okxTpPrice ?? n("tp1_price"), n("tp2_price"), n("tp3_price")],
-    pcts: [n("tp1_pct"), n("tp2_pct"), n("tp3_pct")],
+    pcts: [toPct(n("tp1_pct")), toPct(n("tp2_pct")), toPct(n("tp3_pct"))],
   });
 }
 
@@ -264,6 +275,7 @@ export function TradeForm({
   const suspect = new Set(suspectFields);
   const [check, setCheck] = useState<PnlCrossCheck | null>(null);
   const [tpNote, setTpNote] = useState<string | null>(null);
+  const formRef = useRef<HTMLFormElement>(null);
 
   const v = (key: keyof Trade): string => {
     const fromPrefill = prefill?.[key];
@@ -272,8 +284,43 @@ export function TradeForm({
     return raw === null || raw === undefined ? "" : String(raw);
   };
 
+  /**
+   * TP 비중 입력 단위 — %가 기본, 금액(명목가 기준)도 된다.
+   *
+   * 계획은 "이 목표에서 2,000 뺀다"처럼 금액으로 떠오를 때가 많다. 저장 단위는
+   * 언제나 %라 서버가 명목가로 나눠 넣고, 여기서는 토글할 때 적어 둔 값을 환산해
+   * 화면과 저장이 어긋나지 않게 한다.
+   */
+  const [shareUnit, setShareUnit] = useState<"pct" | "amount">("pct");
+  const [shares, setShares] = useState<string[]>([v("tp1_pct"), v("tp2_pct"), v("tp3_pct")]);
+
+  const switchShareUnit = (next: "pct" | "amount") => {
+    if (next === shareUnit) return;
+    const notional = formRef.current
+      ? numberField(new FormData(formRef.current), "notional")
+      : null;
+    const hasValues = shares.some((s) => s.trim() !== "");
+    if (hasValues && (notional === null || notional <= 0)) {
+      setTpNote("단위를 바꾸려면 투입(명목가)이 필요합니다 — 환산 기준이 없습니다.");
+      return;
+    }
+    setShares((cur) =>
+      cur.map((raw) => {
+        const cleaned = raw.trim().replace(/,/g, "");
+        const value = cleaned === "" ? null : Number(cleaned);
+        if (value === null || !Number.isFinite(value) || notional === null || notional <= 0) {
+          return raw;
+        }
+        const converted = next === "amount" ? (value / 100) * notional : (value / notional) * 100;
+        return String(Math.round(converted * 10_000) / 10_000);
+      }),
+    );
+    setShareUnit(next);
+  };
+
   return (
     <form
+      ref={formRef}
       action={action}
       className="space-y-4"
       onInput={(e) => {
@@ -437,9 +484,46 @@ export function TradeForm({
         <Field name="tp2_price" label="TP2" numeric defaultValue={v("tp2_price")} />
         <Field name="tp3_price" label="TP3" numeric defaultValue={v("tp3_price")} />
         {/* 비중은 셋 다 비우면 균등, 하나라도 적으면 빈 칸은 0 이다 — 합이 안 맞으면 아래 경고. */}
-        <Field name="tp1_pct" label="TP1 비중 %" hint="비우면 균등" numeric defaultValue={v("tp1_pct")} />
-        <Field name="tp2_pct" label="TP2 비중 %" numeric defaultValue={v("tp2_pct")} />
-        <Field name="tp3_pct" label="TP3 비중 %" numeric defaultValue={v("tp3_pct")} />
+        <div className="sm:col-span-3">
+          <span className={LABEL}>
+            TP 비중
+            <span className="ml-1 text-dim/70">
+              %든 금액이든 저장은 % — 단위를 바꾸면 적어 둔 값도 환산 · 비우면 균등
+            </span>
+          </span>
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="flex overflow-hidden rounded-lg border border-border" role="group" aria-label="TP 비중 단위">
+              {(["pct", "amount"] as const).map((u) => (
+                <button
+                  key={u}
+                  type="button"
+                  onClick={() => switchShareUnit(u)}
+                  aria-pressed={shareUnit === u}
+                  className={`px-3 py-2 text-xs ${
+                    shareUnit === u ? "bg-accent text-white" : "text-dim hover:text-text"
+                  }`}
+                >
+                  {u === "pct" ? "%" : "금액"}
+                </button>
+              ))}
+            </div>
+            {[0, 1, 2].map((i) => (
+              <input
+                key={i}
+                name={`tp${i + 1}_pct`}
+                aria-label={`TP${i + 1} ${shareUnit === "pct" ? "비중 %" : "금액"}`}
+                placeholder={`TP${i + 1} ${shareUnit === "pct" ? "%" : "금액"}`}
+                value={shares[i]}
+                inputMode="decimal"
+                onChange={(e) =>
+                  setShares((cur) => cur.map((x, j) => (j === i ? e.target.value : x)))
+                }
+                className="tnum w-28 rounded-lg border border-border bg-bg px-3 py-2 text-sm outline-none focus:border-accent"
+              />
+            ))}
+          </div>
+          <input type="hidden" name="tp_share_unit" value={shareUnit} />
+        </div>
         {tpNote ? (
           <p className="sm:col-span-3 rounded-lg border border-beta/50 bg-beta/10 px-3 py-2 text-xs text-beta">
             ⚠ {tpNote}

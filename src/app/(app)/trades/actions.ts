@@ -147,6 +147,33 @@ function parseMarginMode(value: FormDataEntryValue | null): "cross" | "isolated"
   return raw === "cross" || raw === "isolated" ? raw : null;
 }
 
+/**
+ * 비중을 금액으로 적었으면 명목가 기준 %로 바꾼다 — 저장 단위는 언제나 %다.
+ *
+ * "이 목표에서 2,000 뺀다"처럼 금액으로 떠올린 계획을 %로 암산하지 않게 한다.
+ * 금액 단위일 때 `tpN_pct` 칸에는 금액이 실려 온다. 오류면 문구를 돌려준다.
+ */
+function convertTpShares(
+  formData: FormData,
+  values: ReturnType<typeof readForm>,
+): string | null {
+  if (String(formData.get("tp_share_unit") ?? "pct") !== "amount") return null;
+
+  const amounts = [values.tp1_pct, values.tp2_pct, values.tp3_pct];
+  if (amounts.every((a) => a === null)) return null;
+
+  const { notional } = values;
+  if (notional === null || notional <= 0) {
+    return "TP 비중을 금액으로 입력하려면 투입(명목가)이 필요합니다.";
+  }
+
+  const r4 = (x: number) => Math.round(x * 10_000) / 10_000;
+  [values.tp1_pct, values.tp2_pct, values.tp3_pct] = amounts.map((a) =>
+    a === null ? null : r4((a / notional) * 100),
+  );
+  return null;
+}
+
 /** DB의 trades_closed_complete 제약을 UI에서 먼저 걸러 준다. */
 function validate(values: ReturnType<typeof readForm>): string | null {
   if (!values.symbol) return "종목을 입력해 주세요.";
@@ -177,6 +204,8 @@ export async function createTrade(
   if (!bookId) return { error: "북을 먼저 만들어 주세요." };
 
   const values = readForm(formData);
+  const shareError = convertTpShares(formData, values);
+  if (shareError) return { error: shareError };
   const invalid = validate(values);
   if (invalid) return { error: invalid };
 
@@ -251,6 +280,8 @@ export async function updateTrade(
   if (!id) return { error: "거래를 찾을 수 없습니다." };
 
   const values = readForm(formData);
+  const shareError = convertTpShares(formData, values);
+  if (shareError) return { error: shareError };
 
   const { supabase } = await requireUser();
 
