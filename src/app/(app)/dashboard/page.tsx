@@ -10,6 +10,7 @@ import { SyncAction } from "@/app/(app)/trades/okx-sync-button";
 import { DrawdownChart, EquityCurve, type EquityPoint } from "@/components/charts";
 import type { PnlBar } from "@/components/charts";
 import { EmptyBook } from "@/components/empty-book";
+import { RationaleAlert } from "@/components/rationale-alert";
 import { StatTile } from "@/components/stat-tile";
 import { loadBenchmark } from "@/lib/benchmark";
 import { date, dateTime, num, pct, pnlClass, signed, signedPct, DASH } from "@/lib/format";
@@ -19,6 +20,7 @@ import {
   computeMetrics,
   dayKey,
   deriveTrades,
+  isOpenTrade,
   lastActivityAt,
   monthKey,
   summarizePerformance,
@@ -34,6 +36,7 @@ import {
   listFillsByTrade,
   listTrades,
 } from "@/lib/queries";
+import { unjustifiedTrades } from "@/lib/rationale";
 import { reconcileEquity } from "@/lib/reconcile";
 import { dailySnapshots, mergeSnapshotLine } from "@/lib/snapshot-curve";
 import {
@@ -94,6 +97,15 @@ export default async function DashboardPage() {
   const lastAt = lastActivityAt(derived);
 
   const recent = [...derived].reverse().slice(0, RECENT_COUNT);
+  // 근거 없는 거래 — 자본 점검 경고보다 위, 어떤 숫자보다 먼저 보여야 한다.
+  const unjustified = unjustifiedTrades(trades, nowMs()).map((t) => ({
+    id: t.id,
+    seq: t.seq,
+    symbol: t.symbol,
+    side: t.side,
+    entry_at: t.entry_at,
+    open: isOpenTrade(t),
+  }));
   // 들고 있는 거래의 체결만 읽는다 — 부분청산 단계는 체결에만 있다.
   const openFills = await listFillsByTrade(
     recent.filter((d) => d.result === "open").map((d) => d.trade.id),
@@ -208,6 +220,9 @@ export default async function DashboardPage() {
           아직 거래가 없습니다. 첫 기록을 추가하면 여기에 자금 곡선과 지표가 나타납니다.
         </p>
       ) : null}
+
+      {/* ── 근거 없는 매매 — 일부러 크다. 이게 있는 한 다른 숫자는 뒤로 밀린다 ── */}
+      <RationaleAlert trades={unjustified} />
 
       {/* ── 손대야 하는 경고만 맨 위로 ───────────── */}
       {alert ? (
