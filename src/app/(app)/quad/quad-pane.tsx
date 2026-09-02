@@ -110,8 +110,9 @@ export function QuadPane({
   /** Alt+R 카운터 — 오를 때마다 확대·이동·축 배율을 처음 보기로 되돌린다. */
   resetTick: number;
   /** 이 창이 지금 혼자 크게 떠 있는가 — 버튼 아이콘·설명이 바뀐다. */
-  maximizedSelf: boolean;
-  onToggleMax: () => void;
+  maximizedSelf?: boolean;
+  /** 없으면 확대 버튼을 그리지 않는다 — 창이 하나뿐인 화면(주문)에는 뜻이 없다. */
+  onToggleMax?: () => void;
   tool: "none" | AnnotationKind;
   /** 라벨 입력 중 — 그동안 새 도형을 시작하지 않는다(trade-chart와 같은 이유). */
   asking: boolean;
@@ -662,14 +663,16 @@ export function QuadPane({
             </option>
           ))}
         </select>
-        <button
-          type="button"
-          onClick={onToggleMax}
-          title={maximizedSelf ? "원래 배치로 돌아갑니다" : "이 창만 크게 봅니다"}
-          className="rounded border border-border bg-surface/80 px-1.5 py-0.5 text-[11px] text-dim backdrop-blur-sm hover:text-text"
-        >
-          {maximizedSelf ? "🗗" : "⛶"}
-        </button>
+        {onToggleMax ? (
+          <button
+            type="button"
+            onClick={onToggleMax}
+            title={maximizedSelf ? "원래 배치로 돌아갑니다" : "이 창만 크게 봅니다"}
+            className="rounded border border-border bg-surface/80 px-1.5 py-0.5 text-[11px] text-dim backdrop-blur-sm hover:text-text"
+          >
+            {maximizedSelf ? "🗗" : "⛶"}
+          </button>
+        ) : null}
       </div>
 
       {/* 도구를 켠 동안에만 포인터를 받는 판 — 차트의 팬·줌을 가로챈다. */}
