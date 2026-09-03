@@ -2,6 +2,7 @@
 #  증분 수집 — 마지막 수집 이후 새로 올라온 글만 받는다.
 #  실행: 같은 폴더의 [업데이트.bat] 더블클릭
 # ============================================================
+param([switch]$Unattended)   # 예약 작업(auto_update.ps1)에서 호출할 때 — 엔터 대기 없이 끝낸다
 $ErrorActionPreference = 'Continue'
 $ProgressPreference = 'SilentlyContinue'
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
@@ -26,7 +27,7 @@ function Log([string]$m) {
 }
 Set-Content -Path $LogF -Value ('=== INCREMENTAL ' + (Get-Date -Format 'yyyy-MM-dd HH:mm:ss') + ' ===') -Encoding UTF8
 
-if (-not (Test-Path $IdxF)) { Log 'ERROR: 인덱스.json 이 없습니다. 먼저 수집시작.bat 으로 전량 수집하세요.'; Read-Host '엔터'; exit }
+if (-not (Test-Path $IdxF)) { Log 'ERROR: 인덱스.json 이 없습니다. 먼저 수집시작.bat 으로 전량 수집하세요.'; if (-not $Unattended) { Read-Host '엔터' }; exit 2 }
 
 Add-Type -AssemblyName System.Net.Http
 $handler = New-Object System.Net.Http.HttpClientHandler
@@ -233,7 +234,7 @@ if ($fresh.Count -eq 0) {
   Set-Content -Path $NewF -Value '[]' -Encoding UTF8
   Write-Host ''
   Write-Host 'NO NEW POSTS. Archive is up to date.' -ForegroundColor Green
-  Read-Host '엔터를 누르면 종료합니다'
+  if (-not $Unattended) { Read-Host '엔터를 누르면 종료합니다' }
   exit
 }
 foreach ($f in $fresh) { Log ('  + ' + $f.date + ' [' + $f.categoryPath + '] ' + $f.title) }
@@ -377,4 +378,4 @@ Log ('=== DONE === 신규 ' + $ok + '편 (실패 ' + $fail + ') / 이미지 ' + 
 Write-Host ''
 Write-Host ('NEW POSTS: ' + $ok + '   TOTAL: ' + $all.Count) -ForegroundColor Green
 Write-Host 'Tell Claude: update finished.' -ForegroundColor Green
-Read-Host '엔터를 누르면 종료합니다'
+if (-not $Unattended) { Read-Host '엔터를 누르면 종료합니다' }
