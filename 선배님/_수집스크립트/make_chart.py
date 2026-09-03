@@ -29,6 +29,7 @@
      events[{daily?, utc?, kind: entry|exit|info, pos, color, text, price?, label?, primary?}]
      zones[{from|from_utc, to|to_utc, label, color}]   구간 음영
      lines[{price, label, color}]                       가격선
+     drawings[{type: trend|hline|vline|rect|text, pts:[{utc|daily, p}], color, text}]  기본 그림(사용자가 지우거나 고칠 수 있다)
      notes[]                     "무엇을 보는가"
      vol_index{symbol,name}      생략 가능 — 변동성 지수 창
      options{multiplier,rate,otm_pct,daily_asof_hours,notes}  생략 가능 — 옵션 이론가 (vol_index 필요)"""
@@ -284,6 +285,17 @@ def intraday_range(spec, key, max_days, before, after, today):
     if ev < today - max_days * 86400: return None
     return max(ev - before * 86400, today - max_days * 86400 + 3600), min(ev + after * 86400, today)
 
+def spec_drawings(spec):
+    """스펙의 기본 그림. 점은 {utc:"..Z"|daily:"YYYY-MM-DD", p:가격}. 일봉 점은 그날 정오(UTC)로 두어 어느 거래소든 그 봉에 떨어진다."""
+    out = []
+    for d in spec.get('drawings', []):
+        pts = []
+        for q in d.get('pts', []):
+            u = epoch(q['utc']) if q.get('utc') else day_epoch(q['daily']) + 12 * 3600
+            pts.append({'u': u, 'p': q['p']})
+        out.append({'type': d['type'], 'pts': pts, 'color': d.get('color'), 'text': d.get('text')})
+    return out
+
 def main(spec_path):
     global EXCH, GMTOFF, HAS_2TZ, LOC_ABBR, PDEC
     spec = json.load(io.open(spec_path, encoding='utf-8'))
@@ -403,7 +415,7 @@ def main(spec_path):
                  for b, asof, o in opt_rows(d1, True, opt)]
         opt_data = {'name': opt_name, 'post': spec['post'], 'tfs': opt_tfs, 'vx': None, 'events': opt_events, 'zones': zones, 'lines': [],
                     'indicators': {'ma': [{'type': 'SMA', 'n': 20}], 'bb': {'on': False, 'n': 20, 'k': 2}, 'rsi': {'on': False, 'n': 14}, 'volume': False, 'vx': False},
-                    'view': spec.get('view'), 'tz': EXCH, 'has2tz': HAS_2TZ, 'locAbbr': LOC_ABBR, 'pdec': 2,
+                    'view': spec.get('view'), 'drawings': [], 'tz': EXCH, 'has2tz': HAS_2TZ, 'locAbbr': LOC_ABBR, 'pdec': 2,
                     'sessionNote': vi.get('session_note', '거래소 정규장에만 산출'), 'event': ev}
         opt_page = (OPT_PAGE
                     .replace('__CSS__', css).replace('__APP__', app)
@@ -426,7 +438,7 @@ def main(spec_path):
                          f'<span class="when">{z["from"] or kst_dt(z["from_utc"]).strftime("KST %Y-%m-%d %H:%M")} ~ {z["to"] or kst_dt(z["to_utc"]).strftime("KST %Y-%m-%d %H:%M")}</span></li>'
                          for z in zones)
     data = {'name': name, 'post': spec['post'], 'tfs': tfs, 'vx': vx, 'events': events, 'zones': zones, 'lines': spec.get('lines', []),
-            'indicators': spec.get('indicators'), 'view': spec.get('view'),
+            'indicators': spec.get('indicators'), 'view': spec.get('view'), 'drawings': spec_drawings(spec),
             'tz': EXCH, 'has2tz': HAS_2TZ, 'locAbbr': LOC_ABBR, 'pdec': PDEC, 'sessionNote': spec.get('session_note', ''), 'event': ev}
     hourly_tables = ''
     if tbl_h:
@@ -486,6 +498,13 @@ __CSS__
   <span class="sub" id="range"></span>
   <button id="theme">테마</button>
 </div>
+<div class="bar" id="drawbar">
+  <span class="grp"><button data-tool="" class="on" title="선택·이동 (Esc)">커서</button><button data-tool="trend" title="두 점 클릭 (Alt+T)">추세선</button><button data-tool="hline" title="한 점 클릭 (Alt+H)">수평선</button><button data-tool="vline" title="한 점 클릭 (Alt+V)">수직선</button><button data-tool="rect" title="두 점 클릭">사각형</button><button data-tool="text" title="한 점 클릭 뒤 입력, Enter">텍스트</button></span>
+  <span style="width:8px"></span>
+  <span class="grp"><input type="color" id="drawColor" value="#2962ff" title="색 — 선택한 그림에도 적용"><button id="drawDel" title="Delete">선택 삭제</button><button id="drawUndo" title="Ctrl+Z">되돌리기</button><button id="drawClear">모두 지우기</button><button id="drawReset" title="스펙의 기본 그림으로">기본 그림</button></span>
+  <span class="sp"></span>
+  <span class="mut">Alt+R 화면 초기화 · Alt+T/H/V 도구 · Esc 취소 · Del 삭제 · Ctrl+Z 되돌리기</span>
+</div>
 <p class="sub" style="padding:6px 18px 0">__VXNAME__ 를 캔들로 그린 것 — 시장이 옵션 가격에 매긴 변동성 자체다. 마커는 시세 대조 차트와 같은 이벤트.</p>
 <div id="wrap">
   <div id="legend"></div>
@@ -493,6 +512,8 @@ __CSS__
   <div id="main"></div>
   <div id="rsi"></div>
   <div id="vx"></div>
+  <canvas id="draw"></canvas>
+  <input id="drawtext" placeholder="텍스트 입력 후 Enter" hidden>
 </div>
 <section>
   <h2>이벤트 마커 <span class="mut">— 목록을 누르면 그 자리로. ▲ 진입 · ▼ 정리 · ● 정보</span></h2>
@@ -578,12 +599,21 @@ __CSS__
   <span class="sub" id="range"></span>
   <button id="theme">테마</button>
 </div>
+<div class="bar" id="drawbar">
+  <span class="grp"><button data-tool="" class="on" title="선택·이동 (Esc)">커서</button><button data-tool="trend" title="두 점 클릭 (Alt+T)">추세선</button><button data-tool="hline" title="한 점 클릭 (Alt+H)">수평선</button><button data-tool="vline" title="한 점 클릭 (Alt+V)">수직선</button><button data-tool="rect" title="두 점 클릭">사각형</button><button data-tool="text" title="한 점 클릭 뒤 입력, Enter">텍스트</button></span>
+  <span style="width:8px"></span>
+  <span class="grp"><input type="color" id="drawColor" value="#2962ff" title="색 — 선택한 그림에도 적용"><button id="drawDel" title="Delete">선택 삭제</button><button id="drawUndo" title="Ctrl+Z">되돌리기</button><button id="drawClear">모두 지우기</button><button id="drawReset" title="스펙의 기본 그림으로">기본 그림</button></span>
+  <span class="sp"></span>
+  <span class="mut">Alt+R 화면 초기화 · Alt+T/H/V 도구 · Esc 취소 · Del 삭제 · Ctrl+Z 되돌리기 · 그림은 시간·가격에 고정되고 이 브라우저에 남는다</span>
+</div>
 <div id="wrap">
   <div id="legend"></div>
   <div id="indpanel" hidden></div>
   <div id="main"></div>
   <div id="rsi"></div>
   <div id="vx"></div>
+  <canvas id="draw"></canvas>
+  <input id="drawtext" placeholder="텍스트 입력 후 Enter" hidden>
 </div>
 <section>
   <h2>이벤트 마커 <span class="mut">— 목록을 누르면 그 자리로, 차트의 마커 봉을 누르면 목록이 밝아진다. ▲ 진입 · ▼ 정리 · ● 정보</span></h2>

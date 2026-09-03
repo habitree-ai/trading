@@ -300,5 +300,104 @@
   document.querySelectorAll('.tw').forEach(showHit);
   document.querySelectorAll('details').forEach(function (d) { d.addEventListener('toggle', function () { if (d.open) d.querySelectorAll('.tw').forEach(showHit); }); });
 
+  // ---------- 그리기 — 선·도형 (트레이딩뷰식). 점은 UTC 초·가격으로 저장해 시간대를 바꿔도 같은 자리 ----------
+  var DKEY = 'sbchart:draw:' + DATA.name;
+  var drawings = [], selected = -1, tool = null, pending = null, drag = null, history = [], curColor = '#2962ff';
+  try { var dd = JSON.parse(localStorage.getItem(DKEY) || 'null'); drawings = dd ? dd : JSON.parse(JSON.stringify(DATA.drawings || [])); } catch (e) {}
+  var cv = $('draw'), ctx = cv.getContext('2d'), wrapEl = $('wrap'), txtEl = $('drawtext');
+  function dsave() { try { localStorage.setItem(DKEY, JSON.stringify(drawings)); } catch (e) {} }
+  function dpush() { history.push(JSON.stringify(drawings)); if (history.length > 40) history.shift(); }
+  var TF_SEC = { '15m': 900, '1h': 3600, '4h': 14400, '1d': 86400, '1w': 604800 };
+  function barDur(i) { var b = rows[i], nb = rows[i + 1]; return nb ? nb.utc - b.utc : TF_SEC[state.tf]; }
+  function utcToLogical(u) { if (!rows.length) return 0; if (u < rows[0].utc) return (u - rows[0].utc) / barDur(0); var i = idxAtUtc(u); return i + Math.max(0, Math.min(1, (u - rows[i].utc) / barDur(i))); }
+  function logicalToUtc(l) { if (!rows.length) return 0; var i = Math.floor(l), f = l - i; if (i < 0) return rows[0].utc + l * barDur(0); if (i >= rows.length) { i = rows.length - 1; f = l - i; } return rows[i].utc + f * barDur(i); }
+  function toXY(p) { var x = main.timeScale().logicalToCoordinate(utcToLogical(p.u)), y = candles.priceToCoordinate(p.p); return (x == null || y == null) ? null : { x: x, y: y }; }
+  function fromXY(x, y) { var l = main.timeScale().coordinateToLogical(x), p = candles.coordinateToPrice(y); return (l == null || p == null) ? null : { u: logicalToUtc(l), p: p }; }
+  function fmtPoint(u) { return intraday(state.tf) ? fmt('Asia/Seoul', u * 1000).slice(5) + ' KST' : fmt(DATA.tz, u * 1000, true); }
+  function paneSize() { var ts = main.timeScale(); return { w: mainEl.clientWidth - main.priceScale('right').width(), h: mainEl.clientHeight - (ts.options().visible ? ts.height() : 0) }; }
+  function pill(t, x, y, align) { ctx.font = '11.5px system-ui, sans-serif'; var w = ctx.measureText(t).width + 8, x0 = align === 'right' ? x - w : x; ctx.save(); ctx.globalAlpha = 0.92; ctx.fillRect(x0, y - 13, w, 16); ctx.globalAlpha = 1; ctx.fillStyle = '#fff'; ctx.textAlign = 'left'; ctx.fillText(t, x0 + 4, y - 1); ctx.restore(); }
+  function drawOne(d, sel, ps) {
+    var col = d.color || '#2962ff'; ctx.lineWidth = sel ? 2.5 : 1.5; ctx.strokeStyle = col; ctx.fillStyle = col; ctx.setLineDash(d.type === 'vline' ? [4, 3] : []);
+    var a = toXY(d.pts[0]); if (!a) return; var b = d.pts[1] ? toXY(d.pts[1]) : null;
+    if (d.type === 'hline') { ctx.beginPath(); ctx.moveTo(0, a.y); ctx.lineTo(ps.w, a.y); ctx.stroke(); pill(n(d.pts[0].p, PD), ps.w - 4, a.y - 3, 'right'); }
+    else if (d.type === 'vline') { ctx.beginPath(); ctx.moveTo(a.x, 0); ctx.lineTo(a.x, ps.h); ctx.stroke(); pill(fmtPoint(d.pts[0].u), a.x + 4, 16, 'left'); }
+    else if (d.type === 'trend' && b) { ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke(); }
+    else if (d.type === 'rect' && b) { var x1 = Math.min(a.x, b.x), y1 = Math.min(a.y, b.y), w = Math.abs(b.x - a.x), h = Math.abs(b.y - a.y); ctx.globalAlpha = 0.14; ctx.fillRect(x1, y1, w, h); ctx.globalAlpha = 1; ctx.strokeRect(x1, y1, w, h); }
+    else if (d.type === 'text') { ctx.beginPath(); ctx.arc(a.x, a.y, 2.5, 0, 6.283); ctx.fill(); pill(d.text || '', a.x + 5, a.y - 4, 'left'); }
+    if (sel) [a, b].forEach(function (p) { if (!p) return; ctx.beginPath(); ctx.arc(p.x, p.y, 5, 0, 6.283); ctx.fillStyle = '#fff'; ctx.fill(); ctx.stroke(); });
+  }
+  function redraw() {
+    var w = mainEl.clientWidth, h = mainEl.clientHeight, r = window.devicePixelRatio || 1;
+    cv.style.left = mainEl.offsetLeft + 'px'; cv.style.top = mainEl.offsetTop + 'px'; cv.style.width = w + 'px'; cv.style.height = h + 'px';
+    if (cv.width !== Math.round(w * r) || cv.height !== Math.round(h * r)) { cv.width = Math.round(w * r); cv.height = Math.round(h * r); }
+    ctx.setTransform(r, 0, 0, r, 0, 0); ctx.clearRect(0, 0, w, h);
+    if (!rows.length) return;
+    var ps = paneSize(); ctx.save(); ctx.beginPath(); ctx.rect(0, 0, ps.w, ps.h); ctx.clip();
+    drawings.forEach(function (d, k) { drawOne(d, k === selected, ps); });
+    if (pending && pending.preview) drawOne(pending.preview, false, ps);
+    ctx.restore();
+  }
+  function segDist(x, y, a, b) { var dx = b.x - a.x, dy = b.y - a.y, l2 = dx * dx + dy * dy, t = l2 ? Math.max(0, Math.min(1, ((x - a.x) * dx + (y - a.y) * dy) / l2)) : 0; return Math.hypot(x - (a.x + t * dx), y - (a.y + t * dy)); }
+  function distTo(d, x, y) {
+    var a = toXY(d.pts[0]); if (!a) return null; var b = d.pts[1] ? toXY(d.pts[1]) : null;
+    if (d.type === 'hline') return Math.abs(y - a.y); if (d.type === 'vline') return Math.abs(x - a.x); if (d.type === 'text') return Math.hypot(x - a.x, y - a.y);
+    if (!b) return null; if (d.type === 'trend') return segDist(x, y, a, b);
+    if (d.type === 'rect') { var x1 = Math.min(a.x, b.x), x2 = Math.max(a.x, b.x), y1 = Math.min(a.y, b.y), y2 = Math.max(a.y, b.y); if (x >= x1 && x <= x2 && y >= y1 && y <= y2) return 0; return Math.hypot(Math.max(x1 - x, 0, x - x2), Math.max(y1 - y, 0, y - y2)); }
+    return null;
+  }
+  function hitTest(x, y) { var best = -1, bd = 8; drawings.forEach(function (d, k) { var v = distTo(d, x, y); if (v != null && v < bd) { bd = v; best = k; } }); return best; }
+  function handleAt(d, q) { for (var i = 0; i < d.pts.length; i++) { var p = toXY(d.pts[i]); if (p && Math.hypot(q.x - p.x, q.y - p.y) <= 8) return i; } return null; }
+  function setTool(t) { tool = t || null; pending = null; if (tool) selected = -1; cv.style.pointerEvents = (tool || selected >= 0) ? 'auto' : 'none'; cv.style.cursor = tool ? 'crosshair' : 'default';
+    document.querySelectorAll('#drawbar button[data-tool]').forEach(function (b) { b.classList.toggle('on', (b.dataset.tool || null) === tool); }); redraw(); }
+  function select(k) { selected = k; cv.style.pointerEvents = k >= 0 ? 'auto' : 'none'; redraw(); }
+  function ptr(e) { var r = cv.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; }
+  function addDrawing(d) { dpush(); drawings.push(d); dsave(); }
+  function openText(q, pt) { txtEl.hidden = false; txtEl.value = ''; txtEl.style.left = (mainEl.offsetLeft + q.x) + 'px'; txtEl.style.top = (mainEl.offsetTop + q.y) + 'px'; txtEl.focus();
+    txtEl.onkeydown = function (e) { if (e.key === 'Enter') { if (txtEl.value.trim()) addDrawing({ type: 'text', pts: [pt], color: curColor, text: txtEl.value.trim() }); txtEl.hidden = true; setTool(null); } else if (e.key === 'Escape') { txtEl.hidden = true; setTool(null); } e.stopPropagation(); };
+    txtEl.onblur = function () { txtEl.hidden = true; }; }
+  cv.addEventListener('pointerdown', function (e) {
+    var q = ptr(e), pt = fromXY(q.x, q.y); if (!pt) return; e.preventDefault();
+    if (tool === 'hline' || tool === 'vline') { addDrawing({ type: tool, pts: [pt], color: curColor }); setTool(null); return; }
+    if (tool === 'text') { openText(q, pt); return; }
+    if (tool === 'trend' || tool === 'rect') { if (!pending) pending = { type: tool, p1: pt }; else { addDrawing({ type: tool, pts: [pending.p1, pt], color: curColor }); setTool(null); } return; }
+    if (selected >= 0) {
+      var d = drawings[selected], hnd = handleAt(d, q);
+      if (hnd == null) { var k = hitTest(q.x, q.y); if (k < 0) { select(-1); return; } selected = k; d = drawings[k]; }
+      dpush(); drag = { k: selected, which: hnd == null ? 'all' : hnd, start: q, orig: JSON.parse(JSON.stringify(d.pts)) }; cv.setPointerCapture(e.pointerId); redraw();
+    }
+  });
+  cv.addEventListener('pointermove', function (e) {
+    var q = ptr(e);
+    if (pending) { var pt = fromXY(q.x, q.y); if (pt) { pending.preview = { type: pending.type, pts: [pending.p1, pt], color: curColor }; redraw(); } return; }
+    if (drag) { var dx = q.x - drag.start.x, dy = q.y - drag.start.y; drawings[drag.k].pts = drag.orig.map(function (p, i) { if (drag.which !== 'all' && drag.which !== i) return p; var o = toXY(p); if (!o) return p; return fromXY(o.x + dx, o.y + dy) || p; }); redraw(); return; }
+    if (selected >= 0) cv.style.cursor = (handleAt(drawings[selected], q) != null || hitTest(q.x, q.y) >= 0) ? 'move' : 'default';
+  });
+  cv.addEventListener('pointerup', function () { if (drag) { drag = null; dsave(); } });
+  main.subscribeClick(function (p) { if (tool || !p.point) return; var k = hitTest(p.point.x, p.point.y); if (k >= 0) select(k); });
+  document.querySelectorAll('#drawbar button[data-tool]').forEach(function (b) { b.onclick = function () { setTool(b.dataset.tool || null); }; });
+  $('drawColor').onchange = function () { curColor = $('drawColor').value; if (selected >= 0) { dpush(); drawings[selected].color = curColor; dsave(); redraw(); } };
+  $('drawDel').onclick = function () { if (selected < 0) return; dpush(); drawings.splice(selected, 1); select(-1); dsave(); };
+  $('drawUndo').onclick = function () { var prev = history.pop(); if (prev != null) { drawings = JSON.parse(prev); select(-1); dsave(); } };
+  $('drawClear').onclick = function () { if (!drawings.length) return; dpush(); drawings = []; select(-1); dsave(); };
+  $('drawReset').onclick = function () { dpush(); drawings = JSON.parse(JSON.stringify(DATA.drawings || [])); select(-1); dsave(); };
+  function resetView() { main.priceScale('right').applyOptions({ autoScale: true }); gotoEvent(); }
+  document.addEventListener('keydown', function (e) {
+    var tg = e.target && e.target.tagName; if (tg === 'INPUT' || tg === 'SELECT' || tg === 'TEXTAREA') return;
+    var k = e.key.toLowerCase();
+    if (e.altKey && k === 'r') { e.preventDefault(); resetView(); }
+    else if (e.altKey && k === 't') { e.preventDefault(); setTool('trend'); }
+    else if (e.altKey && k === 'h') { e.preventDefault(); setTool('hline'); }
+    else if (e.altKey && k === 'v') { e.preventDefault(); setTool('vline'); }
+    else if (e.key === 'Escape') { select(-1); setTool(null); }
+    else if ((e.key === 'Delete' || e.key === 'Backspace') && selected >= 0) { e.preventDefault(); $('drawDel').onclick(); }
+    else if ((e.ctrlKey || e.metaKey) && k === 'z') { e.preventDefault(); $('drawUndo').onclick(); }
+  });
+  main.timeScale().subscribeVisibleLogicalRangeChange(redraw);
+  main.subscribeCrosshairMove(redraw);
+  window.addEventListener('resize', redraw);
+  setInterval(redraw, 500);   // 가격축 드래그처럼 이벤트가 없는 변화도 따라가게
+  $('goto').addEventListener('click', function () { setTimeout(redraw, 60); });
+
   load(state.tf);
+  setTimeout(redraw, 500);
 })();
