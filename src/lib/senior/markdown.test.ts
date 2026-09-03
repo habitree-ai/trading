@@ -24,6 +24,13 @@ describe("renderMarkdown — md2html.py 와 같은 출력", () => {
     );
   });
 
+  it("차트/ 링크는 공개 페이지의 route 경로로 — 로컬 뷰어와 일부러 다른 한 곳", () => {
+    const { html } = renderMarkdown("[차트](차트/2025-04-09_나스닥선물.html) [원문](https://x.io/차트/1)\n");
+    expect(html).toBe(
+      '<p><a href="/blog/charts/2025-04-09_나스닥선물.html" target="_blank" rel="noopener">차트</a> <a href="https://x.io/차트/1" target="_blank" rel="noopener">원문</a></p>',
+    );
+  });
+
   it("한글에 붙은 별표는 기울임이 아니다 — 파이썬 \\w 의 유니코드 규칙", () => {
     const { html } = renderMarkdown("가*나*다\n");
     expect(html).toBe("<p>가*나*다</p>");

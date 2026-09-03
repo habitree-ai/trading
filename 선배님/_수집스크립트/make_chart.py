@@ -3,16 +3,38 @@
 
    실행: python _수집스크립트/make_chart.py 차트/2025-04-09_나스닥선물.json
    결과: 스펙과 같은 이름의 .html (lightweight-charts, 일봉/1시간봉 전환, MA20/50/200·RSI14·거래량,
-         이벤트 마커, 십자선 범례, 봉 데이터 표) 과 _일봉.csv / _1시간봉.csv
+         이벤트 마커, 십자선 범례, 봉 데이터 표) 과 _일봉.csv / _1시간봉.csv.
+         스펙에 vol_index·options 가 있으면 변동성 지수 창과 옵션 이론가(Black-76) 표·CSV 까지.
 
    시세는 Yahoo Finance v8 chart API 에서 받는다 — 이 PC 에서 실행한다(Claude 의 네트워크 경로는 막힌다).
    1시간봉은 야후가 최근 730일까지만 준다. 정리 문서에는 [링크](차트/이름.html) 로 건다 — 두 마크다운
-   변환기(md2html.py·markdown.ts)가 HTML 태그를 이스케이프하므로 iframe 내장은 안 된다."""
+   변환기(md2html.py·markdown.ts)가 HTML 태그를 이스케이프하므로 iframe 내장은 안 된다.
+   공개 페이지(/blog)는 markdown.ts 가 그 링크를 /blog/charts/ 로 바꿔 route 로 서빙한다.
+
+   스펙 필드
+     symbol, name, title, post{title,board,date,url}, event_date
+     daily{from}                 일봉 시작일 (끝은 오늘)
+     hourly{from,to}             생략하면 1시간봉 없음
+     table{daily_sessions | daily_from,daily_to ; hourly_from_utc,hourly_to_utc}
+     session_note                범례에 보일 세션 설명 (예: "ET 전일 18:00~당일 17:00")
+     view{"1d":[앞,뒤],"1h":[앞,뒤]}  "이벤트로 이동" 때 보일 봉 수 (기본 일봉 70/30, 1시간봉 60/60)
+     price_decimals              가격 소수 자리 (기본 2, 원화는 0)
+     events[{daily?, utc?, pos, color, text}]
+     notes[]                     "무엇을 보는가"
+     vol_index{symbol,name}      생략 가능 — 변동성 지수 창
+     options{multiplier,rate,otm_pct,daily_asof_hours,notes}  생략 가능 — 옵션 이론가 (vol_index 필요)"""
 import io, os, sys, json, csv, math, datetime as dt, urllib.request, urllib.parse
 
 D = os.path.dirname(os.path.abspath(__file__)); R = os.path.dirname(D)
 UTC = dt.timezone.utc
 KST = dt.timezone(dt.timedelta(hours=9))
+
+# 거래소 시간대 — main() 에서 야후 meta 로 채운다
+EXCH = 'America/New_York'   # IANA 이름
+GMTOFF = -4 * 3600          # 야후 meta.gmtoffset (지금 시점의 오프셋)
+HAS_2TZ = True              # 거래소가 한국이 아니면 KST 와 현지 시각을 둘 다 보인다
+LOC_ABBR = 'ET'
+PDEC = 2
 
 # ---------------- 시세 ----------------
 def fetch(symbol, interval, p1, p2):
@@ -22,7 +44,7 @@ def fetch(symbol, interval, p1, p2):
     with urllib.request.urlopen(req, timeout=60) as r:
         d = json.load(r)['chart']
     if d.get('error'):
-        raise SystemExit(f'yahoo {interval}: {d["error"]}')
+        raise SystemExit(f'yahoo {symbol} {interval}: {d["error"]}')
     res = d['result'][0]; q = res['indicators']['quote'][0]
     bars = []
     for i, t in enumerate(res['timestamp']):
@@ -30,7 +52,7 @@ def fetch(symbol, interval, p1, p2):
         if None in (o, h, l, c):
             continue          # 거래 없는 시간대·결측
         bars.append([int(t), float(o), float(h), float(l), float(c), int(v or 0)])
-    return bars
+    return bars, res['meta']
 
 def epoch(iso):
     return int(dt.datetime.fromisoformat(iso.replace('Z', '+00:00')).timestamp())
@@ -47,6 +69,17 @@ def et(utc_dt):
     end   = dt.datetime.combine(_nth_sunday(y, 11, 1), dt.time(6), UTC)  # 02:00 EDT = 06:00 UTC
     off = -4 if start <= utc_dt < end else -5
     return utc_dt.astimezone(dt.timezone(dt.timedelta(hours=off)))
+
+def kst_dt(t): return dt.datetime.fromtimestamp(t, KST)
+def et_dt(t):  return et(dt.datetime.fromtimestamp(t, UTC))
+def loc_dt(t):
+    """거래소 현지 시각. 뉴욕은 DST 규칙, 서울은 KST, 그 밖은 야후가 준 고정 오프셋."""
+    if EXCH == 'America/New_York': return et_dt(t)
+    if EXCH == 'Asia/Seoul': return kst_dt(t)
+    return dt.datetime.fromtimestamp(t, dt.timezone(dt.timedelta(seconds=GMTOFF)))
+def session_date(t):
+    """야후 일봉 timestamp 는 거래소 현지 00:00(또는 개장 시각)이다 — 현지 날짜가 세션 날짜."""
+    return dt.datetime.fromtimestamp(t + GMTOFF, UTC).date().isoformat()
 
 # ---------------- 지표 (종가 기준, Wilder) ----------------
 def sma(vals, n):
@@ -97,10 +130,12 @@ def enrich(bars):
 
 # ---------------- 변동성 지수 붙이기 ----------------
 def attach_vx(bars, vxd, vxh, daily):
-    """각 봉에 VXN 을 붙인다. 일봉은 같은 세션 날짜의 VXN 종가, 1시간봉은 그 시각 이전 마지막 VXN 봉의 종가.
-       VXN 은 미국 정규장에만 산출되므로 야간 봉에는 전일 종가가 이어진다."""
+    """각 봉에 변동성 지수를 붙인다. 일봉은 같은 세션 날짜의 종가, 1시간봉은 그 시각 이전 마지막 봉의 종가
+       (VXN 은 미국 정규장에만 산출되므로 야간 봉에는 전일 종가가 이어진다). 지수가 없으면 None."""
+    if vxd is None:
+        return [b + [None] for b in bars]
     if daily:
-        byd = {dt.datetime.fromtimestamp(b[0], UTC).date().isoformat(): b[4] for b in vxd}
+        byd = {session_date(b[0]): b[4] for b in vxd}
         return [b + [byd.get(session_date(b[0]))] for b in bars]
     src = sorted(vxh or vxd, key=lambda b: b[0]); j = -1; out = []
     for b in bars:
@@ -108,7 +143,7 @@ def attach_vx(bars, vxd, vxh, daily):
         out.append(b + [src[j][4] if j >= 0 else None])
     return out
 
-# ---------------- 옵션 이론가 (Black-76, VXN 을 변동성으로) ----------------
+# ---------------- 옵션 이론가 (Black-76, 변동성 지수를 IV 로) ----------------
 def ncdf(x): return 0.5 * (1 + math.erf(x / math.sqrt(2)))
 def b76(F, K, T, sig, r):
     if T <= 0 or sig <= 0: return max(F - K, 0.0), max(K - F, 0.0)
@@ -126,10 +161,10 @@ def expiries(asof):
     y2, m2 = (y + 1, 1) if m == 12 else (y, m + 1)
     return fri, front, third_friday(y2, m2)
 def option_row(F, vx, asof_dt, opt):
-    """asof_dt: 평가 시각(UTC). 만기는 ET 09:30(13:30 UTC). 키 w/f/n = 주간/근월/차월."""
+    """asof_dt: 평가 시각(UTC). 만기는 현지 09:30 기준(미국 지수옵션). 키 w/f/n = 주간/근월/차월."""
     sig, r = vx / 100.0, opt['rate']
     out = {}
-    for key, ex in zip(('w', 'f', 'n'), expiries(et(asof_dt).date())):
+    for key, ex in zip(('w', 'f', 'n'), expiries(loc_dt(int(asof_dt.timestamp())).date())):
         T = max((dt.datetime.combine(ex, dt.time(13, 30), UTC) - asof_dt).total_seconds(), 0.0) / 86400.0 / 365.0
         c, p = b76(F, F, T, sig, r)
         row = {'exp': ex.isoformat(), 'days': T * 365, 'call': c, 'put': p, 'straddle': c + p, 'straddle_pct': (c + p) / F * 100}
@@ -141,32 +176,53 @@ def option_row(F, vx, asof_dt, opt):
     return out
 
 # ---------------- 표기 ----------------
-def kst_dt(t): return dt.datetime.fromtimestamp(t, KST)
-def et_dt(t):  return et(dt.datetime.fromtimestamp(t, UTC))
-def session_date(t):   # 야후 일봉 timestamp 는 거래소 현지 00:00 (04:00/05:00 UTC)
-    return dt.datetime.fromtimestamp(t - 4 * 3600, UTC).date().isoformat()
 def num(x, p=2):
     return '' if x is None else (f'{x:,.{p}f}' if p else f'{x:,.0f}')
+def time_cells(t, daily):
+    if daily: return [session_date(t)]
+    cells = [kst_dt(t).strftime('%m-%d %H:%M')]
+    if HAS_2TZ: cells.append(loc_dt(t).strftime('%m-%d %H:%M'))
+    return cells
+def time_head(daily):
+    if daily: return ['세션(' + LOC_ABBR + ')']
+    return ['KST'] + ([LOC_ABBR] if HAS_2TZ else [])
 
 def write_csv(path, rows, daily):
     with io.open(path, 'w', encoding='utf-8-sig', newline='') as f:
         w = csv.writer(f)
-        w.writerow((['session_date_et'] if daily else ['bar_start_utc', 'bar_start_kst', 'bar_start_et'])
-                   + ['open', 'high', 'low', 'close', 'volume', 'ma20', 'ma50', 'ma200', 'rsi14', 'atr14', 'vxn'])
+        head = ['session_date'] if daily else ['bar_start_utc', 'bar_start_kst'] + (['bar_start_local'] if HAS_2TZ else [])
+        w.writerow(head + ['open', 'high', 'low', 'close', 'volume', 'ma20', 'ma50', 'ma200', 'rsi14', 'atr14', 'vol_index'])
         for b in rows:
             t = b[0]
-            head = [session_date(t)] if daily else [
-                dt.datetime.fromtimestamp(t, UTC).strftime('%Y-%m-%d %H:%M'),
-                kst_dt(t).strftime('%Y-%m-%d %H:%M'), et_dt(t).strftime('%Y-%m-%d %H:%M')]
-            w.writerow(head + [b[1], b[2], b[3], b[4], b[5]] + ['' if x is None else x for x in b[6:]])
+            if daily: h = [session_date(t)]
+            else:
+                h = [dt.datetime.fromtimestamp(t, UTC).strftime('%Y-%m-%d %H:%M'), kst_dt(t).strftime('%Y-%m-%d %H:%M')]
+                if HAS_2TZ: h.append(loc_dt(t).strftime('%Y-%m-%d %H:%M'))
+            w.writerow(h + [b[1], b[2], b[3], b[4], b[5]] + ['' if x is None else x for x in b[6:]])
+
+def table_html(rows, daily, event_daily, event_hours, has_vx):
+    hd = time_head(daily) + ['시가', '고가', '저가', '종가', '등락', '거래량', 'MA20', 'MA50', 'MA200', 'RSI14', 'ATR14'] + (['VXN'] if has_vx else [])
+    out = ['<div class="tw"><table><thead><tr>' + ''.join(f'<th>{h}</th>' for h in hd) + '</tr></thead><tbody>']
+    for i, b in enumerate(rows):
+        t = b[0]
+        prev = rows[i - 1][4] if i else None
+        chg = '' if prev is None else f'{(b[4] / prev - 1) * 100:+.2f}%'
+        hit = (session_date(t) == event_daily) if daily else (t in event_hours)
+        cells = time_cells(t, daily) + [num(b[1], PDEC), num(b[2], PDEC), num(b[3], PDEC), num(b[4], PDEC), chg, num(b[5], 0),
+                                        num(b[6], PDEC), num(b[7], PDEC), num(b[8], PDEC), num(b[9], 1), num(b[10], PDEC)]
+        if has_vx: cells.append(num(b[11], 1))
+        cls = ' class="hit"' if hit else ''
+        out.append(f'<tr{cls}>' + ''.join(f'<td>{c}</td>' for c in cells) + '</tr>')
+    out.append('</tbody></table></div>')
+    return ''.join(out)
 
 def opt_rows(rows, daily, opt):
-    """표·CSV 공용. 일봉은 세션 마감(ET 17:00 = 봉 시각+17h) 기준, 1시간봉은 봉 시작 시각 기준으로 평가."""
+    """표·CSV 공용. 일봉은 세션 마감(봉 시각 + daily_asof_hours) 기준, 1시간봉은 봉 시작 시각 기준으로 평가."""
     out = []
     for b in rows:
         t, F, vx = b[0], b[4], b[11]
         if vx is None: continue
-        asof = dt.datetime.fromtimestamp(t + (17 * 3600 if daily else 0), UTC)
+        asof = dt.datetime.fromtimestamp(t + (opt.get('daily_asof_hours', 17) * 3600 if daily else 0), UTC)
         out.append((b, asof, option_row(F, vx, asof, opt)))
     return out
 
@@ -175,28 +231,26 @@ def write_opt_csv(path, rows, daily, opt):
            [f'{s}_otm{int(round(p * 100))}' for p in opt['otm_pct'] for s in ('put', 'call')]
     with io.open(path, 'w', encoding='utf-8-sig', newline='') as f:
         w = csv.writer(f)
-        w.writerow((['session_date_et', 'asof_utc'] if daily else ['bar_start_utc', 'bar_start_kst', 'bar_start_et'])
-                   + ['underlying', 'vxn'] + [f'{lab}_{k}' for lab in ('weekly', 'front', 'next') for k in keys])
+        head = ['session_date', 'asof_utc'] if daily else ['bar_start_utc', 'bar_start_kst'] + (['bar_start_local'] if HAS_2TZ else [])
+        w.writerow(head + ['underlying', 'vol_index'] + [f'{lab}_{k}' for lab in ('weekly', 'front', 'next') for k in keys])
         for b, asof, o in opt_rows(rows, daily, opt):
-            head = ([session_date(b[0]), asof.strftime('%Y-%m-%d %H:%M')] if daily else
-                    [dt.datetime.fromtimestamp(b[0], UTC).strftime('%Y-%m-%d %H:%M'),
-                     kst_dt(b[0]).strftime('%Y-%m-%d %H:%M'), et_dt(b[0]).strftime('%Y-%m-%d %H:%M')])
+            if daily: h = [session_date(b[0]), asof.strftime('%Y-%m-%d %H:%M')]
+            else:
+                h = [dt.datetime.fromtimestamp(b[0], UTC).strftime('%Y-%m-%d %H:%M'), kst_dt(b[0]).strftime('%Y-%m-%d %H:%M')]
+                if HAS_2TZ: h.append(loc_dt(b[0]).strftime('%Y-%m-%d %H:%M'))
             vals = []
             for lab in ('w', 'f', 'n'):
                 vals += [o[lab][k] if k == 'exp' else round(o[lab][k], 2) for k in keys]
-            w.writerow(head + [b[4], b[11]] + vals)
+            w.writerow(h + [b[4], b[11]] + vals)
 
 def opt_table_html(rows, daily, opt, event_daily, event_hours):
-    hd = (['세션(ET)'] if daily else ['KST', 'ET']) + ['NQ', 'VXN', '차월물 만기', 'T(일)', 'ATM 콜', 'ATM 풋', '스트래들', '스트래들 %', '1계약 $',
-          '5% OTM 풋', '10% OTM 풋', '5% OTM 콜', '근월물 스트래들 %', '주간 스트래들 %']
+    hd = time_head(daily) + ['기초', 'VXN', '차월물 만기', 'T(일)', 'ATM 콜', 'ATM 풋', '스트래들', '스트래들 %', '1계약 $',
+                             '5% OTM 풋', '10% OTM 풋', '5% OTM 콜', '근월물 스트래들 %', '주간 스트래들 %']
     out = ['<div class="tw"><table><thead><tr>' + ''.join(f'<th>{h}</th>' for h in hd) + '</tr></thead><tbody>']
     for b, asof, o in opt_rows(rows, daily, opt):
         t = b[0]; n_ = o['n']
-        if daily:
-            key = session_date(t); cells = [key]; hit = key == event_daily
-        else:
-            cells = [kst_dt(t).strftime('%m-%d %H:%M'), et_dt(t).strftime('%m-%d %H:%M')]; hit = t in event_hours
-        cells += [num(b[4]), num(b[11], 1), n_['exp'][5:], f'{n_["days"]:.1f}', num(n_['call']), num(n_['put']),
+        hit = (session_date(t) == event_daily) if daily else (t in event_hours)
+        cells = time_cells(t, daily) + [num(b[4], PDEC), num(b[11], 1), n_['exp'][5:], f'{n_["days"]:.1f}', num(n_['call']), num(n_['put']),
                   num(n_['straddle']), f'{n_["straddle_pct"]:.1f}%', '$' + num(n_['straddle'] * opt['multiplier'], 0),
                   num(n_['put_otm5']), num(n_['put_otm10']), num(n_['call_otm5']),
                   f'{o["f"]["straddle_pct"]:.1f}%', f'{o["w"]["straddle_pct"]:.1f}%']
@@ -205,47 +259,41 @@ def opt_table_html(rows, daily, opt, event_daily, event_hours):
     out.append('</tbody></table></div>')
     return ''.join(out)
 
-def table_html(rows, daily, event_daily, event_hours):
-    hd = (['세션(ET)'] if daily else ['KST', 'ET']) + ['시가', '고가', '저가', '종가', '등락', '거래량', 'MA20', 'MA50', 'MA200', 'RSI14', 'ATR14', 'VXN']
-    out = ['<div class="tw"><table><thead><tr>' + ''.join(f'<th>{h}</th>' for h in hd) + '</tr></thead><tbody>']
-    for i, b in enumerate(rows):
-        t = b[0]
-        prev = rows[i - 1][4] if i else None
-        chg = '' if prev is None else f'{(b[4] / prev - 1) * 100:+.2f}%'
-        if daily:
-            key = session_date(t); cells = [key]; hit = key == event_daily
-        else:
-            cells = [kst_dt(t).strftime('%m-%d %H:%M'), et_dt(t).strftime('%m-%d %H:%M')]; hit = t in event_hours
-        cells += [num(b[1]), num(b[2]), num(b[3]), num(b[4]), chg, num(b[5], 0),
-                  num(b[6]), num(b[7]), num(b[8]), num(b[9], 1), num(b[10]), num(b[11], 1)]
-        cls = ' class="hit"' if hit else ''
-        out.append(f'<tr{cls}>' + ''.join(f'<td>{c}</td>' for c in cells) + '</tr>')
-    out.append('</tbody></table></div>')
-    return ''.join(out)
-
 # ---------------- 메인 ----------------
 def main(spec_path):
+    global EXCH, GMTOFF, HAS_2TZ, LOC_ABBR, PDEC
     spec = json.load(io.open(spec_path, encoding='utf-8'))
     base = os.path.splitext(os.path.abspath(spec_path))[0]
     name = os.path.basename(base)
     now = int(dt.datetime.now(UTC).timestamp())
+    PDEC = int(spec.get('price_decimals', 2))
 
-    d1 = enrich(fetch(spec['symbol'], '1d', epoch(spec['daily']['from'] + 'T00:00:00Z'), now))
-    h1 = enrich(fetch(spec['symbol'], '1h', epoch(spec['hourly']['from'] + 'T00:00:00Z'),
-                      epoch(spec['hourly']['to'] + 'T00:00:00Z')))
-    print(f'일봉 {len(d1)}개 {session_date(d1[0][0])} ~ {session_date(d1[-1][0])} / '
-          f'1시간봉 {len(h1)}개 {kst_dt(h1[0][0]):%Y-%m-%d %H:%M} ~ {kst_dt(h1[-1][0]):%Y-%m-%d %H:%M} KST')
+    d1, meta = fetch(spec['symbol'], '1d', epoch(spec['daily']['from'] + 'T00:00:00Z'), now)
+    EXCH = meta.get('exchangeTimezoneName') or EXCH
+    GMTOFF = int(meta.get('gmtoffset') or GMTOFF)
+    HAS_2TZ = EXCH != 'Asia/Seoul'
+    LOC_ABBR = 'ET' if EXCH == 'America/New_York' else ('KST' if EXCH == 'Asia/Seoul' else meta.get('timezone', EXCH))
+    d1 = enrich(d1)
+    h1 = []
+    if spec.get('hourly'):
+        h1, _ = fetch(spec['symbol'], '1h', epoch(spec['hourly']['from'] + 'T00:00:00Z'), epoch(spec['hourly']['to'] + 'T00:00:00Z'))
+        h1 = enrich(h1)
+    print(f'{spec["symbol"]} ({EXCH}) 일봉 {len(d1)}개 {session_date(d1[0][0])} ~ {session_date(d1[-1][0])}'
+          + (f' / 1시간봉 {len(h1)}개 {kst_dt(h1[0][0]):%Y-%m-%d %H:%M} ~ {kst_dt(h1[-1][0]):%Y-%m-%d %H:%M} KST' if h1 else ' / 1시간봉 없음'))
 
-    # 변동성 지수(VXN) — 일봉 전 구간 + 1시간봉 구간(미국 정규장만 나온다)
-    vi, opt = spec['vol_index'], spec['options']
-    vxd = fetch(vi['symbol'], '1d', epoch(spec['daily']['from'] + 'T00:00:00Z'), now)
-    vxh = fetch(vi['symbol'], '1h', epoch(spec['hourly']['from'] + 'T00:00:00Z'), epoch(spec['hourly']['to'] + 'T00:00:00Z'))
+    # 변동성 지수 — 있으면 일봉 전 구간 + 1시간봉 구간(미국 정규장만 나온다)
+    vi, opt = spec.get('vol_index'), spec.get('options')
+    vxd = vxh = None
+    if vi:
+        vxd, _ = fetch(vi['symbol'], '1d', epoch(spec['daily']['from'] + 'T00:00:00Z'), now)
+        if spec.get('hourly'):
+            vxh, _ = fetch(vi['symbol'], '1h', epoch(spec['hourly']['from'] + 'T00:00:00Z'), epoch(spec['hourly']['to'] + 'T00:00:00Z'))
+        print(f'{vi["symbol"]} 일봉 {len(vxd)}개 / 1시간봉 {len(vxh or [])}개')
     d1 = attach_vx(d1, vxd, None, True)
     h1 = attach_vx(h1, vxd, vxh, False)
-    print(f'{vi["symbol"]} 일봉 {len(vxd)}개 / 1시간봉 {len(vxh)}개')
 
     write_csv(base + '_일봉.csv', d1, True)
-    write_csv(base + '_1시간봉.csv', h1, False)
+    if h1: write_csv(base + '_1시간봉.csv', h1, False)
 
     # 차트용 — 일봉은 세션 날짜 문자열, 1시간봉은 KST 벽시계로 보이도록 9시간 민 epoch
     daily_rows = [[session_date(b[0]), b[0]] + b[1:] for b in d1]
@@ -264,46 +312,75 @@ def main(spec_path):
         tag = CIRCLED[k] if k < len(CIRCLED) else str(k + 1)
         m = {'position': e['pos'] + 'Bar', 'shape': shape[e['pos']], 'color': e['color'], 'text': tag}
         if e.get('utc'):
-            u = epoch(e['utc']); when = f'KST {kst_dt(u):%Y-%m-%d %H:%M} · ET {et_dt(u):%m-%d %H:%M}'
+            u = epoch(e['utc']); when = f'KST {kst_dt(u):%Y-%m-%d %H:%M}' + (f' · {LOC_ABBR} {loc_dt(u):%m-%d %H:%M}' if HAS_2TZ else '')
         else:
             when = f'{e["daily"]} 세션'
         ev_list.append(f'<li><span class="tag" style="color:{e["color"]}">{tag}</span>{e["text"]}<span class="when">{when}</span></li>')
         if e.get('daily'):
             md.append(dict(m, time=e['daily']))
-        if e.get('utc'):
+        if e.get('utc') and h1:
             t = snap(epoch(e['utc'])); ev_hours.add(t)
             mh.append(dict(m, time=t + 9 * 3600))
     mh.sort(key=lambda x: x['time'])
 
     ev = spec['event_date']
-    idx = next(i for i, b in enumerate(d1) if session_date(b[0]) >= ev)
-    n = spec['table']['daily_sessions']
-    tbl_d = d1[max(0, idx - n): idx + n + 1]
-    tf, tt = epoch(spec['table']['hourly_from_utc']), epoch(spec['table']['hourly_to_utc'])
-    tbl_h = [b for b in h1 if tf <= b[0] <= tt]
-    write_opt_csv(base + '_옵션이론가_일봉.csv', d1, True, opt)
-    write_opt_csv(base + '_옵션이론가_1시간봉.csv', tbl_h, False, opt)
+    tb = spec['table']
+    if tb.get('daily_from'):
+        tbl_d = [b for b in d1 if tb['daily_from'] <= session_date(b[0]) <= tb['daily_to']]
+    else:
+        idx = next(i for i, b in enumerate(d1) if session_date(b[0]) >= ev)
+        n = tb['daily_sessions']
+        tbl_d = d1[max(0, idx - n): idx + n + 1]
+    tbl_h = []
+    if h1:
+        tf, tt = epoch(tb['hourly_from_utc']), epoch(tb['hourly_to_utc'])
+        tbl_h = [b for b in h1 if tf <= b[0] <= tt]
 
-    data = {'1d': daily_rows, '1h': hour_rows, 'markers': {'1d': md, '1h': mh}, 'vxName': vi['name'],
+    opt_section = ''
+    if vi and opt:
+        write_opt_csv(base + '_옵션이론가_일봉.csv', d1, True, opt)
+        if tbl_h: write_opt_csv(base + '_옵션이론가_1시간봉.csv', tbl_h, False, opt)
+        opt_section = (OPT_SECTION
+                       .replace('__VXNAME__', vi['name'])
+                       .replace('__OPT_NOTES__', ''.join(f'<li>{x}</li>' for x in opt['notes']))
+                       .replace('__TABLE_OPT_D__', opt_table_html(tbl_d, True, opt, ev, set()))
+                       .replace('__TABLE_OPT_H__', opt_table_html(tbl_h, False, opt, ev, ev_hours) if tbl_h else '')
+                       .replace('__CSV_OD__', name + '_옵션이론가_일봉.csv').replace('__CSV_OH__', name + '_옵션이론가_1시간봉.csv'))
+
+    data = {'1d': daily_rows, '1h': hour_rows, 'markers': {'1d': md, '1h': mh},
+            'vxName': vi['name'] if vi else None, 'tz': EXCH, 'has2tz': HAS_2TZ, 'locAbbr': LOC_ABBR, 'pdec': PDEC,
+            'sessionNote': spec.get('session_note', ''),
+            'view': spec.get('view'),   # {"1d":[앞 봉 수, 뒤 봉 수], "1h":[..]} — "이벤트로 이동" 기본 범위
             'event': ev, 'eventUtc': [epoch(e['utc']) for e in spec['events'] if e.get('utc')]}
+    hourly_tables = ''
+    if h1:
+        hourly_tables = ('<details><summary>봉 데이터 — 1시간봉 (이벤트 전후' + (', KST/' + LOC_ABBR if HAS_2TZ else ', KST') + ')</summary>'
+                         + table_html(tbl_h, False, ev, ev_hours, bool(vi)) + '</details>')
     page = (TEMPLATE
             .replace('__TITLE__', spec['title'])
             .replace('__NAME__', spec['name'])
             .replace('__POST__', json.dumps(spec['post'], ensure_ascii=False))
             .replace('__NOTES__', ''.join(f'<li>{x}</li>' for x in spec['notes']))
             .replace('__EVENTS__', ''.join(ev_list))
-            .replace('__TABLE_D__', table_html(tbl_d, True, ev, set()))
-            .replace('__TABLE_H__', table_html(tbl_h, False, ev, ev_hours))
-            .replace('__VXNAME__', vi['name'])
-            .replace('__OPT_NOTES__', ''.join(f'<li>{x}</li>' for x in opt['notes']))
-            .replace('__TABLE_OPT_D__', opt_table_html(tbl_d, True, opt, ev, set()))
-            .replace('__TABLE_OPT_H__', opt_table_html(tbl_h, False, opt, ev, ev_hours))
-            .replace('__CSV_OD__', name + '_옵션이론가_일봉.csv').replace('__CSV_OH__', name + '_옵션이론가_1시간봉.csv')
-            .replace('__CSV_D__', name + '_일봉.csv').replace('__CSV_H__', name + '_1시간봉.csv')
+            .replace('__OPT_SECTION__', opt_section)
+            .replace('__TABLE_D__', table_html(tbl_d, True, ev, set(), bool(vi)))
+            .replace('__TABLE_H__', hourly_tables)
+            .replace('__CSV_D__', name + '_일봉.csv')
+            .replace('__CSV_H__', ('<a href="' + name + '_1시간봉.csv">1시간봉 CSV</a>') if h1 else '')
             .replace('__FETCHED__', dt.datetime.now(KST).strftime('%Y-%m-%d %H:%M KST'))
             .replace('__DATA__', json.dumps(data, ensure_ascii=False, separators=(',', ':')).replace('</', '<\\/')))
     io.open(base + '.html', 'w', encoding='utf-8').write(page)
     print(f'→ {os.path.relpath(base + ".html", R)}  ({len(page.encode("utf-8")) // 1024}KB)')
+
+OPT_SECTION = r'''<section>
+  <h2>옵션 가격 — "차월물 옵션가격 보면 화성에서 우주인 침공하나 싶다"</h2>
+  <ul class="notes">__OPT_NOTES__</ul>
+  <p class="sub" style="margin:10px 0 6px">__VXNAME__ 는 차트 맨 아래 창에 그대로 그렸다. 아래 표의 옵션 값은 그 VXN 으로 계산한 이론가다.</p>
+  <details open><summary>옵션 이론가 — 일봉 (세션 마감 기준, 차월물 ATM·OTM)</summary>__TABLE_OPT_D__</details>
+  <details><summary>옵션 이론가 — 1시간봉 (이벤트 세션 전후 · 야간은 전일 VXN 종가 사용)</summary>__TABLE_OPT_H__</details>
+  <p class="links">전체 데이터: <a href="__CSV_OD__">옵션 이론가 일봉 CSV</a><a href="__CSV_OH__">옵션 이론가 1시간봉 CSV</a> (주간·근월·차월 셋 다 들어 있다)</p>
+</section>
+'''
 
 TEMPLATE = r'''<!doctype html>
 <html lang="ko">
@@ -375,20 +452,12 @@ details summary{cursor:pointer;font-weight:600;margin-bottom:8px}
   <h2>무엇을 보는가</h2>
   <ul class="notes">__NOTES__</ul>
 </section>
-<section>
-  <h2>옵션 가격 — "차월물 옵션가격 보면 화성에서 우주인 침공하나 싶다"</h2>
-  <ul class="notes">__OPT_NOTES__</ul>
-  <p class="sub" style="margin:10px 0 6px">__VXNAME__ 는 차트 맨 아래 창에 그대로 그렸다. 아래 표의 옵션 값은 그 VXN 으로 계산한 이론가다.</p>
-  <details open><summary>옵션 이론가 — 일봉 (세션 마감 기준, 차월물 ATM·OTM)</summary>__TABLE_OPT_D__</details>
-  <details><summary>옵션 이론가 — 1시간봉 (매수일 세션 전후 · 야간은 전일 VXN 종가 사용)</summary>__TABLE_OPT_H__</details>
-  <p class="links">전체 데이터: <a href="__CSV_OD__">옵션 이론가 일봉 CSV</a><a href="__CSV_OH__">옵션 이론가 1시간봉 CSV</a> (주간·근월·차월 셋 다 들어 있다)</p>
-</section>
-<section>
+__OPT_SECTION__<section>
   <details open><summary>봉 데이터 — 일봉 (이벤트 앞뒤 세션)</summary>__TABLE_D__</details>
 </section>
 <section>
-  <details><summary>봉 데이터 — 1시간봉 (매수일 세션 전후, KST/ET)</summary>__TABLE_H__</details>
-  <p class="links">전체 데이터: <a href="__CSV_D__">일봉 CSV</a><a href="__CSV_H__">1시간봉 CSV</a></p>
+  __TABLE_H__
+  <p class="links">전체 데이터: <a href="__CSV_D__">일봉 CSV</a>__CSV_H__</p>
 </section>
 <footer>시세 Yahoo Finance · 수집 __FETCHED__ · 차트 TradingView Lightweight Charts · 조작: 드래그 이동, 휠 확대/축소, 시간축 드래그로 봉 간격 조절</footer>
 <script id="data" type="application/json">__DATA__</script>
@@ -417,6 +486,7 @@ details summary{cursor:pointer;font-weight:600;margin-bottom:8px}
     var o = {}; p.forEach(function (x) { o[x.type] = x.value; });
     return o.year + '-' + o.month + '-' + o.day + ' ' + (o.hour === '24' ? '00' : o.hour) + ':' + o.minute;
   }
+  var PD = DATA.pdec;
   function n(x, p) { return x == null ? '–' : x.toLocaleString('ko-KR', { minimumFractionDigits: p, maximumFractionDigits: p }); }
 
   var TF = '1d';
@@ -427,6 +497,8 @@ details summary{cursor:pointer;font-weight:600;margin-bottom:8px}
   rsi.applyOptions({ rightPriceScale: { scaleMargins: { top: 0.1, bottom: 0.1 } } });
   vx.applyOptions({ rightPriceScale: { scaleMargins: { top: 0.15, bottom: 0.05 } } });
   var vxLine = vx.addAreaSeries({ lineColor: '#ff7043', topColor: 'rgba(255,112,67,.35)', bottomColor: 'rgba(255,112,67,.02)', lineWidth: 1.5, priceLineVisible: false, lastValueVisible: true, title: 'VXN' });
+  if (!DATA.vxName) { vxEl.style.display = 'none'; document.getElementById('tgVx').style.display = 'none'; }
+  if (!DATA['1h'].length) { document.getElementById('tf1h').style.display = 'none'; }
   // 시간축은 보이는 창 중 맨 아래 하나에만
   function axes() {
     var vOn = vxEl.style.display !== 'none', rOn = rsiEl.style.display !== 'none';
@@ -436,7 +508,7 @@ details summary{cursor:pointer;font-weight:600;margin-bottom:8px}
   }
   axes();
 
-  var candles = main.addCandlestickSeries({ upColor: '#26a69a', downColor: '#ef5350', borderVisible: false, wickUpColor: '#26a69a', wickDownColor: '#ef5350' });
+  var candles = main.addCandlestickSeries({ upColor: '#26a69a', downColor: '#ef5350', borderVisible: false, wickUpColor: '#26a69a', wickDownColor: '#ef5350', priceFormat: { type: 'price', precision: PD, minMove: PD ? Math.pow(10, -PD) : 1 } });
   var vol = main.addHistogramSeries({ priceFormat: { type: 'volume' }, priceScaleId: 'vol', lastValueVisible: false, priceLineVisible: false });
   main.priceScale('vol').applyOptions({ scaleMargins: { top: 0.82, bottom: 0 } });
   var maOpt = function (c) { return { color: c, lineWidth: 1, priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false }; };
@@ -476,14 +548,14 @@ details summary{cursor:pointer;font-weight:600;margin-bottom:8px}
   function legend(x) {
     if (!x) return;
     var chg = x[5] - x[2], pct = chg / x[2] * 100, cls = chg >= 0 ? 'u' : 'd';
-    var when = TF === '1d' ? '<b>' + x[0] + '</b> <span style="color:var(--mut)">세션(ET 전일 18:00~당일 17:00)</span>'
-             : '<b>' + fmt('Asia/Seoul', x[1] * 1000) + ' KST</b> <span style="color:var(--mut)">ET ' + fmt('America/New_York', x[1] * 1000) + '</span>';
+    var when = TF === '1d' ? '<b>' + x[0] + '</b> <span style="color:var(--mut)">세션' + (DATA.sessionNote ? '(' + DATA.sessionNote + ')' : '') + '</span>'
+             : '<b>' + fmt('Asia/Seoul', x[1] * 1000) + ' KST</b>' + (DATA.has2tz ? ' <span style="color:var(--mut)">' + DATA.locAbbr + ' ' + fmt(DATA.tz, x[1] * 1000) + '</span>' : '');
     document.getElementById('legend').innerHTML = when +
-      '<br>O <b>' + n(x[2], 2) + '</b> H <b>' + n(x[3], 2) + '</b> L <b>' + n(x[4], 2) + '</b> C <b class="' + cls + '">' + n(x[5], 2) + '</b> ' +
-      '<span class="' + cls + '">' + (chg >= 0 ? '+' : '') + n(chg, 2) + ' (' + (pct >= 0 ? '+' : '') + pct.toFixed(2) + '%)</span>' +
+      '<br>O <b>' + n(x[2], PD) + '</b> H <b>' + n(x[3], PD) + '</b> L <b>' + n(x[4], PD) + '</b> C <b class="' + cls + '">' + n(x[5], PD) + '</b> ' +
+      '<span class="' + cls + '">' + (chg >= 0 ? '+' : '') + n(chg, PD) + ' (' + (pct >= 0 ? '+' : '') + pct.toFixed(2) + '%)</span>' +
       ' Vol <b>' + n(x[6], 0) + '</b>' +
-      '<br><span class="ma20">MA20 ' + n(x[7], 1) + '</span> <span class="ma50">MA50 ' + n(x[8], 1) + '</span> <span class="ma200">MA200 ' + n(x[9], 1) + '</span>' +
-      ' <span class="rsi">RSI14 ' + n(x[10], 1) + '</span> ATR14 ' + n(x[11], 1) + ' <span class="vx">VXN ' + n(x[12], 1) + '</span>';
+      '<br><span class="ma20">MA20 ' + n(x[7], PD) + '</span> <span class="ma50">MA50 ' + n(x[8], PD) + '</span> <span class="ma200">MA200 ' + n(x[9], PD) + '</span>' +
+      ' <span class="rsi">RSI14 ' + n(x[10], 1) + '</span> ATR14 ' + n(x[11], PD) + (DATA.vxName ? ' <span class="vx">VXN ' + n(x[12], 1) + '</span>' : '');
   }
   function timeKey(t) { return typeof t === 'string' ? t : (t && t.year ? t.year + '-' + String(t.month).padStart(2, '0') + '-' + String(t.day).padStart(2, '0') : String(t)); }
   var charts = [main, rsi, vx];
@@ -514,8 +586,8 @@ details summary{cursor:pointer;font-weight:600;margin-bottom:8px}
     for (var j = 0; j < rows.length; j++) if (rows[j][1] >= t) return j; return rows.length - 1;
   }
   function gotoEvent() {
-    var i = eventIndex(), before = TF === '1d' ? 70 : 60, after = TF === '1d' ? 30 : 60;
-    main.timeScale().setVisibleLogicalRange({ from: i - before, to: i + after });
+    var i = eventIndex(), v = (DATA.view && DATA.view[TF]) || (TF === '1d' ? [70, 30] : [60, 60]);
+    main.timeScale().setVisibleLogicalRange({ from: i - v[0], to: i + v[1] });
   }
   document.getElementById('goto').onclick = gotoEvent;
   document.getElementById('fit').onclick = function () { main.timeScale().fitContent(); };

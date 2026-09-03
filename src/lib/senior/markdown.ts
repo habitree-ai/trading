@@ -44,6 +44,9 @@ function inline(s: string): string {
     /\[([^\]]+)\]\(([^)\s]+)\)/g,
     '<a href="$2" target="_blank" rel="noopener">$1</a>',
   );
+  // md2html.py 와 일부러 다른 한 곳 — 로컬 뷰어는 `차트/x.html` 을 폴더 상대 경로로 열지만,
+  // 공개 페이지에는 그 폴더가 없다. `/blog/charts/` route 가 같은 파일을 서빙한다.
+  out = out.replace(/href="차트\//g, 'href="/blog/charts/');
   out = out.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
   out = out.replace(/(?<![\p{L}\p{N}_*])\*([^*\n]+)\*(?![\p{L}\p{N}_*])/gu, "<em>$1</em>");
   return out;

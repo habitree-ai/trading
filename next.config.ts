@@ -14,8 +14,9 @@ const nextConfig: NextConfig = {
     "/lab": ["./docs/backtest/**/*.html", "./system-trading/docs/**/*.html"],
     "/api/lab": ["./docs/backtest/**/*.html", "./system-trading/docs/**/*.html"],
     // 선배님 공개 페이지 — 정리 문서(md)와 글 색인(csv)을 요청 시점에 읽는다. 같은 이유다.
-    "/blog": ["./선배님/*.md", "./선배님/인덱스.csv"],
-    "/blog/**": ["./선배님/*.md", "./선배님/인덱스.csv"],
+    // 차트/ 는 make_chart.py 가 만든 시세 대조 페이지(html·csv·json·png) — 목록과 route 가 요청 시점에 읽는다.
+    "/blog": ["./선배님/*.md", "./선배님/인덱스.csv", "./선배님/차트/*"],
+    "/blog/**": ["./선배님/*.md", "./선배님/인덱스.csv", "./선배님/차트/*"],
   },
   /**
    * 정적 분석기는 `readFileSync(join(cwd, "선배님", …))` 을 보고 폴더를 통째로 넣는다 —

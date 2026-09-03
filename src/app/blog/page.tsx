@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { getBlogViewer } from "@/lib/senior/admin";
+import { listSeniorCharts } from "@/lib/senior/charts";
 import { SENIOR_DOCS } from "@/lib/senior/docs";
 import { SENIOR_NOTE_STATUS_LABEL } from "@/lib/senior/fields";
 import { listSeniorNotes, type SeniorNote, type SeniorNoteStatus } from "@/lib/senior/notes";
@@ -60,6 +61,7 @@ export default async function BlogHome({
 
   const [notes, viewer] = await Promise.all([listSeniorNotes(), getBlogViewer()]);
   const posts = listSeniorPosts();
+  const charts = listSeniorCharts();
   const byId = new Map(posts.map((p) => [p.id, p]));
 
   const visible = notes.filter((n) => matches(n, n.post_id ? byId.get(n.post_id) : undefined, filter));
@@ -91,6 +93,34 @@ export default async function BlogHome({
           ))}
         </div>
       </section>
+
+      {charts.length > 0 ? (
+        <section className="space-y-3">
+          <header>
+            <h2 className="text-xl font-semibold tracking-tight">시세 대조 차트</h2>
+            <p className="mt-1 text-sm text-dim">
+              글이 말하는 매매를 그때 시세로 되짚은 것. 봉 데이터를 내장한 인터랙티브 차트 —
+              일봉·1시간봉, 이벤트 마커, 봉 데이터 표와 CSV. 새 탭에서 열린다.
+            </p>
+          </header>
+          <div className="grid gap-2 sm:grid-cols-2">
+            {charts.map((c) => (
+              <a
+                key={c.name}
+                href={`/blog/charts/${encodeURIComponent(c.name)}.html`}
+                target="_blank"
+                rel="noopener"
+                className="rounded-xl border border-border bg-surface p-4 transition-colors hover:border-beta"
+              >
+                <h3 className="text-[13px] font-medium">{c.title}</h3>
+                <p className="tnum mt-1 text-[11.5px] leading-snug text-dim">
+                  {c.symbol} · 「{c.post.title}」 {c.post.date} · {c.post.board}
+                </p>
+              </a>
+            ))}
+          </div>
+        </section>
+      ) : null}
 
       <section className="space-y-3">
         <header className="flex flex-wrap items-end justify-between gap-2">
