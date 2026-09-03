@@ -73,6 +73,12 @@ export function listSeniorCharts(): SeniorChart[] {
   return out.sort((a, b) => b.eventDate.localeCompare(a.eventDate));
 }
 
+/** 어떤 글(네이버 원문 URL)을 되짚은 차트들 — 노트 페이지가 "이 글의 시세 대조"로 잇는다. */
+export function listSeniorChartsForPost(postUrl: string | null | undefined): SeniorChart[] {
+  if (!postUrl) return [];
+  return listSeniorCharts().filter((c) => c.post.url === postUrl);
+}
+
 interface ChartSpec {
   title: string;
   symbol: string;

@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { NoteForm } from "@/app/blog/note-form";
 import { date } from "@/lib/format";
 import { getBlogViewer } from "@/lib/senior/admin";
+import { listSeniorChartsForPost } from "@/lib/senior/charts";
 import { SENIOR_NOTE_FIELDS, SENIOR_NOTE_STATUS_LABEL } from "@/lib/senior/fields";
 import { getSeniorNote } from "@/lib/senior/notes";
 import { findSeniorPost, listSeniorPosts } from "@/lib/senior/posts";
@@ -29,6 +30,7 @@ export default async function SeniorNotePage({ params, searchParams }: Props) {
   }
 
   const post = findSeniorPost(note.post_id);
+  const charts = listSeniorChartsForPost(post?.url);
   const linked = note.links.map((lid) => ({ id: lid, post: findSeniorPost(lid) }));
   const filled = SENIOR_NOTE_FIELDS.filter((f) => note[f.key].trim() !== "");
 
@@ -96,6 +98,27 @@ export default async function SeniorNotePage({ params, searchParams }: Props) {
           </section>
         ))
       )}
+
+      {charts.length > 0 ? (
+        <section>
+          <h2 className="text-sm font-medium">이 글의 시세 대조 차트</h2>
+          <ul className="mt-1.5 space-y-1.5">
+            {charts.map((c) => (
+              <li key={c.name}>
+                <a
+                  href={`/blog/charts/${encodeURIComponent(c.name)}.html`}
+                  target="_blank"
+                  rel="noopener"
+                  className="block rounded-xl border border-border bg-surface px-3 py-2 text-sm transition-colors hover:border-beta"
+                >
+                  <span className="font-medium">{c.title}</span>
+                  <span className="tnum ml-2 text-[11px] text-dim">{c.symbol}</span>
+                </a>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
 
       {linked.length > 0 ? (
         <section>

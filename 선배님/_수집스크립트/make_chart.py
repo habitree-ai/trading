@@ -2,29 +2,40 @@
 """선배님 글의 시세 대조용 인터랙티브 차트 페이지 — 봉 데이터를 내장한 독립 HTML.
 
    실행: python _수집스크립트/make_chart.py 차트/2025-04-09_나스닥선물.json
-   결과: 스펙과 같은 이름의 .html (lightweight-charts, 일봉/1시간봉 전환, MA20/50/200·RSI14·거래량,
-         이벤트 마커, 십자선 범례, 봉 데이터 표) 과 _일봉.csv / _1시간봉.csv.
-         스펙에 vol_index·options 가 있으면 변동성 지수 창과 옵션 이론가(Black-76) 표·CSV 까지.
+         python _수집스크립트/make_chart.py --all          # 차트/*.json 전부 (앱 JS 를 고친 뒤)
+   결과: 스펙과 같은 이름의 .html 과 _일봉.csv / _1시간봉.csv / (_15분봉.csv)
+         스펙에 vol_index·options 가 있으면 변동성 지수와 옵션 이론가(Black-76) 표·CSV 까지.
 
-   시세는 Yahoo Finance v8 chart API 에서 받는다 — 이 PC 에서 실행한다(Claude 의 네트워크 경로는 막힌다).
-   1시간봉은 야후가 최근 730일까지만 준다. 정리 문서에는 [링크](차트/이름.html) 로 건다 — 두 마크다운
-   변환기(md2html.py·markdown.ts)가 HTML 태그를 이스케이프하므로 iframe 내장은 안 된다.
+   페이지 기능은 chart_app.js + chart_css.txt 한 벌이다 — 모든 차트 페이지가 같은 앱을 인라인하므로
+   기능을 고치면 --all 로 재생성한다. 시간대(15분·1시간·4시간·일·주), 이동평균 추가/삭제(SMA/EMA·기간·색),
+   볼린저 밴드, RSI, 거래량, 변동성 지수, 이벤트 마커(진입/정리/정보)·가격선·구간 음영, 로그 스케일, 전체화면.
+   지표는 클라이언트가 계산하므로 기간을 바꿔도 재생성이 필요 없다(표·CSV 의 지표 열만 여기서 계산).
+
+   시세는 Yahoo Finance v8 chart API — 이 PC 에서 실행한다(Claude 의 네트워크 경로는 막힌다).
+   야후 제약: 1시간봉은 최근 730일, 15분봉은 최근 60일까지만. 4시간봉·주봉은 페이지가 합성한다.
+   정리 문서에는 [링크](차트/이름.html) 로 건다(변환기가 HTML 태그를 이스케이프해 iframe 은 안 된다).
    공개 페이지(/blog)는 markdown.ts 가 그 링크를 /blog/charts/ 로 바꿔 route 로 서빙한다.
 
    스펙 필드
      symbol, name, title, post{title,board,date,url}, event_date
      daily{from}                 일봉 시작일 (끝은 오늘)
-     hourly{from,to}             생략하면 1시간봉 없음
+     hourly{from,to}             1시간봉 구간. 생략하면 사건이 730일 안일 때 자동(사건 -60일 ~ +120일)
+     minutes15{from,to}          15분봉 구간. 생략하면 사건이 60일 안일 때 자동(사건 -5일 ~ +10일)
      table{daily_sessions | daily_from,daily_to ; hourly_from_utc,hourly_to_utc}
      session_note                범례에 보일 세션 설명 (예: "ET 전일 18:00~당일 17:00")
-     view{"1d":[앞,뒤],"1h":[앞,뒤]}  "이벤트로 이동" 때 보일 봉 수 (기본 일봉 70/30, 1시간봉 60/60)
      price_decimals              가격 소수 자리 (기본 2, 원화는 0)
-     events[{daily?, utc?, pos, color, text}]
+     view{"1d":[앞,뒤],"1h":[앞,뒤],...}  "이벤트로 이동" 때 보일 봉 수
+     indicators{ma:[{type,n,color}], bb:{on,n,k}, rsi:{on,n}, volume, vx}   페이지 기본 지표
+     events[{daily?, utc?, kind: entry|exit|info, pos, color, text, price?, label?, primary?}]
+     zones[{from|from_utc, to|to_utc, label, color}]   구간 음영
+     lines[{price, label, color}]                       가격선
      notes[]                     "무엇을 보는가"
      vol_index{symbol,name}      생략 가능 — 변동성 지수 창
      options{multiplier,rate,otm_pct,daily_asof_hours,notes}  생략 가능 — 옵션 이론가 (vol_index 필요)"""
-import io, os, sys, json, csv, math, datetime as dt, urllib.request, urllib.parse
+import io, os, sys, json, csv, math, glob, datetime as dt, urllib.request, urllib.parse
 
+try: sys.stdout.reconfigure(encoding='utf-8', errors='replace')   # 윈도 콘솔(cp949)에서도 로그가 깨지지 않게
+except Exception: pass
 D = os.path.dirname(os.path.abspath(__file__)); R = os.path.dirname(D)
 UTC = dt.timezone.utc
 KST = dt.timezone(dt.timedelta(hours=9))
@@ -37,14 +48,20 @@ LOC_ABBR = 'ET'
 PDEC = 2
 
 # ---------------- 시세 ----------------
+class YahooError(Exception): pass
+
 def fetch(symbol, interval, p1, p2):
     url = ('https://query2.finance.yahoo.com/v8/finance/chart/' + urllib.parse.quote(symbol)
            + f'?interval={interval}&period1={p1}&period2={p2}')
     req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
-    with urllib.request.urlopen(req, timeout=60) as r:
-        d = json.load(r)['chart']
+    try:
+        with urllib.request.urlopen(req, timeout=60) as r:
+            d = json.load(r)['chart']
+    except urllib.error.HTTPError as e:
+        try: d = json.load(e)['chart']
+        except Exception: raise YahooError(f'{symbol} {interval}: HTTP {e.code}')
     if d.get('error'):
-        raise SystemExit(f'yahoo {symbol} {interval}: {d["error"]}')
+        raise YahooError(f'{symbol} {interval}: {d["error"].get("description") or d["error"]}')
     res = d['result'][0]; q = res['indicators']['quote'][0]
     bars = []
     for i, t in enumerate(res['timestamp']):
@@ -56,6 +73,8 @@ def fetch(symbol, interval, p1, p2):
 
 def epoch(iso):
     return int(dt.datetime.fromisoformat(iso.replace('Z', '+00:00')).timestamp())
+def day_epoch(date_str):
+    return epoch(date_str + 'T00:00:00Z')
 
 # ---------------- 미국 동부 시각 (DST: 3월 둘째 일요일 02:00 ~ 11월 첫째 일요일 02:00) ----------------
 def _nth_sunday(y, m, n):
@@ -81,7 +100,7 @@ def session_date(t):
     """야후 일봉 timestamp 는 거래소 현지 00:00(또는 개장 시각)이다 — 현지 날짜가 세션 날짜."""
     return dt.datetime.fromtimestamp(t + GMTOFF, UTC).date().isoformat()
 
-# ---------------- 지표 (종가 기준, Wilder) ----------------
+# ---------------- 지표 (표·CSV 용. 종가 기준, Wilder) ----------------
 def sma(vals, n):
     out, s = [None] * len(vals), 0.0
     for i, v in enumerate(vals):
@@ -128,10 +147,8 @@ def enrich(bars):
     rd = lambda x, p=2: None if x is None else round(x, p)
     return [b + [rd(m20[i]), rd(m50[i]), rd(m200[i]), rd(r[i], 1), rd(a[i])] for i, b in enumerate(bars)]
 
-# ---------------- 변동성 지수 붙이기 ----------------
+# ---------------- 변동성 지수 붙이기 (표·CSV 용) ----------------
 def attach_vx(bars, vxd, vxh, daily):
-    """각 봉에 변동성 지수를 붙인다. 일봉은 같은 세션 날짜의 종가, 1시간봉은 그 시각 이전 마지막 봉의 종가
-       (VXN 은 미국 정규장에만 산출되므로 야간 봉에는 전일 종가가 이어진다). 지수가 없으면 None."""
     if vxd is None:
         return [b + [None] for b in bars]
     if daily:
@@ -152,7 +169,6 @@ def b76(F, K, T, sig, r):
 def third_friday(y, m):
     d = dt.date(y, m, 1); d += dt.timedelta(days=(4 - d.weekday()) % 7); return d + dt.timedelta(weeks=2)
 def expiries(asof):
-    """주간(다음 금요일) · 근월물(이달 3째 금요일, 지났으면 다음 달) · 차월물(그다음 달 3째 금요일)"""
     fri = asof + dt.timedelta(days=(4 - asof.weekday()) % 7 or 7)
     y, m = asof.year, asof.month
     front = third_friday(y, m)
@@ -161,7 +177,6 @@ def expiries(asof):
     y2, m2 = (y + 1, 1) if m == 12 else (y, m + 1)
     return fri, front, third_friday(y2, m2)
 def option_row(F, vx, asof_dt, opt):
-    """asof_dt: 평가 시각(UTC). 만기는 현지 09:30 기준(미국 지수옵션). 키 w/f/n = 주간/근월/차월."""
     sig, r = vx / 100.0, opt['rate']
     out = {}
     for key, ex in zip(('w', 'f', 'n'), expiries(loc_dt(int(asof_dt.timestamp())).date())):
@@ -217,7 +232,6 @@ def table_html(rows, daily, event_daily, event_hours, has_vx):
     return ''.join(out)
 
 def opt_rows(rows, daily, opt):
-    """표·CSV 공용. 일봉은 세션 마감(봉 시각 + daily_asof_hours) 기준, 1시간봉은 봉 시작 시각 기준으로 평가."""
     out = []
     for b in rows:
         t, F, vx = b[0], b[4], b[11]
@@ -260,6 +274,16 @@ def opt_table_html(rows, daily, opt, event_daily, event_hours):
     return ''.join(out)
 
 # ---------------- 메인 ----------------
+def rd(p): return io.open(os.path.join(D, p), encoding='utf-8').read()
+
+def intraday_range(spec, key, max_days, before, after, today):
+    """스펙에 구간이 있으면 그대로, 없으면 사건일 기준 자동. 야후 한도(max_days) 밖이면 None."""
+    if spec.get(key):
+        return day_epoch(spec[key]['from']), min(day_epoch(spec[key]['to']), today)
+    ev = day_epoch(spec['event_date'])
+    if ev < today - max_days * 86400: return None
+    return max(ev - before * 86400, today - max_days * 86400 + 3600), min(ev + after * 86400, today)
+
 def main(spec_path):
     global EXCH, GMTOFF, HAS_2TZ, LOC_ABBR, PDEC
     spec = json.load(io.open(spec_path, encoding='utf-8'))
@@ -268,60 +292,83 @@ def main(spec_path):
     now = int(dt.datetime.now(UTC).timestamp())
     PDEC = int(spec.get('price_decimals', 2))
 
-    d1, meta = fetch(spec['symbol'], '1d', epoch(spec['daily']['from'] + 'T00:00:00Z'), now)
+    d1, meta = fetch(spec['symbol'], '1d', day_epoch(spec['daily']['from']), now)
     EXCH = meta.get('exchangeTimezoneName') or EXCH
     GMTOFF = int(meta.get('gmtoffset') or GMTOFF)
     HAS_2TZ = EXCH != 'Asia/Seoul'
     LOC_ABBR = 'ET' if EXCH == 'America/New_York' else ('KST' if EXCH == 'Asia/Seoul' else meta.get('timezone', EXCH))
     d1 = enrich(d1)
-    h1 = []
-    if spec.get('hourly'):
-        h1, _ = fetch(spec['symbol'], '1h', epoch(spec['hourly']['from'] + 'T00:00:00Z'), epoch(spec['hourly']['to'] + 'T00:00:00Z'))
-        h1 = enrich(h1)
-    print(f'{spec["symbol"]} ({EXCH}) 일봉 {len(d1)}개 {session_date(d1[0][0])} ~ {session_date(d1[-1][0])}'
-          + (f' / 1시간봉 {len(h1)}개 {kst_dt(h1[0][0]):%Y-%m-%d %H:%M} ~ {kst_dt(h1[-1][0]):%Y-%m-%d %H:%M} KST' if h1 else ' / 1시간봉 없음'))
+    log = [f'{spec["symbol"]} ({EXCH}) 일봉 {len(d1)}개 {session_date(d1[0][0])} ~ {session_date(d1[-1][0])}']
 
-    # 변동성 지수 — 있으면 일봉 전 구간 + 1시간봉 구간(미국 정규장만 나온다)
+    h1, m15 = [], []
+    rng = intraday_range(spec, 'hourly', 729, 60, 120, now)
+    if rng:
+        try:
+            h1, _ = fetch(spec['symbol'], '1h', rng[0], rng[1]); h1 = enrich(h1)
+            log.append(f'1시간봉 {len(h1)}개 {kst_dt(h1[0][0]):%Y-%m-%d %H:%M} ~ {kst_dt(h1[-1][0]):%Y-%m-%d %H:%M} KST')
+        except YahooError as e: log.append('1시간봉 없음 — ' + str(e))
+    else: log.append('1시간봉 없음 — 사건이 야후 한도(730일) 밖')
+    rng = intraday_range(spec, 'minutes15', 59, 5, 10, now)
+    if rng:
+        try:
+            m15, _ = fetch(spec['symbol'], '15m', rng[0], rng[1])
+            log.append(f'15분봉 {len(m15)}개')
+        except YahooError as e: log.append('15분봉 없음 — ' + str(e))
+    else: log.append('15분봉 없음 — 사건이 야후 한도(60일) 밖')
+
     vi, opt = spec.get('vol_index'), spec.get('options')
     vxd = vxh = None
     if vi:
-        vxd, _ = fetch(vi['symbol'], '1d', epoch(spec['daily']['from'] + 'T00:00:00Z'), now)
-        if spec.get('hourly'):
-            vxh, _ = fetch(vi['symbol'], '1h', epoch(spec['hourly']['from'] + 'T00:00:00Z'), epoch(spec['hourly']['to'] + 'T00:00:00Z'))
-        print(f'{vi["symbol"]} 일봉 {len(vxd)}개 / 1시간봉 {len(vxh or [])}개')
+        vxd, _ = fetch(vi['symbol'], '1d', day_epoch(spec['daily']['from']), now)
+        if h1:
+            try: vxh, _ = fetch(vi['symbol'], '1h', h1[0][0] - 86400, h1[-1][0] + 86400)
+            except YahooError: vxh = None
+        log.append(f'{vi["symbol"]} 일봉 {len(vxd)}개 / 1시간봉 {len(vxh or [])}개')
     d1 = attach_vx(d1, vxd, None, True)
     h1 = attach_vx(h1, vxd, vxh, False)
+    print(' / '.join(log))
 
     write_csv(base + '_일봉.csv', d1, True)
     if h1: write_csv(base + '_1시간봉.csv', h1, False)
+    if m15:
+        with io.open(base + '_15분봉.csv', 'w', encoding='utf-8-sig', newline='') as f:
+            w = csv.writer(f); w.writerow(['bar_start_utc', 'bar_start_kst', 'open', 'high', 'low', 'close', 'volume'])
+            for b in m15: w.writerow([dt.datetime.fromtimestamp(b[0], UTC).strftime('%Y-%m-%d %H:%M'), kst_dt(b[0]).strftime('%Y-%m-%d %H:%M')] + b[1:6])
 
-    # 차트용 — 일봉은 세션 날짜 문자열, 1시간봉은 KST 벽시계로 보이도록 9시간 민 epoch
-    daily_rows = [[session_date(b[0]), b[0]] + b[1:] for b in d1]
-    hour_rows = [[b[0] + 9 * 3600, b[0]] + b[1:] for b in h1]
+    # 차트용 원봉 — 일봉은 세션 날짜 문자열, 인트라데이는 KST 벽시계로 보이도록 9시간 민 epoch
+    tfs = {'1d': [[session_date(b[0]), b[0]] + b[1:6] for b in d1]}
+    if h1: tfs['1h'] = [[b[0] + 9 * 3600, b[0]] + b[1:6] for b in h1]
+    if m15: tfs['15m'] = [[b[0] + 9 * 3600, b[0]] + b[1:6] for b in m15]
+    vx = None
+    if vi:
+        vx = {'name': vi['name'], '1d': [[session_date(b[0]), b[4]] for b in vxd], '1h': [[b[0], b[4]] for b in (vxh or [])]}
+
     hour_times = {b[0] for b in h1}
-
-    def snap(t):   # 이벤트 시각이 속한(그 이전 가장 가까운) 1시간봉
+    def snap(t):
         t = t // 3600 * 3600
         while t not in hour_times and t > h1[0][0]: t -= 3600
         return t
-    shape = {'below': 'arrowUp', 'above': 'arrowDown'}
-    # 마커 글씨는 겹치므로 번호만 찍고, 본문은 차트 아래 '이벤트 마커' 목록에 둔다
-    CIRCLED = '①②③④⑤⑥⑦⑧⑨⑩'
-    md, mh, ev_hours, ev_list = [], [], set(), []
+    CIRCLED = '①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮'
+    events, ev_hours = [], set()
     for k, e in enumerate(spec['events']):
         tag = CIRCLED[k] if k < len(CIRCLED) else str(k + 1)
-        m = {'position': e['pos'] + 'Bar', 'shape': shape[e['pos']], 'color': e['color'], 'text': tag}
         if e.get('utc'):
             u = epoch(e['utc']); when = f'KST {kst_dt(u):%Y-%m-%d %H:%M}' + (f' · {LOC_ABBR} {loc_dt(u):%m-%d %H:%M}' if HAS_2TZ else '')
+            if h1: ev_hours.add(snap(u))
         else:
             when = f'{e["daily"]} 세션'
-        ev_list.append(f'<li><span class="tag" style="color:{e["color"]}">{tag}</span>{e["text"]}<span class="when">{when}</span></li>')
-        if e.get('daily'):
-            md.append(dict(m, time=e['daily']))
-        if e.get('utc') and h1:
-            t = snap(epoch(e['utc'])); ev_hours.add(t)
-            mh.append(dict(m, time=t + 9 * 3600))
-    mh.sort(key=lambda x: x['time'])
+        events.append({'tag': tag, 'kind': e.get('kind', 'info'), 'pos': e.get('pos', 'below'), 'color': e.get('color', '#8b8f9a'),
+                       'text': e['text'], 'when': when, 'daily': e.get('daily'), 'utc': epoch(e['utc']) if e.get('utc') else None,
+                       'price': e.get('price'), 'label': e.get('label'), 'primary': bool(e.get('primary'))})
+    if not any(x['primary'] for x in events) and events:
+        # 기본 이동 대상: event_date 와 같은 날의 첫 이벤트, 없으면 첫 이벤트
+        for x in events:
+            if x['daily'] == spec['event_date'] or (x['utc'] and session_date(x['utc']) == spec['event_date']): x['primary'] = True; break
+        else: events[0]['primary'] = True
+    zones = []
+    for z in spec.get('zones', []):
+        zones.append({'from': z.get('from'), 'to': z.get('to'), 'from_utc': epoch(z['from_utc']) if z.get('from_utc') else None,
+                      'to_utc': epoch(z['to_utc']) if z.get('to_utc') else None, 'label': z.get('label', ''), 'color': z.get('color')})
 
     ev = spec['event_date']
     tb = spec['table']
@@ -329,12 +376,12 @@ def main(spec_path):
         tbl_d = [b for b in d1 if tb['daily_from'] <= session_date(b[0]) <= tb['daily_to']]
     else:
         idx = next(i for i, b in enumerate(d1) if session_date(b[0]) >= ev)
-        n = tb['daily_sessions']
-        tbl_d = d1[max(0, idx - n): idx + n + 1]
+        nn = tb['daily_sessions']
+        tbl_d = d1[max(0, idx - nn): idx + nn + 1]
     tbl_h = []
-    if h1:
-        tf, tt = epoch(tb['hourly_from_utc']), epoch(tb['hourly_to_utc'])
-        tbl_h = [b for b in h1 if tf <= b[0] <= tt]
+    if h1 and tb.get('hourly_from_utc'):
+        tf_, tt = epoch(tb['hourly_from_utc']), epoch(tb['hourly_to_utc'])
+        tbl_h = [b for b in h1 if tf_ <= b[0] <= tt]
 
     opt_section = ''
     if vi and opt:
@@ -347,26 +394,28 @@ def main(spec_path):
                        .replace('__TABLE_OPT_H__', opt_table_html(tbl_h, False, opt, ev, ev_hours) if tbl_h else '')
                        .replace('__CSV_OD__', name + '_옵션이론가_일봉.csv').replace('__CSV_OH__', name + '_옵션이론가_1시간봉.csv'))
 
-    data = {'1d': daily_rows, '1h': hour_rows, 'markers': {'1d': md, '1h': mh},
-            'vxName': vi['name'] if vi else None, 'tz': EXCH, 'has2tz': HAS_2TZ, 'locAbbr': LOC_ABBR, 'pdec': PDEC,
-            'sessionNote': spec.get('session_note', ''),
-            'view': spec.get('view'),   # {"1d":[앞 봉 수, 뒤 봉 수], "1h":[..]} — "이벤트로 이동" 기본 범위
-            'event': ev, 'eventUtc': [epoch(e['utc']) for e in spec['events'] if e.get('utc')]}
+    zone_notes = ''.join(f'<li><span class="tag" style="color:{z["color"] or "#8b8f9a"}">▮</span>{z["label"]}'
+                         f'<span class="when">{z["from"] or kst_dt(z["from_utc"]).strftime("KST %Y-%m-%d %H:%M")} ~ {z["to"] or kst_dt(z["to_utc"]).strftime("KST %Y-%m-%d %H:%M")}</span></li>'
+                         for z in zones)
+    data = {'name': name, 'post': spec['post'], 'tfs': tfs, 'vx': vx, 'events': events, 'zones': zones, 'lines': spec.get('lines', []),
+            'indicators': spec.get('indicators'), 'view': spec.get('view'),
+            'tz': EXCH, 'has2tz': HAS_2TZ, 'locAbbr': LOC_ABBR, 'pdec': PDEC, 'sessionNote': spec.get('session_note', ''), 'event': ev}
     hourly_tables = ''
-    if h1:
+    if tbl_h:
         hourly_tables = ('<details><summary>봉 데이터 — 1시간봉 (이벤트 전후' + (', KST/' + LOC_ABBR if HAS_2TZ else ', KST') + ')</summary>'
                          + table_html(tbl_h, False, ev, ev_hours, bool(vi)) + '</details>')
+    csv_links = f'<a href="{name}_일봉.csv">일봉 CSV</a>' + (f'<a href="{name}_1시간봉.csv">1시간봉 CSV</a>' if h1 else '') + (f'<a href="{name}_15분봉.csv">15분봉 CSV</a>' if m15 else '')
     page = (TEMPLATE
+            .replace('__CSS__', rd('chart_css.txt'))
+            .replace('__APP__', rd('chart_app.js').replace('</', '<\\/'))
             .replace('__TITLE__', spec['title'])
             .replace('__NAME__', spec['name'])
-            .replace('__POST__', json.dumps(spec['post'], ensure_ascii=False))
             .replace('__NOTES__', ''.join(f'<li>{x}</li>' for x in spec['notes']))
-            .replace('__EVENTS__', ''.join(ev_list))
+            .replace('__ZONES__', zone_notes)
             .replace('__OPT_SECTION__', opt_section)
             .replace('__TABLE_D__', table_html(tbl_d, True, ev, set(), bool(vi)))
             .replace('__TABLE_H__', hourly_tables)
-            .replace('__CSV_D__', name + '_일봉.csv')
-            .replace('__CSV_H__', ('<a href="' + name + '_1시간봉.csv">1시간봉 CSV</a>') if h1 else '')
+            .replace('__CSV_LINKS__', csv_links)
             .replace('__FETCHED__', dt.datetime.now(KST).strftime('%Y-%m-%d %H:%M KST'))
             .replace('__DATA__', json.dumps(data, ensure_ascii=False, separators=(',', ':')).replace('</', '<\\/')))
     io.open(base + '.html', 'w', encoding='utf-8').write(page)
@@ -390,37 +439,7 @@ TEMPLATE = r'''<!doctype html>
 <title>__TITLE__</title>
 <script src="https://cdn.jsdelivr.net/npm/lightweight-charts@4.2.0/dist/lightweight-charts.standalone.production.js"></script>
 <style>
-:root{--bg:#fbfaf7;--fg:#1f1d1a;--mut:#6f6a62;--line:#e4e0d8;--card:#fff;--up:#26a69a;--dn:#ef5350;--acc:#2962ff;--hit:#fff4d6}
-:root[data-theme=dark]{--bg:#131722;--fg:#d1d4dc;--mut:#8b8f9a;--line:#2a2e39;--card:#1e222d;--hit:#3a3320}
-*{box-sizing:border-box}
-body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.55 "IBM Plex Sans KR",system-ui,sans-serif}
-header{display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center;padding:12px 18px;border-bottom:1px solid var(--line)}
-header h1{font-size:16px;margin:0;font-weight:600}
-header .sub{color:var(--mut);font-size:12px}
-.bar{display:flex;flex-wrap:wrap;gap:6px;align-items:center;padding:8px 18px;border-bottom:1px solid var(--line)}
-button{background:var(--card);color:var(--fg);border:1px solid var(--line);border-radius:6px;padding:4px 10px;cursor:pointer;font:inherit;font-size:12.5px}
-button.on{border-color:var(--acc);color:var(--acc);font-weight:600}
-.sp{flex:1}
-#wrap{position:relative;padding:0 18px}
-#legend{position:absolute;left:26px;top:8px;z-index:5;font-size:12px;line-height:1.5;pointer-events:none;background:color-mix(in srgb,var(--bg) 82%,transparent);padding:4px 8px;border-radius:6px}
-#legend b{font-weight:600}
-#legend .u{color:var(--up)} #legend .d{color:var(--dn)}
-#legend .ma20{color:#f5a623} #legend .ma50{color:#2962ff} #legend .ma200{color:#9c27b0} #legend .rsi{color:#7e57c2} #legend .vx{color:#ff7043}
-#main{height:520px} #rsi{height:150px;border-top:1px solid var(--line)} #vx{height:130px;border-top:1px solid var(--line)}
-section{padding:14px 18px;border-top:1px solid var(--line)}
-section h2{font-size:14px;margin:0 0 8px}
-ul.notes{margin:0;padding-left:18px;color:var(--fg)} ul.notes li{margin:4px 0}
-ol.ev{margin:0;padding:0;list-style:none} ol.ev li{margin:3px 0} ol.ev .tag{font-weight:700;margin-right:6px} ol.ev .when{color:var(--mut);font-size:12px;margin-left:8px}
-.tw{overflow:auto;max-height:420px;border:1px solid var(--line);border-radius:6px}
-table{border-collapse:collapse;font-size:12px;white-space:nowrap;font-variant-numeric:tabular-nums}
-th,td{padding:4px 8px;text-align:right;border-bottom:1px solid var(--line)}
-th{position:sticky;top:0;background:var(--card);text-align:right}
-td:first-child,th:first-child{text-align:left}
-tr.hit td{background:var(--hit);font-weight:600}
-.links a{margin-right:14px}
-a{color:var(--acc)}
-footer{padding:10px 18px;color:var(--mut);font-size:12px;border-top:1px solid var(--line)}
-details summary{cursor:pointer;font-weight:600;margin-bottom:8px}
+__CSS__
 </style>
 </head>
 <body>
@@ -429,24 +448,26 @@ details summary{cursor:pointer;font-weight:600;margin-bottom:8px}
   <span class="sub">__NAME__ · <a id="postlink" target="_blank" rel="noopener"></a></span>
 </header>
 <div class="bar">
-  <button id="tf1d" class="on">일봉</button><button id="tf1h">1시간봉</button>
-  <span style="width:10px"></span>
-  <button id="goto">이벤트로 이동</button><button id="fit">전체 보기</button>
-  <span style="width:10px"></span>
-  <button id="tgMa" class="on">MA 20·50·200</button><button id="tgRsi" class="on">RSI 14</button><button id="tgVol" class="on">거래량</button><button id="tgVx" class="on">VXN</button>
+  <span class="grp" id="tfs"></span>
+  <span style="width:8px"></span>
+  <span class="grp"><button id="goto">이벤트로 이동</button><button id="fit">전체 보기</button></span>
+  <span style="width:8px"></span>
+  <span class="grp"><button id="tgInd">지표 ▾</button><button id="tgVx" class="on">VXN</button><button id="tgLog">로그</button><button id="full">전체화면</button></span>
   <span class="sp"></span>
   <span class="sub" id="range"></span>
   <button id="theme">테마</button>
 </div>
 <div id="wrap">
   <div id="legend"></div>
+  <div id="indpanel" hidden></div>
   <div id="main"></div>
   <div id="rsi"></div>
   <div id="vx"></div>
 </div>
 <section>
-  <h2>이벤트 마커</h2>
-  <ol class="ev">__EVENTS__</ol>
+  <h2>이벤트 마커 <span class="mut">— 목록을 누르면 그 자리로, 차트의 마커 봉을 누르면 목록이 밝아진다. ▲ 진입 · ▼ 정리 · ● 정보</span></h2>
+  <ol class="ev" id="events"></ol>
+  <ol class="ev">__ZONES__</ol>
 </section>
 <section>
   <h2>무엇을 보는가</h2>
@@ -457,160 +478,12 @@ __OPT_SECTION__<section>
 </section>
 <section>
   __TABLE_H__
-  <p class="links">전체 데이터: <a href="__CSV_D__">일봉 CSV</a>__CSV_H__</p>
+  <p class="links">전체 데이터: __CSV_LINKS__</p>
 </section>
-<footer>시세 Yahoo Finance · 수집 __FETCHED__ · 차트 TradingView Lightweight Charts · 조작: 드래그 이동, 휠 확대/축소, 시간축 드래그로 봉 간격 조절</footer>
+<footer>시세 Yahoo Finance · 수집 __FETCHED__ · 차트 TradingView Lightweight Charts · 드래그 이동, 휠 확대/축소, 시간축 드래그로 봉 간격 조절 · 4시간봉·주봉은 1시간봉·일봉에서 합성 · 지표는 이 페이지가 계산</footer>
 <script id="data" type="application/json">__DATA__</script>
 <script>
-(function(){
-  var DATA = JSON.parse(document.getElementById('data').textContent);
-  var POST = __POST__;
-  var pl = document.getElementById('postlink'); pl.href = POST.url; pl.textContent = '「' + POST.title + '」 ' + POST.date + ' · ' + POST.board;
-  var LWC = window.LightweightCharts;
-  if (!LWC) { document.getElementById('main').innerHTML = '<p style="padding:20px">차트 라이브러리를 불러오지 못했습니다(인터넷 연결 필요). 아래 표와 CSV 는 그대로 볼 수 있습니다.</p>'; return; }
-
-  var root = document.documentElement;
-  var saved = null; try { saved = localStorage.getItem('sb-chart-theme'); } catch (e) {}
-  if (saved === 'dark' || (!saved && matchMedia('(prefers-color-scheme: dark)').matches)) root.setAttribute('data-theme', 'dark');
-  function dark() { return root.getAttribute('data-theme') === 'dark'; }
-  function layout() {
-    return { layout: { background: { type: 'solid', color: dark() ? '#131722' : '#fbfaf7' }, textColor: dark() ? '#d1d4dc' : '#1f1d1a' },
-             grid: { vertLines: { color: dark() ? '#1f2431' : '#eeebe4' }, horzLines: { color: dark() ? '#1f2431' : '#eeebe4' } },
-             crosshair: { mode: LWC.CrosshairMode.Normal },
-             rightPriceScale: { borderColor: dark() ? '#2a2e39' : '#e4e0d8' },
-             timeScale: { borderColor: dark() ? '#2a2e39' : '#e4e0d8', rightOffset: 6, barSpacing: 8 } };
-  }
-
-  function fmt(tz, ms) {
-    var p = new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false }).formatToParts(new Date(ms));
-    var o = {}; p.forEach(function (x) { o[x.type] = x.value; });
-    return o.year + '-' + o.month + '-' + o.day + ' ' + (o.hour === '24' ? '00' : o.hour) + ':' + o.minute;
-  }
-  var PD = DATA.pdec;
-  function n(x, p) { return x == null ? '–' : x.toLocaleString('ko-KR', { minimumFractionDigits: p, maximumFractionDigits: p }); }
-
-  var TF = '1d';
-  var mainEl = document.getElementById('main'), rsiEl = document.getElementById('rsi'), vxEl = document.getElementById('vx');
-  var main = LWC.createChart(mainEl, Object.assign(layout(), { width: mainEl.clientWidth, height: 520 }));
-  var rsi  = LWC.createChart(rsiEl,  Object.assign(layout(), { width: rsiEl.clientWidth,  height: 150 }));
-  var vx   = LWC.createChart(vxEl,   Object.assign(layout(), { width: vxEl.clientWidth,   height: 130 }));
-  rsi.applyOptions({ rightPriceScale: { scaleMargins: { top: 0.1, bottom: 0.1 } } });
-  vx.applyOptions({ rightPriceScale: { scaleMargins: { top: 0.15, bottom: 0.05 } } });
-  var vxLine = vx.addAreaSeries({ lineColor: '#ff7043', topColor: 'rgba(255,112,67,.35)', bottomColor: 'rgba(255,112,67,.02)', lineWidth: 1.5, priceLineVisible: false, lastValueVisible: true, title: 'VXN' });
-  if (!DATA.vxName) { vxEl.style.display = 'none'; document.getElementById('tgVx').style.display = 'none'; }
-  if (!DATA['1h'].length) { document.getElementById('tf1h').style.display = 'none'; }
-  // 시간축은 보이는 창 중 맨 아래 하나에만
-  function axes() {
-    var vOn = vxEl.style.display !== 'none', rOn = rsiEl.style.display !== 'none';
-    main.applyOptions({ timeScale: { visible: !rOn && !vOn } });
-    rsi.applyOptions({ timeScale: { visible: rOn && !vOn } });
-    vx.applyOptions({ timeScale: { visible: vOn } });
-  }
-  axes();
-
-  var candles = main.addCandlestickSeries({ upColor: '#26a69a', downColor: '#ef5350', borderVisible: false, wickUpColor: '#26a69a', wickDownColor: '#ef5350', priceFormat: { type: 'price', precision: PD, minMove: PD ? Math.pow(10, -PD) : 1 } });
-  var vol = main.addHistogramSeries({ priceFormat: { type: 'volume' }, priceScaleId: 'vol', lastValueVisible: false, priceLineVisible: false });
-  main.priceScale('vol').applyOptions({ scaleMargins: { top: 0.82, bottom: 0 } });
-  var maOpt = function (c) { return { color: c, lineWidth: 1, priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false }; };
-  var ma20 = main.addLineSeries(maOpt('#f5a623')), ma50 = main.addLineSeries(maOpt('#2962ff')), ma200 = main.addLineSeries(maOpt('#9c27b0'));
-  var rsiLine = rsi.addLineSeries({ color: '#7e57c2', lineWidth: 1.5, priceLineVisible: false, lastValueVisible: true });
-  [30, 50, 70].forEach(function (v) { rsiLine.createPriceLine({ price: v, color: v === 50 ? '#8b8f9a' : '#ef5350', lineWidth: 1, lineStyle: 2, axisLabelVisible: false, title: '' }); });
-
-  var rows = [], byTime = {};
-  function load(tf) {
-    TF = tf; rows = DATA[tf]; byTime = {};
-    var c = [], v = [], a = [], b = [], d = [], r = [], q = [];
-    rows.forEach(function (x) {
-      var t = x[0]; byTime[typeof t === 'string' ? t : String(t)] = x;
-      c.push({ time: t, open: x[2], high: x[3], low: x[4], close: x[5] });
-      v.push({ time: t, value: x[6], color: x[5] >= x[2] ? 'rgba(38,166,154,.45)' : 'rgba(239,83,80,.45)' });
-      if (x[7] != null) a.push({ time: t, value: x[7] });
-      if (x[8] != null) b.push({ time: t, value: x[8] });
-      if (x[9] != null) d.push({ time: t, value: x[9] });
-      if (x[10] != null) r.push({ time: t, value: x[10] });
-      if (x[12] != null) q.push({ time: t, value: x[12] });
-    });
-    candles.setData(c); vol.setData(v); ma20.setData(a); ma50.setData(b); ma200.setData(d); rsiLine.setData(r); vxLine.setData(q);
-    candles.setMarkers(DATA.markers[tf]);
-    var intraday = tf === '1h';
-    [main, rsi, vx].forEach(function (ch) { ch.applyOptions({ timeScale: { timeVisible: intraday, secondsVisible: false } }); });
-    document.getElementById('tf1d').classList.toggle('on', tf === '1d');
-    document.getElementById('tf1h').classList.toggle('on', tf === '1h');
-    var first = rows[0], last = rows[rows.length - 1];
-    document.getElementById('range').textContent = rows.length + '봉 · ' + label(first) + ' ~ ' + label(last) + (intraday ? ' KST' : '');
-    // setData 직후엔 각 창이 자기 범위 변경(마지막 봉 보기)을 내보내 동기화로 덮어쓴다 — 한 틱 뒤에 이동
-    setTimeout(gotoEvent, 50); legend(last);
-  }
-  function label(x) {
-    if (TF === '1d') return x[0];
-    return fmt('Asia/Seoul', x[1] * 1000).slice(5);
-  }
-  function legend(x) {
-    if (!x) return;
-    var chg = x[5] - x[2], pct = chg / x[2] * 100, cls = chg >= 0 ? 'u' : 'd';
-    var when = TF === '1d' ? '<b>' + x[0] + '</b> <span style="color:var(--mut)">세션' + (DATA.sessionNote ? '(' + DATA.sessionNote + ')' : '') + '</span>'
-             : '<b>' + fmt('Asia/Seoul', x[1] * 1000) + ' KST</b>' + (DATA.has2tz ? ' <span style="color:var(--mut)">' + DATA.locAbbr + ' ' + fmt(DATA.tz, x[1] * 1000) + '</span>' : '');
-    document.getElementById('legend').innerHTML = when +
-      '<br>O <b>' + n(x[2], PD) + '</b> H <b>' + n(x[3], PD) + '</b> L <b>' + n(x[4], PD) + '</b> C <b class="' + cls + '">' + n(x[5], PD) + '</b> ' +
-      '<span class="' + cls + '">' + (chg >= 0 ? '+' : '') + n(chg, PD) + ' (' + (pct >= 0 ? '+' : '') + pct.toFixed(2) + '%)</span>' +
-      ' Vol <b>' + n(x[6], 0) + '</b>' +
-      '<br><span class="ma20">MA20 ' + n(x[7], PD) + '</span> <span class="ma50">MA50 ' + n(x[8], PD) + '</span> <span class="ma200">MA200 ' + n(x[9], PD) + '</span>' +
-      ' <span class="rsi">RSI14 ' + n(x[10], 1) + '</span> ATR14 ' + n(x[11], PD) + (DATA.vxName ? ' <span class="vx">VXN ' + n(x[12], 1) + '</span>' : '');
-  }
-  function timeKey(t) { return typeof t === 'string' ? t : (t && t.year ? t.year + '-' + String(t.month).padStart(2, '0') + '-' + String(t.day).padStart(2, '0') : String(t)); }
-  var charts = [main, rsi, vx];
-  function onMove(src) {
-    return function (p) {
-      var x = p.time != null ? byTime[timeKey(p.time)] : null;
-      legend(x || rows[rows.length - 1]);
-      var targets = [[main, candles, x && x[5]], [rsi, rsiLine, x && (x[10] == null ? 50 : x[10])], [vx, vxLine, x && x[12]]];
-      targets.forEach(function (t) {
-        if (t[0] === src) return;
-        try { if (p.time != null && x && t[2] != null) t[0].setCrosshairPosition(t[2], p.time, t[1]); else t[0].clearCrosshairPosition(); } catch (e) {}
-      });
-    };
-  }
-  charts.forEach(function (ch) { ch.subscribeCrosshairMove(onMove(ch)); });
-  var syncing = false;
-  charts.forEach(function (a) {
-    a.timeScale().subscribeVisibleLogicalRangeChange(function (r) {
-      if (syncing || !r) return; syncing = true;
-      charts.forEach(function (b) { if (b !== a) b.timeScale().setVisibleLogicalRange(r); });
-      syncing = false;
-    });
-  });
-
-  function eventIndex() {
-    if (TF === '1d') { for (var i = 0; i < rows.length; i++) if (rows[i][0] >= DATA.event) return i; return rows.length - 1; }
-    var t = DATA.eventUtc[1] || DATA.eventUtc[0];
-    for (var j = 0; j < rows.length; j++) if (rows[j][1] >= t) return j; return rows.length - 1;
-  }
-  function gotoEvent() {
-    var i = eventIndex(), v = (DATA.view && DATA.view[TF]) || (TF === '1d' ? [70, 30] : [60, 60]);
-    main.timeScale().setVisibleLogicalRange({ from: i - v[0], to: i + v[1] });
-  }
-  document.getElementById('goto').onclick = gotoEvent;
-  document.getElementById('fit').onclick = function () { main.timeScale().fitContent(); };
-  document.getElementById('tf1d').onclick = function () { load('1d'); };
-  document.getElementById('tf1h').onclick = function () { load('1h'); };
-  function toggle(id, fn) { var b = document.getElementById(id); b.onclick = function () { b.classList.toggle('on'); fn(b.classList.contains('on')); }; }
-  toggle('tgMa', function (on) { [ma20, ma50, ma200].forEach(function (s) { s.applyOptions({ visible: on }); }); });
-  toggle('tgVol', function (on) { vol.applyOptions({ visible: on }); });
-  toggle('tgRsi', function (on) { rsiEl.style.display = on ? '' : 'none'; axes(); resize(); });
-  toggle('tgVx', function (on) { vxEl.style.display = on ? '' : 'none'; axes(); resize(); });
-  document.getElementById('theme').onclick = function () {
-    if (dark()) root.removeAttribute('data-theme'); else root.setAttribute('data-theme', 'dark');
-    try { localStorage.setItem('sb-chart-theme', dark() ? 'dark' : 'light'); } catch (e) {}
-    charts.forEach(function (ch) { ch.applyOptions(layout()); }); axes();
-  };
-  function resize() { main.applyOptions({ width: mainEl.clientWidth }); rsi.applyOptions({ width: rsiEl.clientWidth }); vx.applyOptions({ width: vxEl.clientWidth }); }
-  window.addEventListener('resize', resize);
-  // 표는 스크롤 영역이라 이벤트 행이 접힌 아래에 숨는다 — 열릴 때 그 행이 보이게 맞춘다
-  function showHit(tw) { var hit = tw.querySelector('tr.hit'); if (hit) tw.scrollTop = Math.max(0, hit.offsetTop - tw.clientHeight / 2); }
-  document.querySelectorAll('.tw').forEach(showHit);
-  document.querySelectorAll('details').forEach(function (d) { d.addEventListener('toggle', function () { if (d.open) d.querySelectorAll('.tw').forEach(showHit); }); });
-  load('1d');
-})();
+__APP__
 </script>
 </body>
 </html>
@@ -618,5 +491,10 @@ __OPT_SECTION__<section>
 
 if __name__ == '__main__':
     if len(sys.argv) < 2:
-        raise SystemExit('사용: python make_chart.py 차트/<이름>.json')
-    main(sys.argv[1])
+        raise SystemExit('사용: python make_chart.py 차트/<이름>.json | --all')
+    if sys.argv[1] == '--all':
+        for p in sorted(glob.glob(os.path.join(R, '차트', '*.json'))):
+            if os.path.basename(p).startswith('_'): continue
+            main(p)
+    else:
+        main(sys.argv[1])
