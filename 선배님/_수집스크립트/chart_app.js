@@ -114,6 +114,7 @@
   var rows = [], byTime = {}, calc = {};
   function load(tf) {
     state.tf = tf; save();
+    syncing = true;   // 적재 중엔 각 창이 내보내는 '전체 보기' 범위 변경이 서로를 덮어쓰지 않게 동기화를 막는다
     rows = bars(tf); byTime = {};
     var c = [], v = [], zd = [];
     rows.forEach(function (b, i) { byTime[timeKey(b.time)] = i; c.push({ time: b.time, open: b.o, high: b.h, low: b.l, close: b.c }); v.push({ time: b.time, value: b.v, color: b.c >= b.o ? 'rgba(38,166,154,.45)' : 'rgba(239,83,80,.45)' }); });
@@ -131,7 +132,9 @@
     charts.forEach(function (ch) { ch.applyOptions({ timeScale: { timeVisible: intra, secondsVisible: false } }); });
     document.querySelectorAll('#tfs button').forEach(function (b) { b.classList.toggle('on', b.dataset.tf === tf); });
     $('range').textContent = rows.length + '봉 · ' + label(rows[0]) + ' ~ ' + label(rows[rows.length - 1]) + (intra ? ' KST' : '');
-    setTimeout(gotoEvent, 50);   // setData 직후엔 각 창이 자기 범위 변경을 내보내 동기화로 덮어쓴다 — 한 틱 뒤에 이동
+    // setData 직후 각 창이 자기 범위 변경을 내보낸다 — 가라앉은 뒤 동기화를 풀고 이동하고, 늦게 오는 것에 대비해 한 번 더
+    setTimeout(function () { syncing = false; gotoEvent(); }, 80);
+    setTimeout(gotoEvent, 400);
     legend(rows.length - 1);
   }
   function dedupe(d) { var out = [], last = null; d.forEach(function (x) { var k = timeKey(x.time); if (k !== last) { out.push(x); last = k; } }); return out; }
