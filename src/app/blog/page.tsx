@@ -105,18 +105,29 @@ export default async function BlogHome({
           </header>
           <div className="grid gap-2 sm:grid-cols-2">
             {charts.map((c) => (
-              <a
-                key={c.name}
-                href={`/blog/charts/${encodeURIComponent(c.name)}.html`}
-                target="_blank"
-                rel="noopener"
-                className="rounded-xl border border-border bg-surface p-4 transition-colors hover:border-beta"
-              >
-                <h3 className="text-[13px] font-medium">{c.title}</h3>
-                <p className="tnum mt-1 text-[11.5px] leading-snug text-dim">
-                  {c.symbol} · 「{c.post.title}」 {c.post.date} · {c.post.board}
-                </p>
-              </a>
+              <div key={c.name} className="rounded-xl border border-border bg-surface p-4">
+                <a
+                  href={`/blog/charts/${encodeURIComponent(c.name)}.html`}
+                  target="_blank"
+                  rel="noopener"
+                  className="block hover:text-accent"
+                >
+                  <h3 className="text-[13px] font-medium">{c.title}</h3>
+                  <p className="tnum mt-1 text-[11.5px] leading-snug text-dim">
+                    {c.symbol} · 「{c.post.title}」 {c.post.date} · {c.post.board}
+                  </p>
+                </a>
+                {c.hasOptions ? (
+                  <a
+                    href={`/blog/charts/${encodeURIComponent(c.name)}_옵션.html`}
+                    target="_blank"
+                    rel="noopener"
+                    className="mt-2 inline-block rounded-lg border border-border px-2 py-0.5 text-[11.5px] text-dim hover:border-beta hover:text-text"
+                  >
+                    옵션 자료 — VXN 차트 · 스트래들 % · 이론가 표 ↗
+                  </a>
+                ) : null}
+              </div>
             ))}
           </div>
         </section>

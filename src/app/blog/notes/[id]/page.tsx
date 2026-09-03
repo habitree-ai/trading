@@ -104,16 +104,26 @@ export default async function SeniorNotePage({ params, searchParams }: Props) {
           <h2 className="text-sm font-medium">이 글의 시세 대조 차트</h2>
           <ul className="mt-1.5 space-y-1.5">
             {charts.map((c) => (
-              <li key={c.name}>
+              <li key={c.name} className="rounded-xl border border-border bg-surface px-3 py-2 text-sm">
                 <a
                   href={`/blog/charts/${encodeURIComponent(c.name)}.html`}
                   target="_blank"
                   rel="noopener"
-                  className="block rounded-xl border border-border bg-surface px-3 py-2 text-sm transition-colors hover:border-beta"
+                  className="block hover:text-accent"
                 >
                   <span className="font-medium">{c.title}</span>
                   <span className="tnum ml-2 text-[11px] text-dim">{c.symbol}</span>
                 </a>
+                {c.hasOptions ? (
+                  <a
+                    href={`/blog/charts/${encodeURIComponent(c.name)}_옵션.html`}
+                    target="_blank"
+                    rel="noopener"
+                    className="mt-1 inline-block text-[11.5px] text-dim hover:text-text"
+                  >
+                    옵션 자료 — VXN 차트 · 스트래들 % · 이론가 표 ↗
+                  </a>
+                ) : null}
               </li>
             ))}
           </ul>

@@ -384,15 +384,43 @@ def main(spec_path):
         tbl_h = [b for b in h1 if tf_ <= b[0] <= tt]
 
     opt_section = ''
+    css, app = rd('chart_css.txt'), rd('chart_app.js').replace('</', '<\\/')
     if vi and opt:
         write_opt_csv(base + '_옵션이론가_일봉.csv', d1, True, opt)
         if tbl_h: write_opt_csv(base + '_옵션이론가_1시간봉.csv', tbl_h, False, opt)
+        opt_name = name + '_옵션'
         opt_section = (OPT_SECTION
                        .replace('__VXNAME__', vi['name'])
-                       .replace('__OPT_NOTES__', ''.join(f'<li>{x}</li>' for x in opt['notes']))
+                       .replace('__OPT_NOTES__', ''.join(f'<li>{x}</li>' for x in opt['notes'][:2]))
                        .replace('__TABLE_OPT_D__', opt_table_html(tbl_d, True, opt, ev, set()))
-                       .replace('__TABLE_OPT_H__', opt_table_html(tbl_h, False, opt, ev, ev_hours) if tbl_h else '')
-                       .replace('__CSV_OD__', name + '_옵션이론가_일봉.csv').replace('__CSV_OH__', name + '_옵션이론가_1시간봉.csv'))
+                       .replace('__OPT_PAGE__', opt_name + '.html'))
+        # ---- 옵션 자료 페이지: 변동성 지수 캔들 차트(같은 앱) + 스트래들 % 추이 + 이론가 표·CSV ----
+        opt_tfs = {'1d': [[session_date(b[0]), b[0]] + b[1:6] for b in vxd]}
+        if vxh: opt_tfs['1h'] = [[b[0] + 9 * 3600, b[0]] + b[1:6] for b in vxh]
+        opt_events = [dict(e, price=None, label=None) for e in events]   # 기초자산 가격선은 지수 축에 맞지 않는다
+        trend = [[session_date(b[0]), round(o['n']['straddle_pct'], 2), round(o['f']['straddle_pct'], 2), round(o['w']['straddle_pct'], 2),
+                  b[11], round(o['n']['straddle'], 2), round(o['n']['straddle'] * opt['multiplier'])]
+                 for b, asof, o in opt_rows(d1, True, opt)]
+        opt_data = {'name': opt_name, 'post': spec['post'], 'tfs': opt_tfs, 'vx': None, 'events': opt_events, 'zones': zones, 'lines': [],
+                    'indicators': {'ma': [{'type': 'SMA', 'n': 20}], 'bb': {'on': False, 'n': 20, 'k': 2}, 'rsi': {'on': False, 'n': 14}, 'volume': False, 'vx': False},
+                    'view': spec.get('view'), 'tz': EXCH, 'has2tz': HAS_2TZ, 'locAbbr': LOC_ABBR, 'pdec': 2,
+                    'sessionNote': vi.get('session_note', '거래소 정규장에만 산출'), 'event': ev}
+        opt_page = (OPT_PAGE
+                    .replace('__CSS__', css).replace('__APP__', app)
+                    .replace('__TITLE__', spec['title'].split(' — ')[0] + ' 옵션 자료 — ' + vi['name'].split(' — ')[0] + '과 이론가')
+                    .replace('__VXNAME__', vi['name'])
+                    .replace('__CHART_PAGE__', name + '.html')
+                    .replace('__OPT_NOTES__', ''.join(f'<li>{x}</li>' for x in opt['notes']))
+                    .replace('__TABLE_OPT_D__', opt_table_html(tbl_d, True, opt, ev, set()))
+                    .replace('__TABLE_OPT_H__', ('<details open><summary>옵션 이론가 — 1시간봉 (이벤트 세션 전후 · 야간은 전일 VXN 종가 사용)</summary>'
+                                                 + opt_table_html(tbl_h, False, opt, ev, ev_hours) + '</details>') if tbl_h else '')
+                    .replace('__CSV_OD__', name + '_옵션이론가_일봉.csv').replace('__CSV_OH__', name + '_옵션이론가_1시간봉.csv')
+                    .replace('__MULT__', str(opt['multiplier']))
+                    .replace('__FETCHED__', dt.datetime.now(KST).strftime('%Y-%m-%d %H:%M KST'))
+                    .replace('__OPTDATA__', json.dumps({'rows': trend, 'event': ev}, ensure_ascii=False, separators=(',', ':')).replace('</', '<\\/'))
+                    .replace('__DATA__', json.dumps(opt_data, ensure_ascii=False, separators=(',', ':')).replace('</', '<\\/')))
+        io.open(os.path.join(os.path.dirname(base), opt_name + '.html'), 'w', encoding='utf-8').write(opt_page)
+        print(f'→ 차트/{opt_name}.html  ({len(opt_page.encode("utf-8")) // 1024}KB)')
 
     zone_notes = ''.join(f'<li><span class="tag" style="color:{z["color"] or "#8b8f9a"}">▮</span>{z["label"]}'
                          f'<span class="when">{z["from"] or kst_dt(z["from_utc"]).strftime("KST %Y-%m-%d %H:%M")} ~ {z["to"] or kst_dt(z["to_utc"]).strftime("KST %Y-%m-%d %H:%M")}</span></li>'
@@ -406,8 +434,8 @@ def main(spec_path):
                          + table_html(tbl_h, False, ev, ev_hours, bool(vi)) + '</details>')
     csv_links = f'<a href="{name}_일봉.csv">일봉 CSV</a>' + (f'<a href="{name}_1시간봉.csv">1시간봉 CSV</a>' if h1 else '') + (f'<a href="{name}_15분봉.csv">15분봉 CSV</a>' if m15 else '')
     page = (TEMPLATE
-            .replace('__CSS__', rd('chart_css.txt'))
-            .replace('__APP__', rd('chart_app.js').replace('</', '<\\/'))
+            .replace('__CSS__', css)
+            .replace('__APP__', app)
             .replace('__TITLE__', spec['title'])
             .replace('__NAME__', spec['name'])
             .replace('__NOTES__', ''.join(f'<li>{x}</li>' for x in spec['notes']))
@@ -423,12 +451,105 @@ def main(spec_path):
 
 OPT_SECTION = r'''<section>
   <h2>옵션 가격 — "차월물 옵션가격 보면 화성에서 우주인 침공하나 싶다"</h2>
+  <p class="cta"><a href="__OPT_PAGE__" target="_blank" rel="noopener">옵션 자료 페이지 열기 ↗</a> <span class="mut">— VXN 캔들 차트(시간대·지표·이벤트 마커), 스트래들 % 추이, 옵션 이론가 표 전체, CSV</span></p>
   <ul class="notes">__OPT_NOTES__</ul>
-  <p class="sub" style="margin:10px 0 6px">__VXNAME__ 는 차트 맨 아래 창에 그대로 그렸다. 아래 표의 옵션 값은 그 VXN 으로 계산한 이론가다.</p>
+  <p class="sub" style="margin:10px 0 6px">__VXNAME__ 는 차트 맨 아래 창에 그대로 그렸다. 아래 표는 그 VXN 으로 계산한 이론가의 요약(일봉)이고, 1시간봉 표와 근거는 옵션 자료 페이지에 있다.</p>
+  <details><summary>옵션 이론가 — 일봉 (세션 마감 기준, 차월물 ATM·OTM)</summary>__TABLE_OPT_D__</details>
+</section>
+'''
+
+OPT_PAGE = r'''<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>__TITLE__</title>
+<script src="https://cdn.jsdelivr.net/npm/lightweight-charts@4.2.0/dist/lightweight-charts.standalone.production.js"></script>
+<style>
+__CSS__
+#straddle{height:240px}
+.cta a{font-weight:600}
+</style>
+</head>
+<body>
+<header>
+  <h1>__TITLE__</h1>
+  <span class="sub"><a href="__CHART_PAGE__" target="_blank" rel="noopener">← 시세 대조 차트</a> · <a id="postlink" target="_blank" rel="noopener"></a></span>
+</header>
+<div class="bar">
+  <span class="grp" id="tfs"></span>
+  <span style="width:8px"></span>
+  <span class="grp"><button id="goto">이벤트로 이동</button><button id="fit">전체 보기</button></span>
+  <span style="width:8px"></span>
+  <span class="grp"><button id="tgInd">지표 ▾</button><button id="tgVx" class="on" style="display:none">VXN</button><button id="tgLog">로그</button><button id="full">전체화면</button></span>
+  <span class="sp"></span>
+  <span class="sub" id="range"></span>
+  <button id="theme">테마</button>
+</div>
+<p class="sub" style="padding:6px 18px 0">__VXNAME__ 를 캔들로 그린 것 — 시장이 옵션 가격에 매긴 변동성 자체다. 마커는 시세 대조 차트와 같은 이벤트.</p>
+<div id="wrap">
+  <div id="legend"></div>
+  <div id="indpanel" hidden></div>
+  <div id="main"></div>
+  <div id="rsi"></div>
+  <div id="vx"></div>
+</div>
+<section>
+  <h2>이벤트 마커 <span class="mut">— 목록을 누르면 그 자리로. ▲ 진입 · ▼ 정리 · ● 정보</span></h2>
+  <ol class="ev" id="events"></ol>
+</section>
+<section>
+  <h2>스트래들 % 추이 <span class="mut">— ATM 콜+풋 가격 ÷ 기초 지수. 시장이 만기까지 '이만큼 움직인다'고 값을 매긴 폭 (세션 마감 기준 이론가)</span></h2>
+  <div id="straddle"></div>
+  <p class="sub" id="straddleLegend"></p>
+</section>
+<section>
+  <h2>왜 이 값인가</h2>
+  <ul class="notes">__OPT_NOTES__</ul>
+</section>
+<section>
   <details open><summary>옵션 이론가 — 일봉 (세션 마감 기준, 차월물 ATM·OTM)</summary>__TABLE_OPT_D__</details>
-  <details><summary>옵션 이론가 — 1시간봉 (이벤트 세션 전후 · 야간은 전일 VXN 종가 사용)</summary>__TABLE_OPT_H__</details>
+</section>
+<section>
+  __TABLE_OPT_H__
   <p class="links">전체 데이터: <a href="__CSV_OD__">옵션 이론가 일봉 CSV</a><a href="__CSV_OH__">옵션 이론가 1시간봉 CSV</a> (주간·근월·차월 셋 다 들어 있다)</p>
 </section>
+<footer>시세 Yahoo Finance · 수집 __FETCHED__ · 이론가 Black-76 (1계약 = 지수 × $__MULT__) · 차트 TradingView Lightweight Charts</footer>
+<script id="data" type="application/json">__DATA__</script>
+<script id="optdata" type="application/json">__OPTDATA__</script>
+<script>
+__APP__
+</script>
+<script>
+(function () {
+  var D = JSON.parse(document.getElementById('optdata').textContent), LWC = window.LightweightCharts;
+  var el = document.getElementById('straddle'); if (!LWC || !D.rows.length) return;
+  var root = document.documentElement;
+  function dark() { return root.getAttribute('data-theme') === 'dark'; }
+  function lay() { return { layout: { background: { type: 'solid', color: dark() ? '#131722' : '#fbfaf7' }, textColor: dark() ? '#d1d4dc' : '#1f1d1a' },
+    grid: { vertLines: { color: dark() ? '#1f2431' : '#eeebe4' }, horzLines: { color: dark() ? '#1f2431' : '#eeebe4' } },
+    rightPriceScale: { borderColor: dark() ? '#2a2e39' : '#e4e0d8' }, timeScale: { borderColor: dark() ? '#2a2e39' : '#e4e0d8', rightOffset: 4 } }; }
+  var ch = LWC.createChart(el, Object.assign(lay(), { width: el.clientWidth, height: 240 }));
+  var pf = { type: 'custom', formatter: function (v) { return v.toFixed(1) + '%'; }, minMove: 0.1 };
+  var mk = function (c, t) { return ch.addLineSeries({ color: c, lineWidth: 1.5, title: t, priceFormat: pf, priceLineVisible: false }); };
+  var sN = mk('#ef5350', '차월물'), sF = mk('#f5a623', '근월물'), sW = mk('#26a69a', '주간');
+  sN.setData(D.rows.map(function (r) { return { time: r[0], value: r[1] }; }));
+  sF.setData(D.rows.map(function (r) { return { time: r[0], value: r[2] }; }));
+  sW.setData(D.rows.map(function (r) { return { time: r[0], value: r[3] }; }));
+  var idx = 0; for (var i = 0; i < D.rows.length; i++) if (D.rows[i][0] >= D.event) { idx = i; break; }
+  sN.setMarkers([{ time: D.rows[idx][0], position: 'aboveBar', color: '#2962ff', shape: 'arrowDown', text: '사건' }]);
+  var leg = document.getElementById('straddleLegend');
+  function show(i) { var r = D.rows[i]; if (!r) return; leg.innerHTML = '<b>' + r[0] + '</b> 차월물 <b style="color:#ef5350">' + r[1].toFixed(1) + '%</b> (' + r[5].toLocaleString() + 'pt · 1계약 $' + r[6].toLocaleString() + ') · 근월물 <b style="color:#f5a623">' + r[2].toFixed(1) + '%</b> · 주간 <b style="color:#26a69a">' + r[3].toFixed(1) + '%</b> · VXN ' + (r[4] == null ? '–' : r[4].toFixed(1)); }
+  var byT = {}; D.rows.forEach(function (r, i) { byT[r[0]] = i; });
+  ch.subscribeCrosshairMove(function (p) { var k = p.time && p.time.year ? p.time.year + '-' + String(p.time.month).padStart(2, '0') + '-' + String(p.time.day).padStart(2, '0') : p.time; show(k != null && byT[k] != null ? byT[k] : idx); });
+  show(idx);
+  setTimeout(function () { ch.timeScale().setVisibleLogicalRange({ from: idx - 60, to: idx + 40 }); }, 80);
+  new MutationObserver(function () { ch.applyOptions(lay()); }).observe(root, { attributes: true, attributeFilter: ['data-theme'] });
+  window.addEventListener('resize', function () { ch.applyOptions({ width: el.clientWidth }); });
+})();
+</script>
+</body>
+</html>
 '''
 
 TEMPLATE = r'''<!doctype html>

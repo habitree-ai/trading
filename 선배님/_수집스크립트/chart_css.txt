@@ -38,6 +38,7 @@ th{position:sticky;top:0;background:var(--card);text-align:right}
 td:first-child,th:first-child{text-align:left}
 tr.hit td{background:var(--hit);font-weight:600}
 .links a{margin-right:14px}
+.cta{margin:0 0 8px} .cta a{font-weight:600}
 a{color:var(--acc)}
 footer{padding:10px 18px;color:var(--mut);font-size:12px;border-top:1px solid var(--line)}
 details summary{cursor:pointer;font-weight:600;margin-bottom:8px}

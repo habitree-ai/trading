@@ -40,6 +40,8 @@ export interface SeniorChart {
   symbol: string;
   eventDate: string;
   post: { title: string; board: string; date: string; url: string };
+  /** 스펙에 options 가 있으면 `<name>_옵션.html` 옵션 자료 페이지가 같이 생성돼 있다. */
+  hasOptions: boolean;
 }
 
 /**
@@ -65,6 +67,7 @@ export function listSeniorCharts(): SeniorChart[] {
         symbol: spec.symbol,
         eventDate: spec.event_date,
         post: spec.post,
+        hasOptions: typeof spec.options === "object" && spec.options !== null,
       });
     } catch {
       continue;
@@ -84,6 +87,7 @@ interface ChartSpec {
   symbol: string;
   event_date: string;
   post: { title: string; board: string; date: string; url: string };
+  options?: unknown;
 }
 
 function isSpec(x: unknown): x is ChartSpec {
