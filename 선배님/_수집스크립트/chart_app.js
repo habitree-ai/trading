@@ -311,7 +311,9 @@
   function barDur(i) { var b = rows[i], nb = rows[i + 1]; return nb ? nb.utc - b.utc : TF_SEC[state.tf]; }
   function utcToLogical(u) { if (!rows.length) return 0; if (u < rows[0].utc) return (u - rows[0].utc) / barDur(0); var i = idxAtUtc(u); return i + Math.max(0, Math.min(1, (u - rows[i].utc) / barDur(i))); }
   function logicalToUtc(l) { if (!rows.length) return 0; var i = Math.floor(l), f = l - i; if (i < 0) return rows[0].utc + l * barDur(0); if (i >= rows.length) { i = rows.length - 1; f = l - i; } return rows[i].utc + f * barDur(i); }
-  function toXY(p) { var x = main.timeScale().logicalToCoordinate(utcToLogical(p.u)), y = candles.priceToCoordinate(p.p); return (x == null || y == null) ? null : { x: x, y: y }; }
+  // lightweight-charts 4.2 의 logicalToCoordinate 는 정수 인덱스만 받는다(소수를 주면 0) — 봉 사이 점은 앞뒤 봉 좌표로 보간한다
+  function logicalToX(l) { var ts = main.timeScale(), i = Math.floor(l), f = l - i, x0 = ts.logicalToCoordinate(i); if (x0 == null) return null; if (!f) return x0; var x1 = ts.logicalToCoordinate(i + 1); return x1 == null ? x0 + f * ts.options().barSpacing : x0 + f * (x1 - x0); }
+  function toXY(p) { var x = logicalToX(utcToLogical(p.u)), y = candles.priceToCoordinate(p.p); return (x == null || y == null) ? null : { x: x, y: y }; }
   function fromXY(x, y) { var l = main.timeScale().coordinateToLogical(x), p = candles.coordinateToPrice(y); return (l == null || p == null) ? null : { u: logicalToUtc(l), p: p }; }
   function fmtPoint(u) { return intraday(state.tf) ? fmt('Asia/Seoul', u * 1000).slice(5) + ' KST' : fmt(DATA.tz, u * 1000, true); }
   function paneSize() { var ts = main.timeScale(); return { w: mainEl.clientWidth - main.priceScale('right').width(), h: mainEl.clientHeight - (ts.options().visible ? ts.height() : 0) }; }
