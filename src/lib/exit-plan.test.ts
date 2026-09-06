@@ -179,6 +179,21 @@ describe('buildExitPlan — 계획', () => {
     expect(plan.steps.every((s) => s.shareSource === 'explicit')).toBe(true);
   });
 
+  it('비중 금액 = 명목가 × 비중 — 합계도, 명목가가 없으면 null', () => {
+    const plan = buildExitPlan(trade({ tp1_pct: 50, tp2_pct: 30, tp3_pct: 20 }), NO_SIZE);
+    expect(plan.steps.map((s) => s.shareAmount)).toEqual([500, 300, 200].map((v) => expect.closeTo(v, 10)));
+    expect(plan.total.shareAmount).toBeCloseTo(1000, 10);
+
+    const even = buildExitPlan(trade(), NO_SIZE);
+    expect(even.steps.map((s) => s.shareAmount)).toEqual(
+      [333.333, 333.333, 333.333].map((v) => expect.closeTo(v, 2)),
+    );
+
+    const sizeless = buildExitPlan(trade({ notional: null }), null);
+    expect(sizeless.steps.map((s) => s.shareAmount)).toEqual([null, null, null]);
+    expect(sizeless.total.shareAmount).toBeNull();
+  });
+
   it('일부만 적으면 나머지는 0 — 합 60% 경고', () => {
     const plan = buildExitPlan(trade({ tp1_pct: 60 }), NO_SIZE);
     expect(plan.steps.map((s) => s.share)).toEqual([0.6, 0, 0]);
@@ -393,6 +408,10 @@ describe('buildExitActual — 실적', () => {
     expect(second.r).toBeCloseTo(2.4, 10);
     expect(actual.closedShare).toBeCloseTo(1, 10);
     expect(actual.remainingShare).toBe(0);
+    expect(first.shareAmount).toBeCloseTo(500, 10);
+    expect(second.shareAmount).toBeCloseTo(500, 10);
+    expect(actual.closedAmount).toBeCloseTo(1000, 10);
+    expect(actual.remainingAmount).toBe(0);
     expect(actual.pnlTotal).toBeCloseTo(85.5, 10);
     expect(actual.closeFeeTotal).toBeCloseTo(-0.5, 10);
     expect(actual.estimated).toBe(false);
@@ -494,6 +513,10 @@ describe('mergeStages — 체결 뒤에 예상을 잇는다', () => {
     ]);
     expect(stages[0].pnl).toBeCloseTo(50, 10);
     expect(stages[0].share).toBeCloseTo(0.5, 10);
+    // 비중 금액도 원래 크기(500 + 덜어낸 500 = 1000) 기준이다
+    expect(stages[0].shareAmount).toBeCloseTo(500, 6);
+    expect(stages[1].shareAmount).toBeCloseTo(1000 / 3, 6);
+    expect(summary.actual?.remainingAmount).toBeCloseTo(500, 6);
     expect(stages[1].price).toBe(110);
     expect(stages[1].pnl).toBeCloseTo(0.1 * 1000 * (1 / 3), 6);
     expect(stages[2].pnl).toBeCloseTo(0.2 * 1000 * (1 / 3), 6);

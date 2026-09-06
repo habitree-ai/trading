@@ -13,7 +13,8 @@ import { DASH, dateTime, num, pct, pnlClass, signed, signedPct } from "@/lib/for
  * 분할 청산 계획·실적의 표시 조각 — 훅이 없어 서버·클라이언트 어디서든 그린다.
  *
  * 네 화면(거래 목록 셀·거래 상세 카드·대시보드 펼침·좁은 화면)이 같은 어휘를 쓴다:
- *   `SL 95.00 −5.00% −50 거래소` / `TP1 105.00 33% +5.00% +16.7` / `실제 1 105.10 50% +5.10% +25.5`
+ *   `SL 95.00 −5.00% −50 거래소` / `TP1 105.00 33% (333) +5.00% +16.7` / `실제 1 105.10 50% (500) +5.10% +25.5`
+ * 비중 뒤 괄호는 명목가로 환산한 물량이다 — 계획은 금액으로 떠올리고 저장은 %라 둘이 늘 나란히 선다.
  * 숫자 포맷은 format.ts 만 쓴다 — 직접 toLocaleString 을 부르면 서버와 브라우저가 다른
  * 문자열을 만들어 하이드레이션이 깨진다.
  */
@@ -22,6 +23,12 @@ const BADGE = "inline-block rounded border px-1 text-center text-[10px] leading-
 const SL_BADGE = `${BADGE} border-loss/40 text-loss`;
 const TP_BADGE = `${BADGE} border-profit/40 text-profit`;
 const ACTUAL_BADGE = `${BADGE} border-beta/40 text-beta`;
+
+/** 비중 — `33% (333)`: 명목가로 환산한 물량을 같이 적는다. 명목가가 없으면 %만. */
+function shareText(share: number | null, amount: number | null, decimals = 0): string {
+  const base = pct(share, 0);
+  return share === null || amount === null ? base : `${base} (${num(amount, decimals)})`;
+}
 
 function Warn({ text }: { text: string | null }) {
   if (!text) return null;
@@ -70,7 +77,7 @@ function PlanLine({ step }: { step: PlanStep }) {
     <div className="flex flex-wrap items-baseline gap-x-1.5">
       <span className={TP_BADGE}>TP{step.n}</span>
       <span>{num(step.price)}</span>
-      <span className="text-dim">{pct(step.share, 0)}</span>
+      <span className="text-dim">{shareText(step.share, step.shareAmount)}</span>
       <span className={pnlClass(step.movePct)}>{signedPct(step.movePct, 2)}</span>
       <span className={pnlClass(step.amount)}>{signed(step.amount, 0)}</span>
       <SourceTag source={step.source} planPrice={step.planPrice} />
@@ -98,7 +105,7 @@ function StageLine({ stage }: { stage: ExitStage }) {
         {stage.n}차 {filled ? "체결" : "예상"}
       </span>
       <span>{num(stage.price)}</span>
-      <span className="text-dim">{pct(stage.share, 0)}</span>
+      <span className="text-dim">{shareText(stage.share, stage.shareAmount)}</span>
       <span className={pnlClass(stage.movePct)}>{signedPct(stage.movePct, 2)}</span>
       <span className={pnlClass(stage.pnl)}>{signed(stage.pnl, 0)}</span>
       {stage.tp !== null && stage.tp !== stage.n ? <span className="text-dim">TP{stage.tp}</span> : null}
@@ -153,7 +160,7 @@ function RCell({ r }: { r: number | null }) {
   );
 }
 
-/** 계획 표 — 단계 · 가격 · 비중 · 가격폭 · 금액 · 수익률(증거금) · R. */
+/** 계획 표 — 단계 · 가격 · 비중(명목가) · 가격폭 · 금액 · 수익률(증거금) · R. */
 export function PlanTable({ plan, hideTotal }: { plan: ExitPlan; hideTotal: boolean }) {
   return (
     <table className="tnum w-full text-xs">
@@ -161,7 +168,9 @@ export function PlanTable({ plan, hideTotal }: { plan: ExitPlan; hideTotal: bool
         <tr>
           <th className="py-1 text-left font-medium">단계</th>
           <th className={TH}>가격</th>
-          <th className={TH}>비중</th>
+          <th className={TH}>
+            비중<span className="block font-normal">명목가</span>
+          </th>
           <th className={TH}>가격폭</th>
           <th className={TH}>금액</th>
           <th className={TH}>
@@ -201,6 +210,9 @@ export function PlanTable({ plan, hideTotal }: { plan: ExitPlan; hideTotal: bool
               </td>
               <td className="py-1.5 text-right text-dim">
                 {pct(s.share, 0)}
+                {s.shareAmount !== null ? (
+                  <span className="block text-[11px]">{num(s.shareAmount)}</span>
+                ) : null}
                 {s.shareSource === "even" ? <span className="block text-[11px]">균등</span> : null}
               </td>
               <td className={`py-1.5 text-right ${pnlClass(s.movePct)}`}>{signedPct(s.movePct, 2)}</td>
@@ -217,7 +229,12 @@ export function PlanTable({ plan, hideTotal }: { plan: ExitPlan; hideTotal: bool
           <tr>
             <td className="py-1.5 text-dim">합계</td>
             <td />
-            <td className="py-1.5 text-right text-dim">{pct(plan.shareSum, 0)}</td>
+            <td className="py-1.5 text-right text-dim">
+              {pct(plan.shareSum, 0)}
+              {plan.total.shareAmount !== null ? (
+                <span className="block">{num(plan.total.shareAmount)}</span>
+              ) : null}
+            </td>
             <td />
             <td className={`py-1.5 text-right ${pnlClass(plan.total.amount)}`}>
               {signed(plan.total.amount)}
@@ -241,7 +258,9 @@ export function ActualTable({ actual }: { actual: ExitActual }) {
         <tr>
           <th className="py-1 text-left font-medium">차수</th>
           <th className={TH}>가격</th>
-          <th className={TH}>비중</th>
+          <th className={TH}>
+            비중<span className="block font-normal">명목가</span>
+          </th>
           <th className={TH}>가격폭</th>
           <th className={TH}>손익</th>
           <th className={TH}>
@@ -264,7 +283,12 @@ export function ActualTable({ actual }: { actual: ExitActual }) {
                 <span className="block text-[11px] text-dim">{s.fillCount}체결 평균</span>
               ) : null}
             </td>
-            <td className="py-1.5 text-right text-dim">{pct(s.share, 0)}</td>
+            <td className="py-1.5 text-right text-dim">
+              {pct(s.share, 0)}
+              {s.shareAmount !== null ? (
+                <span className="block text-[11px]">{num(s.shareAmount)}</span>
+              ) : null}
+            </td>
             <td className={`py-1.5 text-right ${pnlClass(s.movePct)}`}>{signedPct(s.movePct, 2)}</td>
             <td className={`py-1.5 text-right ${pnlClass(s.pnl)}`}>
               {signed(s.pnl)}
@@ -284,8 +308,11 @@ export function ActualTable({ actual }: { actual: ExitActual }) {
           <td />
           <td className="py-1.5 text-right text-dim">
             {pct(actual.closedShare, 0)}
+            {actual.closedAmount !== null ? <span className="block">{num(actual.closedAmount)}</span> : null}
             {actual.remainingShare !== null && actual.remainingShare > 0 ? (
-              <span className="block">보유 {pct(actual.remainingShare, 0)}</span>
+              <span className="block">
+                보유 {shareText(actual.remainingShare, actual.remainingAmount, 2)}
+              </span>
             ) : null}
           </td>
           <td />

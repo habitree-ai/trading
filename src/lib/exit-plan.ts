@@ -45,6 +45,8 @@ export interface PlanStep {
   /** 0~1 */
   share: number;
   shareSource: ShareSource;
+  /** 명목가 × 비중 — 이 단에서 덜어낼 물량. 명목가가 없으면 null */
+  shareAmount: number | null;
   /** 진입가 대비 폭 — 부호 있음. 반대쪽이면 음수 */
   movePct: number | null;
   /** 명목가 × 폭 × 비중 */
@@ -65,7 +67,13 @@ export interface ExitPlan {
   shareSum: number | null;
   shareProblem: string | null;
   orderProblem: string | null;
-  total: { amount: number | null; returnPct: number | null; blendedR: number | null };
+  total: {
+    amount: number | null;
+    returnPct: number | null;
+    blendedR: number | null;
+    /** 명목가 × 비중 합 */
+    shareAmount: number | null;
+  };
 }
 
 export interface PositionSize {
@@ -87,6 +95,8 @@ export interface ActualStep {
   qty: number | null;
   /** 원래 진입 수량 대비 */
   share: number | null;
+  /** 원래 명목가 × 비중 — 이 차수에 덜어낸 물량 */
+  shareAmount: number | null;
   movePct: number | null;
   /** 가격손익 — 비용 전 */
   pnl: number | null;
@@ -104,8 +114,12 @@ export interface ExitActual {
   entryQty: number | null;
   entryQtySource: PositionSize['source'];
   closedShare: number | null;
+  /** 원래 명목가 × 덜어낸 몫 */
+  closedAmount: number | null;
   /** 아직 들고 있는 몫 — 닫힌 거래는 0 */
   remainingShare: number | null;
+  /** 원래 명목가 × 남은 몫 */
+  remainingAmount: number | null;
   pnlTotal: number | null;
   closeFeeTotal: number | null;
   estimated: boolean;
@@ -368,6 +382,7 @@ export function buildExitPlan(trade: Trade, size?: PositionSize | null): ExitPla
       planPrice: source === 'okx' ? trade.tp1_price : null,
       share,
       shareSource: resolved.sources[i] ?? 'zero',
+      shareAmount: notional === null ? null : share * notional,
       movePct,
       amount,
       returnPct: ratio(amount, margin),
@@ -401,6 +416,7 @@ export function buildExitPlan(trade: Trade, size?: PositionSize | null): ExitPla
       amount: sumOrNull(amounts),
       returnPct: sumOrNull(returns),
       blendedR: sumOrNull(weightedR),
+      shareAmount: resolved.sum === null || notional === null ? null : resolved.sum * notional,
     },
   };
 }
@@ -464,9 +480,11 @@ export function buildExitActual(
   }): ActualStep => {
     const movePct = entry === null ? null : (d * (input.price - entry)) / entry;
     const pnl = entry === null || input.qty === null ? null : d * (input.price - entry) * input.qty;
+    const share = ratio(input.qty, size.qty);
     return {
       ...input,
-      share: ratio(input.qty, size.qty),
+      share,
+      shareAmount: share === null || size.notional === null ? null : share * size.notional,
       movePct,
       pnl,
       returnPct: ratio(pnl, margin),
@@ -515,13 +533,18 @@ export function buildExitActual(
   }
 
   const closedShare = sumOrNull(steps.map((s) => s.share));
+  const remainingShare = !open ? 0 : closedShare === null ? null : Math.max(0, 1 - closedShare);
+  const amountOf = (share: number | null) =>
+    share === null || size.notional === null ? null : share * size.notional;
   return {
     source,
     steps,
     entryQty: size.qty,
     entryQtySource: size.source,
     closedShare,
-    remainingShare: !open ? 0 : closedShare === null ? null : Math.max(0, 1 - closedShare),
+    closedAmount: amountOf(closedShare),
+    remainingShare,
+    remainingAmount: amountOf(remainingShare),
     pnlTotal: sumOrNull(steps.map((s) => s.pnl)),
     closeFeeTotal: sumOrNull(steps.map((s) => s.fee)),
     estimated: source === 'exit_price' || steps.some((s) => s.estimated),
@@ -548,6 +571,8 @@ export interface ExitStage {
   tp: 1 | 2 | 3 | null;
   price: number | null;
   share: number | null;
+  /** 명목가 × 비중 — 체결이면 덜어낸 물량, 예상이면 덜어낼 물량 */
+  shareAmount: number | null;
   /** 진입가 대비 수익률 — 부호 있음 */
   movePct: number | null;
   /** 수익금 — 체결이면 실현(가격손익), 예상이면 명목가 × 폭 × 비중 */
@@ -565,6 +590,7 @@ const EMPTY_STAGE = {
   tp: null,
   price: null,
   share: null,
+  shareAmount: null,
   movePct: null,
   pnl: null,
   returnPct: null,
@@ -590,6 +616,7 @@ export function mergeStages(summary: ExitSummary): ExitStage[] {
     tp: null,
     price: s.price,
     share: s.share,
+    shareAmount: s.shareAmount,
     movePct: s.movePct,
     pnl: s.pnl,
     returnPct: s.returnPct,
@@ -608,6 +635,7 @@ export function mergeStages(summary: ExitSummary): ExitStage[] {
       tp: p.n,
       price: p.price,
       share: p.share,
+      shareAmount: p.shareAmount,
       movePct: p.movePct,
       pnl: p.amount,
       returnPct: p.returnPct,
