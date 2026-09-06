@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import type { Trade, TradeFill } from '@/lib/domain';
 import {
   activeTargetPrices,
+  activeTargetShares,
   buildExitActual,
   buildExitPlan,
   checkTpSplit,
@@ -146,6 +147,19 @@ describe('activeTargetPrices — 거래소 익절이 TP1 자리', () => {
     expect(activeTargetPrices(trade({ okx_tp_price: 106 }))).toEqual([106, 110, 120]);
     expect(activeTargetPrices(trade({ tp1_price: null, okx_tp_price: 106 }))).toEqual([106, 110, 120]);
     expect(activeTargetPrices(trade({ tp1_price: null }))).toEqual([null, 110, 120]);
+  });
+});
+
+describe('activeTargetShares — 차트 라벨용 비중', () => {
+  it('계획과 같은 판정: 명시·균등·가격 없는 단 null', () => {
+    expect(activeTargetShares(trade({ tp1_pct: 50, tp2_pct: 30, tp3_pct: 20 }))).toEqual([0.5, 0.3, 0.2]);
+    expect(activeTargetShares(trade())).toEqual([1 / 3, 1 / 3, 1 / 3]);
+    expect(activeTargetShares(trade({ tp3_price: null }))).toEqual([0.5, 0.5, null]);
+    expect(activeTargetShares(trade({ tp1_pct: 60 }))).toEqual([0.6, 0, 0]);
+    // 거래소 익절이 TP1 자리에 서면 그 단도 산다
+    expect(activeTargetShares(trade({ tp1_price: null, okx_tp_price: 106, tp1_pct: 50 }))[0]).toBe(0.5);
+    const plan = buildExitPlan(trade({ tp1_pct: 50, tp2_pct: 30, tp3_pct: 20 }), NO_SIZE);
+    expect(plan.steps.map((s) => s.share)).toEqual(activeTargetShares(trade({ tp1_pct: 50, tp2_pct: 30, tp3_pct: 20 })));
   });
 });
 

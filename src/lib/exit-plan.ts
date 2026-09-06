@@ -198,6 +198,20 @@ export function activeTargetPrices(
   return [pick(trade.okx_tp_price ?? trade.tp1_price), pick(trade.tp2_price), pick(trade.tp3_price)];
 }
 
+/**
+ * 활성 TP 비중(0~1) — 계획 전체를 세우지 않고 비중만 필요한 곳(차트 목표선 라벨).
+ * 판정은 buildExitPlan 과 같다: 셋 다 비면 균등, 하나라도 적으면 빈 칸 0. 가격 없는 단은 null.
+ */
+export function activeTargetShares(
+  trade: Pick<
+    Trade,
+    'tp1_price' | 'tp2_price' | 'tp3_price' | 'okx_tp_price' | 'tp1_pct' | 'tp2_pct' | 'tp3_pct'
+  >,
+): [number | null, number | null, number | null] {
+  return resolveShares(activeTargetPrices(trade), [trade.tp1_pct, trade.tp2_pct, trade.tp3_pct])
+    .shares;
+}
+
 export interface ResolvedShares {
   /** 가격 없는 단은 null */
   shares: [number | null, number | null, number | null];

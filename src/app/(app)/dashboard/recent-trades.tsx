@@ -5,7 +5,7 @@ import { useState, type ReactNode } from "react";
 import { ExitPlanLines } from "@/components/exit-plan";
 import { TradeChart } from "@/components/trade-chart";
 import { RESULT_LABEL, SIDE_LABEL, type TradeFill } from "@/lib/domain";
-import { activeTargetPrices, summarizeExits } from "@/lib/exit-plan";
+import { activeTargetPrices, activeTargetShares, summarizeExits } from "@/lib/exit-plan";
 import { dateTime, num, pnlClass, signed, signedPct } from "@/lib/format";
 import type { TradeDerived } from "@/lib/metrics";
 
@@ -145,6 +145,7 @@ export function RecentTrades({
                     exitPrice={trade.exit_price}
                     stopPrice={trade.okx_stop_price ?? trade.stop_price}
                     targets={activeTargetPrices(trade)}
+                    targetShares={activeTargetShares(trade)}
                     notional={trade.notional}
                     now={now}
                   />

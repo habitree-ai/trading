@@ -55,7 +55,7 @@ import {
   type TradeFill,
 } from "@/lib/domain";
 import { groupCloseFills } from "@/lib/exit-plan";
-import { num, signed } from "@/lib/format";
+import { num, pct, signed } from "@/lib/format";
 import { handleMovesTime, type AnnotationHit } from "@/lib/hit-test";
 import { rsi } from "@/lib/indicators";
 import { formatLevel, levelFields, parseLevel } from "@/lib/annotation-levels";
@@ -184,6 +184,35 @@ const NO_FILLS: TradeFill[] = [];
 const NO_ANNOTATIONS: TradeAnnotation[] = [];
 const NO_TARGETS: readonly [number | null, number | null, number | null] = [null, null, null];
 
+/** 수량 — 코인 개수는 자릿수가 제각각이라 유효숫자 4개로 맞춘다(0.0033 · 12.5 · 1,234). */
+function qtyText(qty: number): string {
+  return qty.toLocaleString("ko-KR", { maximumSignificantDigits: 4 });
+}
+
+/**
+ * 목표선 라벨 — `목표 1 · 33% · 333 · 0.0033 BTC`.
+ *
+ * 비율은 계획 카드와 같은 판정(셋 다 비면 균등), 금액은 명목가 × 비율, 수량은 그 금액 ÷ 진입가.
+ * 재료가 없으면 그 조각만 빠진다 — 투입이 없으면 비율만, 진입가가 없으면 수량만 빠진다.
+ */
+export function targetTitle(
+  base: string,
+  share: number | null,
+  notional: number | null,
+  entryPrice: number | null,
+  symbol: string,
+): string {
+  if (share === null) return base;
+  const parts = [base, pct(share, 0)];
+  // 명목가는 숏이면 음수로 올 수 있다 — 계획(exit-plan)과 같이 절댓값으로 잰다.
+  if (notional !== null && notional !== 0) {
+    const amount = share * Math.abs(notional);
+    parts.push(num(amount, 0));
+    if (entryPrice !== null && entryPrice > 0) parts.push(`${qtyText(amount / entryPrice)} ${symbol}`);
+  }
+  return parts.join(" · ");
+}
+
 interface MeasureState {
   from: MeasurePoint;
   to: MeasurePoint;
@@ -202,6 +231,7 @@ export function TradeChart({
   exitPrice,
   stopPrice,
   targets = NO_TARGETS,
+  targetShares = NO_TARGETS,
   notional = null,
   now,
   startInReplay = false,
@@ -220,7 +250,9 @@ export function TradeChart({
    * 넣는다 — 목록의 map 안에서 매 렌더 새 배열이 와도 선을 다시 긋지 않게.
    */
   targets?: readonly [number | null, number | null, number | null];
-  /** 시트의 `투입` — 손익 툴이 비율을 금액으로 옮기는 데 쓴다. 없으면 비율만 나온다 */
+  /** 목표별 비중 0~1(`activeTargetShares`) — 목표선 라벨에 비율·금액·수량을 붙인다. 없으면 이름만 */
+  targetShares?: readonly [number | null, number | null, number | null];
+  /** 시트의 `투입` — 손익 툴이 비율을 금액으로 옮기고, 목표선 라벨의 금액·수량 기준이 된다. 없으면 비율만 나온다 */
   notional?: number | null;
   /**
    * 페이지를 그린 시각(ms) — 아직 들고 있는 거래를 어디까지 그릴지 정한다.
@@ -235,6 +267,7 @@ export function TradeChart({
   const entryMs = Date.parse(entryAt);
   const exitMs = exitAt ? Date.parse(exitAt) : null;
   const [tp1, tp2, tp3] = targets;
+  const [sh1, sh2, sh3] = targetShares;
 
   const hostRef = useRef<HTMLDivElement>(null);
   const overlayRef = useRef<HTMLDivElement>(null);
@@ -740,10 +773,20 @@ export function TradeChart({
       tp1 !== null && {
         price: tp1,
         color: theme.up,
-        title: tp2 !== null || tp3 !== null ? "목표 1" : "목표",
+        title: targetTitle(tp2 !== null || tp3 !== null ? "목표 1" : "목표", sh1, notional, entryPrice, symbol),
       },
-      tp2 !== null && { price: tp2, color: theme.up, title: "목표 2", style: LineStyle.Dotted },
-      tp3 !== null && { price: tp3, color: theme.up, title: "목표 3", style: LineStyle.Dotted },
+      tp2 !== null && {
+        price: tp2,
+        color: theme.up,
+        title: targetTitle("목표 2", sh2, notional, entryPrice, symbol),
+        style: LineStyle.Dotted,
+      },
+      tp3 !== null && {
+        price: tp3,
+        color: theme.up,
+        title: targetTitle("목표 3", sh3, notional, entryPrice, symbol),
+        style: LineStyle.Dotted,
+      },
       entryPrice !== null && { price: entryPrice, color: theme.accent, title: fills.length > 2 ? "평균진입" : "진입" },
       exitPrice !== null && exitReached && { price: exitPrice, color: theme.beta, title: fills.length > 2 ? "평균청산" : "청산" },
     ]
@@ -784,7 +827,7 @@ export function TradeChart({
       markerApi.detach();
       for (const line of lines) series.removePriceLine(line);
     };
-  }, [candles, fills, entryPrice, exitPrice, stopPrice, tp1, tp2, tp3, entryMs, exitMs, bar, replayIdx, entryIdx]);
+  }, [candles, fills, entryPrice, exitPrice, stopPrice, tp1, tp2, tp3, sh1, sh2, sh3, notional, symbol, entryMs, exitMs, bar, replayIdx, entryIdx]);
 
   /* ---------- 측정(자)·메모 도구 ---------- */
   const toPoint = useCallback((x: number, y: number): MeasurePoint | null => {
