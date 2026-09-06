@@ -182,12 +182,14 @@
     [bbU, bbM, bbL].forEach(function (s) { s.applyOptions({ visible: bbOn }); });
     var r = ind.rsi || { on: false, n: 14 };
     calc.rsi = r.on ? rsi(closes, r.n) : null;
-    rsiLine.setData(r.on ? rows.map(function (b, i) { return calc.rsi[i] == null ? null : { time: b.time, value: calc.rsi[i] }; }).filter(Boolean) : []);
+    // 값이 없는 앞쪽 봉은 걸러내지 않고 공백 점({time})으로 둔다 — RSI·VXN 창은 이 선 하나뿐이라, 걸러내면 창의 봉 번호가
+    // 메인 창보다 앞당겨지고(RSI14 면 14봉), 창끼리 봉 번호로 범위를 맞추는 동기화 때문에 그 창이 그리는 시간축이 그만큼 밀린다.
+    rsiLine.setData(r.on ? rows.map(function (b, i) { return calc.rsi[i] == null ? { time: b.time } : { time: b.time, value: calc.rsi[i] }; }) : []);
     rsiEl.style.display = r.on ? '' : 'none';
     calc.atr = atr(rows, 14);
     vol.applyOptions({ visible: ind.volume !== false });
     var vxOn = !!(DATA.vx && ind.vx !== false);
-    if (DATA.vx) { calc.vx = vxFor(state.tf); vxLine.setData(vxOn ? rows.map(function (b, i) { return calc.vx[i] == null ? null : { time: b.time, value: calc.vx[i] }; }).filter(Boolean) : []); }
+    if (DATA.vx) { calc.vx = vxFor(state.tf); vxLine.setData(vxOn ? rows.map(function (b, i) { return calc.vx[i] == null ? { time: b.time } : { time: b.time, value: calc.vx[i] }; }) : []); }
     vxEl.style.display = vxOn ? '' : 'none';
     $('tgVx').style.display = DATA.vx ? '' : 'none';
     // 가격선: 스펙 lines + 가격이 있는 이벤트
@@ -254,7 +256,14 @@
   $('goto').onclick = gotoEvent;
   $('fit').onclick = function () { main.timeScale().fitContent(); };
   var tfs = $('tfs');
-  AVAIL.forEach(function (tf) { var b = document.createElement('button'); b.dataset.tf = tf; b.textContent = TF_LABEL[tf]; b.onclick = function () { load(tf); }; tfs.appendChild(b); });
+  // 자료가 없는 주기도 버튼은 두되 비활성으로 — 왜 못 고르는지 보이게. 15m·1h 는 야후 한도(60일·730일) 안에 사건이 있어야 받힌다.
+  var TF_WHY = { '15m': '15분봉 없음 — 사건이 야후 한도(최근 60일) 밖', '1h': '1시간봉 없음 — 사건이 야후 한도(최근 730일) 밖', '4h': '4시간봉 없음 — 1시간봉이 없어 합성 불가', '1d': '일봉 없음', '1w': '주봉 없음 — 일봉이 없어 합성 불가' };
+  TF_ORDER.forEach(function (tf) {
+    var b = document.createElement('button'); b.dataset.tf = tf; b.textContent = TF_LABEL[tf];
+    if (AVAIL.indexOf(tf) >= 0) b.onclick = function () { load(tf); };
+    else { b.disabled = true; b.title = TF_WHY[tf]; }
+    tfs.appendChild(b);
+  });
   $('tgLog').onclick = function () { state.log = !state.log; save(); $('tgLog').classList.toggle('on', state.log); main.applyOptions({ rightPriceScale: { mode: state.log ? LWC.PriceScaleMode.Logarithmic : LWC.PriceScaleMode.Normal } }); };
   $('tgLog').classList.toggle('on', state.log);
   $('theme').onclick = function () { if (dark()) root.removeAttribute('data-theme'); else root.setAttribute('data-theme', 'dark'); state.theme = dark() ? 'dark' : 'light'; save(); charts.forEach(function (ch) { ch.applyOptions(layout()); }); axes(); };
