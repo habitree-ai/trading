@@ -9,7 +9,16 @@ import {
   normalizePoints,
   parsePoints,
 } from "@/lib/annotations";
-import { isPositionKind, type AnnotationColor, type AnnotationKind, type AnnotationLineStyle, type ChartPoint } from "@/lib/domain";
+import {
+  isJournalEvent,
+  isPositionKind,
+  JOURNAL_EVENT_LABEL,
+  type AnnotationColor,
+  type AnnotationKind,
+  type AnnotationLineStyle,
+  type ChartPoint,
+} from "@/lib/domain";
+import { diffBasis, fillBasis, parseBasis, snapshotBasis } from "@/lib/journal-basis";
 import { positionProblemOf } from "@/lib/position-tool";
 import { requireUser } from "@/lib/queries";
 
@@ -58,6 +67,78 @@ export async function savePositionRecord(
 
   revalidatePath("/", "layout");
   return { savedAt: Date.now(), message: `#${data.seq} ${data.symbol} 기록을 저장했습니다.` };
+}
+
+/**
+ * 포지션 추가 기록 — 고른 거래에 기준(추가 진입·변경·메모)을 붙여 한 건 더 쌓는다.
+ *
+ * 진입 기록(거래 행)은 건드리지 않는다. 기준 스냅샷은 지금 거래 행에서 뜬다 — 동기화가 행을
+ * 덮어쓰므로 "그때 값"은 이 기록에만 남는다. 변경 기준은 직전 기록의 스냅샷과 견주는데,
+ * 직전이 없으면 견줄 수 없다 — 그래도 저장은 한다. 무엇이 바뀌었는지는 내용에 적혀 있다.
+ */
+export async function addPositionNote(
+  _prev: JournalFormState,
+  formData: FormData,
+): Promise<JournalFormState> {
+  const tradeId = String(formData.get("trade_id") ?? "");
+  if (!tradeId) return { error: "포지션을 골라 주세요." };
+  const event = formData.get("event");
+  if (!isJournalEvent(event)) return { error: "기준을 골라 주세요." };
+  const body = parseText(formData.get("body"));
+  if (body === null) return { error: "기록 내용을 적어 주세요." };
+  const emotion = parseText(formData.get("note_emotion"));
+  const fillId = parseText(formData.get("fill_id"));
+
+  const { supabase, user } = await requireUser();
+  const { data: trade, error: tradeError } = await supabase
+    .from("trades")
+    .select("*")
+    .eq("id", tradeId)
+    .maybeSingle();
+  if (tradeError) return { error: tradeError.message };
+  if (!trade) return { error: "포지션을 찾을 수 없습니다." };
+
+  const basis = snapshotBasis(trade);
+  if (event === "add" && fillId !== null) {
+    const { data: fill, error: fillError } = await supabase
+      .from("trade_fills")
+      .select("*")
+      .eq("id", fillId)
+      .eq("trade_id", tradeId)
+      .maybeSingle();
+    if (fillError) return { error: fillError.message };
+    if (!fill) return { error: "체결을 찾을 수 없습니다." };
+    basis.fill = fillBasis(fill);
+  }
+  if (event === "change") {
+    const { data: prevRows, error: prevError } = await supabase
+      .from("journal_notes")
+      .select("basis")
+      .eq("trade_id", tradeId)
+      .not("basis", "is", null)
+      .order("created_at", { ascending: false })
+      .limit(1);
+    if (prevError) return { error: prevError.message };
+    basis.changes = diffBasis(parseBasis(prevRows[0]?.basis ?? null), basis);
+  }
+
+  const { error } = await supabase.from("journal_notes").insert({
+    book_id: trade.book_id,
+    user_id: user.id,
+    trade_id: tradeId,
+    event,
+    basis,
+    symbol: trade.symbol,
+    body,
+    emotion,
+  });
+  if (error) return { error: error.message };
+
+  revalidatePath("/", "layout");
+  return {
+    savedAt: Date.now(),
+    message: `#${trade.seq} ${trade.symbol} ${JOURNAL_EVENT_LABEL[event]} 기록을 추가했습니다.`,
+  };
 }
 
 interface DraftAnnotation {

@@ -498,32 +498,41 @@ export type Database = {
       }
       journal_notes: {
         Row: {
+          basis: Json | null
           body: string
           book_id: string
           created_at: string
           emotion: string | null
+          event: string | null
           id: string
           symbol: string | null
+          trade_id: string | null
           updated_at: string
           user_id: string
         }
         Insert: {
+          basis?: Json | null
           body: string
           book_id: string
           created_at?: string
           emotion?: string | null
+          event?: string | null
           id?: string
           symbol?: string | null
+          trade_id?: string | null
           updated_at?: string
           user_id: string
         }
         Update: {
+          basis?: Json | null
           body?: string
           book_id?: string
           created_at?: string
           emotion?: string | null
+          event?: string | null
           id?: string
           symbol?: string | null
+          trade_id?: string | null
           updated_at?: string
           user_id?: string
         }
@@ -533,6 +542,13 @@ export type Database = {
             columns: ["book_id"]
             isOneToOne: false
             referencedRelation: "books"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "journal_notes_trade_id_fkey"
+            columns: ["trade_id"]
+            isOneToOne: false
+            referencedRelation: "trades"
             referencedColumns: ["id"]
           },
         ]

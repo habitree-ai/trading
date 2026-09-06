@@ -3,23 +3,25 @@ import { cache } from "react";
 
 import { toAnnotation, type AnnotationRow } from "@/lib/annotations";
 import { isAllowedEmail } from "@/lib/auth/allowlist";
-import type {
-  BalanceSnapshot,
-  Book,
-  CashFlow,
-  ExchangeAccount,
-  Goal,
-  JournalNote,
-  Principle,
-  ResearchHeadline,
-  ResearchNote,
-  ResearchSnapshot,
-  SyncRun,
-  Trade,
-  TradeAnnotation,
-  TradeFill,
-  TradePrincipleCheck,
+import {
+  isJournalEvent,
+  type BalanceSnapshot,
+  type Book,
+  type CashFlow,
+  type ExchangeAccount,
+  type Goal,
+  type JournalNote,
+  type Principle,
+  type ResearchHeadline,
+  type ResearchNote,
+  type ResearchSnapshot,
+  type SyncRun,
+  type Trade,
+  type TradeAnnotation,
+  type TradeFill,
+  type TradePrincipleCheck,
 } from "@/lib/domain";
+import { parseBasis } from "@/lib/journal-basis";
 import { createClient } from "@/lib/supabase/server";
 
 /** 어떤 북을 보고 있는지는 쿠키로 기억한다 — URL을 오염시키지 않기 위해. */
@@ -263,7 +265,18 @@ export async function listAnnotationsByOwner(
   return out;
 }
 
-/** 북의 일반 기록 — 최신순. */
+/** journal_notes 행 — event 는 text, basis 는 jsonb 라 도메인 모양으로 한 번 거른다. */
+type JournalNoteRow = Omit<JournalNote, "event" | "basis"> & { event: string | null; basis: unknown };
+
+function toJournalNote(row: JournalNoteRow): JournalNote {
+  return {
+    ...row,
+    event: isJournalEvent(row.event) ? row.event : null,
+    basis: parseBasis(row.basis),
+  };
+}
+
+/** 북의 기록 — 일반 기록과 포지션 추가 기록을 합쳐 최신순. */
 export async function listJournalNotes(bookId: string, limit = 100): Promise<JournalNote[]> {
   const { supabase } = await requireUser();
   const { data, error } = await supabase
@@ -273,7 +286,32 @@ export async function listJournalNotes(bookId: string, limit = 100): Promise<Jou
     .order("created_at", { ascending: false })
     .limit(limit);
   if (error) throw new Error(error.message);
-  return data;
+  return (data as JournalNoteRow[]).map(toJournalNote);
+}
+
+/**
+ * 거래에 붙은 추가 기록 — 오래된 것부터. 포지션 탭이 진입 기록 뒤에 시간순으로 잇는다.
+ *
+ * 고를 수 있는 포지션 전부의 것을 한 번에 읽어 거래 id 로 묶는다 — 포지션을 바꿀 때마다
+ * 왕복하지 않게.
+ */
+export async function listTradeJournalNotes(
+  tradeIds: readonly string[],
+): Promise<Record<string, JournalNote[]>> {
+  if (tradeIds.length === 0) return {};
+  const { supabase } = await requireUser();
+  const { data, error } = await supabase
+    .from("journal_notes")
+    .select("*")
+    .in("trade_id", [...tradeIds])
+    .order("created_at", { ascending: true });
+  if (error) throw new Error(error.message);
+  const out: Record<string, JournalNote[]> = {};
+  for (const row of data as JournalNoteRow[]) {
+    const note = toJournalNote(row);
+    if (note.trade_id) (out[note.trade_id] ??= []).push(note);
+  }
+  return out;
 }
 
 /** 북에 잡힌 입금·출금·이체 — 오래된 것부터. 자금 곡선이 시간순으로 이어 붙인다. */

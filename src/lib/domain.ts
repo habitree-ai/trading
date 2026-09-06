@@ -489,15 +489,68 @@ export function isCounterTrend(trend: Trend | null, side: Side): boolean {
  * 기록은 두 가지뿐이다. 포지션에 대한 기록은 거래 행(근거·복기·감정)에 직접 적고, 포지션이
  * 없는 기록은 여기에 적는다. 종목은 선택이다 — 없으면 시장 전체나 나 자신에 대한 메모다.
  */
+/**
+ * 포지션에 붙는 추가 기록의 기준 — 무엇을 계기로 적었는가.
+ *
+ * 진입 기록은 거래 행에 한 벌뿐이다. 들고 있는 동안 추가 진입을 하거나 손절·TP 를 옮기면
+ * 그때의 판단을 따로 쌓아야 진입 근거가 지워지지 않는다(REQ-0049).
+ */
+export type JournalEvent = 'add' | 'change' | 'note';
+
+export const JOURNAL_EVENTS: JournalEvent[] = ['add', 'change', 'note'];
+
+export const JOURNAL_EVENT_LABEL: Record<JournalEvent, string> = {
+  add: '추가 진입',
+  change: '변경',
+  note: '메모',
+};
+
+export function isJournalEvent(value: unknown): value is JournalEvent {
+  return typeof value === 'string' && (JOURNAL_EVENTS as string[]).includes(value);
+}
+
+/** 직전 기록 대비 달라진 항목 하나 — `손절 60,000 → 60,800`. */
+export type JournalBasisChange = {
+  label: string;
+  from: number | null;
+  to: number | null;
+};
+
+/**
+ * 기록 시점의 포지션 수치 스냅샷 — 동기화가 거래 행을 덮어쓰므로 "그때 값"은 여기에만 남는다.
+ *
+ * interface 가 아니라 type 인 것에 뜻이 있다 — jsonb 칸(`Json`)에 그대로 대입되려면 type alias 여야
+ * 한다(ResearchHeadline 과 같은 이유).
+ */
+export type JournalBasis = {
+  entry_price: number | null;
+  notional: number | null;
+  leverage: number | null;
+  /** 거래소에 걸린 손절이 있으면 그것, 없으면 계획값 */
+  stop_price: number | null;
+  /** TP1~3 — 거래소 익절이 걸려 있으면 TP1 자리에 그것 */
+  tp_prices: (number | null)[];
+  unrealized_pnl: number | null;
+  /** 추가 진입 기록이 가리키는 체결. 체결이 아직 동기화되지 않았으면 null */
+  fill: { filled_at: string; price: number; amount: number | null } | null;
+  /** 변경 기록이 잡아 둔 차이. 직전 기록이 없어 견줄 수 없었으면 빈 배열 */
+  changes: JournalBasisChange[] | null;
+};
+
 export interface JournalNote {
   id: string;
   book_id: string;
   user_id: string;
-  /** 기초자산 티커('BTC'). 종목이 없는 기록이면 null */
+  /** 기초자산 티커('BTC'). 종목이 없는 기록이면 null. 포지션에 붙는 기록은 그 거래의 종목 */
   symbol: string | null;
   body: string;
   /** 거래의 `emotion` 과 같은 어휘 — 칩도 같이 쓴다 */
   emotion: string | null;
+  /** 포지션에 붙는 추가 기록이면 그 거래. 일반 기록이면 null */
+  trade_id: string | null;
+  /** 추가 기록의 기준 종류 — trade_id 와 같이 있거나 같이 없다 */
+  event: JournalEvent | null;
+  basis: JournalBasis | null;
   created_at: string;
   updated_at: string;
 }

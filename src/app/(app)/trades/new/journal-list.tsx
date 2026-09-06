@@ -3,12 +3,14 @@
 import Link from "next/link";
 import { useState, useTransition } from "react";
 
+import { BasisLine, EventChip } from "@/app/(app)/trades/new/basis-line";
 import { deleteJournalNote } from "@/app/(app)/trades/new/journal-actions";
 import { NoteChart, PositionChart } from "@/app/(app)/trades/new/journal-charts";
 import {
   ANNOTATION_KIND_LABEL,
   RESULT_LABEL,
   SIDE_LABEL,
+  type JournalEvent,
   type JournalNote,
   type Trade,
   type TradeAnnotation,
@@ -17,13 +19,15 @@ import { dateTime, pnlClass, signed } from "@/lib/format";
 import { isOpenTrade } from "@/lib/metrics";
 
 /**
- * 기록 한 건 — 포지션 기록은 거래 행 자체, 일반 기록은 journal_notes 행.
+ * 기록 한 건 — 포지션 기록은 거래 행 자체, 포지션 추가 기록과 일반 기록은 journal_notes 행.
  *
  * `at` 은 목록을 세우는 시각이다. 포지션 기록은 마지막으로 고친 때(updated_at)라 동기화가
  * 평가손익을 고칠 때도 오른다 — 들고 있는 포지션이 위에 오는 셈이라 그대로 둔다.
+ * 추가 기록은 거래를 같이 든다 — 배지와 차트가 그 거래의 것이다.
  */
 export type JournalEntry =
   | { kind: "position"; at: string; trade: Trade }
+  | { kind: "position-note"; at: string; note: JournalNote; trade: Trade; event: JournalEvent }
   | { kind: "free"; at: string; note: JournalNote };
 
 const NO_ANNOTATIONS: TradeAnnotation[] = [];
@@ -32,6 +36,34 @@ const CHIP = "rounded border px-1.5 py-0.5 text-[11px]";
 
 function entryId(entry: JournalEntry): string {
   return entry.kind === "position" ? entry.trade.id : entry.note.id;
+}
+
+/** 포지션 배지 — 거래 행 기록과 추가 기록이 같은 모양으로 그 거래를 가리킨다. */
+function PositionBadge({ trade }: { trade: Trade }) {
+  return (
+    <Link
+      href={`/trades/new?trade=${trade.id}`}
+      title="이 포지션에 이어서 기록하기"
+      className={`${CHIP} border-accent/40 text-accent`}
+    >
+      포지션 #{trade.seq} · {trade.symbol}{" "}
+      <span className={trade.side === "long" ? "text-profit" : "text-loss"}>{SIDE_LABEL[trade.side]}</span>
+      {" · "}
+      {isOpenTrade(trade) ? (
+        <>
+          보유중{" "}
+          <span className={`tnum ${pnlClass(trade.unrealized_pnl)}`}>{signed(trade.unrealized_pnl)}</span>
+        </>
+      ) : (
+        <>
+          {RESULT_LABEL[trade.result]}{" "}
+          <span className={`tnum ${pnlClass(trade.realized_pnl ?? trade.pnl)}`}>
+            {signed(trade.realized_pnl ?? trade.pnl)}
+          </span>
+        </>
+      )}
+    </Link>
+  );
 }
 
 /** 차트에 남긴 메모를 한 줄씩 — 도형은 종류만, 텍스트·라벨은 그 내용까지. */
@@ -85,7 +117,7 @@ export function JournalList({
           const id = entryId(entry);
           const memos = annotations[id] ?? NO_ANNOTATIONS;
           const chartOpen = openChart === id;
-          const chartable = entry.kind === "position" || entry.note.symbol !== null;
+          const chartable = entry.kind !== "free" || entry.note.symbol !== null;
           const emotion = entry.kind === "position" ? entry.trade.emotion : entry.note.emotion;
 
           return (
@@ -93,32 +125,13 @@ export function JournalList({
               <div className="flex flex-wrap items-center gap-2 text-xs">
                 <span className="tnum text-dim">{dateTime(entry.at)}</span>
                 {entry.kind === "position" ? (
-                  <Link
-                    href={`/trades/new?trade=${entry.trade.id}`}
-                    title="이 포지션에 이어서 기록하기"
-                    className={`${CHIP} border-accent/40 text-accent`}
-                  >
-                    포지션 #{entry.trade.seq} · {entry.trade.symbol}{" "}
-                    <span className={entry.trade.side === "long" ? "text-profit" : "text-loss"}>
-                      {SIDE_LABEL[entry.trade.side]}
-                    </span>
-                    {" · "}
-                    {isOpenTrade(entry.trade) ? (
-                      <>
-                        보유중{" "}
-                        <span className={`tnum ${pnlClass(entry.trade.unrealized_pnl)}`}>
-                          {signed(entry.trade.unrealized_pnl)}
-                        </span>
-                      </>
-                    ) : (
-                      <>
-                        {RESULT_LABEL[entry.trade.result]}{" "}
-                        <span className={`tnum ${pnlClass(entry.trade.realized_pnl ?? entry.trade.pnl)}`}>
-                          {signed(entry.trade.realized_pnl ?? entry.trade.pnl)}
-                        </span>
-                      </>
-                    )}
-                  </Link>
+                  <PositionBadge trade={entry.trade} />
+                ) : entry.kind === "position-note" ? (
+                  <>
+                    <PositionBadge trade={entry.trade} />
+                    <EventChip event={entry.event} />
+                    <BasisLine event={entry.event} basis={entry.note.basis} />
+                  </>
                 ) : (
                   <span className={`${CHIP} border-border text-dim`}>
                     일반{entry.note.symbol ? ` · ${entry.note.symbol}` : ""}
@@ -139,12 +152,16 @@ export function JournalList({
                       {chartOpen ? "차트 닫기" : "차트"}
                     </button>
                   ) : null}
-                  {entry.kind === "free" ? (
+                  {entry.kind !== "position" ? (
                     <button
                       type="button"
                       disabled={pending}
                       onClick={() => {
-                        const ok = window.confirm("이 기록을 삭제할까요? 차트 메모도 함께 지워집니다.");
+                        const ok = window.confirm(
+                          entry.kind === "free"
+                            ? "이 기록을 삭제할까요? 차트 메모도 함께 지워집니다."
+                            : "이 추가 기록을 삭제할까요? 진입 기록과 차트 메모는 남습니다.",
+                        );
                         if (!ok) return;
                         startTransition(async () => {
                           const result = await deleteJournalNote(entry.note.id);
@@ -185,7 +202,7 @@ export function JournalList({
 
               {chartOpen ? (
                 <div className="mt-3">
-                  {entry.kind === "position" ? (
+                  {entry.kind !== "free" ? (
                     <PositionChart trade={entry.trade} now={now} />
                   ) : entry.note.symbol ? (
                     <NoteChart noteId={entry.note.id} symbol={entry.note.symbol} now={now} />

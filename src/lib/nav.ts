@@ -50,7 +50,7 @@ export const AREAS: Area[] = [
       { href: "/dashboard", label: "대시보드", icon: "📊", hint: "자금·성과·리스크 한 장" },
       { href: "/order", label: "주문", icon: "🎯", hint: "근거 등록 후 실주문" },
       { href: "/trades", label: "거래 목록", icon: "📒", hint: "전 거래와 차트" },
-      { href: "/trades/new", label: "기록 추가", icon: "➕", hint: "포지션 기록 · 일반 기록" },
+      { href: "/trades/new", label: "기록 추가", icon: "➕", hint: "포지션 기록(진입·추가 진입·변경·메모) · 일반 기록" },
       { href: "/review", label: "복기 분석", icon: "🔍", hint: "감정·셋업별 성과" },
       { href: "/principles", label: "원칙", icon: "📐", hint: "지킴/어김과 그 대가" },
       { href: "/goals", label: "목표", icon: "🎯", hint: "계획 β · 목표 α" },

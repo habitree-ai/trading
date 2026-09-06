@@ -3,14 +3,16 @@ import Link from "next/link";
 import { JournalForm } from "@/app/(app)/trades/new/journal-form";
 import { JournalList, type JournalEntry } from "@/app/(app)/trades/new/journal-list";
 import { LegacyCapture } from "@/app/(app)/trades/new/legacy-capture";
-import type { Trade } from "@/lib/domain";
+import { hasPositionRecord } from "@/lib/journal-basis";
 import { isOpenTrade } from "@/lib/metrics";
 import { nowMs } from "@/lib/okx";
 import {
   getActiveBook,
   listAnnotationsByOwner,
   listFieldSuggestions,
+  listFillsByTrade,
   listJournalNotes,
+  listTradeJournalNotes,
   listTrades,
   requireUser,
 } from "@/lib/queries";
@@ -19,11 +21,6 @@ import {
 const PICK_LIMIT = 60;
 /** 최근 기록 목록 길이 — 두 종류를 합쳐서. */
 const LIST_LIMIT = 50;
-
-/** 포지션 기록이 있는 거래 — 근거·복기·감정 중 하나라도 적혀 있으면 기록이다. */
-function hasRecord(trade: Trade): boolean {
-  return [trade.rationale, trade.review, trade.emotion].some((v) => (v ?? "").trim() !== "");
-}
 
 /**
  * 기록 추가 — 포지션 기록과 일반 기록, 그리고 최근 기록 목록.
@@ -69,11 +66,25 @@ export default async function NewTradePage({
     .sort((a, b) => (b.exit_at ?? b.entry_at).localeCompare(a.exit_at ?? a.entry_at));
   const pickable = [...open, ...closed].slice(0, PICK_LIMIT);
   const symbols = [...new Set(trades.map((t) => t.symbol))].sort();
+  const pickableIds = pickable.map((t) => t.id);
+  // 고를 수 있는 포지션의 추가 기록·체결 — 포지션 탭이 시간순 기록과 추가 진입 후보를 그리는 재료.
+  const [notesByTrade, fillsByTrade] = await Promise.all([
+    listTradeJournalNotes(pickableIds),
+    listFillsByTrade(pickableIds),
+  ]);
 
-  // 최근 기록 — 포지션 기록(거래 행)과 일반 기록을 합쳐 최신순.
+  // 최근 기록 — 포지션 기록(거래 행)·포지션 추가 기록·일반 기록을 합쳐 최신순.
+  const tradeById = new Map(trades.map((t) => [t.id, t]));
   const entries: JournalEntry[] = [
-    ...trades.filter(hasRecord).map((trade): JournalEntry => ({ kind: "position", at: trade.updated_at, trade })),
-    ...notes.map((note): JournalEntry => ({ kind: "free", at: note.created_at, note })),
+    ...trades
+      .filter(hasPositionRecord)
+      .map((trade): JournalEntry => ({ kind: "position", at: trade.updated_at, trade })),
+    ...notes.map((note): JournalEntry => {
+      const trade = note.trade_id ? tradeById.get(note.trade_id) : undefined;
+      return trade && note.event
+        ? { kind: "position-note", at: note.created_at, note, trade, event: note.event }
+        : { kind: "free", at: note.created_at, note };
+    }),
   ]
     .sort((a, b) => b.at.localeCompare(a.at))
     .slice(0, LIST_LIMIT);
@@ -95,6 +106,8 @@ export default async function NewTradePage({
       <JournalForm
         bookId={book.id}
         trades={pickable}
+        notesByTrade={notesByTrade}
+        fillsByTrade={fillsByTrade}
         suggestions={suggestions}
         symbols={symbols}
         now={now}
@@ -103,7 +116,7 @@ export default async function NewTradePage({
 
       <section className="space-y-3">
         <h2 className="text-sm font-medium">
-          최근 기록 <span className="font-normal text-dim">— 포지션·일반 합쳐 최신순</span>
+          최근 기록 <span className="font-normal text-dim">— 포지션·추가 기록·일반 합쳐 최신순</span>
         </h2>
         <JournalList entries={entries} annotations={annotations} now={now} />
       </section>
