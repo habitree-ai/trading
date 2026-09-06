@@ -5,7 +5,7 @@
  * 화면에서 열린 버튼이 서버에서 거절되거나(짜증) 그 반대(사고)가 된다. 그래서 규칙은
  * 전부 여기 순수 함수로 두고 양쪽이 같은 함수를 부른다. 거래소·DB 는 모른다.
  */
-import type { Side, Trade } from '@/lib/domain';
+import { isCounterTrend, TREND_LABEL, type Side, type Trade, type Trend } from '@/lib/domain';
 import { dayKey, isOpenTrade, netOf } from '@/lib/metrics';
 import { positionMetrics } from '@/lib/position-tool';
 import { DAILY_MAX_LOSSES, DAILY_MAX_TRADES } from '@/lib/trade-rules';
@@ -85,12 +85,14 @@ export interface OrderPlan {
   targets: readonly (number | null)[];
   notionalUsd: number | null;
   leverage: number | null;
+  /** 장기추세 판단 — 고르지 않으면 null */
+  trend: Trend | null;
   setup: string;
   rationale: string;
 }
 
 export interface GateItem {
-  key: 'setup' | 'rationale' | 'stop' | 'target' | 'size';
+  key: 'trend' | 'setup' | 'rationale' | 'stop' | 'target' | 'size';
   label: string;
   ok: boolean;
   /** 왜 열렸는지·막혔는지 — 숫자와 함께 */
@@ -104,13 +106,16 @@ function beyond(side: Side, price: number, level: number, toward: 'profit' | 'lo
 }
 
 /**
- * 근거 게이트 — 다섯 항목이 전부 열려야 주문 버튼이 열린다.
+ * 근거 게이트 — 여섯 항목이 전부 열려야 주문 버튼이 열린다.
  *
  * 계좌 일치·잔고는 여기 없다. 그 둘은 거래소를 물어야 아는 값이라 부르는 쪽이 따로
  * 판정해 붙인다. 여기는 사람이 적은 계획만 본다.
+ *
+ * 장기추세는 **골랐는지**만 본다 — 역추세(상승 판단 + 숏)는 막지 않고 항목 설명에 적는다.
+ * 판단과 반대로 들어가는 것도 근거가 있으면 매매다. 다만 그 사실이 거래에 남아야 복기가 된다.
  */
 export function planGate(plan: OrderPlan, ctx: { minNotional: number | null }): GateItem[] {
-  const { side, price, stop, targets, notionalUsd, leverage } = plan;
+  const { side, price, stop, targets, notionalUsd, leverage, trend } = plan;
   const setup = plan.setup.trim();
   const rationale = plan.rationale.trim();
   const [tp1, ...rest] = targets;
@@ -146,6 +151,17 @@ export function planGate(plan: OrderPlan, ctx: { minNotional: number | null }): 
         : `${notionalUsd} USDT · ${leverage}배`;
 
   return [
+    {
+      key: 'trend',
+      label: '장기추세',
+      ok: trend !== null,
+      detail:
+        trend === null
+          ? '상승추세 · 하락추세 · 기간조정 중 하나를 고르세요'
+          : isCounterTrend(trend, side)
+            ? `${TREND_LABEL[trend]} — 판단과 반대 방향(역추세)`
+            : TREND_LABEL[trend],
+    },
     {
       key: 'setup',
       label: '기준(셋업)',

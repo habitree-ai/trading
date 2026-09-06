@@ -7,6 +7,8 @@
 
 export type Side = 'long' | 'short';
 export type TradeResult = 'win' | 'loss' | 'be' | 'open';
+/** 진입 시점의 장기추세 판단 — 상승추세 / 하락추세 / 기간조정 */
+export type Trend = 'up' | 'down' | 'range';
 export type BookStatus = 'active' | 'closed';
 export type CaptureKind = 'position' | 'chart' | 'balance';
 export type ExtractEngine = 'ocr' | 'ai' | 'manual';
@@ -135,6 +137,13 @@ export interface Trade {
    * 되짚은 추정이다. 숫자가 이상하면 여기부터 의심한다.
    */
   okx_sl_source: 'attached' | 'position' | 'algo' | null;
+  /**
+   * 장기추세 판단 — 진입 시점에 사람이 고른 중장기 국면. 손 입력 전용, 동기화는 건드리지 않는다.
+   *
+   * 근거 문장 안에 "장기적 상승구간"처럼 묻혀 있던 판단을 칸으로 뽑은 것이다. 방향과 견주면
+   * 역추세 진입이 드러나고, 자동매매로 옮길 때 "허용 방향" 필터의 입력이 된다(docs/rationale).
+   */
+  trend: Trend | null;
   /** 시트의 `기준` — 진입 셋업 */
   setup: string | null;
   /** 시트의 `근거` */
@@ -444,6 +453,28 @@ export const RESULT_LABEL: Record<TradeResult, string> = {
   be: '본전',
   open: '보유중',
 };
+
+/** 화면에 뜨는 순서 — 원문의 순서 그대로(상승·하락·기간조정). */
+export const TRENDS: Trend[] = ['up', 'down', 'range'];
+
+export const TREND_LABEL: Record<Trend, string> = {
+  up: '상승추세',
+  down: '하락추세',
+  range: '기간조정',
+};
+
+export function isTrend(value: string): value is Trend {
+  return (TRENDS as string[]).includes(value);
+}
+
+/**
+ * 역추세 — 장기추세 판단과 반대 방향의 진입. 기간조정은 방향 제한이 없다.
+ *
+ * 판단이 비어 있으면 false 다 — "모른다"를 "역추세"로 세면 미기재 거래가 전부 경고로 잡힌다.
+ */
+export function isCounterTrend(trend: Trend | null, side: Side): boolean {
+  return (trend === 'up' && side === 'short') || (trend === 'down' && side === 'long');
+}
 
 export const CAPTURE_KIND_LABEL: Record<CaptureKind, string> = {
   position: '포지션 종료',

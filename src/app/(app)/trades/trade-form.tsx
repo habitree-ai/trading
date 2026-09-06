@@ -4,7 +4,7 @@ import { useActionState, useState } from "react";
 import { useFormStatus } from "react-dom";
 
 import { createTrade, updateTrade, type TradeFormState } from "@/app/(app)/trades/actions";
-import type { Trade } from "@/lib/domain";
+import { TREND_LABEL, TRENDS, type Trade } from "@/lib/domain";
 import type { Prefill } from "@/lib/extract/to-prefill";
 import type { ExtractedFill } from "@/lib/extract/types";
 import { checkTpSplit } from "@/lib/exit-plan";
@@ -559,6 +559,19 @@ export function TradeForm({
       </Section>
 
       <Section title="복기">
+        <div>
+          <label className={LABEL} htmlFor="f-trend">
+            장기추세 <span className="ml-1 text-dim/70">진입 때의 중장기 판단</span>
+          </label>
+          <select id="f-trend" name="trend" defaultValue={v("trend")} className={INPUT}>
+            <option value="">미기재</option>
+            {TRENDS.map((t) => (
+              <option key={t} value={t}>
+                {TREND_LABEL[t]}
+              </option>
+            ))}
+          </select>
+        </div>
         <SuggestField
           name="setup"
           label="기준 (셋업)"

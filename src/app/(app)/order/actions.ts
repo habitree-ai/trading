@@ -12,6 +12,7 @@ import {
 } from "@/lib/annotations";
 import {
   isPositionKind,
+  isTrend,
   type AnnotationColor,
   type AnnotationKind,
   type AnnotationLineStyle,
@@ -155,6 +156,8 @@ export async function placeManualOrder(
   ];
   const notionalUsd = parseNumber(formData.get("notional_usd"));
   const leverage = parseNumber(formData.get("leverage"));
+  const trendRaw = parseText(formData.get("trend"));
+  const trend = isTrend(trendRaw) ? trendRaw : null;
   const setup = parseText(formData.get("setup"));
   const rationale = parseText(formData.get("rationale"));
   const emotion = parseText(formData.get("emotion"));
@@ -184,7 +187,7 @@ export async function placeManualOrder(
 
     const minNotional = inst.minSz * inst.ctVal * px;
     const gate = planGate(
-      { side, price: px, stop, targets, notionalUsd, leverage, setup, rationale },
+      { side, price: px, stop, targets, notionalUsd, leverage, trend, setup, rationale },
       { minNotional },
     );
     if (!gateOpen(gate)) {
@@ -253,6 +256,7 @@ export async function placeManualOrder(
           tp1_price: targets[0],
           tp2_price: targets[1],
           tp3_price: targets[2],
+          trend,
           setup,
           rationale,
           emotion: emotion === "" ? null : emotion,

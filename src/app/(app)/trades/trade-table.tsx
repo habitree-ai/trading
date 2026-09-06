@@ -7,7 +7,7 @@ import { deleteTrade, updateTradeTargets } from "@/app/(app)/trades/actions";
 import { ExitPlanLines } from "@/components/exit-plan";
 import { TradeChart } from "@/components/trade-chart";
 import { TradesOverviewChart } from "@/components/trades-overview-chart";
-import { RESULT_LABEL, SIDE_LABEL, type TradeFill, type TradeResult } from "@/lib/domain";
+import { isCounterTrend, RESULT_LABEL, SIDE_LABEL, TREND_LABEL, type TradeFill, type TradeResult } from "@/lib/domain";
 import { activeTargetPrices, summarizeExits } from "@/lib/exit-plan";
 import { DASH, dateTime, num, pct, pnlClass, signed, signedPct } from "@/lib/format";
 import type { TradeDerived } from "@/lib/metrics";
@@ -248,6 +248,18 @@ export function TradeTable({
                   <span className={trade.side === "long" ? "text-profit" : "text-loss"}>
                     {SIDE_LABEL[trade.side]}
                   </span>
+                  {/* 장기추세 판단 — 방향 아래. 판단과 반대면 노랑(역추세), 미기재면 아무것도 없다. */}
+                  {trade.trend !== null ? (
+                    <span
+                      title={isCounterTrend(trade.trend, trade.side) ? "역추세 — 장기추세 판단과 반대 방향" : "장기추세 판단"}
+                      className={`mt-0.5 block whitespace-nowrap text-[10px] ${
+                        isCounterTrend(trade.trend, trade.side) ? "text-beta" : "text-dim"
+                      }`}
+                    >
+                      {TREND_LABEL[trade.trend]}
+                      {isCounterTrend(trade.trend, trade.side) ? " · 역" : ""}
+                    </span>
+                  ) : null}
                 </td>
                 <td className="px-2 py-1.5 font-medium">{trade.symbol}</td>
                 <FillCell price={trade.entry_price} at={trade.entry_at} />

@@ -1035,6 +1035,7 @@ export type Database = {
           tp2_price: number | null
           tp3_pct: number | null
           tp3_price: number | null
+          trend: Database["public"]["Enums"]["trend_regime"] | null
           unrealized_pnl: number | null
           updated_at: string
           user_id: string
@@ -1077,6 +1078,7 @@ export type Database = {
           tp2_price?: number | null
           tp3_pct?: number | null
           tp3_price?: number | null
+          trend?: Database["public"]["Enums"]["trend_regime"] | null
           unrealized_pnl?: number | null
           updated_at?: string
           user_id: string
@@ -1119,6 +1121,7 @@ export type Database = {
           tp2_price?: number | null
           tp3_pct?: number | null
           tp3_price?: number | null
+          trend?: Database["public"]["Enums"]["trend_regime"] | null
           unrealized_pnl?: number | null
           updated_at?: string
           user_id?: string
@@ -1196,6 +1199,7 @@ export type Database = {
       system_mode: "paper" | "demo" | "live" | "cand" | "ens" | "swing" | "manual"
       trade_result: "win" | "loss" | "be" | "open"
       trade_side: "long" | "short"
+      trend_regime: "up" | "down" | "range"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -1353,6 +1357,7 @@ export const Constants = {
       system_mode: ["paper", "demo", "live", "cand", "ens", "swing", "manual"],
       trade_result: ["win", "loss", "be", "open"],
       trade_side: ["long", "short"],
+      trend_regime: ["up", "down", "range"],
     },
   },
 } as const

@@ -12,6 +12,7 @@ import type { PnlBar } from "@/components/charts";
 import { EmptyBook } from "@/components/empty-book";
 import { RationaleAlert } from "@/components/rationale-alert";
 import { StatTile } from "@/components/stat-tile";
+import { TREND_LABEL, type Trade, type Trend } from "@/lib/domain";
 import { loadBenchmark } from "@/lib/benchmark";
 import { date, dateTime, num, pct, pnlClass, signed, signedPct, DASH } from "@/lib/format";
 import {
@@ -84,6 +85,10 @@ export default async function DashboardPage() {
   const derived = deriveTrades(book, trades, flows);
   const m = computeMetrics(book, derived, flows);
   const summary = summarizePerformance(book, derived, flows);
+  // 장기추세 — 따로 설정하는 값이 아니라 가장 최근에 적은 거래의 판단이 "지금 무엇으로 보는가"다.
+  const latestTrend = trades
+    .filter((t): t is Trade & { trend: Trend } => t.trend !== null)
+    .sort((a, b) => Date.parse(b.entry_at) - Date.parse(a.entry_at))[0] ?? null;
   // 축이 좁아 키를 그대로 찍으면 겹친다 — 일별은 연도를 떼고 `07-28`로 줄인다.
   const toBars = (keyFn: (iso: string) => string, short: boolean): PnlBar[] =>
     bucketBy(derived, keyFn).map((b) => ({ ...b, label: short ? b.key.slice(5) : b.key }));
@@ -201,6 +206,12 @@ export default async function DashboardPage() {
             {book.name} · {book.exchange ?? "거래소 미지정"} · {book.base_currency}
             {book.exchange_account_id ? (
               <> · 마지막 동기화 {lastSync ? dateTime(lastSync.started_at) : "없음"}</>
+            ) : null}
+            {latestTrend ? (
+              <>
+                {" · "}장기추세 <b className="text-text">{TREND_LABEL[latestTrend.trend]}</b>
+                <span className="text-dim/70"> (#{latestTrend.seq} {date(latestTrend.entry_at)} 판단)</span>
+              </>
             ) : null}
           </p>
         </div>

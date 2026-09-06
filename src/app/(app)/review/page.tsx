@@ -1,6 +1,6 @@
 import { EmptyBook } from "@/components/empty-book";
 import { StatTile } from "@/components/stat-tile";
-import { PRINCIPLE_CATEGORY_LABEL, SIDE_LABEL, type Side } from "@/lib/domain";
+import { PRINCIPLE_CATEGORY_LABEL, SIDE_LABEL, TREND_LABEL, type Side, type Trend } from "@/lib/domain";
 import { DASH, num, pct, pnlClass, signed, signedPct } from "@/lib/format";
 import {
   computeMetrics,
@@ -20,6 +20,7 @@ import {
 import { readKelly, readKellyFit, RELIABLE_SAMPLE, TONE_CLASS } from "@/lib/verdict";
 
 const LENSES = [
+  { field: "trend", title: "장기추세별", hint: "진입 때의 중장기 판단 — 어느 국면에서 버는가. 역추세는 방향별과 겹쳐 본다" },
   { field: "emotion", title: "감정별", hint: "시트의 `감정` 칸 — 무너지는 지점을 찾는다" },
   { field: "setup", title: "기준(셋업)별", hint: "시트의 `기준` 칸 — 어떤 셋업이 돈을 버는가" },
   { field: "rationale", title: "근거별", hint: "시트의 `근거` 칸" },
@@ -138,7 +139,9 @@ export default async function ReviewPage() {
                 formatKey={
                   lens.field === "side"
                     ? (k) => SIDE_LABEL[k as Side] ?? k
-                    : undefined
+                    : lens.field === "trend"
+                      ? (k) => TREND_LABEL[k as Trend] ?? k
+                      : undefined
                 }
               />
             ))}

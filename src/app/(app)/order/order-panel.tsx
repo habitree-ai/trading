@@ -8,7 +8,7 @@ import { OrderChart } from "@/app/(app)/order/order-chart";
 import type { OrderAccountStatus } from "@/app/(app)/order/status";
 import { DRAW_TOOLS, DrawToolbar, useDrawingBoard } from "@/components/drawing-board";
 import { formatLevel } from "@/lib/annotation-levels";
-import { isPositionKind, type Side } from "@/lib/domain";
+import { isCounterTrend, isPositionKind, TREND_LABEL, TRENDS, type Side, type Trend } from "@/lib/domain";
 import { num, pct } from "@/lib/format";
 import {
   MAX_LEVERAGE,
@@ -119,6 +119,7 @@ export function OrderPanel({
 
   /* ---------- 폼 ---------- */
   const [side, setSide] = useState<Side>("long");
+  const [trend, setTrend] = useState<Trend | null>(null);
   const [notional, setNotional] = useState("");
   const [leverage, setLeverage] = useState("10");
   const [stop, setStop] = useState("");
@@ -178,10 +179,11 @@ export function OrderPanel({
       targets: tps.map(numOf),
       notionalUsd: numOf(notional),
       leverage: numOf(leverage),
+      trend,
       setup,
       rationale,
     }),
-    [side, price, stop, tps, notional, leverage, setup, rationale],
+    [side, price, stop, tps, notional, leverage, trend, setup, rationale],
   );
   const minNotional = market ? market.minSz * market.ctVal * market.last : null;
   const gate = useMemo(() => planGate(plan, { minNotional }), [plan, minNotional]);
@@ -221,6 +223,7 @@ export function OrderPanel({
         fd.set("tp1_price", tps[0]);
         fd.set("tp2_price", tps[1]);
         fd.set("tp3_price", tps[2]);
+        fd.set("trend", trend ?? "");
         fd.set("setup", setup);
         fd.set("rationale", rationale);
         fd.set("emotion", emotion);
@@ -350,6 +353,31 @@ export function OrderPanel({
                 </button>
               ))}
             </div>
+          </div>
+
+          {/* 장기추세 — 방향 바로 아래. 판단과 반대로 들어가면 그 자리에서 보인다. */}
+          <div>
+            <span className={LABEL}>
+              장기추세 * <span className="text-dim/70">중장기 국면 — 고점·저점 갱신 방향</span>
+            </span>
+            <div className="flex gap-2">
+              {TRENDS.map((t) => (
+                <button
+                  key={t}
+                  type="button"
+                  onClick={() => setTrend(t)}
+                  aria-pressed={trend === t}
+                  className={`flex-1 rounded-lg border px-3 py-2 text-center text-sm ${
+                    trend === t ? "border-accent text-accent" : "border-border text-dim"
+                  }`}
+                >
+                  {TREND_LABEL[t]}
+                </button>
+              ))}
+            </div>
+            {isCounterTrend(trend, side) ? (
+              <p className="mt-1 text-[11px] text-beta">역추세 — {TREND_LABEL[trend as Trend]} 판단과 반대 방향입니다. 거래에 그대로 남습니다.</p>
+            ) : null}
           </div>
 
           <div className="grid grid-cols-2 gap-2">

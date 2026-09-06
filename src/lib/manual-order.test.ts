@@ -63,6 +63,7 @@ const base: OrderPlan = {
   targets: [102_000, null, null],
   notionalUsd: 1000,
   leverage: 10,
+  trend: 'up',
   setup: '4H 지지 되돌림',
   rationale: '4시간봉 지지선 되돌림에서 거래량 실림, RSI 30 반등',
 };
@@ -70,8 +71,22 @@ const base: OrderPlan = {
 describe('planGate', () => {
   it('다 채운 롱 계획은 전부 열린다', () => {
     const items = planGate(base, { minNotional: 10 });
-    expect(items.map((g) => g.ok)).toEqual([true, true, true, true, true]);
+    expect(items.map((g) => g.ok)).toEqual([true, true, true, true, true, true]);
     expect(gateOpen(items)).toBe(true);
+  });
+
+  it('장기추세를 고르지 않으면 닫힌다', () => {
+    const items = planGate({ ...base, trend: null }, { minNotional: null });
+    expect(items.find((g) => g.key === 'trend')!.ok).toBe(false);
+    expect(gateOpen(items)).toBe(false);
+  });
+
+  it('역추세는 막지 않고 항목 설명에 적는다', () => {
+    const short = { ...base, side: 'short' as const, stop: 101_000, targets: [98_000, null, null] };
+    const item = planGate(short, { minNotional: null }).find((g) => g.key === 'trend')!;
+    expect(item.ok).toBe(true);
+    expect(item.detail).toBe('상승추세 — 판단과 반대 방향(역추세)');
+    expect(planGate({ ...short, trend: 'range' }, { minNotional: null }).find((g) => g.key === 'trend')!.detail).toBe('기간조정');
   });
 
   it('근거가 20자 미만이면 닫힌다', () => {
@@ -188,6 +203,7 @@ function trade(partial: Partial<Trade> = {}): Trade {
     okx_stop_price: null,
     okx_tp_price: null,
     okx_sl_source: null,
+    trend: null,
     setup: null,
     rationale: null,
     review: null,
