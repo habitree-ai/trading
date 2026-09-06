@@ -123,9 +123,18 @@ export function TradeTable({
 
   const SELECT =
     "rounded-lg border border-border bg-surface px-2 py-1 text-xs outline-none focus:border-accent";
+  /**
+   * 행 동작 버튼 — 셋을 한 테두리 안에 붙여 링크 글자보다 먼저 눈에 들어오게. 켜진 것은 채운다.
+   * 라벨은 바꾸지 않는다("차트 닫기"로 늘리면 열이 넓어져 1536px 화면에서 표가 넘친다).
+   */
+  const ACTION = "px-1.5 py-1 text-xs whitespace-nowrap";
+  const ACTION_OFF = `${ACTION} text-accent hover:bg-surface-2`;
+  const ACTION_ON = `${ACTION} bg-accent text-white`;
 
   const columns = [
     "순번",
+    // 차트·복기·수정 — 행마다 가장 자주 누르는 셋을 순번 옆에 둔다. 삭제는 끝 열에 따로.
+    "",
     "방향",
     "종목",
     "진입 (가격 · 시각)",
@@ -223,7 +232,7 @@ export function TradeTable({
             <tr>
               {columns.map((h, i) => (
                 <th
-                  key={h}
+                  key={i}
                   className={`px-2 py-1.5 text-left font-medium whitespace-nowrap ${
                     i === 0 ? "pin-col" : ""
                   }`}
@@ -242,8 +251,44 @@ export function TradeTable({
               return (
               <Fragment key={trade.id}>
                 {/* id 는 전체 차트의 화살표가 이 행으로 스크롤할 때 쓴다. */}
-                <tr id={`trade-${trade.id}`} className="border-t border-border hover:bg-surface-2/60">
+                {/* 차트를 편 행은 배경을 밝혀 아래 펼쳐진 차트와 짝이 보이게 한다. */}
+                <tr
+                  id={`trade-${trade.id}`}
+                  className={`border-t border-border hover:bg-surface-2/60 ${
+                    openChart === trade.id ? "bg-surface-2/60" : ""
+                  }`}
+                >
                 <td className="tnum pin-col px-2 py-1.5 text-dim">{trade.seq}</td>
+                <td className="px-2 py-1.5">
+                  <div className="inline-flex overflow-hidden rounded-md border border-border divide-x divide-border">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setReplayFor(null);
+                        setOpenChart((id) => (id === trade.id ? null : trade.id));
+                      }}
+                      className={openChart === trade.id ? ACTION_ON : ACTION_OFF}
+                      aria-expanded={openChart === trade.id}
+                      title={openChart === trade.id ? "차트 닫기" : "이 거래의 차트를 아래에 폅니다"}
+                    >
+                      차트
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setReplayFor(trade.id);
+                        setOpenChart(trade.id);
+                      }}
+                      className={openChart === trade.id && replayFor === trade.id ? ACTION_ON : ACTION_OFF}
+                      title="진입 봉부터 한 봉씩 다시 봅니다"
+                    >
+                      복기
+                    </button>
+                    <Link href={`/trades/${trade.id}`} className={ACTION_OFF}>
+                      수정
+                    </Link>
+                  </div>
+                </td>
                 <td className="px-2 py-1.5">
                   <span className={trade.side === "long" ? "text-profit" : "text-loss"}>
                     {SIDE_LABEL[trade.side]}
@@ -388,32 +433,8 @@ export function TradeTable({
                 <td className={`tnum px-2 py-1.5 ${drawdownPct < 0 ? "text-loss" : "text-dim"}`}>
                   {pct(drawdownPct)}
                 </td>
+                {/* 삭제만 끝에 따로, 작고 흐리게 — 자주 누르는 셋과 한 줄에 두지 않는다. */}
                 <td className="px-2 py-1.5 whitespace-nowrap">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setReplayFor(null);
-                      setOpenChart((id) => (id === trade.id ? null : trade.id));
-                    }}
-                    className={`text-xs ${openChart === trade.id ? "text-text" : "text-accent"}`}
-                    aria-expanded={openChart === trade.id}
-                  >
-                    {openChart === trade.id ? "차트 닫기" : "차트"}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setReplayFor(trade.id);
-                      setOpenChart(trade.id);
-                    }}
-                    className="ml-2 text-xs text-accent"
-                    title="진입 봉부터 한 봉씩 다시 봅니다"
-                  >
-                    복기
-                  </button>
-                  <Link href={`/trades/${trade.id}`} className="ml-2 text-xs text-accent">
-                    수정
-                  </Link>
                   <button
                     type="button"
                     disabled={pending}
@@ -423,7 +444,7 @@ export function TradeTable({
                       );
                       if (ok) startTransition(() => void deleteTrade(trade.id));
                     }}
-                    className="ml-2 text-xs text-loss disabled:opacity-50"
+                    className="text-[11px] text-loss/70 hover:text-loss disabled:opacity-50"
                   >
                     삭제
                   </button>
