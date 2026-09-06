@@ -27,6 +27,9 @@ function parseText(value: unknown): string | null {
   return trimmed === "" ? null : trimmed;
 }
 
+/** 메모의 소유자 — 거래 또는 일반 기록, 둘 중 하나. */
+export type AnnotationOwner = { tradeId: string; noteId?: undefined } | { noteId: string; tradeId?: undefined };
+
 /**
  * 차트 메모를 남긴다.
  *
@@ -35,14 +38,14 @@ function parseText(value: unknown): string | null {
  * 없는 Postgres 메시지만 남는다.
  */
 export async function createAnnotation(input: {
-  tradeId: string;
+  owner: AnnotationOwner;
   kind: string;
   points: unknown;
   text: string | null;
   color: string;
 }): Promise<CreateResult> {
-  const { tradeId, kind, color } = input;
-  if (!tradeId) return { error: "거래를 찾을 수 없습니다." };
+  const { owner, kind, color } = input;
+  if (!owner.tradeId && !owner.noteId) return { error: "메모를 붙일 기록을 찾을 수 없습니다." };
   if (!isAnnotationKind(kind)) return { error: "알 수 없는 메모 종류입니다." };
   if (!isAnnotationColor(color)) return { error: "알 수 없는 색입니다." };
 
@@ -65,7 +68,8 @@ export async function createAnnotation(input: {
   const { data, error } = await supabase
     .from("trade_annotations")
     .insert({
-      trade_id: tradeId,
+      trade_id: owner.tradeId ?? null,
+      note_id: owner.noteId ?? null,
       user_id: user.id,
       kind,
       points: stored,
@@ -89,14 +93,15 @@ export async function createAnnotation(input: {
 export async function restoreAnnotation(
   annotation: TradeAnnotation,
 ): Promise<AnnotationResult> {
-  const { id, trade_id: tradeId, kind, points, text, color, locked } = annotation;
-  if (!id || !tradeId) return { error: "되살릴 메모를 읽지 못했습니다." };
+  const { id, trade_id: tradeId, note_id: noteId, kind, points, text, color, locked } = annotation;
+  if (!id || (!tradeId && !noteId)) return { error: "되살릴 메모를 읽지 못했습니다." };
   if (parsePoints(points, kind) === null) return { error: "좌표를 읽지 못했습니다." };
 
   const { supabase, user } = await requireUser();
   const { error } = await supabase.from("trade_annotations").insert({
     id,
-    trade_id: tradeId,
+    trade_id: tradeId ?? null,
+    note_id: noteId ?? null,
     user_id: user.id,
     kind,
     points: points.map((point) => ({ t: point.t, p: point.p })),

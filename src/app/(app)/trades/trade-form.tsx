@@ -72,9 +72,10 @@ function readTpPrices(form: HTMLFormElement): (number | null)[] {
 }
 
 // 항목 수가 많아 한 화면에 담기려면 칸이 얇아야 한다 — 패딩을 줄이고 넓은 화면은 4열로 편다.
-const INPUT =
+// 기록 추가(journal-form)도 같은 칸·칩·묶음을 쓴다 — 두 화면의 감정 칩이 같은 모양이어야 한다.
+export const INPUT =
   "w-full rounded-lg border border-border bg-bg px-2.5 py-1.5 text-sm outline-none focus:border-accent";
-const LABEL = "block text-xs text-dim mb-1";
+export const LABEL = "block text-xs text-dim mb-1";
 /** TP 비중 칸 — 폭을 따로 주므로 w-full 이 없다. */
 const SHARE_INPUT =
   "tnum rounded-lg border border-border bg-bg px-2.5 py-1.5 text-sm outline-none focus:border-accent";
@@ -123,7 +124,7 @@ const CHIP_LIMIT = 8;
  * 복기 분석은 같은 문자열끼리 묶어 센다. "불안"과 "불안함"이 다른 줄로 갈리지 않으려면
  * 새로 치는 것보다 골라 넣는 편이 낫다. 자동완성 목록은 칩에 없는 값까지 담는다.
  */
-function SuggestField({
+export function SuggestField({
   name,
   label,
   hint,
@@ -184,7 +185,7 @@ function SuggestField({
  * 골라 넣을 때 비어 있으면 그대로 두고, 이미 적은 게 있으면 줄을 바꿔 덧붙인다 —
  * 쓰던 글이 조용히 지워지면 안 된다.
  */
-function SuggestTextarea({
+export function SuggestTextarea({
   name,
   label,
   rows,
@@ -237,7 +238,7 @@ function SuggestTextarea({
   );
 }
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+export function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <fieldset className="rounded-xl border border-border bg-surface p-3">
       <legend className="px-1 text-xs font-medium text-dim">{title}</legend>
@@ -246,7 +247,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
-function Submit({ label }: { label: string }) {
+export function Submit({ label }: { label: string }) {
   const { pending } = useFormStatus();
   return (
     <button

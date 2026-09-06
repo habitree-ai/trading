@@ -161,6 +161,7 @@ export function useDrawingBoard(): DrawingBoard {
       // 서버에 없는 도형이라 id는 화면에서 만든다 — 되돌리기가 이 id로 짚는다.
       id: crypto.randomUUID(),
       trade_id: "",
+      note_id: null,
       user_id: "",
       kind,
       points: normalizePoints(kind, points),

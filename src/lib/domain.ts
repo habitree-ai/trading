@@ -213,7 +213,14 @@ export interface ChartPoint {
 
 export interface TradeAnnotation {
   id: string;
-  trade_id: string;
+  /**
+   * 소유자 — 거래 또는 일반 기록, 둘 중 하나만 있다.
+   *
+   * 일반 기록의 종목 차트에 그린 도형도 같은 표에 산다(0027). 4분할 차트의 세션 메모는
+   * DB 에 없어 둘 다 비어 있을 수 있다.
+   */
+  trade_id: string | null;
+  note_id: string | null;
   user_id: string;
   kind: AnnotationKind;
   /**
@@ -474,6 +481,25 @@ export function isTrend(value: string): value is Trend {
  */
 export function isCounterTrend(trend: Trend | null, side: Side): boolean {
   return (trend === 'up' && side === 'short') || (trend === 'down' && side === 'long');
+}
+
+/**
+ * 일반 기록 — 포지션과 무관한 관찰·감정 메모(REQ-0048).
+ *
+ * 기록은 두 가지뿐이다. 포지션에 대한 기록은 거래 행(근거·복기·감정)에 직접 적고, 포지션이
+ * 없는 기록은 여기에 적는다. 종목은 선택이다 — 없으면 시장 전체나 나 자신에 대한 메모다.
+ */
+export interface JournalNote {
+  id: string;
+  book_id: string;
+  user_id: string;
+  /** 기초자산 티커('BTC'). 종목이 없는 기록이면 null */
+  symbol: string | null;
+  body: string;
+  /** 거래의 `emotion` 과 같은 어휘 — 칩도 같이 쓴다 */
+  emotion: string | null;
+  created_at: string;
+  updated_at: string;
 }
 
 export const CAPTURE_KIND_LABEL: Record<CaptureKind, string> = {

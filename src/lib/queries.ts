@@ -9,6 +9,7 @@ import type {
   CashFlow,
   ExchangeAccount,
   Goal,
+  JournalNote,
   Principle,
   ResearchHeadline,
   ResearchNote,
@@ -127,17 +128,30 @@ export interface FieldSuggestions {
  */
 export async function listFieldSuggestions(bookId: string): Promise<FieldSuggestions> {
   const { supabase } = await requireUser();
-  const { data, error } = await supabase
-    .from("trades")
-    .select("setup, rationale, emotion, review")
-    .eq("book_id", bookId)
-    .order("updated_at", { ascending: false })
-    .limit(300);
+  const [{ data, error }, notes] = await Promise.all([
+    supabase
+      .from("trades")
+      .select("setup, rationale, emotion, review")
+      .eq("book_id", bookId)
+      .order("updated_at", { ascending: false })
+      .limit(300),
+    // 일반 기록의 감정도 같은 어휘다 — 두 종류가 같은 칩을 봐야 "불안"이 한 줄로 묶인다.
+    supabase
+      .from("journal_notes")
+      .select("emotion")
+      .eq("book_id", bookId)
+      .order("updated_at", { ascending: false })
+      .limit(300),
+  ]);
   if (error) throw new Error(error.message);
+  if (notes.error) throw new Error(notes.error.message);
 
-  const rank = (key: keyof FieldSuggestions): string[] => {
+  const rank = (
+    key: keyof FieldSuggestions,
+    rows: readonly Partial<Record<keyof FieldSuggestions, string | null>>[] = data,
+  ): string[] => {
     const seen = new Map<string, { count: number; first: number }>();
-    data.forEach((row, i) => {
+    rows.forEach((row, i) => {
       const value = (row[key] ?? "").trim();
       if (!value) return;
       const entry = seen.get(value);
@@ -153,7 +167,7 @@ export async function listFieldSuggestions(bookId: string): Promise<FieldSuggest
   return {
     setup: rank("setup"),
     rationale: rank("rationale"),
-    emotion: rank("emotion"),
+    emotion: rank("emotion", [...data, ...notes.data]),
     review: rank("review"),
   };
 }
@@ -199,6 +213,67 @@ export async function listAnnotations(tradeId: string): Promise<TradeAnnotation[
   return (data as AnnotationRow[])
     .map(toAnnotation)
     .filter((a): a is TradeAnnotation => a !== null);
+}
+
+/** 일반 기록 1건에 남긴 차트 메모 — `listAnnotations` 의 소유자만 다른 짝. */
+export async function listNoteAnnotations(noteId: string): Promise<TradeAnnotation[]> {
+  const { supabase } = await requireUser();
+  const { data, error } = await supabase
+    .from("trade_annotations")
+    .select("*")
+    .eq("note_id", noteId)
+    .order("created_at", { ascending: true });
+  if (error) throw new Error(error.message);
+
+  return (data as AnnotationRow[])
+    .map(toAnnotation)
+    .filter((a): a is TradeAnnotation => a !== null);
+}
+
+/**
+ * 여러 거래·일반 기록의 차트 메모를 한 번에 — 소유자 id 로 묶어 돌려준다.
+ *
+ * 기록 목록이 "차트에 무엇을 적어 뒀는지"를 행마다 보여 주는 용도다. 한 행씩 읽으면
+ * 목록 길이만큼 왕복이 난다.
+ */
+export async function listAnnotationsByOwner(
+  tradeIds: readonly string[],
+  noteIds: readonly string[],
+): Promise<Record<string, TradeAnnotation[]>> {
+  if (tradeIds.length === 0 && noteIds.length === 0) return {};
+  const { supabase } = await requireUser();
+  const filters = [
+    tradeIds.length > 0 ? `trade_id.in.(${tradeIds.join(",")})` : null,
+    noteIds.length > 0 ? `note_id.in.(${noteIds.join(",")})` : null,
+  ].filter((f): f is string => f !== null);
+  const { data, error } = await supabase
+    .from("trade_annotations")
+    .select("*")
+    .or(filters.join(","))
+    .order("created_at", { ascending: true });
+  if (error) throw new Error(error.message);
+
+  const out: Record<string, TradeAnnotation[]> = {};
+  for (const row of data as AnnotationRow[]) {
+    const annotation = toAnnotation(row);
+    if (annotation === null) continue;
+    const owner = annotation.trade_id ?? annotation.note_id;
+    if (owner) (out[owner] ??= []).push(annotation);
+  }
+  return out;
+}
+
+/** 북의 일반 기록 — 최신순. */
+export async function listJournalNotes(bookId: string, limit = 100): Promise<JournalNote[]> {
+  const { supabase } = await requireUser();
+  const { data, error } = await supabase
+    .from("journal_notes")
+    .select("*")
+    .eq("book_id", bookId)
+    .order("created_at", { ascending: false })
+    .limit(limit);
+  if (error) throw new Error(error.message);
+  return data;
 }
 
 /** 북에 잡힌 입금·출금·이체 — 오래된 것부터. 자금 곡선이 시간순으로 이어 붙인다. */

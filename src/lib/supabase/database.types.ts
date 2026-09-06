@@ -496,6 +496,47 @@ export type Database = {
           },
         ]
       }
+      journal_notes: {
+        Row: {
+          body: string
+          book_id: string
+          created_at: string
+          emotion: string | null
+          id: string
+          symbol: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          body: string
+          book_id: string
+          created_at?: string
+          emotion?: string | null
+          id?: string
+          symbol?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          body?: string
+          book_id?: string
+          created_at?: string
+          emotion?: string | null
+          id?: string
+          symbol?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "journal_notes_book_id_fkey"
+            columns: ["book_id"]
+            isOneToOne: false
+            referencedRelation: "books"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       kakao_tokens: {
         Row: {
           access_token: string
@@ -814,9 +855,10 @@ export type Database = {
           line_style: string | null
           line_width: number | null
           locked: boolean
+          note_id: string | null
           points: Json
           text: string | null
-          trade_id: string
+          trade_id: string | null
           updated_at: string
           user_id: string
         }
@@ -828,9 +870,10 @@ export type Database = {
           line_style?: string | null
           line_width?: number | null
           locked?: boolean
+          note_id?: string | null
           points: Json
           text?: string | null
-          trade_id: string
+          trade_id?: string | null
           updated_at?: string
           user_id: string
         }
@@ -842,13 +885,21 @@ export type Database = {
           line_style?: string | null
           line_width?: number | null
           locked?: boolean
+          note_id?: string | null
           points?: Json
           text?: string | null
-          trade_id?: string
+          trade_id?: string | null
           updated_at?: string
           user_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "trade_annotations_note_id_fkey"
+            columns: ["note_id"]
+            isOneToOne: false
+            referencedRelation: "journal_notes"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "trade_annotations_trade_id_fkey"
             columns: ["trade_id"]

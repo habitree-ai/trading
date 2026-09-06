@@ -18,16 +18,8 @@ import {
 } from "lightweight-charts";
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 
-import {
-  createAnnotation,
-  deleteAnnotation,
-  restoreAnnotation,
-  setAnnotationLocked,
-  updateAnnotationPoints,
-  updateAnnotationStyle,
-  updateAnnotationText,
-} from "@/app/(app)/trades/annotation-actions";
 import { AnnotationList } from "@/components/annotation-list";
+import { tradeAnnotationStore, type AnnotationStore } from "@/components/annotation-store";
 import {
   AnnotationPrimitive,
   type AnnotationColorMap,
@@ -82,6 +74,9 @@ const VIEW_LABEL: Record<View, string> = {
 
 /** 아직 들고 있는 거래에서는 자동 보기의 끝이 청산이 아니라 지금이다. */
 const OPEN_VIEW_LABEL: Record<View, string> = { ...VIEW_LABEL, auto: "진입~현재" };
+
+/** 종목 현재 차트(일반 기록) — 진입이 없으니 "최근 구간"이다. */
+const LIVE_VIEW_LABEL: Record<View, string> = { ...VIEW_LABEL, auto: "최근" };
 
 /** 거래 구간 앞뒤로 붙이는 여유 봉 수 — 차트 분석이 되려면 맥락이 있어야 한다. */
 const PAD_BARS = 60;
@@ -223,6 +218,8 @@ interface MeasureState {
 
 export function TradeChart({
   tradeId,
+  store: storeProp,
+  live = false,
   symbol,
   side,
   entryAt,
@@ -236,8 +233,21 @@ export function TradeChart({
   now,
   startInReplay = false,
 }: {
-  /** 메모를 어느 거래에 붙일지 — 차트에서 바로 저장한다 */
-  tradeId: string;
+  /** 메모를 어느 거래에 붙일지 — 차트에서 바로 저장한다. `store` 를 주면 그쪽이 우선이다 */
+  tradeId?: string;
+  /**
+   * 메모 저장 경로 — 일반 기록(저장된 것은 note, 저장 전은 초안)의 차트가 넘긴다.
+   *
+   * 비우면 `tradeId` 의 거래에 저장한다(복기 차트의 원래 동작). 렌더마다 새 객체를 주면
+   * 포인터 처리기가 매번 다시 붙으니, 부르는 쪽이 useMemo 로 고정한다.
+   */
+  store?: AnnotationStore;
+  /**
+   * 종목 현재 차트 — 거래 없이 종목만 본다(일반 기록).
+   *
+   * 진입·청산 표시와 복기(진입 봉부터 되감기)를 숨긴다. `entryAt` 은 구간의 시작일 뿐이다.
+   */
+  live?: boolean;
   symbol: string;
   side: "long" | "short";
   entryAt: string;
@@ -267,6 +277,10 @@ export function TradeChart({
   const entryMs = Date.parse(entryAt);
   const exitMs = exitAt ? Date.parse(exitAt) : null;
   const [tp1, tp2, tp3] = targets;
+  const store = useMemo(
+    () => storeProp ?? tradeAnnotationStore(tradeId ?? ""),
+    [storeProp, tradeId],
+  );
   const [sh1, sh2, sh3] = targetShares;
 
   const hostRef = useRef<HTMLDivElement>(null);
@@ -393,33 +407,24 @@ export function TradeChart({
 
     void (async () => {
       try {
-        const res = await fetch(`/api/trades/${tradeId}/detail`, { cache: "no-store" });
-        const body: unknown = await res.json();
+        const next = await store.load();
         if (!alive) return;
 
-        if (!res.ok) {
-          setDetailError(
-            typeof body === "object" && body !== null && "error" in body
-              ? String((body as { error: unknown }).error)
-              : "차트 자료를 가져오지 못했습니다.",
-          );
-          return;
-        }
-
-        const next = body as { fills: TradeFill[]; annotations: TradeAnnotation[] };
         setDetailError(null);
         // 비어 있으면 상수로 바꿔 둔다 — 위 주석 참고.
         setFills(next.fills.length > 0 ? next.fills : NO_FILLS);
         setAnnotations(next.annotations.length > 0 ? next.annotations : NO_ANNOTATIONS);
-      } catch {
-        if (alive) setDetailError("차트 자료를 가져오지 못했습니다.");
+      } catch (error) {
+        if (alive) {
+          setDetailError(error instanceof Error ? error.message : "차트 자료를 가져오지 못했습니다.");
+        }
       }
     })();
 
     return () => {
       alive = false;
     };
-  }, [tradeId, reload]);
+  }, [store, reload]);
 
   /** 끌어서 옮기는 중인 메모의 새 좌표 — 놓을 때까지 화면에만 반영한다. */
   const [moving, setMoving] = useState<{ id: string; points: ChartPoint[] } | null>(null);
@@ -1098,7 +1103,7 @@ export function TradeChart({
 
       const points = current;
       startSaving(async () => {
-        const result = await updateAnnotationPoints(d.hit.id, points);
+        const result = await store.updatePoints(d.hit.id, points);
         if (result.error) {
           setNoteError(result.error);
         } else {
@@ -1152,7 +1157,7 @@ export function TradeChart({
       window.removeEventListener("pointerup", onUp);
       window.removeEventListener("pointercancel", onUp);
     };
-  }, [tool, annotations, toPoint]);
+  }, [tool, annotations, toPoint, store]);
 
   /**
    * 마지막 손질을 무른다.
@@ -1170,14 +1175,14 @@ export function TradeChart({
 
     startSaving(async () => {
       const result = await (last.type === "create"
-        ? deleteAnnotation(last.id)
+        ? store.remove(last.id)
         : last.type === "delete"
-          ? restoreAnnotation(last.before)
+          ? store.restore(last.before)
           : last.type === "move"
-            ? updateAnnotationPoints(last.id, last.before)
+            ? store.updatePoints(last.id, last.before)
             : last.type === "text"
-              ? updateAnnotationText(last.id, last.before ?? "")
-              : setAnnotationLocked(last.id, last.before));
+              ? store.updateText(last.id, last.before ?? "")
+              : store.setLocked(last.id, last.before));
 
       if (result.error) {
         setNoteError(result.error);
@@ -1271,7 +1276,7 @@ export function TradeChart({
 
       const before = annotations.find((a) => a.id === selected);
       startSaving(async () => {
-        const result = await deleteAnnotation(selected);
+        const result = await store.remove(selected);
         if (result.error) {
           setNoteError(result.error);
           return;
@@ -1284,7 +1289,7 @@ export function TradeChart({
 
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [selected, tool, annotations]);
+  }, [selected, tool, annotations, store]);
 
   // 도구를 켠 동안에는 차트의 드래그 이동을 꺼야 도형을 그릴 수 있다.
   useEffect(() => {
@@ -1337,7 +1342,7 @@ export function TradeChart({
 
     const before = editing;
     startSaving(async () => {
-      const result = await updateAnnotationText(before.id, text);
+      const result = await store.updateText(before.id, text);
       if (result.error) {
         setNoteError(result.error);
         return;
@@ -1372,7 +1377,7 @@ export function TradeChart({
     }
 
     startSaving(async () => {
-      const result = await updateAnnotationPoints(target.id, points);
+      const result = await store.updatePoints(target.id, points);
       if (result.error) {
         setNoteError(result.error);
         return;
@@ -1402,7 +1407,7 @@ export function TradeChart({
       ...(style.lineStyle !== undefined ? { line_style: style.lineStyle } : {}),
     });
     startSaving(async () => {
-      const result = await updateAnnotationStyle(before.id, style);
+      const result = await store.updateStyle(before.id, style);
       if (result.error) setNoteError(result.error);
     });
   };
@@ -1411,7 +1416,7 @@ export function TradeChart({
     if (!editing) return;
     const before = editing;
     startSaving(async () => {
-      const result = await deleteAnnotation(before.id);
+      const result = await store.remove(before.id);
       if (result.error) {
         setNoteError(result.error);
         return;
@@ -1439,8 +1444,7 @@ export function TradeChart({
 
     const kind = pending.kind;
     startSaving(async () => {
-      const result = await createAnnotation({
-        tradeId,
+      const result = await store.create({
         kind,
         points: pending.points,
         text: text === "" ? null : text,
@@ -1487,7 +1491,7 @@ export function TradeChart({
       : null;
   // 복기 중의 '현재'는 지금 보이는 봉이다 — 청산가를 먼저 세우면 결과를 미리 안다.
   const markPrice = replayActive ? lastClose : exitPrice ?? lastClose;
-  const viewLabel = exitAt === null ? OPEN_VIEW_LABEL : VIEW_LABEL;
+  const viewLabel = live ? LIVE_VIEW_LABEL : exitAt === null ? OPEN_VIEW_LABEL : VIEW_LABEL;
   const held =
     markPrice !== null && entryPrice !== null
       ? ((markPrice - entryPrice) / entryPrice) * (side === "long" ? 1 : -1)
@@ -1497,10 +1501,14 @@ export function TradeChart({
     <section className="rounded-xl border border-border bg-surface p-4">
       <div className="flex flex-wrap items-center gap-3">
         <h2 className="text-sm font-medium">
-          당시 차트 <span className="font-normal text-dim">— {symbol}-USDT 무기한 · OKX</span>
+          {live ? "현재 차트" : "당시 차트"}{" "}
+          <span className="font-normal text-dim">— {symbol}-USDT 무기한 · OKX</span>
         </h2>
 
         <div className="ml-auto flex flex-wrap items-center gap-1">
+          {/* 복기(진입 봉부터 되감기)는 거래가 있을 때만 — 종목 차트에는 진입이 없다. */}
+          {live ? null : (
+          <>
           <button
             type="button"
             onClick={() => (replayActive ? setReplayIdx(null) : startReplay())}
@@ -1538,6 +1546,8 @@ export function TradeChart({
               </span>
             </>
           ) : null}
+          </>
+          )}
           <span className="mx-1 w-px self-stretch bg-border" aria-hidden />
           <button
             type="button"
@@ -1608,7 +1618,13 @@ export function TradeChart({
         {view === "auto" ? `${bar} 봉 자동 선택 · ` : ""}
         앞뒤 {padBars}봉 ·{" "}
         {/* 들고 있는 거래는 청산가가 없다 — 마지막 봉의 종가를 지금 값으로 세운다. */}
-        진입 {num(entryPrice)} → {exitAt === null || replayActive ? "현재" : "청산"} {num(markPrice)}
+        {live ? (
+          <>현재 {num(markPrice)}</>
+        ) : (
+          <>
+            진입 {num(entryPrice)} → {exitAt === null || replayActive ? "현재" : "청산"} {num(markPrice)}
+          </>
+        )}
         {held !== null ? (
           <span className={held >= 0 ? "text-profit" : "text-loss"}> ({signed(held * 100, 2)}%)</span>
         ) : null}
@@ -1918,7 +1934,7 @@ export function TradeChart({
 
       {detailError ? <p className="mt-1 text-[11px] text-loss">{detailError}</p> : null}
 
-      <AnnotationList annotations={annotations} onChange={record} />
+      <AnnotationList annotations={annotations} store={store} onChange={record} />
     </section>
   );
 }

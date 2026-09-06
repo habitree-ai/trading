@@ -2,11 +2,7 @@
 
 import { useState, useTransition } from "react";
 
-import {
-  deleteAnnotation,
-  setAnnotationLocked,
-  updateAnnotationText,
-} from "@/app/(app)/trades/annotation-actions";
+import type { AnnotationStore } from "@/components/annotation-store";
 import type { AnnotationChange } from "@/lib/annotation-history";
 import { ANNOTATION_DOT_CLASS } from "@/lib/annotations";
 import { ANNOTATION_KIND_LABEL, isPositionKind, type TradeAnnotation } from "@/lib/domain";
@@ -50,9 +46,12 @@ function priceRange(annotation: TradeAnnotation): string {
  */
 export function AnnotationList({
   annotations,
+  store,
   onChange,
 }: {
   annotations: TradeAnnotation[];
+  /** 저장 경로 — 차트와 같은 것을 받는다. 거래·일반 기록·초안 어디에 사는 메모든 같은 목록이다 */
+  store: AnnotationStore;
   /**
    * 여기서 한 손질도 되돌리기 기록에 남긴다.
    *
@@ -69,7 +68,7 @@ export function AnnotationList({
 
   const save = (annotation: TradeAnnotation) => {
     startTransition(async () => {
-      const result = await updateAnnotationText(annotation.id, draft);
+      const result = await store.updateText(annotation.id, draft);
       if (!result.error) {
         onChange?.({
           type: "text",
@@ -151,7 +150,7 @@ export function AnnotationList({
             }
             onClick={() =>
               startTransition(async () => {
-                const result = await setAnnotationLocked(a.id, !a.locked);
+                const result = await store.setLocked(a.id, !a.locked);
                 if (!result.error) {
                   onChange?.({ type: "lock", id: a.id, kind: a.kind, before: a.locked });
                 }
@@ -166,7 +165,7 @@ export function AnnotationList({
             disabled={pending}
             onClick={() =>
               startTransition(async () => {
-                const result = await deleteAnnotation(a.id);
+                const result = await store.remove(a.id);
                 if (!result.error) onChange?.({ type: "delete", before: a });
               })
             }

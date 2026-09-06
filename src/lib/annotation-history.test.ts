@@ -34,6 +34,7 @@ describe('describeUndo', () => {
   const annotation: TradeAnnotation = {
     id: 'a1',
     trade_id: 't1',
+    note_id: null,
     user_id: 'u1',
     kind: 'rect',
     points: [

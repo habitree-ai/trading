@@ -13,6 +13,7 @@ function row(partial: Partial<AnnotationRow> = {}): AnnotationRow {
   return {
     id: 'a1',
     trade_id: 't1',
+    note_id: null,
     user_id: 'u1',
     kind: 'hline',
     points: [{ t: 1_770_000_000, p: 64_200 }],

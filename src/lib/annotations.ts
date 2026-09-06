@@ -58,7 +58,9 @@ export function parsePoints(raw: unknown, kind: AnnotationKind): ChartPoint[] | 
 /** DB 행의 모양 — 이 모듈이 `Database` 타입에 묶이지 않도록 필요한 칸만 적는다. */
 export interface AnnotationRow {
   id: string;
-  trade_id: string;
+  trade_id: string | null;
+  /** 0027 이후 생긴 칸 — 일반 기록이 소유자일 때. 이전 스냅샷 행에는 없을 수 있다. */
+  note_id?: string | null;
   user_id: string;
   kind: string;
   points: unknown;
@@ -81,6 +83,7 @@ export function toAnnotation(row: AnnotationRow): TradeAnnotation | null {
   return {
     id: row.id,
     trade_id: row.trade_id,
+    note_id: row.note_id ?? null,
     user_id: row.user_id,
     kind: row.kind,
     points,
