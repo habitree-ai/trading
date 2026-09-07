@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
-import { isTrend, type Side, type TradeResult, type Trend } from "@/lib/domain";
+import { isOpenness, isTrend, type Openness, type Side, type TradeResult, type Trend } from "@/lib/domain";
 import { fromLocalInput, keepIfSameMinute } from "@/lib/format";
 import { loadOkxCredentials } from "@/lib/okx/credentials";
 import { syncOkx } from "@/lib/okx/sync";
@@ -87,6 +87,7 @@ function readForm(formData: FormData) {
     tp2_pct: parseNumber(formData.get("tp2_pct")),
     tp3_pct: parseNumber(formData.get("tp3_pct")),
     trend: parseTrend(formData.get("trend")),
+    openness: parseOpenness(formData.get("openness")),
     setup: parseText(formData.get("setup")),
     rationale: parseText(formData.get("rationale")),
     review: parseText(formData.get("review")),
@@ -151,6 +152,11 @@ function parseMarginMode(value: FormDataEntryValue | null): "cross" | "isolated"
 function parseTrend(value: FormDataEntryValue | null): Trend | null {
   const raw = String(value ?? "").trim();
   return isTrend(raw) ? raw : null;
+}
+
+function parseOpenness(value: FormDataEntryValue | null): Openness | null {
+  const raw = String(value ?? "").trim();
+  return isOpenness(raw) ? raw : null;
 }
 
 /** DB의 trades_closed_complete 제약을 UI에서 먼저 걸러 준다. */

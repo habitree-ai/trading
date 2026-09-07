@@ -11,6 +11,7 @@ import {
   parsePoints,
 } from "@/lib/annotations";
 import {
+  isOpenness,
   isPositionKind,
   isTrend,
   type AnnotationColor,
@@ -158,6 +159,8 @@ export async function placeManualOrder(
   const leverage = parseNumber(formData.get("leverage"));
   const trendRaw = parseText(formData.get("trend"));
   const trend = isTrend(trendRaw) ? trendRaw : null;
+  const opennessRaw = parseText(formData.get("openness"));
+  const openness = isOpenness(opennessRaw) ? opennessRaw : null;
   const setup = parseText(formData.get("setup"));
   const rationale = parseText(formData.get("rationale"));
   const emotion = parseText(formData.get("emotion"));
@@ -257,6 +260,7 @@ export async function placeManualOrder(
           tp2_price: targets[1],
           tp3_price: targets[2],
           trend,
+          openness,
           setup,
           rationale,
           emotion: emotion === "" ? null : emotion,

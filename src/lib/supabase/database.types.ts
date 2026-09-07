@@ -1086,6 +1086,7 @@ export type Database = {
           okx_sl_source: Database["public"]["Enums"]["okx_sl_source"] | null
           okx_stop_price: number | null
           okx_tp_price: number | null
+          openness: Database["public"]["Enums"]["market_openness"] | null
           pnl: number | null
           rationale: string | null
           realized_pnl: number | null
@@ -1129,6 +1130,7 @@ export type Database = {
           okx_sl_source?: Database["public"]["Enums"]["okx_sl_source"] | null
           okx_stop_price?: number | null
           okx_tp_price?: number | null
+          openness?: Database["public"]["Enums"]["market_openness"] | null
           pnl?: number | null
           rationale?: string | null
           realized_pnl?: number | null
@@ -1172,6 +1174,7 @@ export type Database = {
           okx_sl_source?: Database["public"]["Enums"]["okx_sl_source"] | null
           okx_stop_price?: number | null
           okx_tp_price?: number | null
+          openness?: Database["public"]["Enums"]["market_openness"] | null
           pnl?: number | null
           rationale?: string | null
           realized_pnl?: number | null
@@ -1253,6 +1256,7 @@ export type Database = {
       goal_period: "week" | "month" | "year"
       goal_tier: "beta" | "alpha"
       margin_mode: "cross" | "isolated"
+      market_openness: "both_open" | "both_closed" | "top_closed" | "bottom_closed"
       okx_sl_source: "attached" | "position" | "algo"
       principle_category: "entry" | "exit" | "risk" | "mental" | "routine"
       research_note_category:
@@ -1410,6 +1414,7 @@ export const Constants = {
       goal_period: ["week", "month", "year"],
       goal_tier: ["beta", "alpha"],
       margin_mode: ["cross", "isolated"],
+      market_openness: ["both_open", "both_closed", "top_closed", "bottom_closed"],
       okx_sl_source: ["attached", "position", "algo"],
       principle_category: ["entry", "exit", "risk", "mental", "routine"],
       research_note_category: [

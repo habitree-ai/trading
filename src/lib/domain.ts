@@ -9,6 +9,8 @@ export type Side = 'long' | 'short';
 export type TradeResult = 'win' | 'loss' | 'be' | 'open';
 /** 진입 시점의 장기추세 판단 — 상승추세 / 하락추세 / 기간조정 */
 export type Trend = 'up' | 'down' | 'range';
+/** 시장 위·아래 열림/닫힘 — 선배님 「질문과 답 2.」의 네 경우(REQ-0050). */
+export type Openness = 'both_open' | 'both_closed' | 'top_closed' | 'bottom_closed';
 export type BookStatus = 'active' | 'closed';
 export type CaptureKind = 'position' | 'chart' | 'balance';
 export type ExtractEngine = 'ocr' | 'ai' | 'manual';
@@ -144,6 +146,13 @@ export interface Trade {
    * 역추세 진입이 드러나고, 자동매매로 옮길 때 "허용 방향" 필터의 입력이 된다(docs/rationale).
    */
   trend: Trend | null;
+  /**
+   * 시장 위·아래 열림/닫힘 — 진입 시점에 사람이 고른 네 경우. 손 입력 전용, 동기화는 건드리지 않는다.
+   *
+   * 장기추세가 고점·저점 갱신 방향을 묻는다면 이 칸은 위·아래 각각이 막혀 있는가를 묻는다. 네 경우가
+   * 모든 조합을 덮지 않아("둘 다 모름" 없음) 근거 게이트 필수가 아니다 — null 은 미기재.
+   */
+  openness: Openness | null;
   /** 시트의 `기준` — 진입 셋업 */
   setup: string | null;
   /** 시트의 `근거` */
@@ -472,6 +481,21 @@ export const TREND_LABEL: Record<Trend, string> = {
 
 export function isTrend(value: string): value is Trend {
   return (TRENDS as string[]).includes(value);
+}
+
+/** 화면에 뜨는 순서 — 원문의 순서 그대로(둘 다 열림 · 둘 다 닫힘 · 위 닫힘 · 아래 닫힘). */
+export const OPENNESSES: Openness[] = ['both_open', 'both_closed', 'top_closed', 'bottom_closed'];
+
+/** 「위 닫힘」은 아래를 모른다는 뜻이고 「아래 닫힘」은 위를 모른다는 뜻이다 — 원문 그대로. */
+export const OPENNESS_LABEL: Record<Openness, string> = {
+  both_open: '위·아래 열림',
+  both_closed: '위·아래 닫힘',
+  top_closed: '위 닫힘',
+  bottom_closed: '아래 닫힘',
+};
+
+export function isOpenness(value: string): value is Openness {
+  return (OPENNESSES as string[]).includes(value);
 }
 
 /**

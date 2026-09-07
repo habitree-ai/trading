@@ -8,7 +8,17 @@ import { OrderChart } from "@/app/(app)/order/order-chart";
 import type { OrderAccountStatus } from "@/app/(app)/order/status";
 import { DRAW_TOOLS, DrawToolbar, useDrawingBoard } from "@/components/drawing-board";
 import { formatLevel } from "@/lib/annotation-levels";
-import { isCounterTrend, isPositionKind, TREND_LABEL, TRENDS, type Side, type Trend } from "@/lib/domain";
+import {
+  isCounterTrend,
+  isPositionKind,
+  OPENNESS_LABEL,
+  OPENNESSES,
+  TREND_LABEL,
+  TRENDS,
+  type Openness,
+  type Side,
+  type Trend,
+} from "@/lib/domain";
 import { num, pct } from "@/lib/format";
 import {
   MAX_LEVERAGE,
@@ -120,6 +130,7 @@ export function OrderPanel({
   /* ---------- 폼 ---------- */
   const [side, setSide] = useState<Side>("long");
   const [trend, setTrend] = useState<Trend | null>(null);
+  const [openness, setOpenness] = useState<Openness | null>(null);
   const [notional, setNotional] = useState("");
   const [leverage, setLeverage] = useState("10");
   const [stop, setStop] = useState("");
@@ -224,6 +235,7 @@ export function OrderPanel({
         fd.set("tp2_price", tps[1]);
         fd.set("tp3_price", tps[2]);
         fd.set("trend", trend ?? "");
+        fd.set("openness", openness ?? "");
         fd.set("setup", setup);
         fd.set("rationale", rationale);
         fd.set("emotion", emotion);
@@ -378,6 +390,28 @@ export function OrderPanel({
             {isCounterTrend(trend, side) ? (
               <p className="mt-1 text-[11px] text-beta">역추세 — {TREND_LABEL[trend as Trend]} 판단과 반대 방향입니다. 거래에 그대로 남습니다.</p>
             ) : null}
+          </div>
+
+          {/* 위·아래 — 추세 아래. 게이트 항목이 아니라 안 골라도 되고, 같은 칩을 다시 누르면 지워진다. */}
+          <div>
+            <span className={LABEL}>
+              위·아래 <span className="text-dim/70">각각 막혀 있는가 — 위 닫힘은 아래를, 아래 닫힘은 위를 모른다는 뜻</span>
+            </span>
+            <div className="flex gap-2">
+              {OPENNESSES.map((o) => (
+                <button
+                  key={o}
+                  type="button"
+                  onClick={() => setOpenness(openness === o ? null : o)}
+                  aria-pressed={openness === o}
+                  className={`flex-1 rounded-lg border px-2 py-2 text-center text-sm ${
+                    openness === o ? "border-accent text-accent" : "border-border text-dim"
+                  }`}
+                >
+                  {OPENNESS_LABEL[o]}
+                </button>
+              ))}
+            </div>
           </div>
 
           <div className="grid grid-cols-2 gap-2">

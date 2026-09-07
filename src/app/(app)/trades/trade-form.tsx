@@ -4,7 +4,7 @@ import { useActionState, useState } from "react";
 import { useFormStatus } from "react-dom";
 
 import { createTrade, updateTrade, type TradeFormState } from "@/app/(app)/trades/actions";
-import { TREND_LABEL, TRENDS, type Trade } from "@/lib/domain";
+import { OPENNESS_LABEL, OPENNESSES, TREND_LABEL, TRENDS, type Trade } from "@/lib/domain";
 import type { Prefill } from "@/lib/extract/to-prefill";
 import type { ExtractedFill } from "@/lib/extract/types";
 import { checkTpSplit } from "@/lib/exit-plan";
@@ -569,6 +569,19 @@ export function TradeForm({
             {TRENDS.map((t) => (
               <option key={t} value={t}>
                 {TREND_LABEL[t]}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label className={LABEL} htmlFor="f-openness">
+            위·아래 <span className="ml-1 text-dim/70">각각 막혀 있었는가</span>
+          </label>
+          <select id="f-openness" name="openness" defaultValue={v("openness")} className={INPUT}>
+            <option value="">미기재</option>
+            {OPENNESSES.map((o) => (
+              <option key={o} value={o}>
+                {OPENNESS_LABEL[o]}
               </option>
             ))}
           </select>

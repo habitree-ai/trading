@@ -959,7 +959,7 @@ export interface GroupPerformance {
 
 export function groupPerformance(
   derived: readonly TradeDerived[],
-  field: 'trend' | 'setup' | 'rationale' | 'emotion' | 'symbol' | 'side',
+  field: 'trend' | 'openness' | 'setup' | 'rationale' | 'emotion' | 'symbol' | 'side',
 ): GroupPerformance[] {
   const map = new Map<string, TradeDerived[]>();
 

@@ -7,7 +7,15 @@ import { deleteTrade, updateTradeTargets } from "@/app/(app)/trades/actions";
 import { ExitPlanLines } from "@/components/exit-plan";
 import { TradeChart } from "@/components/trade-chart";
 import { TradesOverviewChart } from "@/components/trades-overview-chart";
-import { isCounterTrend, RESULT_LABEL, SIDE_LABEL, TREND_LABEL, type TradeFill, type TradeResult } from "@/lib/domain";
+import {
+  isCounterTrend,
+  OPENNESS_LABEL,
+  RESULT_LABEL,
+  SIDE_LABEL,
+  TREND_LABEL,
+  type TradeFill,
+  type TradeResult,
+} from "@/lib/domain";
 import { activeTargetPrices, activeTargetShares, summarizeExits } from "@/lib/exit-plan";
 import { DASH, dateTime, num, pct, pnlClass, signed, signedPct } from "@/lib/format";
 import type { TradeDerived } from "@/lib/metrics";
@@ -303,6 +311,12 @@ export function TradeTable({
                     >
                       {TREND_LABEL[trade.trend]}
                       {isCounterTrend(trade.trend, trade.side) ? " · 역" : ""}
+                    </span>
+                  ) : null}
+                  {/* 위·아래 판단 — 추세 아래 한 줄. 방향과 견주지 않는다(원문에 방향 지침이 없다). */}
+                  {trade.openness !== null ? (
+                    <span title="시장 위·아래 판단" className="mt-0.5 block whitespace-nowrap text-[10px] text-dim">
+                      {OPENNESS_LABEL[trade.openness]}
                     </span>
                   ) : null}
                 </td>

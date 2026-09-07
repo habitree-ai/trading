@@ -40,6 +40,7 @@ function trade(partial: Partial<Trade> = {}): Trade {
     okx_tp_price: null,
     okx_sl_source: null,
     trend: null,
+    openness: null,
     setup: null,
     rationale: null,
     review: null,
