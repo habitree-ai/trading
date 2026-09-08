@@ -6,6 +6,7 @@ import { useState, useTransition } from "react";
 import { BasisLine, EventChip } from "@/app/(app)/trades/new/basis-line";
 import { deleteJournalNote } from "@/app/(app)/trades/new/journal-actions";
 import { NoteChart, PositionChart } from "@/app/(app)/trades/new/journal-charts";
+import { PhotoRow } from "@/components/photos";
 import {
   ANNOTATION_KIND_LABEL,
   RESULT_LABEL,
@@ -193,10 +194,12 @@ export function JournalList({
                       </p>
                     ) : null}
                   </>
-                ) : (
+                ) : entry.note.body ? (
                   <p>{entry.note.body}</p>
-                )}
+                ) : null}
               </div>
+
+              <PhotoRow paths={entry.kind === "position" ? entry.trade.image_paths : entry.note.image_paths} />
 
               <MemoChips annotations={memos} />
 

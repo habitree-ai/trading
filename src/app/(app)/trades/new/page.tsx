@@ -105,6 +105,7 @@ export default async function NewTradePage({
 
       <JournalForm
         bookId={book.id}
+        userId={user.id}
         trades={pickable}
         notesByTrade={notesByTrade}
         fillsByTrade={fillsByTrade}

@@ -8,6 +8,7 @@ import { fromLocalInput, keepIfSameMinute } from "@/lib/format";
 import { loadOkxCredentials } from "@/lib/okx/credentials";
 import { syncOkx } from "@/lib/okx/sync";
 import { resolveSyncTarget } from "@/lib/okx/sync-target";
+import { parseImagePaths } from "@/lib/photos";
 import { getActiveBook, nextSeq, requireUser } from "@/lib/queries";
 
 export interface TradeFormState {
@@ -220,6 +221,7 @@ export async function createTrade(
     .insert({
       ...values,
       entry_at: values.entry_at!,
+      image_paths: parseImagePaths(formData, user.id),
       book_id: bookId,
       user_id: user.id,
       seq: await nextSeq(bookId),
@@ -264,7 +266,7 @@ export async function updateTrade(
 
   const values = readForm(formData);
 
-  const { supabase } = await requireUser();
+  const { supabase, user } = await requireUser();
 
   /*
    * 폼의 진입/종료는 분 단위다 — 그대로 덮어쓰면 시각을 안 바꾼 저장에서도 초가
@@ -287,7 +289,11 @@ export async function updateTrade(
 
   const { error } = await supabase
     .from("trades")
-    .update({ ...values, entry_at: values.entry_at! })
+    .update({
+      ...values,
+      entry_at: values.entry_at!,
+      image_paths: parseImagePaths(formData, user.id),
+    })
     .eq("id", id);
 
   if (error) return { error: error.message };

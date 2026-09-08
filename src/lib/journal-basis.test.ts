@@ -45,6 +45,7 @@ function trade(over: Partial<Trade> = {}): Trade {
     review: null,
     emotion: null,
     note: null,
+    image_paths: [],
     okx_pos_id: null,
     created_at: '2026-09-01T00:00:00Z',
     updated_at: '2026-09-01T00:00:00Z',

@@ -19,6 +19,7 @@ import {
   type ChartPoint,
 } from "@/lib/domain";
 import { diffBasis, fillBasis, parseBasis, snapshotBasis } from "@/lib/journal-basis";
+import { parseImagePaths } from "@/lib/photos";
 import { positionProblemOf } from "@/lib/position-tool";
 import { requireUser } from "@/lib/queries";
 
@@ -51,14 +52,16 @@ export async function savePositionRecord(
   const rationale = parseText(formData.get("rationale"));
   const review = parseText(formData.get("review"));
   const emotion = parseText(formData.get("emotion"));
-  if (rationale === null && review === null && emotion === null) {
-    return { error: "근거·복기·감정 중 하나는 적어 주세요." };
+
+  const { supabase, user } = await requireUser();
+  const image_paths = parseImagePaths(formData, user.id);
+  if (rationale === null && review === null && emotion === null && image_paths.length === 0) {
+    return { error: "근거·복기·감정·사진 중 하나는 남겨 주세요." };
   }
 
-  const { supabase } = await requireUser();
   const { data, error } = await supabase
     .from("trades")
-    .update({ rationale, review, emotion })
+    .update({ rationale, review, emotion, image_paths })
     .eq("id", tradeId)
     .select("seq, symbol")
     .maybeSingle();
@@ -85,11 +88,15 @@ export async function addPositionNote(
   const event = formData.get("event");
   if (!isJournalEvent(event)) return { error: "기준을 골라 주세요." };
   const body = parseText(formData.get("body"));
-  if (body === null) return { error: "기록 내용을 적어 주세요." };
   const emotion = parseText(formData.get("note_emotion"));
   const fillId = parseText(formData.get("fill_id"));
 
   const { supabase, user } = await requireUser();
+  // 찍어 둔 메모가 곧 내용인 기록이 있다 — 사진이 있으면 글은 비어도 된다(0030 제약).
+  const image_paths = parseImagePaths(formData, user.id);
+  if (body === null && image_paths.length === 0) {
+    return { error: "기록 내용을 적거나 사진을 붙여 주세요." };
+  }
   const { data: trade, error: tradeError } = await supabase
     .from("trades")
     .select("*")
@@ -129,8 +136,9 @@ export async function addPositionNote(
     event,
     basis,
     symbol: trade.symbol,
-    body,
+    body: body ?? "",
     emotion,
+    image_paths,
   });
   if (error) return { error: error.message };
 
@@ -225,7 +233,6 @@ export async function createJournalNote(
   if (!bookId) return { error: "북을 먼저 만들어 주세요." };
 
   const body = parseText(formData.get("body"));
-  if (body === null) return { error: "기록 내용을 적어 주세요." };
   const symbol = parseText(formData.get("symbol"))?.toUpperCase() ?? null;
   const emotion = parseText(formData.get("emotion"));
 
@@ -233,9 +240,14 @@ export async function createJournalNote(
   if ("error" in drafts) return { error: drafts.error };
 
   const { supabase, user } = await requireUser();
+  const image_paths = parseImagePaths(formData, user.id);
+  if (body === null && image_paths.length === 0) {
+    return { error: "기록 내용을 적거나 사진을 붙여 주세요." };
+  }
+
   const { data, error } = await supabase
     .from("journal_notes")
-    .insert({ book_id: bookId, user_id: user.id, symbol, body, emotion })
+    .insert({ book_id: bookId, user_id: user.id, symbol, body: body ?? "", emotion, image_paths })
     .select("id")
     .single();
   if (error) return { error: error.message };
@@ -262,7 +274,8 @@ export async function createJournalNote(
 
   revalidatePath("/", "layout");
   const memos = drafts.items.length > 0 ? ` · 차트 메모 ${drafts.items.length}개` : "";
-  return { savedAt: Date.now(), message: `기록을 저장했습니다${memos}.` };
+  const photos = image_paths.length > 0 ? ` · 사진 ${image_paths.length}장` : "";
+  return { savedAt: Date.now(), message: `기록을 저장했습니다${memos}${photos}.` };
 }
 
 export async function deleteJournalNote(id: string): Promise<{ error?: string }> {

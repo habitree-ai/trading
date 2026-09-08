@@ -4,6 +4,7 @@ import { useActionState, useState } from "react";
 import { useFormStatus } from "react-dom";
 
 import { createTrade, updateTrade, type TradeFormState } from "@/app/(app)/trades/actions";
+import { PhotoStrip } from "@/components/photos";
 import { OPENNESS_LABEL, OPENNESSES, TREND_LABEL, TRENDS, type Trade } from "@/lib/domain";
 import type { Prefill } from "@/lib/extract/to-prefill";
 import type { ExtractedFill } from "@/lib/extract/types";
@@ -262,6 +263,7 @@ export function Submit({ label }: { label: string }) {
 
 export function TradeForm({
   bookId,
+  userId,
   trade,
   prefill,
   suspectFields = [],
@@ -270,6 +272,8 @@ export function TradeForm({
   suggestions = NO_SUGGESTIONS,
 }: {
   bookId: string;
+  /** 사진을 올릴 자리 — Storage 경로의 첫 폴더가 곧 권한이다 */
+  userId: string;
   trade?: Trade;
   prefill?: Prefill;
   /** 이 북에서 전에 적었던 기준·근거·감정·복기 — 골라 넣을 선택지. */
@@ -618,6 +622,17 @@ export function TradeForm({
             비고
           </label>
           <input id="f-note" name="note" defaultValue={v("note")} className={INPUT} />
+        </div>
+        <div className="sm:col-span-3 xl:col-span-4">
+          <div className={LABEL}>
+            사진 <span className="ml-1 text-dim/70">찍어 둔 메모·캡쳐를 이 복기에 붙입니다</span>
+          </div>
+          <PhotoStrip
+            name="image_paths"
+            userId={userId}
+            bookId={bookId}
+            initial={trade?.image_paths ?? []}
+          />
         </div>
       </Section>
 

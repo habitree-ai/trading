@@ -46,6 +46,7 @@ function trade(partial: Partial<Trade> = {}): Trade {
     review: null,
     emotion: null,
     note: null,
+    image_paths: [],
     okx_pos_id: null,
     created_at: '2026-09-01T10:00:00+09:00',
     updated_at: '2026-09-01T10:00:00+09:00',

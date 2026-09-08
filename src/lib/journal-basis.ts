@@ -8,9 +8,12 @@ import { activeTargetPrices } from '@/lib/exit-plan';
  * 내용"과 "저장된 변경 내용"이 어긋나지 않는다. DB 도 화면도 모른다 — 순수 함수만.
  */
 
-/** 진입 기록이 있는 거래 — 근거·복기·감정 중 하나라도 적혀 있으면 기록이다. */
+/** 진입 기록이 있는 거래 — 근거·복기·감정 중 하나가 적혀 있거나 사진이 붙어 있으면 기록이다. */
 export function hasPositionRecord(trade: Trade): boolean {
-  return [trade.rationale, trade.review, trade.emotion].some((v) => (v ?? '').trim() !== '');
+  return (
+    [trade.rationale, trade.review, trade.emotion].some((v) => (v ?? '').trim() !== '') ||
+    trade.image_paths.length > 0
+  );
 }
 
 /** 지금 거래 행의 수치를 기준으로 뜬다. 체결·변경은 부르는 쪽이 채운다. */

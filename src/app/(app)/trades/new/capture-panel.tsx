@@ -245,6 +245,7 @@ export function CapturePanel({
       <TradeForm
         key={formKey}
         bookId={bookId}
+        userId={userId}
         prefill={prefill}
         suspectFields={suspect}
         imageIds={attached.map((a) => a.id)}

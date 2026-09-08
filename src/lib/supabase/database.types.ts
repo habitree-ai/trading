@@ -505,6 +505,7 @@ export type Database = {
           emotion: string | null
           event: string | null
           id: string
+          image_paths: string[]
           symbol: string | null
           trade_id: string | null
           updated_at: string
@@ -518,6 +519,7 @@ export type Database = {
           emotion?: string | null
           event?: string | null
           id?: string
+          image_paths?: string[]
           symbol?: string | null
           trade_id?: string | null
           updated_at?: string
@@ -531,6 +533,7 @@ export type Database = {
           emotion?: string | null
           event?: string | null
           id?: string
+          image_paths?: string[]
           symbol?: string | null
           trade_id?: string | null
           updated_at?: string
@@ -1078,6 +1081,7 @@ export type Database = {
           fee: number | null
           funding_fee: number | null
           id: string
+          image_paths: string[]
           leverage: number | null
           margin_mode: Database["public"]["Enums"]["margin_mode"] | null
           note: string | null
@@ -1122,6 +1126,7 @@ export type Database = {
           fee?: number | null
           funding_fee?: number | null
           id?: string
+          image_paths?: string[]
           leverage?: number | null
           margin_mode?: Database["public"]["Enums"]["margin_mode"] | null
           note?: string | null
@@ -1166,6 +1171,7 @@ export type Database = {
           fee?: number | null
           funding_fee?: number | null
           id?: string
+          image_paths?: string[]
           leverage?: number | null
           margin_mode?: Database["public"]["Enums"]["margin_mode"] | null
           note?: string | null

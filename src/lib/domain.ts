@@ -163,6 +163,8 @@ export interface Trade {
   emotion: string | null;
   /** 시트의 `비고` */
   note: string | null;
+  /** 복기에 붙인 사진 — `captures` 버킷 안의 경로들. 비공개 버킷이라 URL 이 아니라 경로다 */
+  image_paths: string[];
   /** OKX 포지션 슬롯 번호 — 종목·방향이 같으면 재사용된다. `exit_at`과 짝이어야 거래 하나를 가리킨다 */
   okx_pos_id: string | null;
   created_at: string;
@@ -570,6 +572,8 @@ export interface JournalNote {
   body: string;
   /** 거래의 `emotion` 과 같은 어휘 — 칩도 같이 쓴다 */
   emotion: string | null;
+  /** 이 기록에 붙인 사진 — `captures` 버킷 안의 경로들. 사진만 있고 내용이 빈 기록도 있다 */
+  image_paths: string[];
   /** 포지션에 붙는 추가 기록이면 그 거래. 일반 기록이면 null */
   trade_id: string | null;
   /** 추가 기록의 기준 종류 — trade_id 와 같이 있거나 같이 없다 */

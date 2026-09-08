@@ -63,7 +63,12 @@ export default async function EditTradePage({ params }: { params: Promise<{ id: 
         </div>
       </section>
 
-      <TradeForm bookId={trade.book_id} trade={trade} suggestions={suggestions} />
+      <TradeForm
+        bookId={trade.book_id}
+        userId={trade.user_id}
+        trade={trade}
+        suggestions={suggestions}
+      />
     </div>
   );
 }

@@ -19,6 +19,7 @@ import {
   SuggestTextarea,
 } from "@/app/(app)/trades/trade-form";
 import { serializeDraftAnnotations } from "@/components/annotation-store";
+import { PhotoRow, PhotoStrip } from "@/components/photos";
 import {
   JOURNAL_EVENT_LABEL,
   JOURNAL_EVENTS,
@@ -122,7 +123,15 @@ function Feedback({ state }: { state: JournalFormState }) {
 }
 
 /** 진입 기록의 칸들 — 저장이 끝나면 부모가 key 를 바꿔 새로 그린다(닫힌 요약으로 돌아간다). */
-function EntryRecordFields({ trade, suggestions }: { trade: Trade; suggestions: FieldSuggestions }) {
+function EntryRecordFields({
+  trade,
+  userId,
+  suggestions,
+}: {
+  trade: Trade;
+  userId: string;
+  suggestions: FieldSuggestions;
+}) {
   const recorded = hasPositionRecord(trade);
   // 아직 안 적은 포지션은 바로 적게 열어 둔다 — 첫 기록의 흐름은 예전과 같아야 한다.
   const [editing, setEditing] = useState(!recorded);
@@ -148,6 +157,7 @@ function EntryRecordFields({ trade, suggestions }: { trade: Trade; suggestions: 
             {trade.emotion}
           </p>
         ) : null}
+        <PhotoRow paths={trade.image_paths} />
         <button
           type="button"
           onClick={() => setEditing(true)}
@@ -182,6 +192,12 @@ function EntryRecordFields({ trade, suggestions }: { trade: Trade; suggestions: 
         defaultValue={trade.emotion ?? ""}
         options={suggestions.emotion}
       />
+      <div className="sm:col-span-3 xl:col-span-4">
+        <div className={LABEL}>
+          사진 <span className="ml-1 text-dim/70">찍어 둔 메모·캡쳐를 이 복기에 붙입니다</span>
+        </div>
+        <PhotoStrip name="image_paths" userId={userId} bookId={trade.book_id} initial={trade.image_paths} />
+      </div>
       <div className="sm:col-span-3 xl:col-span-4 flex items-center gap-3">
         <Submit label="진입 기록 저장" />
         {recorded ? (
@@ -199,13 +215,21 @@ function EntryRecordFields({ trade, suggestions }: { trade: Trade; suggestions: 
  *
  * `/review` 통계와 `/order` 근거 게이트가 이 칸을 본다 — 추가 기록과 섞지 않는다.
  */
-function EntryRecord({ trade, suggestions }: { trade: Trade; suggestions: FieldSuggestions }) {
+function EntryRecord({
+  trade,
+  userId,
+  suggestions,
+}: {
+  trade: Trade;
+  userId: string;
+  suggestions: FieldSuggestions;
+}) {
   const [state, action] = useActionState<JournalFormState, FormData>(savePositionRecord, {});
   return (
     <form action={action}>
       <input type="hidden" name="trade_id" value={trade.id} />
       <Section title={`진입 기록 · ${dateTime(trade.entry_at)}`}>
-        <EntryRecordFields key={state.savedAt ?? 0} trade={trade} suggestions={suggestions} />
+        <EntryRecordFields key={state.savedAt ?? 0} trade={trade} userId={userId} suggestions={suggestions} />
         {state.error || state.message ? (
           <div className="sm:col-span-3 xl:col-span-4">
             <Feedback state={state} />
@@ -231,7 +255,8 @@ function PositionNotes({ notes }: { notes: JournalNote[] }) {
               <span className="rounded border border-beta/40 px-1.5 py-0.5 text-[11px] text-beta">감정 · {note.emotion}</span>
             ) : null}
           </div>
-          <p className="mt-2 text-sm whitespace-pre-wrap">{note.body}</p>
+          {note.body ? <p className="mt-2 text-sm whitespace-pre-wrap">{note.body}</p> : null}
+          <PhotoRow paths={note.image_paths} />
         </li>
       ))}
     </ol>
@@ -253,11 +278,13 @@ const EVENT_HINT: Record<JournalEvent, string> = {
  */
 function NewPositionNoteFields({
   trade,
+  userId,
   notes,
   fills,
   suggestions,
 }: {
   trade: Trade;
+  userId: string;
   notes: JournalNote[];
   fills: TradeFill[];
   suggestions: FieldSuggestions;
@@ -359,9 +386,13 @@ function NewPositionNoteFields({
       />
       <div className="sm:col-span-3 xl:col-span-4">
         <label className={LABEL} htmlFor="f-note-body">
-          기록 내용
+          기록 내용 <span className="ml-1 text-dim/70">사진만 붙여도 됩니다</span>
         </label>
         <textarea id="f-note-body" name="body" rows={3} className={INPUT} />
+      </div>
+      <div className="sm:col-span-3 xl:col-span-4">
+        <div className={LABEL}>사진</div>
+        <PhotoStrip name="image_paths" userId={userId} bookId={trade.book_id} />
       </div>
     </Section>
   );
@@ -369,11 +400,13 @@ function NewPositionNoteFields({
 
 function NewPositionNoteForm({
   trade,
+  userId,
   notes,
   fills,
   suggestions,
 }: {
   trade: Trade;
+  userId: string;
   notes: JournalNote[];
   fills: TradeFill[];
   suggestions: FieldSuggestions;
@@ -382,7 +415,14 @@ function NewPositionNoteForm({
   return (
     <form action={action} className="space-y-3">
       <input type="hidden" name="trade_id" value={trade.id} />
-      <NewPositionNoteFields key={state.savedAt ?? 0} trade={trade} notes={notes} fills={fills} suggestions={suggestions} />
+      <NewPositionNoteFields
+        key={state.savedAt ?? 0}
+        trade={trade}
+        userId={userId}
+        notes={notes}
+        fills={fills}
+        suggestions={suggestions}
+      />
       <div className="flex items-center gap-3">
         <Submit label="기록 추가" />
         <Feedback state={state} />
@@ -399,6 +439,7 @@ function NewPositionNoteForm({
  */
 function PositionPanel({
   trades,
+  userId,
   notesByTrade,
   fillsByTrade,
   suggestions,
@@ -406,6 +447,7 @@ function PositionPanel({
   initialTradeId,
 }: {
   trades: Trade[];
+  userId: string;
   notesByTrade: Record<string, JournalNote[]>;
   fillsByTrade: Record<string, TradeFill[]>;
   suggestions: FieldSuggestions;
@@ -464,10 +506,11 @@ function PositionPanel({
 
       {trade ? (
         <div key={trade.id} className="space-y-3">
-          <EntryRecord trade={trade} suggestions={suggestions} />
+          <EntryRecord trade={trade} userId={userId} suggestions={suggestions} />
           <PositionNotes notes={notesByTrade[trade.id] ?? []} />
           <NewPositionNoteForm
             trade={trade}
+            userId={userId}
             notes={notesByTrade[trade.id] ?? []}
             fills={fillsByTrade[trade.id] ?? []}
             suggestions={suggestions}
@@ -487,12 +530,16 @@ function PositionPanel({
 function FreeRecordFields({
   symbol,
   onSymbolChange,
+  userId,
+  bookId,
   suggestions,
   symbols,
   now,
 }: {
   symbol: string;
   onSymbolChange: (value: string) => void;
+  userId: string;
+  bookId: string;
   suggestions: FieldSuggestions;
   symbols: string[];
   now: number;
@@ -552,9 +599,13 @@ function FreeRecordFields({
         />
         <div className="sm:col-span-3 xl:col-span-4">
           <label className={LABEL} htmlFor="f-body">
-            기록 내용
+            기록 내용 <span className="ml-1 text-dim/70">사진만 붙여도 됩니다</span>
           </label>
           <textarea id="f-body" name="body" rows={4} className={INPUT} />
+        </div>
+        <div className="sm:col-span-3 xl:col-span-4">
+          <div className={LABEL}>사진</div>
+          <PhotoStrip name="image_paths" userId={userId} bookId={bookId} />
         </div>
       </Section>
 
@@ -571,11 +622,13 @@ function FreeRecordFields({
 
 function FreeRecordForm({
   bookId,
+  userId,
   suggestions,
   symbols,
   now,
 }: {
   bookId: string;
+  userId: string;
   suggestions: FieldSuggestions;
   symbols: string[];
   now: number;
@@ -592,6 +645,8 @@ function FreeRecordForm({
         key={state.savedAt ?? 0}
         symbol={symbol}
         onSymbolChange={setSymbol}
+        userId={userId}
+        bookId={bookId}
         suggestions={suggestions}
         symbols={symbols}
         now={now}
@@ -607,6 +662,7 @@ function FreeRecordForm({
 
 export function JournalForm({
   bookId,
+  userId,
   trades,
   notesByTrade,
   fillsByTrade,
@@ -616,6 +672,8 @@ export function JournalForm({
   initialTradeId = null,
 }: {
   bookId: string;
+  /** 사진을 올릴 자리 — Storage 경로의 첫 폴더가 곧 권한이다 */
+  userId: string;
   /** 고를 수 있는 포지션 — 보유중이 먼저, 그다음 최근 청산 순으로 정렬돼 온다 */
   trades: Trade[];
   /** 거래별 추가 기록 — 오래된 것부터 */
@@ -657,6 +715,7 @@ export function JournalForm({
       {kind === "position" ? (
         <PositionPanel
           trades={trades}
+          userId={userId}
           notesByTrade={notesByTrade}
           fillsByTrade={fillsByTrade}
           suggestions={suggestions}
@@ -664,7 +723,13 @@ export function JournalForm({
           initialTradeId={initialTradeId}
         />
       ) : (
-        <FreeRecordForm bookId={bookId} suggestions={suggestions} symbols={symbols} now={now} />
+        <FreeRecordForm
+          bookId={bookId}
+          userId={userId}
+          suggestions={suggestions}
+          symbols={symbols}
+          now={now}
+        />
       )}
     </div>
   );
