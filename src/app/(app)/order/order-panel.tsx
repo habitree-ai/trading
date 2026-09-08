@@ -568,7 +568,7 @@ export function OrderPanel({
             </div>
             <textarea
               id="o-rationale"
-              rows={4}
+              rows={5}
               value={rationale}
               onChange={(e) => setRationale(e.target.value)}
               className={INPUT}

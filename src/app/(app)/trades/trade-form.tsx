@@ -606,7 +606,7 @@ export function TradeForm({
         <SuggestTextarea
           name="rationale"
           label="근거"
-          rows={3}
+          rows={5}
           defaultValue={v("rationale")}
           options={suggestions.rationale}
         />

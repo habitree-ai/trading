@@ -174,7 +174,7 @@ function EntryRecordFields({
       <SuggestTextarea
         name="rationale"
         label="근거"
-        rows={3}
+        rows={5}
         defaultValue={trade.rationale ?? ""}
         options={suggestions.rationale}
       />
