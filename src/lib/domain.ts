@@ -11,6 +11,12 @@ export type TradeResult = 'win' | 'loss' | 'be' | 'open';
 export type Trend = 'up' | 'down' | 'range';
 /** 시장 위·아래 열림/닫힘 — 선배님 「질문과 답 2.」의 네 경우(REQ-0050). */
 export type Openness = 'both_open' | 'both_closed' | 'top_closed' | 'bottom_closed';
+/**
+ * 기준 시계열 — 어느 봉을 보고 판단했는가(REQ-0053).
+ *
+ * 표기는 OKX bar 파라미터·캔들 캐시 파일명(oneway-4H.json)과 같은 형식이라 그대로 보여 준다.
+ */
+export type Timeframe = '15m' | '1H' | '4H' | '1D' | '1W';
 export type BookStatus = 'active' | 'closed';
 export type CaptureKind = 'position' | 'chart' | 'balance';
 export type ExtractEngine = 'ocr' | 'ai' | 'manual';
@@ -153,6 +159,15 @@ export interface Trade {
    * 모든 조합을 덮지 않아("둘 다 모름" 없음) 근거 게이트 필수가 아니다 — null 은 미기재.
    */
   openness: Openness | null;
+  /**
+   * 방향 판단 시계열 — 어느 봉에서 추세와 지지·저항을 봤는가. 손 입력 전용.
+   *
+   * 손절 폭이 그 시계열에 맞는 폭이었는지를 판정하는 기준이 된다 — 4시간봉으로 방향을
+   * 봤다면 손절은 그 봉의 ATR 바깥에 있어야 한다(docs/repeatable §2.1).
+   */
+  timeframe_bias: Timeframe | null;
+  /** 진입 시계열 — 어느 봉에서 타이밍을 잡았는가. 보유 시간의 적정선을 판정하는 기준. */
+  timeframe_entry: Timeframe | null;
   /** 시트의 `기준` — 진입 셋업 */
   setup: string | null;
   /** 시트의 `근거` */
@@ -498,6 +513,33 @@ export const OPENNESS_LABEL: Record<Openness, string> = {
 
 export function isOpenness(value: string): value is Openness {
   return (OPENNESSES as string[]).includes(value);
+}
+
+/**
+ * 방향은 진입보다 크거나 같은 시계열에서 본다 — DB 의 CHECK 제약과 같은 목록이다.
+ * 두 목록이 어긋나면 화면에서 고를 수 있는 값이 저장에서 거부된다.
+ */
+export const BIAS_TIMEFRAMES: Timeframe[] = ['4H', '1D', '1W'];
+export const ENTRY_TIMEFRAMES: Timeframe[] = ['15m', '1H', '4H'];
+
+/** 화면 기본값 — 방향 4시간봉 / 진입 1시간봉. DB 에는 DEFAULT 를 걸지 않는다. */
+export const DEFAULT_BIAS_TIMEFRAME: Timeframe = '4H';
+export const DEFAULT_ENTRY_TIMEFRAME: Timeframe = '1H';
+
+export const TIMEFRAME_LABEL: Record<Timeframe, string> = {
+  '15m': '15분봉',
+  '1H': '1시간봉',
+  '4H': '4시간봉',
+  '1D': '일봉',
+  '1W': '주봉',
+};
+
+export function isBiasTimeframe(value: string): value is Timeframe {
+  return (BIAS_TIMEFRAMES as string[]).includes(value);
+}
+
+export function isEntryTimeframe(value: string): value is Timeframe {
+  return (ENTRY_TIMEFRAMES as string[]).includes(value);
 }
 
 /**

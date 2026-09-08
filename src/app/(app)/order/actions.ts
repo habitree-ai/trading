@@ -11,6 +11,8 @@ import {
   parsePoints,
 } from "@/lib/annotations";
 import {
+  isBiasTimeframe,
+  isEntryTimeframe,
   isOpenness,
   isPositionKind,
   isTrend,
@@ -159,6 +161,10 @@ export async function placeManualOrder(
   const leverage = parseNumber(formData.get("leverage"));
   const trendRaw = parseText(formData.get("trend"));
   const trend = isTrend(trendRaw) ? trendRaw : null;
+  const biasTfRaw = parseText(formData.get("timeframe_bias"));
+  const timeframeBias = isBiasTimeframe(biasTfRaw) ? biasTfRaw : null;
+  const entryTfRaw = parseText(formData.get("timeframe_entry"));
+  const timeframeEntry = isEntryTimeframe(entryTfRaw) ? entryTfRaw : null;
   const opennessRaw = parseText(formData.get("openness"));
   const openness = isOpenness(opennessRaw) ? opennessRaw : null;
   const setup = parseText(formData.get("setup"));
@@ -261,6 +267,8 @@ export async function placeManualOrder(
           tp3_price: targets[2],
           trend,
           openness,
+          timeframe_bias: timeframeBias,
+          timeframe_entry: timeframeEntry,
           setup,
           rationale,
           emotion: emotion === "" ? null : emotion,

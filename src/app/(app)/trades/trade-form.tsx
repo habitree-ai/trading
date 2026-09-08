@@ -5,7 +5,16 @@ import { useFormStatus } from "react-dom";
 
 import { createTrade, updateTrade, type TradeFormState } from "@/app/(app)/trades/actions";
 import { PhotoStrip } from "@/components/photos";
-import { OPENNESS_LABEL, OPENNESSES, TREND_LABEL, TRENDS, type Trade } from "@/lib/domain";
+import {
+  BIAS_TIMEFRAMES,
+  ENTRY_TIMEFRAMES,
+  OPENNESS_LABEL,
+  OPENNESSES,
+  TIMEFRAME_LABEL,
+  TREND_LABEL,
+  TRENDS,
+  type Trade,
+} from "@/lib/domain";
 import type { Prefill } from "@/lib/extract/to-prefill";
 import type { ExtractedFill } from "@/lib/extract/types";
 import { checkTpSplit } from "@/lib/exit-plan";
@@ -573,6 +582,32 @@ export function TradeForm({
             {TRENDS.map((t) => (
               <option key={t} value={t}>
                 {TREND_LABEL[t]}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label className={LABEL} htmlFor="f-tf-bias">
+            방향 시계열 <span className="ml-1 text-dim/70">어느 봉에서 방향을 봤는가</span>
+          </label>
+          <select id="f-tf-bias" name="timeframe_bias" defaultValue={v("timeframe_bias")} className={INPUT}>
+            <option value="">미기재</option>
+            {BIAS_TIMEFRAMES.map((t) => (
+              <option key={t} value={t}>
+                {TIMEFRAME_LABEL[t]}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label className={LABEL} htmlFor="f-tf-entry">
+            진입 시계열 <span className="ml-1 text-dim/70">어느 봉에서 타이밍을 잡았는가</span>
+          </label>
+          <select id="f-tf-entry" name="timeframe_entry" defaultValue={v("timeframe_entry")} className={INPUT}>
+            <option value="">미기재</option>
+            {ENTRY_TIMEFRAMES.map((t) => (
+              <option key={t} value={t}>
+                {TIMEFRAME_LABEL[t]}
               </option>
             ))}
           </select>

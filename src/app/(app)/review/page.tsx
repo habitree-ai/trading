@@ -30,6 +30,8 @@ import { readKelly, readKellyFit, RELIABLE_SAMPLE, TONE_CLASS } from "@/lib/verd
 const LENSES = [
   { field: "trend", title: "장기추세별", hint: "진입 때의 중장기 판단 — 어느 국면에서 버는가. 역추세는 방향별과 겹쳐 본다" },
   { field: "openness", title: "위·아래별", hint: "진입 때 위·아래가 각각 막혀 있었는가 — 닫힌 쪽으로 들어간 거래는 방향별과 겹쳐 본다" },
+  { field: "timeframe_bias", title: "방향 시계열별", hint: "어느 봉에서 방향을 봤는가 — 손절 폭이 그 봉의 흔들림 바깥에 있었는지와 함께 본다" },
+  { field: "timeframe_entry", title: "진입 시계열별", hint: "어느 봉에서 타이밍을 잡았는가 — 보유 시간이 그 봉에 맞았는지와 함께 본다" },
   { field: "emotion", title: "감정별", hint: "시트의 `감정` 칸 — 무너지는 지점을 찾는다" },
   { field: "setup", title: "기준(셋업)별", hint: "시트의 `기준` 칸 — 어떤 셋업이 돈을 버는가" },
   { field: "rationale", title: "근거별", hint: "시트의 `근거` 칸" },

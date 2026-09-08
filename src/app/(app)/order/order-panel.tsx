@@ -9,14 +9,20 @@ import type { OrderAccountStatus } from "@/app/(app)/order/status";
 import { DRAW_TOOLS, DrawToolbar, useDrawingBoard } from "@/components/drawing-board";
 import { formatLevel } from "@/lib/annotation-levels";
 import {
+  BIAS_TIMEFRAMES,
+  DEFAULT_BIAS_TIMEFRAME,
+  DEFAULT_ENTRY_TIMEFRAME,
+  ENTRY_TIMEFRAMES,
   isCounterTrend,
   isPositionKind,
   OPENNESS_LABEL,
   OPENNESSES,
+  TIMEFRAME_LABEL,
   TREND_LABEL,
   TRENDS,
   type Openness,
   type Side,
+  type Timeframe,
   type Trend,
 } from "@/lib/domain";
 import { num, pct } from "@/lib/format";
@@ -130,6 +136,9 @@ export function OrderPanel({
   /* ---------- 폼 ---------- */
   const [side, setSide] = useState<Side>("long");
   const [trend, setTrend] = useState<Trend | null>(null);
+  // 시계열은 게이트 항목이 아니라 기본값을 미리 넣어 둔다 — 대부분의 진입이 4H 방향 · 1H 진입이다.
+  const [tfBias, setTfBias] = useState<Timeframe>(DEFAULT_BIAS_TIMEFRAME);
+  const [tfEntry, setTfEntry] = useState<Timeframe>(DEFAULT_ENTRY_TIMEFRAME);
   const [openness, setOpenness] = useState<Openness | null>(null);
   const [notional, setNotional] = useState("");
   const [leverage, setLeverage] = useState("10");
@@ -235,6 +244,8 @@ export function OrderPanel({
         fd.set("tp2_price", tps[1]);
         fd.set("tp3_price", tps[2]);
         fd.set("trend", trend ?? "");
+        fd.set("timeframe_bias", tfBias);
+        fd.set("timeframe_entry", tfEntry);
         fd.set("openness", openness ?? "");
         fd.set("setup", setup);
         fd.set("rationale", rationale);
@@ -411,6 +422,50 @@ export function OrderPanel({
                   {OPENNESS_LABEL[o]}
                 </button>
               ))}
+            </div>
+          </div>
+
+          {/* 기준 시계열 — 손절 폭이 이 봉의 흔들림 바깥에 있어야 한다(docs/repeatable §2.1). */}
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <span className={LABEL}>
+                방향 시계열 <span className="text-dim/70">어디서 봤는가</span>
+              </span>
+              <div className="flex gap-1.5">
+                {BIAS_TIMEFRAMES.map((t) => (
+                  <button
+                    key={t}
+                    type="button"
+                    onClick={() => setTfBias(t)}
+                    aria-pressed={tfBias === t}
+                    className={`flex-1 rounded-lg border px-2 py-2 text-center text-sm ${
+                      tfBias === t ? "border-accent text-accent" : "border-border text-dim"
+                    }`}
+                  >
+                    {TIMEFRAME_LABEL[t]}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div>
+              <span className={LABEL}>
+                진입 시계열 <span className="text-dim/70">어디서 잡았는가</span>
+              </span>
+              <div className="flex gap-1.5">
+                {ENTRY_TIMEFRAMES.map((t) => (
+                  <button
+                    key={t}
+                    type="button"
+                    onClick={() => setTfEntry(t)}
+                    aria-pressed={tfEntry === t}
+                    className={`flex-1 rounded-lg border px-2 py-2 text-center text-sm ${
+                      tfEntry === t ? "border-accent text-accent" : "border-border text-dim"
+                    }`}
+                  >
+                    {TIMEFRAME_LABEL[t]}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
 

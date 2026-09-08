@@ -3,7 +3,17 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
-import { isOpenness, isTrend, type Openness, type Side, type TradeResult, type Trend } from "@/lib/domain";
+import {
+  isBiasTimeframe,
+  isEntryTimeframe,
+  isOpenness,
+  isTrend,
+  type Openness,
+  type Side,
+  type Timeframe,
+  type TradeResult,
+  type Trend,
+} from "@/lib/domain";
 import { fromLocalInput, keepIfSameMinute } from "@/lib/format";
 import { loadOkxCredentials } from "@/lib/okx/credentials";
 import { syncOkx } from "@/lib/okx/sync";
@@ -88,6 +98,8 @@ function readForm(formData: FormData) {
     tp2_pct: parseNumber(formData.get("tp2_pct")),
     tp3_pct: parseNumber(formData.get("tp3_pct")),
     trend: parseTrend(formData.get("trend")),
+    timeframe_bias: parseBiasTimeframe(formData.get("timeframe_bias")),
+    timeframe_entry: parseEntryTimeframe(formData.get("timeframe_entry")),
     openness: parseOpenness(formData.get("openness")),
     setup: parseText(formData.get("setup")),
     rationale: parseText(formData.get("rationale")),
@@ -153,6 +165,16 @@ function parseMarginMode(value: FormDataEntryValue | null): "cross" | "isolated"
 function parseTrend(value: FormDataEntryValue | null): Trend | null {
   const raw = String(value ?? "").trim();
   return isTrend(raw) ? raw : null;
+}
+
+function parseBiasTimeframe(value: FormDataEntryValue | null): Timeframe | null {
+  const raw = String(value ?? "").trim();
+  return isBiasTimeframe(raw) ? raw : null;
+}
+
+function parseEntryTimeframe(value: FormDataEntryValue | null): Timeframe | null {
+  const raw = String(value ?? "").trim();
+  return isEntryTimeframe(raw) ? raw : null;
 }
 
 function parseOpenness(value: FormDataEntryValue | null): Openness | null {
