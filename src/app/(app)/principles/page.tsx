@@ -20,6 +20,7 @@ import { TRADE_RULES, judgeTradeRules, summarizeTradeRules } from "@/lib/trade-r
 
 /** 묶음마다 무엇을 적는 자리인지 — 빈 칸을 보고도 뭘 쓸지 알 수 있게. */
 const CATEGORY_HINT: Record<PrincipleCategory, string> = {
+  taboo: "다시는 하지 않기로 한 것 — 오답노트에서 옮겨 온다",
   risk: "얼마를 걸 것인가 — 손실 한도, 레버리지, 분할",
   entry: "언제 들어갈 것인가 — 셋업, 확인 조건",
   exit: "언제 나올 것인가 — 손절, 익절, 보유 기간",

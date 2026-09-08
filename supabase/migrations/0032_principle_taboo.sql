@@ -1,0 +1,13 @@
+-- 원칙 묶음에 「하지 말 것」을 더한다 (REQ-0060).
+--
+-- 기존 다섯 묶음(risk·entry·exit·mental·routine)은 전부 "무엇을 한다"의 형태다.
+-- 오답노트가 뽑아내는 문장은 "무엇을 하지 않는다"이고, 둘을 같은 묶음에 섞으면
+-- 체크리스트에서 지킴/어김의 방향이 뒤집혀 읽힌다 — "역추세로 들어가지 않는다"를
+-- '진입' 묶음에 넣으면 진입 규칙인지 금지인지 눈이 먼저 헷갈린다.
+--
+-- 새 표를 만들지 않는다. 오답노트 항목도 거래마다 지켰는지 눌러 남기고 복기에서
+-- 어겼을 때의 손익이 모여야 하는데, 그 배선(`trade_principle_checks`)이 이미 있다.
+--
+-- enum 값 추가는 되돌릴 수 없다(Postgres 는 ALTER TYPE ... DROP VALUE 가 없다).
+-- 기존 행에는 영향이 없다 — 값이 하나 늘어날 뿐이다.
+alter type public.principle_category add value if not exists 'taboo';

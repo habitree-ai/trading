@@ -1270,7 +1270,7 @@ export type Database = {
       margin_mode: "cross" | "isolated"
       market_openness: "both_open" | "both_closed" | "top_closed" | "bottom_closed"
       okx_sl_source: "attached" | "position" | "algo"
-      principle_category: "entry" | "exit" | "risk" | "mental" | "routine"
+      principle_category: "entry" | "exit" | "risk" | "mental" | "routine" | "taboo"
       research_note_category:
         | "fundamental"
         | "onchain"
@@ -1429,7 +1429,7 @@ export const Constants = {
       margin_mode: ["cross", "isolated"],
       market_openness: ["both_open", "both_closed", "top_closed", "bottom_closed"],
       okx_sl_source: ["attached", "position", "algo"],
-      principle_category: ["entry", "exit", "risk", "mental", "routine"],
+      principle_category: ["entry", "exit", "risk", "mental", "routine", "taboo"],
       research_note_category: [
         "fundamental",
         "onchain",

@@ -375,7 +375,7 @@ export const CASH_FLOW_LABEL: Record<CashFlowKind, string> = {
  *
  * 북 단위다. 북은 계좌/기간 단위라 그 안에서 쓰는 전략도 같이 갈린다.
  */
-export type PrincipleCategory = 'entry' | 'exit' | 'risk' | 'mental' | 'routine';
+export type PrincipleCategory = 'taboo' | 'entry' | 'exit' | 'risk' | 'mental' | 'routine';
 
 export interface Principle {
   id: string;
@@ -409,6 +409,7 @@ export interface TradePrincipleCheck {
 }
 
 export const PRINCIPLE_CATEGORY_LABEL: Record<PrincipleCategory, string> = {
+  taboo: '하지 말 것',
   risk: '리스크',
   entry: '진입',
   exit: '청산',
@@ -416,8 +417,14 @@ export const PRINCIPLE_CATEGORY_LABEL: Record<PrincipleCategory, string> = {
   routine: '루틴',
 };
 
-/** 화면에 뜨는 묶음 순서 — 계좌를 먼저 지키는 것부터 위에 둔다. */
+/**
+ * 화면에 뜨는 묶음 순서 — 계좌를 먼저 지키는 것부터 위에 둔다.
+ *
+ * 「하지 말 것」이 맨 위다. 오답노트에서 온 금지는 무엇을 할지 정하기 전에 걸리는
+ * 문턱이라, 아래에 두면 규칙을 다 읽은 뒤에야 하지 말 것을 만난다.
+ */
 export const PRINCIPLE_CATEGORIES: PrincipleCategory[] = [
+  'taboo',
   'risk',
   'entry',
   'exit',
