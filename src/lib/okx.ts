@@ -8,7 +8,7 @@
 const BASE = "https://www.okx.com/api/v5";
 
 /** OKX가 쓰는 봉 단위. 화면에 노출하는 것만 추린다. */
-export const BARS = ["1m", "5m", "15m", "30m", "1H", "4H", "1D"] as const;
+export const BARS = ["1m", "5m", "15m", "30m", "1H", "4H", "1D", "1W"] as const;
 export type Bar = (typeof BARS)[number];
 
 export const BAR_MS: Record<Bar, number> = {
@@ -19,6 +19,7 @@ export const BAR_MS: Record<Bar, number> = {
   "1H": 60 * 60_000,
   "4H": 4 * 60 * 60_000,
   "1D": 24 * 60 * 60_000,
+  "1W": 7 * 24 * 60 * 60_000,
 };
 
 export interface Candle {
@@ -45,11 +46,19 @@ export function toInstId(symbol: string, quote = "USDT"): string {
  * 몇 분짜리 스캘핑을 일봉으로 보면 점 하나가 되고, 며칠짜리 스윙을 1분봉으로 보면
  * 수천 개가 된다. 구간이 40~120개 봉에 담기는 단위를 고른다.
  */
+/**
+ * 차트가 자동으로 고르는 후보 — 주봉은 뺀다.
+ *
+ * 주봉은 ATR 참고 표시(방향 시계열 1W)를 위해 `BARS` 에 들어와 있을 뿐, 거래 하나를 그리는
+ * 단위로는 너무 성기다. 여기에 넣으면 아주 긴 보유가 점 몇 개로 그려진다.
+ */
+const AUTO_BARS = BARS.filter((bar) => bar !== '1W');
+
 export function pickBar(durationMs: number, targetCount = 60): Bar {
-  let best: Bar = BARS[0];
+  let best: Bar = AUTO_BARS[0];
   let bestGap = Infinity;
 
-  for (const bar of BARS) {
+  for (const bar of AUTO_BARS) {
     const count = durationMs / BAR_MS[bar];
     const gap = Math.abs(count - targetCount);
     // 동점이면 앞쪽(더 촘촘한 봉)을 남긴다.

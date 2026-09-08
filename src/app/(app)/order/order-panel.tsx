@@ -8,6 +8,7 @@ import { OrderChart } from "@/app/(app)/order/order-chart";
 import type { OrderAccountStatus } from "@/app/(app)/order/status";
 import { DRAW_TOOLS, DrawToolbar, useDrawingBoard } from "@/components/drawing-board";
 import { formatLevel } from "@/lib/annotation-levels";
+import { ATR_PERIOD, ATR_STOP_MAX, ATR_STOP_MIN, atrPercent, stopAtrMultiple } from "@/lib/atr";
 import {
   BIAS_TIMEFRAMES,
   DEFAULT_BIAS_TIMEFRAME,
@@ -38,6 +39,7 @@ import {
   type DailyStatus,
   type OrderPlan,
 } from "@/lib/manual-order";
+import { BAR_MS, type Candle } from "@/lib/okx";
 import type { FieldSuggestions } from "@/lib/queries";
 import { DAILY_MAX_LOSSES, DAILY_MAX_TRADES } from "@/lib/trade-rules";
 
@@ -139,6 +141,8 @@ export function OrderPanel({
   // 시계열은 게이트 항목이 아니라 기본값을 미리 넣어 둔다 — 대부분의 진입이 4H 방향 · 1H 진입이다.
   const [tfBias, setTfBias] = useState<Timeframe>(DEFAULT_BIAS_TIMEFRAME);
   const [tfEntry, setTfEntry] = useState<Timeframe>(DEFAULT_ENTRY_TIMEFRAME);
+  // 방향 시계열의 흔들림 폭. 규칙이 아니라 참고 자료다 — 진입을 막지 않는다(REQ-0056).
+  const [atrPct, setAtrPct] = useState<number | null>(null);
   const [openness, setOpenness] = useState<Openness | null>(null);
   const [notional, setNotional] = useState("");
   const [leverage, setLeverage] = useState("10");
@@ -189,8 +193,29 @@ export function OrderPanel({
     board.clear("종목을 바꿔 그린 내용을 비웠습니다.");
   };
 
+  // 시계열을 바꾸면 그 봉의 ATR 을 다시 받는다 — 미리 계산해 두면 장중 변동성 급변 때 낡은 값을 보게 된다.
+  useEffect(() => {
+    let alive = true;
+    setAtrPct(null);
+    const to = Date.now();
+    const from = to - BAR_MS[tfBias] * (ATR_PERIOD * 3);
+    fetch(`/api/candles?symbol=${encodeURIComponent(symbol)}&bar=${tfBias}&from=${from}&to=${to}`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((json: { candles?: Candle[] } | null) => {
+        if (alive && json?.candles) setAtrPct(atrPercent(json.candles));
+      })
+      .catch(() => {
+        // 참고 표시일 뿐이라 실패해도 주문 흐름을 막지 않는다 — 줄이 안 뜨고 끝난다.
+      });
+    return () => {
+      alive = false;
+    };
+  }, [symbol, tfBias]);
+
   /* ---------- 계산 — 화면과 서버가 같은 함수를 본다 ---------- */
   const price = market?.last ?? null;
+  const stopAtr = stopAtrMultiple(price, numOf(stop), atrPct);
+  const stopAtrOk = stopAtr !== null && stopAtr >= ATR_STOP_MIN && stopAtr <= ATR_STOP_MAX;
   const plan: OrderPlan = useMemo(
     () => ({
       side,
@@ -468,6 +493,28 @@ export function OrderPanel({
               </div>
             </div>
           </div>
+
+          {/* 손절이 이 봉의 평균 흔들림 안쪽이면 방향이 맞아도 가는 길에 먼저 밟힌다. 안내일 뿐 게이트가 아니다. */}
+          {atrPct !== null ? (
+            <p className="text-[11px] text-dim">
+              {TIMEFRAME_LABEL[tfBias]} 평균 흔들림(ATR{ATR_PERIOD}){" "}
+              <span className="tnum">{atrPct.toFixed(2)}%</span>
+              {stopAtr !== null ? (
+                <>
+                  {" · 내 손절 "}
+                  <span className={`tnum ${stopAtrOk ? "text-profit" : "text-beta"}`}>
+                    {stopAtr.toFixed(1)} ATR
+                  </span>
+                  <span className="text-dim/70">
+                    {" "}
+                    표준 {ATR_STOP_MIN}~{ATR_STOP_MAX}
+                  </span>
+                </>
+              ) : (
+                <span className="text-dim/70"> · 손절가를 넣으면 몇 ATR인지 보입니다</span>
+              )}
+            </p>
+          ) : null}
 
           <div className="grid grid-cols-2 gap-2">
             <div>

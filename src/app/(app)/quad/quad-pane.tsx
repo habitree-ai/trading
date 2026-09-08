@@ -55,6 +55,7 @@ const BAR_LABEL: Record<Bar, string> = {
   "1H": "1시간",
   "4H": "4시간",
   "1D": "일봉",
+  "1W": "주봉",
 };
 
 /** trade-chart와 같은 기준 — 이보다 짧게 끌면 그릴 뜻이 없었던 것으로 본다. */
