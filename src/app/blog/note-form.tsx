@@ -183,7 +183,7 @@ export function NoteForm({ note, posts }: { note?: SeniorNote; posts: SeniorPost
           <label htmlFor="f_status" className={LABEL}>
             상태
           </label>
-          <p className={HINT}>다른 점 칸까지 채웠으면 정리됨.</p>
+          <p className={HINT}>내 생각까지 적었으면 정리됨.</p>
           <select id="f_status" name="status" defaultValue={note?.status ?? "draft"} className={INPUT}>
             <option value="draft">초안</option>
             <option value="done">정리됨</option>

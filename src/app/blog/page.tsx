@@ -33,9 +33,6 @@ function matches(note: SeniorNote, post: SeniorPost | undefined, filter: Filter)
     post ? `${post.title} ${post.board} ${post.date}` : "",
     note.quote,
     note.think,
-    note.apply,
-    note.differ,
-    note.ask,
     note.tags.join(" "),
   ]
     .join(" ")
@@ -138,8 +135,7 @@ export default async function BlogHome({
           <div>
             <h2 className="text-xl font-semibold tracking-tight">내 생각</h2>
             <p className="mt-1 text-sm text-dim">
-              원문을 읽는 곳이 아니라 원문에 내 답을 다는 곳. 다섯 칸 — 인용 / 내 생각 / 나에게
-              적용하면 / 다른 점 / 남는 질문.
+              한 글을 두 시선으로 나란히 둔다 — 왼쪽에 선배님의 글, 오른쪽에 내 생각. 그 둘뿐이다.
             </p>
           </div>
           <p className="tnum text-[11px] text-dim">

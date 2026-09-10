@@ -34,10 +34,9 @@ export default async function SeniorNotePage({ params, searchParams }: Props) {
   const charts = listSeniorChartsForPost(post?.url);
   const transcripts = listSeniorTranscriptsForPost(note.post_id);
   const linked = note.links.map((lid) => ({ id: lid, post: findSeniorPost(lid) }));
-  const filled = SENIOR_NOTE_FIELDS.filter((f) => note[f.key].trim() !== "");
 
   return (
-    <article className="mx-auto max-w-2xl space-y-6">
+    <article className="space-y-6">
       <header className="rounded-xl border border-border bg-surface p-4">
         <div className="flex flex-wrap items-center gap-2 text-[11px] text-dim">
           <span className="font-semibold tracking-widest uppercase">대상 글</span>
@@ -80,26 +79,28 @@ export default async function SeniorNotePage({ params, searchParams }: Props) {
         </div>
       </header>
 
-      {filled.length === 0 ? (
-        <p className="rounded-xl border border-dashed border-border p-8 text-center text-sm text-dim">
-          아직 아무 칸도 채우지 않은 노트입니다.
-        </p>
-      ) : (
-        filled.map((f) => (
-          <section key={f.key}>
-            <h2 className="text-sm font-medium">{f.label}</h2>
-            <p
-              className={`mt-1.5 text-[14px] leading-relaxed whitespace-pre-line ${
-                f.key === "quote"
-                  ? "rounded-r-lg border-l-2 border-accent bg-surface-2 px-4 py-3 text-dim"
-                  : ""
-              }`}
+      {/* 두 시선 — 왼쪽에 선배님의 글, 오른쪽에 내 생각. 좁은 화면에서는 위아래로 쌓인다. */}
+      <div className="grid items-start gap-4 lg:grid-cols-2">
+        {SENIOR_NOTE_FIELDS.map((f) => {
+          const body = note[f.key].trim();
+          const senior = f.key === "quote";
+          return (
+            <section
+              key={f.key}
+              className={`rounded-xl border bg-surface p-4 ${senior ? "border-border" : "border-accent/40"}`}
             >
-              {note[f.key]}
-            </p>
-          </section>
-        ))
-      )}
+              <h2 className="text-[11px] font-semibold tracking-widest text-dim uppercase">{f.label}</h2>
+              <p
+                className={`mt-2 text-[14px] leading-relaxed whitespace-pre-line ${
+                  body === "" ? "text-dim italic" : senior ? "text-dim" : ""
+                }`}
+              >
+                {body === "" ? f.empty : body}
+              </p>
+            </section>
+          );
+        })}
+      </div>
 
       {transcripts.map((t) => (
         <section key={t.name}>

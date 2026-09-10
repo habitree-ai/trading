@@ -42,9 +42,11 @@ function parseNote(formData: FormData) {
     post_id,
     quote: parseText(formData.get("quote")),
     think: parseText(formData.get("think")),
-    apply: parseText(formData.get("apply")),
-    differ: parseText(formData.get("differ")),
-    ask: parseText(formData.get("ask")),
+    // 화면에서 뺀 세 칸 — 폼에 없으니 저장할 때마다 빈 값으로 눌러 둔다. 열은 남아 있어도
+    // 내가 쓰지 않은 문장이 다시 붙어 있는 일은 없게 한다.
+    apply: "",
+    differ: "",
+    ask: "",
     links,
     tags,
     status: parseStatus(formData.get("status")),
