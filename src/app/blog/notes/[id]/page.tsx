@@ -35,6 +35,14 @@ export default async function SeniorNotePage({ params, searchParams }: Props) {
   const transcripts = listSeniorTranscriptsForPost(note.post_id);
   const linked = note.links.map((lid) => ({ id: lid, post: findSeniorPost(lid) }));
 
+  // 헤더 버튼용 — 차트 한 장에 본 차트와 옵션 자료가 따로 있어 평평하게 펼친다.
+  const chartLinks = charts.flatMap((c) => [
+    { href: `/blog/charts/${encodeURIComponent(c.name)}.html`, label: `차트 · ${c.symbol}` },
+    ...(c.hasOptions
+      ? [{ href: `/blog/charts/${encodeURIComponent(c.name)}_옵션.html`, label: "옵션 자료" }]
+      : []),
+  ]);
+
   return (
     <article className="space-y-6">
       <header className="rounded-xl border border-border bg-surface p-4">
@@ -68,6 +76,17 @@ export default async function SeniorNotePage({ params, searchParams }: Props) {
               네이버 원문 ↗
             </a>
           ) : null}
+          {chartLinks.map((l) => (
+            <a
+              key={l.href}
+              href={l.href}
+              target="_blank"
+              rel="noopener"
+              className="rounded-lg border border-border px-2.5 py-1 text-dim hover:text-text"
+            >
+              {l.label} ↗
+            </a>
+          ))}
           {viewer.admin ? (
             <Link
               href={`/blog/notes/${note.id}?edit=1`}
