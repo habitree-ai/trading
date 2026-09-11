@@ -29,19 +29,19 @@ export const SENIOR_DOCS: SeniorDoc[] = [
   {
     slug: "philosophy",
     title: "투자철학 정리",
-    desc: "방법론 5층 구조와, 그대로 쓸 때 생길 문제",
+    desc: "방법론 주제어별 글 색인",
     file: "투자철학정리.md",
   },
   {
     slug: "boards",
     title: "게시판별 정리",
-    desc: "게시판 19개를 원 순서·원 이름 그대로",
+    desc: "게시판 19개 → 연도 → 글, 원 순서·원 이름 그대로",
     file: "게시판별정리.md",
   },
   {
     slug: "themes",
     title: "종목·테마 정리",
-    desc: "종목 타임라인과 개념어의 등장 시점",
+    desc: "종목·시장 주제어별 글 색인",
     file: "종목테마별정리.md",
   },
 ];
