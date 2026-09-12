@@ -425,17 +425,6 @@ export async function listPrinciples(
   return data as Principle[];
 }
 
-/** 거래 1건에 남은 원칙 판단. */
-export async function listPrincipleChecks(tradeId: string): Promise<TradePrincipleCheck[]> {
-  const { supabase } = await requireUser();
-  const { data, error } = await supabase
-    .from("trade_principle_checks")
-    .select("*")
-    .eq("trade_id", tradeId);
-  if (error) throw new Error(error.message);
-  return data as TradePrincipleCheck[];
-}
-
 /**
  * 북 전체의 원칙 판단 — 복기에서 "어떤 원칙을 어겼을 때 얼마를 잃었나"를 집계한다.
  *

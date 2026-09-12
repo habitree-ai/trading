@@ -15,7 +15,11 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         따로 고정하면 아래쪽 시작 위치를 헤더 높이만큼 상수로 적어야 하는데, 그 상수는
         손가락 입력이라 버튼이 커지거나 글꼴이 바뀌는 것만으로도 어긋난다.
       */}
-      <div className="sticky top-0 z-20 border-b border-border bg-surface/90 backdrop-blur">
+      {/* id — 화면 안에서 또 무언가를 고정하려면 이 덩어리 높이를 알아야 한다(거래 폼의 저장 바). */}
+      <div
+        id="app-header"
+        className="sticky top-0 z-20 border-b border-border bg-surface/90 backdrop-blur"
+      >
         <header className="flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-2.5">
           <span className="hidden text-sm font-semibold tracking-tight sm:inline">
             트레이딩 누적기록

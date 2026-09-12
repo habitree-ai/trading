@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useEffect, useState } from "react";
 import { useFormStatus } from "react-dom";
 
 import { createTrade, updateTrade, type TradeFormState } from "@/app/(app)/trades/actions";
@@ -270,11 +270,32 @@ export function Submit({ label }: { label: string }) {
   );
 }
 
+/**
+ * 상단 고정 저장 바가 앉을 자리 — 레이아웃의 고정 헤더 바로 아래.
+ *
+ * 헤더는 폭이 좁으면 줄이 접히고 화면 탭이 한 줄 더 붙는다. 높이를 상수로 적어 두면
+ * 글꼴이 바뀌는 것만으로 어긋나므로 실제 높이를 재서 따라간다(레이아웃도 같은 이유로
+ * 헤더와 탭을 한 덩어리로 고정한다). 헤더를 못 찾으면 0 — 바는 화면 맨 위에 붙는다.
+ */
+function useHeaderHeight(): number {
+  const [height, setHeight] = useState(0);
+  useEffect(() => {
+    // id 는 src/app/(app)/layout.tsx 의 고정 헤더 래퍼가 달고 있다.
+    const header = document.getElementById("app-header");
+    if (!header) return;
+    const observer = new ResizeObserver(() => setHeight(header.offsetHeight));
+    observer.observe(header);
+    return () => observer.disconnect();
+  }, []);
+  return height;
+}
+
 export function TradeForm({
   bookId,
   userId,
   trade,
   prefill,
+  heading,
   suspectFields = [],
   imageIds = [],
   fills,
@@ -285,6 +306,8 @@ export function TradeForm({
   userId: string;
   trade?: Trade;
   prefill?: Prefill;
+  /** 상단 고정 바에 함께 세울 제목 — 폼이 화면의 전부일 때 쓴다. */
+  heading?: string;
   /** 이 북에서 전에 적었던 기준·근거·감정·복기 — 골라 넣을 선택지. */
   suggestions?: FieldSuggestions;
   /** 값이 채워졌어도 사람이 확인해야 하는 칸 — 테두리로 표시한다. */
@@ -303,6 +326,7 @@ export function TradeForm({
   );
   const suspect = new Set(suspectFields);
   const [check, setCheck] = useState<PnlCrossCheck | null>(null);
+  const headerHeight = useHeaderHeight();
 
   const v = (key: keyof Trade): string => {
     const fromPrefill = prefill?.[key];
@@ -378,132 +402,44 @@ export function TradeForm({
         <input type="hidden" name="fills" value={JSON.stringify(fills)} />
       ) : null}
 
-      <Section title="거래 개요">
-        <div>
-          <span className={LABEL}>방향</span>
-          <div className="flex gap-2">
-            {(["long", "short"] as const).map((s) => (
-              <label
-                key={s}
-                className={`flex-1 cursor-pointer rounded-lg border px-3 py-2 text-center text-sm ${
-                  side === s
-                    ? s === "long"
-                      ? "border-profit text-profit"
-                      : "border-loss text-loss"
-                    : "border-border text-dim"
-                }`}
-              >
-                <input
-                  type="radio"
-                  name="side"
-                  value={s}
-                  checked={side === s}
-                  onChange={() => setSide(s)}
-                  className="sr-only"
-                />
-                {s === "long" ? "롱 (L)" : "숏 (S)"}
-              </label>
-            ))}
-          </div>
-        </div>
-        <Field name="symbol" label="종목 *" defaultValue={v("symbol")} suspect={suspect.has("symbol")} />
-        <div>
-          <label className={LABEL} htmlFor="f-result">
-            승패 <span className="text-dim/70">비우면 손익 부호로 자동 판정</span>
-          </label>
-          <select
-            id="f-result"
-            name="result"
-            defaultValue={trade?.result ?? "auto"}
-            className={INPUT}
-          >
-            <option value="auto">자동</option>
-            <option value="win">승</option>
-            <option value="loss">패</option>
-            <option value="be">본전</option>
-            <option value="open">보유중</option>
-          </select>
-        </div>
-        <Field
-          name="entry_at"
-          label="진입 *"
-          type="datetime-local"
-          defaultValue={prefill?.entry_at ?? toLocalInput(trade?.entry_at ?? null)}
-          suspect={suspect.has("entry_at")}
-        />
-        <Field
-          name="exit_at"
-          label="종료"
-          type="datetime-local"
-          defaultValue={prefill?.exit_at ?? toLocalInput(trade?.exit_at ?? null)}
-          suspect={suspect.has("exit_at")}
-        />
-        <Field
-          name="pnl"
-          label="손익 (TP/SP)"
-          hint="부호 포함"
-          numeric
-          defaultValue={v("pnl")}
-          suspect={suspect.has("pnl")}
-        />
-        <Field
-          name="fee"
-          label="거래 수수료"
-          hint="체결 비용"
-          numeric
-          defaultValue={v("fee")}
-          suspect={suspect.has("fee")}
-        />
-        <Field
-          name="funding_fee"
-          label="펀딩비"
-          hint="보유 비용"
-          numeric
-          defaultValue={v("funding_fee")}
-        />
-      </Section>
+      {/*
+        저장 바 — 제목과 함께 맨 위에 붙는다.
 
-      <Section title="자금 · 포지션">
-        <Field name="equity_before" label="진입 전 자금" numeric defaultValue={v("equity_before")} />
-        <Field
-          name="equity_after"
-          label="청산 후 자금"
-          hint="비우면 자동 계산"
-          numeric
-          defaultValue={v("equity_after")}
-          suspect={suspect.has("equity_after")}
-        />
-        <Field name="withdrawal" label="출금" numeric defaultValue={v("withdrawal")} />
-        <Field
-          name="notional"
-          label="투입 (명목가)"
-          numeric
-          defaultValue={v("notional")}
-          suspect={suspect.has("notional")}
-        />
-        <Field
-          name="leverage"
-          label="레버리지 (Lv)"
-          numeric
-          defaultValue={v("leverage")}
-          suspect={suspect.has("leverage")}
-        />
-        <div>
-          <label className={LABEL} htmlFor="f-margin_mode">
-            마진 모드
-          </label>
-          <select
-            id="f-margin_mode"
-            name="margin_mode"
-            defaultValue={v("margin_mode")}
-            className={INPUT}
-          >
-            <option value="">미지정</option>
-            <option value="cross">교차 (Cross)</option>
-            <option value="isolated">격리 (Isolated)</option>
-          </select>
+        자주 적고 자주 고치는 화면이라, 어디를 만지고 있든 저장이 손 닿는 곳에 있어야 한다.
+        폼 끝에만 두면 위쪽 칸 하나를 고칠 때마다 끝까지 내려갔다 와야 한다. 화면 위에
+        고정하되 레이아웃 헤더 높이만큼 내려 앉혀 둘이 겹치지 않게 한다.
+      */}
+      <div
+        style={{ top: headerHeight }}
+        className="sticky z-10 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl border border-border bg-surface/95 px-3 py-2 backdrop-blur"
+      >
+        {heading ? (
+          <h1 className="min-w-0 truncate text-sm font-semibold tracking-tight">{heading}</h1>
+        ) : null}
+        <div className="ml-auto flex items-center gap-3">
+          {state.error ? <span className="text-sm text-loss">{state.error}</span> : null}
+          <Submit label={trade ? "수정 저장" : "거래 저장"} />
         </div>
-      </Section>
+      </div>
+
+      {check && !check.ok ? (
+        <p className="rounded-lg border border-beta/50 bg-beta/10 px-3 py-2 text-xs text-beta">
+          ⚠ 투입·진입가·청산가로 계산한 손익은{" "}
+          <b className="tnum">
+            {check.expected > 0 ? "+" : ""}
+            {check.expected.toFixed(2)}
+          </b>
+          인데 입력값은{" "}
+          <b className="tnum">
+            {check.actual > 0 ? "+" : ""}
+            {check.actual.toFixed(2)}
+          </b>
+          입니다.
+          {check.signFlipped
+            ? " 부호가 반대입니다 — 방향(롱/숏)을 잘못 읽었을 수 있습니다."
+            : " 숫자를 확인해 주세요."}
+        </p>
+      ) : null}
 
       <Section title="가격 · 목표">
         <Field
@@ -671,29 +607,132 @@ export function TradeForm({
         </div>
       </Section>
 
-      {check && !check.ok ? (
-        <p className="rounded-lg border border-beta/50 bg-beta/10 px-3 py-2 text-xs text-beta">
-          ⚠ 투입·진입가·청산가로 계산한 손익은{" "}
-          <b className="tnum">
-            {check.expected > 0 ? "+" : ""}
-            {check.expected.toFixed(2)}
-          </b>
-          인데 입력값은{" "}
-          <b className="tnum">
-            {check.actual > 0 ? "+" : ""}
-            {check.actual.toFixed(2)}
-          </b>
-          입니다.
-          {check.signFlipped
-            ? " 부호가 반대입니다 — 방향(롱/숏)을 잘못 읽었을 수 있습니다."
-            : " 숫자를 확인해 주세요."}
-        </p>
-      ) : null}
+      <Section title="거래 개요">
+        <div>
+          <span className={LABEL}>방향</span>
+          <div className="flex gap-2">
+            {(["long", "short"] as const).map((s) => (
+              <label
+                key={s}
+                className={`flex-1 cursor-pointer rounded-lg border px-3 py-2 text-center text-sm ${
+                  side === s
+                    ? s === "long"
+                      ? "border-profit text-profit"
+                      : "border-loss text-loss"
+                    : "border-border text-dim"
+                }`}
+              >
+                <input
+                  type="radio"
+                  name="side"
+                  value={s}
+                  checked={side === s}
+                  onChange={() => setSide(s)}
+                  className="sr-only"
+                />
+                {s === "long" ? "롱 (L)" : "숏 (S)"}
+              </label>
+            ))}
+          </div>
+        </div>
+        <Field name="symbol" label="종목 *" defaultValue={v("symbol")} suspect={suspect.has("symbol")} />
+        <div>
+          <label className={LABEL} htmlFor="f-result">
+            승패 <span className="text-dim/70">비우면 손익 부호로 자동 판정</span>
+          </label>
+          <select
+            id="f-result"
+            name="result"
+            defaultValue={trade?.result ?? "auto"}
+            className={INPUT}
+          >
+            <option value="auto">자동</option>
+            <option value="win">승</option>
+            <option value="loss">패</option>
+            <option value="be">본전</option>
+            <option value="open">보유중</option>
+          </select>
+        </div>
+        <Field
+          name="entry_at"
+          label="진입 *"
+          type="datetime-local"
+          defaultValue={prefill?.entry_at ?? toLocalInput(trade?.entry_at ?? null)}
+          suspect={suspect.has("entry_at")}
+        />
+        <Field
+          name="exit_at"
+          label="종료"
+          type="datetime-local"
+          defaultValue={prefill?.exit_at ?? toLocalInput(trade?.exit_at ?? null)}
+          suspect={suspect.has("exit_at")}
+        />
+        <Field
+          name="pnl"
+          label="손익 (TP/SP)"
+          hint="부호 포함"
+          numeric
+          defaultValue={v("pnl")}
+          suspect={suspect.has("pnl")}
+        />
+        <Field
+          name="fee"
+          label="거래 수수료"
+          hint="체결 비용"
+          numeric
+          defaultValue={v("fee")}
+          suspect={suspect.has("fee")}
+        />
+        <Field
+          name="funding_fee"
+          label="펀딩비"
+          hint="보유 비용"
+          numeric
+          defaultValue={v("funding_fee")}
+        />
+      </Section>
 
-      <div className="flex items-center gap-3">
-        <Submit label={trade ? "수정 저장" : "거래 저장"} />
-        {state.error ? <span className="text-sm text-loss">{state.error}</span> : null}
-      </div>
+      <Section title="자금 · 포지션">
+        <Field name="equity_before" label="진입 전 자금" numeric defaultValue={v("equity_before")} />
+        <Field
+          name="equity_after"
+          label="청산 후 자금"
+          hint="비우면 자동 계산"
+          numeric
+          defaultValue={v("equity_after")}
+          suspect={suspect.has("equity_after")}
+        />
+        <Field name="withdrawal" label="출금" numeric defaultValue={v("withdrawal")} />
+        <Field
+          name="notional"
+          label="투입 (명목가)"
+          numeric
+          defaultValue={v("notional")}
+          suspect={suspect.has("notional")}
+        />
+        <Field
+          name="leverage"
+          label="레버리지 (Lv)"
+          numeric
+          defaultValue={v("leverage")}
+          suspect={suspect.has("leverage")}
+        />
+        <div>
+          <label className={LABEL} htmlFor="f-margin_mode">
+            마진 모드
+          </label>
+          <select
+            id="f-margin_mode"
+            name="margin_mode"
+            defaultValue={v("margin_mode")}
+            className={INPUT}
+          >
+            <option value="">미지정</option>
+            <option value="cross">교차 (Cross)</option>
+            <option value="isolated">격리 (Isolated)</option>
+          </select>
+        </div>
+      </Section>
     </form>
   );
 }
