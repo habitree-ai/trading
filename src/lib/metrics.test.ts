@@ -1171,3 +1171,68 @@ describe('buildEquityCurve — 곡선은 실현 시각 순서로 쌓인다', () 
     expect(buildEquityCurve(book, [])).toEqual([]);
   });
 });
+
+describe('sinceLastExitMs — 직전 청산에서 이 진입까지 (청산 후 60분 규칙)', () => {
+  it('첫 거래는 앞서 끝난 거래가 없어 null 이다', () => {
+    seq = 0;
+    const a = trade({ pnl: 1, result: 'win', entry_at: '2026-09-01T00:00:00Z', exit_at: '2026-09-01T01:00:00Z' });
+
+    expect(deriveTrades(book, [a])[0].sinceLastExitMs).toBeNull();
+  });
+
+  it('앞 거래의 청산에서 이번 진입까지를 잰다 — 넘겨받은 순서와 무관하다', () => {
+    seq = 0;
+    const a = trade({ pnl: 1, result: 'win', entry_at: '2026-09-01T00:00:00Z', exit_at: '2026-09-01T01:00:00Z' });
+    const b = trade({ pnl: -1, result: 'loss', entry_at: '2026-09-01T01:08:00Z', exit_at: '2026-09-01T02:00:00Z' });
+
+    expect(deriveTrades(book, [b, a]).map((d) => d.sinceLastExitMs)).toEqual([null, 8 * 60_000]);
+  });
+
+  it('다른 종목을 들고 있는 동안 들어간 거래는 그 전에 끝난 청산에서 잰다 — 음수가 아니다', () => {
+    // Repeatable #6~#10 의 모양 — BTC #7 을 들고 있는 동안 ETH #8 에 들어갔다.
+    seq = 0;
+    const a = trade({ pnl: 1, result: 'win', symbol: 'BTC', entry_at: '2026-09-11T13:49:00Z', exit_at: '2026-09-11T14:41:00Z' });
+    const b = trade({ pnl: 1, result: 'win', symbol: 'BTC', entry_at: '2026-09-11T14:42:00Z', exit_at: '2026-09-13T20:33:00Z' });
+    const c = trade({ pnl: 1, result: 'win', symbol: 'ETH', entry_at: '2026-09-12T21:10:00Z', exit_at: '2026-09-13T08:31:00Z' });
+    const d = trade({ pnl: 0, result: 'open', symbol: 'ETH', entry_at: '2026-09-13T20:35:00Z', exit_at: null });
+
+    expect(deriveTrades(book, [a, b, c, d]).map((x) => x.sinceLastExitMs)).toEqual([
+      null,
+      60_000,
+      // 진입 순서상 앞 거래(b)는 아직 들고 있다 — 그 전에 끝난 a 의 청산이 기산점이다.
+      Date.parse('2026-09-12T21:10:00Z') - Date.parse('2026-09-11T14:41:00Z'),
+      // c 의 청산(08:31)보다 b 의 청산(20:33)이 늦다 — 종목을 가리지 않고 가장 늦은 청산.
+      2 * 60_000,
+    ]);
+  });
+
+  it('아직 들고 있는 거래는 기산점이 아니다', () => {
+    seq = 0;
+    const a = trade({ pnl: 1, result: 'win', entry_at: '2026-09-01T00:00:00Z', exit_at: '2026-09-01T01:00:00Z' });
+    const open = trade({ pnl: 0, result: 'open', entry_at: '2026-09-01T02:00:00Z', exit_at: null });
+    const b = trade({ pnl: 1, result: 'win', entry_at: '2026-09-01T03:00:00Z', exit_at: '2026-09-01T04:00:00Z' });
+
+    expect(deriveTrades(book, [a, open, b]).map((x) => x.sinceLastExitMs)).toEqual([
+      null,
+      60 * 60_000,
+      2 * 60 * 60_000,
+    ]);
+  });
+
+  it('청산과 같은 시각에 다시 들어가면 0 이다 — 경계 시각을 포함한다', () => {
+    seq = 0;
+    const a = trade({ pnl: 1, result: 'win', entry_at: '2026-09-01T00:00:00Z', exit_at: '2026-09-01T01:00:00Z' });
+    const b = trade({ pnl: 1, result: 'win', entry_at: '2026-09-01T01:00:00Z', exit_at: '2026-09-01T02:00:00Z' });
+
+    expect(deriveTrades(book, [a, b])[1].sinceLastExitMs).toBe(0);
+  });
+
+  it('진입과 청산이 같은 분으로 적힌 거래는 제 청산을 기산점으로 삼지 않는다', () => {
+    // 수기 입력은 분 단위라 짧은 거래의 진입·청산 시각이 같아질 수 있다.
+    seq = 0;
+    const a = trade({ pnl: 1, result: 'win', entry_at: '2026-09-01T00:00:00Z', exit_at: '2026-09-01T01:00:00Z' });
+    const b = trade({ pnl: 1, result: 'win', entry_at: '2026-09-01T01:30:00Z', exit_at: '2026-09-01T01:30:00Z' });
+
+    expect(deriveTrades(book, [a, b])[1].sinceLastExitMs).toBe(30 * 60_000);
+  });
+});

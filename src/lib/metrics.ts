@@ -78,6 +78,14 @@ export interface TradeDerived {
   riskPct: Maybe;
   /** 시트의 `1차수익율`~`3차수익율` — R 배수 */
   rr: [Maybe, Maybe, Maybe];
+  /**
+   * 직전 청산 → 이 진입까지의 간격(ms) — 청산 후 60분 규칙(docs/repeatable §2.2)을 지켰는지 본다.
+   *
+   * 기산점은 진입 순서상 바로 앞 거래의 청산이 아니라 **이 진입보다 먼저 끝난 청산 중 가장 늦은 것**이다.
+   * 규칙이 종목 전환에도 적용되므로 종목은 가리지 않는다. 다른 종목을 들고 있는 동안 들어간 거래를
+   * 앞 거래의 청산으로 재면 음수가 나온다. 앞서 끝난 거래가 없으면 null.
+   */
+  sinceLastExitMs: number | null;
 }
 
 /**
@@ -144,10 +152,15 @@ export function deriveTrades(
     (a, b) => Date.parse(a.entry_at) - Date.parse(b.entry_at) || a.seq - b.seq,
   );
   const transfers = sortedTransfers(flows);
+  // 끝난 거래의 청산 시각만 오름차순으로 — 진입 순서로 훑으며 그 진입 시각까지 끝난 청산으로 포인터를 민다.
+  const exits = sorted
+    .flatMap((t) => (isOpenTrade(t) || t.exit_at === null ? [] : [{ id: t.id, ms: Date.parse(t.exit_at) }]))
+    .sort((a, b) => a.ms - b.ms);
 
   let running = book.initial_capital;
   let peak = book.initial_capital;
   let nextTransfer = 0;
+  let nextExit = 0;
   let withdrawnTotal = 0;
   let netTotal = 0;
 
@@ -177,6 +190,12 @@ export function deriveTrades(
 
     const margin = marginOf(trade);
 
+    // 청산과 같은 시각의 진입은 경계 안에 넣는다 — 청산 직후 곧바로 들어간 거래가 빠지면 안 된다.
+    while (nextExit < exits.length && exits[nextExit].ms <= entryMs) nextExit += 1;
+    // 수기 입력은 분 단위라 진입·청산이 같은 시각으로 적힐 수 있다 — 자기 청산은 기산점이 아니다.
+    let lastExit = nextExit - 1;
+    if (lastExit >= 0 && exits[lastExit].id === trade.id) lastExit -= 1;
+
     return {
       trade,
       result: resultOf(trade, net),
@@ -191,6 +210,7 @@ export function deriveTrades(
       pnlPct: trade.pnl === null ? null : ratio(net, margin),
       riskPct: riskPct(trade),
       rr: [rrFor(trade, trade.tp1_price), rrFor(trade, trade.tp2_price), rrFor(trade, trade.tp3_price)],
+      sinceLastExitMs: lastExit >= 0 ? entryMs - exits[lastExit].ms : null,
     };
   });
 }

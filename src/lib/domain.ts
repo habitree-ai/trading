@@ -16,7 +16,7 @@ export type Openness = 'both_open' | 'both_closed' | 'top_closed' | 'bottom_clos
  *
  * 표기는 OKX bar 파라미터·캔들 캐시 파일명(oneway-4H.json)과 같은 형식이라 그대로 보여 준다.
  */
-export type Timeframe = '15m' | '1H' | '4H' | '1D' | '1W';
+export type Timeframe = '1m' | '5m' | '15m' | '1H' | '4H' | '1D' | '1W';
 export type BookStatus = 'active' | 'closed';
 export type CaptureKind = 'position' | 'chart' | 'balance';
 export type ExtractEngine = 'ocr' | 'ai' | 'manual';
@@ -523,17 +523,21 @@ export function isOpenness(value: string): value is Openness {
 }
 
 /**
- * 방향은 진입보다 크거나 같은 시계열에서 본다 — DB 의 CHECK 제약과 같은 목록이다.
+ * 칸마다 고를 수 있는 봉 — DB 의 CHECK 제약과 같은 목록이다.
  * 두 목록이 어긋나면 화면에서 고를 수 있는 값이 저장에서 거부된다.
+ *
+ * 두 목록이 겹치므로 "방향 ≥ 진입"은 저장 단계에서 보장되지 않는다 — 조합은 막지 않기로 했다(REQ-0063).
  */
-export const BIAS_TIMEFRAMES: Timeframe[] = ['4H', '1D', '1W'];
-export const ENTRY_TIMEFRAMES: Timeframe[] = ['15m', '1H', '4H'];
+export const BIAS_TIMEFRAMES: Timeframe[] = ['15m', '1H', '4H', '1D', '1W'];
+export const ENTRY_TIMEFRAMES: Timeframe[] = ['1m', '5m', '15m', '1H', '4H'];
 
 /** 화면 기본값 — 방향 4시간봉 / 진입 1시간봉. DB 에는 DEFAULT 를 걸지 않는다. */
 export const DEFAULT_BIAS_TIMEFRAME: Timeframe = '4H';
 export const DEFAULT_ENTRY_TIMEFRAME: Timeframe = '1H';
 
 export const TIMEFRAME_LABEL: Record<Timeframe, string> = {
+  '1m': '1분봉',
+  '5m': '5분봉',
   '15m': '15분봉',
   '1H': '1시간봉',
   '4H': '4시간봉',

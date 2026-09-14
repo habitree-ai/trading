@@ -5,6 +5,7 @@ import { Fragment, useEffect, useMemo, useRef, useState, useTransition } from "r
 
 import { deleteTrade, updateTradeTargets } from "@/app/(app)/trades/actions";
 import { ExitPlanLines } from "@/components/exit-plan";
+import { formatDuration } from "@/components/measure-tool";
 import { TradeChart } from "@/components/trade-chart";
 import { TradesOverviewChart } from "@/components/trades-overview-chart";
 import {
@@ -321,7 +322,7 @@ export function TradeTable({
                   ) : null}
                 </td>
                 <td className="px-2 py-1.5 font-medium">{trade.symbol}</td>
-                <FillCell price={trade.entry_price} at={trade.entry_at} />
+                <FillCell price={trade.entry_price} at={trade.entry_at} sinceLastExitMs={row.sinceLastExitMs} />
                 {/* 진입 옆 — 단계별 청산. 체결된 차수는 실현값, 아직이면 등록된 TP 기준 예상치. */}
                 <td className="px-2 py-1.5 whitespace-nowrap">
                   <ExitPlanLines summary={exits} />
@@ -503,12 +504,37 @@ export function TradeTable({
   );
 }
 
-/** 체결 한 칸에 가격과 시각을 함께 담는다 — 둘을 따로 보면 짝짓기가 어렵다. */
-function FillCell({ price, at }: { price: number | null; at: string | null }) {
+/** 청산 후 다음 진입까지 비워 두는 시간 — docs/repeatable §2.2. 이보다 짧으면 간격 줄이 노랗다. */
+const COOLDOWN_MS = 60 * 60_000;
+
+/**
+ * 체결 한 칸에 가격과 시각을 함께 담는다 — 둘을 따로 보면 짝짓기가 어렵다.
+ *
+ * 진입 칸에는 직전 청산에서 얼마 만에 들어왔는지를 한 줄 더 단다(REQ-0063). 앞서 끝난 거래가
+ * 없으면(첫 거래) 줄을 그리지 않는다.
+ */
+function FillCell({
+  price,
+  at,
+  sinceLastExitMs,
+}: {
+  price: number | null;
+  at: string | null;
+  sinceLastExitMs?: number | null;
+}) {
+  const hurried = typeof sinceLastExitMs === "number" && sinceLastExitMs < COOLDOWN_MS;
   return (
     <td className="px-2 py-1.5 whitespace-nowrap">
       <div className="tnum text-sm">{num(price)}</div>
       <div className="tnum text-[11px] text-dim">{dateTime(at)}</div>
+      {typeof sinceLastExitMs === "number" ? (
+        <div
+          title={hurried ? "청산 후 60분 안에 다시 진입 — docs/repeatable §2.2" : "직전 청산에서 이 진입까지"}
+          className={`tnum text-[10px] ${hurried ? "text-beta" : "text-dim"}`}
+        >
+          직전 +{formatDuration(sinceLastExitMs)}
+        </div>
+      ) : null}
     </td>
   );
 }

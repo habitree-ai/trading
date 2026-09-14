@@ -451,7 +451,8 @@ export function OrderPanel({
           </div>
 
           {/* 기준 시계열 — 손절 폭이 이 봉의 흔들림 바깥에 있어야 한다(docs/repeatable §2.1). */}
-          <div className="grid grid-cols-2 gap-2">
+          {/* 버튼이 다섯 개씩이라 두 줄로 쌓는다 — 380px 칸에 나란히 두면 라벨이 넘친다. */}
+          <div className="space-y-2">
             <div>
               <span className={LABEL}>
                 방향 시계열 <span className="text-dim/70">어디서 봤는가</span>
@@ -463,7 +464,7 @@ export function OrderPanel({
                     type="button"
                     onClick={() => setTfBias(t)}
                     aria-pressed={tfBias === t}
-                    className={`flex-1 rounded-lg border px-2 py-2 text-center text-sm ${
+                    className={`flex-1 rounded-lg border px-1 py-2 text-center text-sm whitespace-nowrap ${
                       tfBias === t ? "border-accent text-accent" : "border-border text-dim"
                     }`}
                   >
@@ -483,7 +484,7 @@ export function OrderPanel({
                     type="button"
                     onClick={() => setTfEntry(t)}
                     aria-pressed={tfEntry === t}
-                    className={`flex-1 rounded-lg border px-2 py-2 text-center text-sm ${
+                    className={`flex-1 rounded-lg border px-1 py-2 text-center text-sm whitespace-nowrap ${
                       tfEntry === t ? "border-accent text-accent" : "border-border text-dim"
                     }`}
                   >

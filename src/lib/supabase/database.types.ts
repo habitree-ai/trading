@@ -1281,7 +1281,7 @@ export type Database = {
       senior_note_status: "draft" | "done"
       system_mode: "paper" | "demo" | "live" | "cand" | "ens" | "swing" | "manual"
       trade_result: "win" | "loss" | "be" | "open"
-      timeframe: "15m" | "1H" | "4H" | "1D" | "1W"
+      timeframe: "1m" | "5m" | "15m" | "1H" | "4H" | "1D" | "1W"
       trade_side: "long" | "short"
       trend_regime: "up" | "down" | "range"
     }
@@ -1441,7 +1441,7 @@ export const Constants = {
       senior_note_status: ["draft", "done"],
       system_mode: ["paper", "demo", "live", "cand", "ens", "swing", "manual"],
       trade_result: ["win", "loss", "be", "open"],
-      timeframe: ["15m", "1H", "4H", "1D", "1W"],
+      timeframe: ["1m", "5m", "15m", "1H", "4H", "1D", "1W"],
       trade_side: ["long", "short"],
       trend_regime: ["up", "down", "range"],
     },
