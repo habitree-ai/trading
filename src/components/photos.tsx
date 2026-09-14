@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useEffectEvent, useRef, useState } from "react";
 
 import { compressImage } from "@/lib/image-compress";
-import { MAX_PHOTOS } from "@/lib/photos";
+import { MAX_PHOTOS, pastedImages } from "@/lib/photos";
 import { createClient } from "@/lib/supabase/client";
 
 /**
@@ -116,13 +116,14 @@ export function PhotoStrip({
   const [paths, setPaths] = useState<string[]>(initial);
   const [uploading, setUploading] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const rootRef = useRef<HTMLDivElement>(null);
   const cameraRef = useRef<HTMLInputElement>(null);
   const albumRef = useRef<HTMLInputElement>(null);
   const urls = useSignedUrls(paths);
 
   const busy = disabled || uploading > 0;
 
-  async function handleFiles(files: FileList | null) {
+  async function handleFiles(files: ArrayLike<File> | null) {
     if (!files || files.length === 0) return;
     setError(null);
 
@@ -162,8 +163,28 @@ export function PhotoStrip({
     if (albumRef.current) albumRef.current.value = "";
   }
 
+  // 캡쳐를 Ctrl+V 로 붙인다(REQ-0064). 리스너는 사진 줄이 아니라 그것이 든 폼에 건다 — 복기 칸에
+  // 글을 쓰다 바로 붙일 수 있고, 기록 폼이 여럿 뜬 /trades/new 에서도 포커스가 있는 폼에만 붙는다.
+  // 받을 이미지가 없으면 가로채지 않으니 글 붙여넣기는 그대로다.
+  const onPaste = useEffectEvent((e: ClipboardEvent) => {
+    if (busy || !e.clipboardData) return;
+    const intoTextField = e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLInputElement;
+    const images = pastedImages(e.clipboardData, intoTextField);
+    if (images.length === 0) return;
+    e.preventDefault();
+    void handleFiles(images);
+  });
+
+  useEffect(() => {
+    const form = rootRef.current?.closest("form");
+    if (!form) return;
+    const listener = (e: ClipboardEvent) => onPaste(e);
+    form.addEventListener("paste", listener);
+    return () => form.removeEventListener("paste", listener);
+  }, []);
+
   return (
-    <div className="space-y-2">
+    <div ref={rootRef} className="space-y-2">
       {paths.map((path) => (
         <input key={path} type="hidden" name={name} value={path} />
       ))}
