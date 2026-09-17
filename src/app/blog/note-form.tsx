@@ -37,14 +37,23 @@ function Submit() {
  * 노트 폼 — 새로 쓰기와 고치기가 같은 폼이다. `note` 가 있으면 고치기.
  *
  * 대상 글과 연결되는 글은 상태로 들고 hidden 으로 보낸다 — 글 번호를 손으로 치는 칸은
- * 없다. 760편에서 찾아 고르는 것뿐이다.
+ * 없다. 760편에서 찾아 고르는 것뿐이다. `initialPostId` 는 정리 문서 표에서 고르고 들어온
+ * 새 노트의 대상 글이다.
  */
-export function NoteForm({ note, posts }: { note?: SeniorNote; posts: SeniorPost[] }) {
+export function NoteForm({
+  note,
+  posts,
+  initialPostId,
+}: {
+  note?: SeniorNote;
+  posts: SeniorPost[];
+  initialPostId?: string | null;
+}) {
   const [state, action] = useActionState<SeniorNoteFormState, FormData>(
     note ? updateSeniorNote : createSeniorNote,
     {},
   );
-  const [postId, setPostId] = useState<string | null>(note?.post_id ?? null);
+  const [postId, setPostId] = useState<string | null>(note?.post_id ?? initialPostId ?? null);
   const [links, setLinks] = useState<string[]>(note?.links ?? []);
   const [pending, startTransition] = useTransition();
 

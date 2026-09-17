@@ -64,3 +64,28 @@ describe("renderMarkdown — md2html.py 와 같은 출력", () => {
     expect(renderMarkdown("- 하나\r\n- 둘\r\n")).toEqual(renderMarkdown("- 하나\n- 둘\n"));
   });
 });
+
+describe("renderMarkdown — 글 표 끝 칸(관리자 노트 버튼)", () => {
+  const postColumn = { title: "노트", cell: (logNo: string) => `<a href="/n/${logNo}">＋</a>` };
+  const postTable = "| 날짜 | 제목 | logNo |\n|---|---|---|\n| 2026-07-22 | 글 | 224354803712 |\n| 2026-07-23 | 번호 없음 | - |\n";
+
+  it("옵션이 없으면 md2html.py 와 같은 출력 그대로", () => {
+    expect(renderMarkdown(postTable)).toEqual(renderMarkdown(postTable, {}));
+    expect(renderMarkdown(postTable).html).not.toContain("노트");
+  });
+
+  it("logNo 열이 있는 표에 머리 칸과 행마다 칸을 붙이고, 번호가 숫자가 아니면 빈 칸", () => {
+    const { html } = renderMarkdown(postTable, { postColumn });
+    expect(html).toBe(
+      '<div class="tw"><table><thead><tr><th style="text-align:left">날짜</th><th style="text-align:left">제목</th><th style="text-align:left">logNo</th><th class="post-col">노트</th></tr></thead><tbody>' +
+        '<tr><td style="text-align:left">2026-07-22</td><td style="text-align:left">글</td><td style="text-align:left">224354803712</td><td class="post-col"><a href="/n/224354803712">＋</a></td></tr>' +
+        '<tr><td style="text-align:left">2026-07-23</td><td style="text-align:left">번호 없음</td><td style="text-align:left">-</td><td class="post-col"></td></tr>' +
+        "</tbody></table></div>",
+    );
+  });
+
+  it("logNo 열이 없는 표는 건드리지 않는다", () => {
+    const plain = "| 항목 | 값 |\n|---|---:|\n| 이탈선 | 20 |\n";
+    expect(renderMarkdown(plain, { postColumn })).toEqual(renderMarkdown(plain));
+  });
+});

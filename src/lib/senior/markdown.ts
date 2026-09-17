@@ -21,6 +21,15 @@ export interface RenderedMarkdown {
   toc: TocEntry[];
 }
 
+export interface RenderOptions {
+  /**
+   * 글 표(`logNo` 열이 있는 표) 끝에 칸 하나를 덧붙인다 — 관리자 화면의 노트 버튼.
+   * `cell` 은 글 번호를 받아 칸 안의 HTML 을 돌려준다. 번호가 숫자가 아닌 행은 빈 칸.
+   * 없으면 md2html.py 와 같은 출력이다.
+   */
+  postColumn?: { title: string; cell: (logNo: string) => string };
+}
+
 /** python `html.escape(quote=False)` */
 function escapeText(s: string): string {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
@@ -80,7 +89,7 @@ function cells(row: string): string[] {
     .map((c) => c.trim());
 }
 
-export function renderMarkdown(md: string): RenderedMarkdown {
+export function renderMarkdown(md: string, options: RenderOptions = {}): RenderedMarkdown {
   // 파이썬은 `\r` 을 공백으로 다루지만 JS 의 `.` 은 `\r` 앞에서 멈춘다 — 먼저 걷어 낸다.
   const lines = md.replace(/\r\n?/g, "\n").split("\n");
   const out: string[] = [];
@@ -153,16 +162,23 @@ export function renderMarkdown(md: string): RenderedMarkdown {
         rows.push(cells(lines[i]));
         i += 1;
       }
+      const extra = options.postColumn;
+      const logNoAt = extra ? head.indexOf("logNo") : -1;
       const t: string[] = ['<div class="tw"><table><thead><tr>'];
       head.forEach((c, j) => {
         t.push(`<th style="text-align:${aligns[j] ?? "left"}">${inline(c)}</th>`);
       });
+      if (extra && logNoAt >= 0) t.push(`<th class="post-col">${escapeText(extra.title)}</th>`);
       t.push("</tr></thead><tbody>");
       for (const r of rows) {
         t.push("<tr>");
         r.forEach((c, j) => {
           t.push(`<td style="text-align:${aligns[j] ?? "left"}">${inline(c)}</td>`);
         });
+        if (extra && logNoAt >= 0) {
+          const logNo = r[logNoAt] ?? "";
+          t.push(`<td class="post-col">${/^\d+$/.test(logNo) ? extra.cell(logNo) : ""}</td>`);
+        }
         t.push("</tr>");
       }
       t.push("</tbody></table></div>");

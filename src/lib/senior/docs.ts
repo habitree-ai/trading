@@ -9,7 +9,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
-import { renderMarkdown, type RenderedMarkdown } from "@/lib/senior/markdown";
+import { renderMarkdown, type RenderedMarkdown, type RenderOptions } from "@/lib/senior/markdown";
 
 /** 저장소 루트 기준. 공개 페이지가 읽는 파일은 전부 이 아래에 있다. */
 export const SENIOR_DIR = "선배님";
@@ -54,9 +54,9 @@ export function findSeniorDoc(slug: string): SeniorDoc | null {
  * 문서를 읽어 그린다. 파일이 없으면 null — 배포 번들에서 빠졌다는 뜻이고, 화면이
  * 그 사실을 말해야 한다(조용한 빈 화면은 "글이 없다"로 오독된다).
  */
-export function readSeniorDoc(doc: SeniorDoc): RenderedMarkdown | null {
+export function readSeniorDoc(doc: SeniorDoc, options?: RenderOptions): RenderedMarkdown | null {
   try {
-    return renderMarkdown(readFileSync(join(process.cwd(), SENIOR_DIR, doc.file), "utf8"));
+    return renderMarkdown(readFileSync(join(process.cwd(), SENIOR_DIR, doc.file), "utf8"), options);
   } catch {
     return null;
   }
