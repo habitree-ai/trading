@@ -108,7 +108,12 @@ export default async function SeniorNotePage({ params, searchParams }: Props) {
               key={f.key}
               className={`rounded-xl border bg-surface p-4 ${senior ? "border-border" : "border-accent/40"}`}
             >
-              <h2 className="text-[11px] font-semibold tracking-widest text-dim uppercase">{f.label}</h2>
+              <h2 className="text-[11px] font-semibold tracking-widest text-dim uppercase">
+                {f.label}
+                {f.key === "think" && note.think_at ? (
+                  <span className="tnum font-normal tracking-normal"> · {date(note.think_at)}</span>
+                ) : null}
+              </h2>
               <p
                 className={`mt-2 text-[14px] leading-relaxed whitespace-pre-line ${
                   body === "" ? "text-dim italic" : senior ? "text-dim" : ""

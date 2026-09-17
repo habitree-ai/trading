@@ -1,9 +1,11 @@
 import Link from "next/link";
 
+import { date } from "@/lib/format";
 import { getBlogViewer } from "@/lib/senior/admin";
 import { listSeniorCharts } from "@/lib/senior/charts";
 import { SENIOR_DOCS } from "@/lib/senior/docs";
 import { SENIOR_NOTE_STATUS_LABEL } from "@/lib/senior/fields";
+import { firstLine, orderByThought } from "@/lib/senior/note-list";
 import { listSeniorNotes, type SeniorNote, type SeniorNoteStatus } from "@/lib/senior/notes";
 import { listSeniorPosts, type SeniorPost } from "@/lib/senior/posts";
 
@@ -40,10 +42,6 @@ function matches(note: SeniorNote, post: SeniorPost | undefined, filter: Filter)
   return hay.includes(needle);
 }
 
-function snippet(note: SeniorNote): string {
-  return (note.think || note.quote).replace(/\s+/g, " ").trim().slice(0, 90);
-}
-
 export default async function BlogHome({
   searchParams,
 }: {
@@ -61,7 +59,9 @@ export default async function BlogHome({
   const charts = listSeniorCharts();
   const byId = new Map(posts.map((p) => [p.id, p]));
 
-  const visible = notes.filter((n) => matches(n, n.post_id ? byId.get(n.post_id) : undefined, filter));
+  const visible = orderByThought(
+    notes.filter((n) => matches(n, n.post_id ? byId.get(n.post_id) : undefined, filter)),
+  );
   const tags = [...new Set(notes.flatMap((n) => n.tags))].sort((a, b) => a.localeCompare(b, "ko"));
   const done = notes.filter((n) => n.status === "done").length;
   const covered = new Set(notes.map((n) => n.post_id).filter(Boolean)).size;
@@ -207,44 +207,37 @@ export default async function BlogHome({
               : "조건에 맞는 노트가 없습니다."}
           </p>
         ) : (
-          <ul className="grid gap-2 md:grid-cols-2">
+          // 한 줄 목록 — 내 생각 작성일 · 대상 글 · 내 생각 첫 줄 · 상태. 좁은 화면에서는 글과 생각이 두 줄로 쌓인다.
+          <ul className="divide-y divide-border overflow-hidden rounded-xl border border-border bg-surface">
             {visible.map((note) => {
               const post = note.post_id ? byId.get(note.post_id) : undefined;
-              const text = snippet(note);
+              const thought = firstLine(note.think);
               return (
                 <li key={note.id}>
                   <Link
                     href={`/blog/notes/${note.id}`}
-                    className="block h-full rounded-xl border border-border bg-surface p-4 transition-colors hover:border-accent"
+                    className="flex items-baseline gap-3 px-4 py-2.5 transition-colors hover:bg-surface-2"
                   >
-                    <div className="flex flex-wrap items-center gap-2 text-[11px] text-dim">
-                      {post ? (
-                        <>
-                          <span className="tnum">{post.date}</span>
-                          <span className="rounded border border-border px-1.5">{post.board}</span>
-                        </>
-                      ) : (
-                        <span>{note.post_id ? `글 ${note.post_id}` : "글 미지정"}</span>
-                      )}
-                      <span
-                        className={`ml-auto rounded px-1.5 py-0.5 ${
-                          note.status === "done" ? "bg-profit/15 text-profit" : "bg-surface-2"
-                        }`}
-                      >
-                        {SENIOR_NOTE_STATUS_LABEL[note.status]}
+                    <span className="tnum w-14 shrink-0 text-[12px] text-dim">
+                      {note.think_at ? date(note.think_at) : "—"}
+                    </span>
+                    <span className="min-w-0 flex-1 sm:flex sm:items-baseline sm:gap-3">
+                      <span className="block truncate text-[13.5px] font-medium sm:w-56 sm:shrink-0">
+                        {post?.title ?? (note.post_id ? `글 ${note.post_id}` : "(글을 고르지 않은 노트)")}
                       </span>
-                    </div>
-                    <h3 className="mt-1.5 text-[13.5px] leading-snug font-medium">
-                      {post?.title ?? "(글을 고르지 않은 노트)"}
-                    </h3>
-                    {text ? <p className="mt-1 text-xs leading-relaxed text-dim">{text}</p> : null}
-                    {note.tags.length > 0 ? (
-                      <p className="mt-2 flex flex-wrap gap-1 text-[11px] text-dim">
-                        {note.tags.map((t) => (
-                          <span key={t}>#{t}</span>
-                        ))}
-                      </p>
-                    ) : null}
+                      <span
+                        className={`block min-w-0 truncate text-[13px] text-dim sm:flex-1 ${thought ? "" : "italic"}`}
+                      >
+                        {thought || "(내 생각 아직)"}
+                      </span>
+                    </span>
+                    <span
+                      className={`shrink-0 rounded px-1.5 py-0.5 text-[11px] ${
+                        note.status === "done" ? "bg-profit/15 text-profit" : "bg-surface-2 text-dim"
+                      }`}
+                    >
+                      {SENIOR_NOTE_STATUS_LABEL[note.status]}
+                    </span>
                   </Link>
                 </li>
               );
