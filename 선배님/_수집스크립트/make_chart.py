@@ -19,6 +19,9 @@
    스펙 필드
      symbol, name, title, post{title,board,date,url}, event_date
      daily{from}                 일봉 시작일 (끝은 오늘)
+     daily{csv}                  생략 가능 — 야후 대신 로컬 CSV(date,open,high,low,close,change,volume,source_url)로
+                                 일봉을 만든다(연합뉴스 시세표 등, 야후에 없는 종목용). 이 경로에서는 1시간봉·15분봉·
+                                 vol_index·options 를 받지 않고, 거래소 시간대는 KST 로 고정한다
      hourly{from,to}             1시간봉 구간. 생략하면 사건이 730일 안일 때 자동(사건 -60일 ~ +120일)
      minutes15{from,to}          15분봉 구간. 생략하면 사건이 60일 안일 때 자동(사건 -5일 ~ +10일)
      table{daily_sessions | daily_from,daily_to ; hourly_from_utc,hourly_to_utc}
@@ -71,6 +74,15 @@ def fetch(symbol, interval, p1, p2):
             continue          # 거래 없는 시간대·결측
         bars.append([int(t), float(o), float(h), float(l), float(c), int(v or 0)])
     return bars, res['meta']
+
+def read_daily_csv(path):
+    """daily.csv 스펙 — 야후 대신 로컬 CSV(date,open,high,low,close,...)를 일봉으로 쓴다.
+       타임스탬프는 야후 KRX 일봉과 같은 규칙(세션 날짜 00:00 UTC)으로 맞춘다."""
+    bars = []
+    with io.open(path, encoding='utf-8-sig') as f:
+        for row in csv.DictReader(f):
+            bars.append([day_epoch(row['date']), float(row['open']), float(row['high']), float(row['low']), float(row['close']), int(row['volume'] or 0)])
+    return bars
 
 def epoch(iso):
     return int(dt.datetime.fromisoformat(iso.replace('Z', '+00:00')).timestamp())
@@ -304,31 +316,39 @@ def main(spec_path):
     now = int(dt.datetime.now(UTC).timestamp())
     PDEC = int(spec.get('price_decimals', 2))
 
-    d1, meta = fetch(spec['symbol'], '1d', day_epoch(spec['daily']['from']), now)
-    EXCH = meta.get('exchangeTimezoneName') or EXCH
-    GMTOFF = int(meta.get('gmtoffset') or GMTOFF)
-    HAS_2TZ = EXCH != 'Asia/Seoul'
-    LOC_ABBR = 'ET' if EXCH == 'America/New_York' else ('KST' if EXCH == 'Asia/Seoul' else meta.get('timezone', EXCH))
+    csv_path = spec['daily'].get('csv')
+    if csv_path:
+        d1 = read_daily_csv(os.path.join(R, csv_path))
+        EXCH, GMTOFF, HAS_2TZ, LOC_ABBR = 'Asia/Seoul', 9 * 3600, False, 'KST'
+    else:
+        d1, meta = fetch(spec['symbol'], '1d', day_epoch(spec['daily']['from']), now)
+        EXCH = meta.get('exchangeTimezoneName') or EXCH
+        GMTOFF = int(meta.get('gmtoffset') or GMTOFF)
+        HAS_2TZ = EXCH != 'Asia/Seoul'
+        LOC_ABBR = 'ET' if EXCH == 'America/New_York' else ('KST' if EXCH == 'Asia/Seoul' else meta.get('timezone', EXCH))
     d1 = enrich(d1)
     log = [f'{spec["symbol"]} ({EXCH}) 일봉 {len(d1)}개 {session_date(d1[0][0])} ~ {session_date(d1[-1][0])}']
 
     h1, m15 = [], []
-    rng = intraday_range(spec, 'hourly', 729, 60, 120, now)
-    if rng:
-        try:
-            h1, _ = fetch(spec['symbol'], '1h', rng[0], rng[1]); h1 = enrich(h1)
-            log.append(f'1시간봉 {len(h1)}개 {kst_dt(h1[0][0]):%Y-%m-%d %H:%M} ~ {kst_dt(h1[-1][0]):%Y-%m-%d %H:%M} KST')
-        except YahooError as e: log.append('1시간봉 없음 — ' + str(e))
-    else: log.append('1시간봉 없음 — 사건이 야후 한도(730일) 밖')
-    rng = intraday_range(spec, 'minutes15', 59, 5, 10, now)
-    if rng:
-        try:
-            m15, _ = fetch(spec['symbol'], '15m', rng[0], rng[1])
-            log.append(f'15분봉 {len(m15)}개')
-        except YahooError as e: log.append('15분봉 없음 — ' + str(e))
-    else: log.append('15분봉 없음 — 사건이 야후 한도(60일) 밖')
+    if csv_path:
+        log.append('1시간봉·15분봉 없음 — daily.csv 스펙(로컬 CSV 일봉 전용)')
+    else:
+        rng = intraday_range(spec, 'hourly', 729, 60, 120, now)
+        if rng:
+            try:
+                h1, _ = fetch(spec['symbol'], '1h', rng[0], rng[1]); h1 = enrich(h1)
+                log.append(f'1시간봉 {len(h1)}개 {kst_dt(h1[0][0]):%Y-%m-%d %H:%M} ~ {kst_dt(h1[-1][0]):%Y-%m-%d %H:%M} KST')
+            except YahooError as e: log.append('1시간봉 없음 — ' + str(e))
+        else: log.append('1시간봉 없음 — 사건이 야후 한도(730일) 밖')
+        rng = intraday_range(spec, 'minutes15', 59, 5, 10, now)
+        if rng:
+            try:
+                m15, _ = fetch(spec['symbol'], '15m', rng[0], rng[1])
+                log.append(f'15분봉 {len(m15)}개')
+            except YahooError as e: log.append('15분봉 없음 — ' + str(e))
+        else: log.append('15분봉 없음 — 사건이 야후 한도(60일) 밖')
 
-    vi, opt = spec.get('vol_index'), spec.get('options')
+    vi, opt = (None, None) if csv_path else (spec.get('vol_index'), spec.get('options'))
     vxd = vxh = None
     if vi:
         vxd, _ = fetch(vi['symbol'], '1d', day_epoch(spec['daily']['from']), now)
