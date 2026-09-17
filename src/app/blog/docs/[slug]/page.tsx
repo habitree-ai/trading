@@ -29,9 +29,10 @@ async function notePostColumn(): Promise<RenderOptions["postColumn"]> {
     title: "노트",
     cell: (logNo) => {
       const id = noteByPost.get(logNo);
+      // 칸을 좁히려고 기호만 둔다 — 뜻은 title(마우스 올림)·aria-label(낭독)에.
       return id
-        ? `<a class="note-btn has-note" href="/blog/notes/${id}">노트 ✓</a>`
-        : `<a class="note-btn" href="/blog/notes/new?post=${logNo}">＋노트</a>`;
+        ? `<a class="note-btn has-note" href="/blog/notes/${id}" title="노트 보기" aria-label="노트 보기">✓</a>`
+        : `<a class="note-btn" href="/blog/notes/new?post=${logNo}" title="노트 쓰기" aria-label="노트 쓰기">+</a>`;
     },
   };
 }
