@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
+import { DocSearch } from "@/app/blog/doc-search";
 import { getBlogViewer } from "@/lib/senior/admin";
+import { DOC_BODY_ID } from "@/lib/senior/doc-filter";
 import { findSeniorDoc, readSeniorDoc } from "@/lib/senior/docs";
 import type { RenderOptions } from "@/lib/senior/markdown";
 import { listSeniorNotes } from "@/lib/senior/notes";
@@ -79,7 +81,14 @@ export default async function SeniorDocPage({ params }: Props) {
         </div>
       </aside>
 
-      <article className="blog-doc min-w-0" dangerouslySetInnerHTML={{ __html: rendered.html }} />
+      <div className="min-w-0">
+        <DocSearch />
+        <article
+          id={DOC_BODY_ID}
+          className="blog-doc"
+          dangerouslySetInnerHTML={{ __html: rendered.html }}
+        />
+      </div>
     </div>
   );
 }
