@@ -31,6 +31,8 @@
 | `src/app/(app)/quad/` | **4분할 차트** — 멀티 타임프레임 + 그리기 동기화 ([docs/quad-chart.md](docs/quad-chart.md)) |
 | `src/app/(app)/research/` | **종목 리서치** — 매매 이전 데이터 수집 · 맥락 노트 축적 |
 | `src/lib/research/` | 리서치 수집 계층 — CoinGecko · 공포탐욕 · OKX 파생 · 뉴스 RSS |
+| `src/app/(app)/options/` | **옵션 분석** — BTC 옵션 OI · 풋콜비 · IV · 맥스페인 · GEX 한 장 ([docs/options/README.md](docs/options/README.md)) |
+| `src/lib/options/` | 옵션 수집·계산 계층 — OKX · Deribit 공개 API 파서, BS 감마, 지표 산식과 해석 |
 | `supabase/migrations/` | 스키마 · RLS · Storage 버킷 |
 
 ## 계정별 관리
