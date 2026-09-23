@@ -1,11 +1,12 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useState, useTransition } from "react";
 
 import { BasisLine, changeText, EventChip, fillText } from "@/app/(app)/trades/new/basis-line";
 import {
   addPositionNote,
   createJournalNote,
+  deleteJournalNote,
   savePositionRecord,
   type JournalFormState,
 } from "@/app/(app)/trades/new/journal-actions";
@@ -77,7 +78,7 @@ function Stat({ label, wide = false, children }: { label: string; wide?: boolean
 }
 
 /** 고른 포지션의 정보 — 동기화가 채운 값을 그대로 깔아 둔다. 여기서는 고치지 않는다. */
-function PositionCard({ trade }: { trade: Trade }) {
+export function PositionCard({ trade }: { trade: Trade }) {
   const open = isOpenTrade(trade);
   const targets = [trade.okx_tp_price ?? trade.tp1_price, trade.tp2_price, trade.tp3_price];
   return (
@@ -241,11 +242,19 @@ function EntryRecord({
   );
 }
 
-/** 이 포지션에 쌓인 추가 기록 — 오래된 것부터. 삭제는 아래 최근 기록 목록에서. */
-function PositionNotes({ notes }: { notes: JournalNote[] }) {
+/**
+ * 이 포지션에 쌓인 추가 기록 — 오래된 것부터.
+ *
+ * 기록 추가 화면에서는 삭제를 아래 최근 기록 목록에 맡긴다. 매매 노트처럼 목록이 따로 없는
+ * 화면은 `deletable` 로 줄마다 삭제를 연다.
+ */
+export function PositionNotes({ notes, deletable = false }: { notes: JournalNote[]; deletable?: boolean }) {
+  const [pending, startTransition] = useTransition();
+  const [error, setError] = useState<string | null>(null);
   if (notes.length === 0) return null;
   return (
     <ol className="space-y-2" aria-label="추가 기록">
+      {error ? <li className="text-xs text-loss">{error}</li> : null}
       {notes.map((note) => (
         <li key={note.id} className="rounded-xl border border-border bg-surface p-3">
           <div className="flex flex-wrap items-center gap-2 text-xs">
@@ -254,6 +263,23 @@ function PositionNotes({ notes }: { notes: JournalNote[] }) {
             {note.event ? <BasisLine event={note.event} basis={note.basis} /> : null}
             {note.emotion ? (
               <span className="rounded border border-beta/40 px-1.5 py-0.5 text-[11px] text-beta">감정 · {note.emotion}</span>
+            ) : null}
+            {deletable ? (
+              <button
+                type="button"
+                disabled={pending}
+                onClick={() => {
+                  if (!window.confirm("이 추가 기록을 삭제할까요? 진입 기록과 차트 메모는 남습니다.")) return;
+                  setError(null);
+                  startTransition(async () => {
+                    const result = await deleteJournalNote(note.id);
+                    if (result.error) setError(result.error);
+                  });
+                }}
+                className="ml-auto text-dim hover:text-loss disabled:opacity-40"
+              >
+                삭제
+              </button>
             ) : null}
           </div>
           {note.body ? <p className="mt-2 text-sm whitespace-pre-wrap">{note.body}</p> : null}
@@ -402,7 +428,7 @@ function NewPositionNoteFields({
   );
 }
 
-function NewPositionNoteForm({
+export function NewPositionNoteForm({
   trade,
   userId,
   notes,
