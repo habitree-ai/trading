@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 
 import { deleteResearchNote, updateResearchNote } from "@/app/(app)/research/actions";
+import { VoiceInput } from "@/components/voice-input";
 import {
   RESEARCH_NOTE_CATEGORIES,
   RESEARCH_NOTE_CATEGORY_LABEL,
@@ -47,10 +48,14 @@ export function NoteRow({ note }: { note: ResearchNote }) {
             <option value="1">참고</option>
           </select>
         </div>
+        <div className="mt-2 mb-1 flex items-center justify-end">
+          <VoiceInput targetId={`note-body-${note.id}`} />
+        </div>
         <textarea
+          id={`note-body-${note.id}`}
           name="body"
           rows={3}
-          className={`${INPUT} mt-2`}
+          className={INPUT}
           defaultValue={note.body ?? ""}
           placeholder="내용"
         />

@@ -4,6 +4,7 @@ import { useActionState, useEffect, useRef } from "react";
 import { useFormStatus } from "react-dom";
 
 import { createPrinciple, type PrincipleFormState } from "@/app/(app)/principles/actions";
+import { VoiceInput } from "@/components/voice-input";
 import {
   PRINCIPLE_CATEGORIES,
   PRINCIPLE_CATEGORY_LABEL,
@@ -90,9 +91,12 @@ export function PrincipleForm({
       </div>
 
       <div>
-        <label className={LABEL} htmlFor="principle-detail">
-          왜 이 원칙인지
-        </label>
+        <div className="mb-1 flex items-center justify-between gap-2">
+          <label className="text-xs text-dim" htmlFor="principle-detail">
+            왜 이 원칙인지
+          </label>
+          <VoiceInput targetId="principle-detail" />
+        </div>
         <textarea
           id="principle-detail"
           name="detail"

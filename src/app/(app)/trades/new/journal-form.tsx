@@ -20,6 +20,7 @@ import {
 } from "@/app/(app)/trades/trade-form";
 import { serializeDraftAnnotations } from "@/components/annotation-store";
 import { PhotoRow, PhotoStrip } from "@/components/photos";
+import { VoiceInput } from "@/components/voice-input";
 import {
   JOURNAL_EVENT_LABEL,
   JOURNAL_EVENTS,
@@ -385,9 +386,12 @@ function NewPositionNoteFields({
         options={suggestions.emotion}
       />
       <div className="sm:col-span-3 xl:col-span-4">
-        <label className={LABEL} htmlFor="f-note-body">
-          기록 내용 <span className="ml-1 text-dim/70">사진만 붙여도 됩니다</span>
-        </label>
+        <div className="mb-1 flex items-center justify-between gap-2">
+          <label className="text-xs text-dim" htmlFor="f-note-body">
+            기록 내용 <span className="ml-1 text-dim/70">사진만 붙여도 됩니다</span>
+          </label>
+          <VoiceInput targetId="f-note-body" />
+        </div>
         <textarea id="f-note-body" name="body" rows={3} className={INPUT} />
       </div>
       <div className="sm:col-span-3 xl:col-span-4">
@@ -598,9 +602,12 @@ function FreeRecordFields({
           options={suggestions.emotion}
         />
         <div className="sm:col-span-3 xl:col-span-4">
-          <label className={LABEL} htmlFor="f-body">
-            기록 내용 <span className="ml-1 text-dim/70">사진만 붙여도 됩니다</span>
-          </label>
+          <div className="mb-1 flex items-center justify-between gap-2">
+            <label className="text-xs text-dim" htmlFor="f-body">
+              기록 내용 <span className="ml-1 text-dim/70">사진만 붙여도 됩니다</span>
+            </label>
+            <VoiceInput targetId="f-body" />
+          </div>
           <textarea id="f-body" name="body" rows={4} className={INPUT} />
         </div>
         <div className="sm:col-span-3 xl:col-span-4">

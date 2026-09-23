@@ -8,6 +8,7 @@ import {
   setPrincipleActive,
   updatePrinciple,
 } from "@/app/(app)/principles/actions";
+import { VoiceInput } from "@/components/voice-input";
 import { PRINCIPLE_CATEGORIES, PRINCIPLE_CATEGORY_LABEL, type Principle } from "@/lib/domain";
 import { pct, signed } from "@/lib/format";
 
@@ -68,10 +69,14 @@ export function PrincipleRow({
           </select>
           <input name="title" className={INPUT} defaultValue={principle.title} required />
         </div>
+        <div className="mt-2 mb-1 flex items-center justify-end">
+          <VoiceInput targetId={`principle-detail-${principle.id}`} />
+        </div>
         <textarea
+          id={`principle-detail-${principle.id}`}
           name="detail"
           rows={2}
-          className={`${INPUT} mt-2`}
+          className={INPUT}
           defaultValue={principle.detail ?? ""}
           placeholder="왜 이 원칙인지"
         />

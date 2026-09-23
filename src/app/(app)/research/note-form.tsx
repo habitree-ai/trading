@@ -4,6 +4,7 @@ import { useActionState, useEffect, useRef } from "react";
 import { useFormStatus } from "react-dom";
 
 import { createResearchNote, type ResearchFormState } from "@/app/(app)/research/actions";
+import { VoiceInput } from "@/components/voice-input";
 import { RESEARCH_NOTE_CATEGORIES, RESEARCH_NOTE_CATEGORY_LABEL } from "@/lib/domain";
 
 const INPUT =
@@ -74,9 +75,12 @@ export function NoteForm({ symbol }: { symbol: string }) {
       </div>
 
       <div>
-        <label className={LABEL} htmlFor="note-body">
-          내용
-        </label>
+        <div className="mb-1 flex items-center justify-between gap-2">
+          <label className="text-xs text-dim" htmlFor="note-body">
+            내용
+          </label>
+          <VoiceInput targetId="note-body" />
+        </div>
         <textarea
           id="note-body"
           name="body"

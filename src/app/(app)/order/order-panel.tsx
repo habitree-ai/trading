@@ -7,6 +7,7 @@ import { placeManualOrder, type ManualOrderState } from "@/app/(app)/order/actio
 import { OrderChart } from "@/app/(app)/order/order-chart";
 import type { OrderAccountStatus } from "@/app/(app)/order/status";
 import { DRAW_TOOLS, DrawToolbar, useDrawingBoard } from "@/components/drawing-board";
+import { VoiceInput } from "@/components/voice-input";
 import { formatLevel } from "@/lib/annotation-levels";
 import { ATR_PERIOD, ATR_STOP_MAX, ATR_STOP_MIN, atrPercent, stopAtrMultiple } from "@/lib/atr";
 import {
@@ -668,6 +669,7 @@ export function OrderPanel({
               >
                 {rationale.trim().length}/{MIN_RATIONALE_CHARS}자
               </span>
+              <VoiceInput targetId="o-rationale" />
             </div>
             <textarea
               id="o-rationale"
