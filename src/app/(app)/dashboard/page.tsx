@@ -388,7 +388,7 @@ export default async function DashboardPage() {
             <h2 className="text-sm font-medium">
               자금 곡선{" "}
               <span className="font-normal text-dim">
-                — 날짜순 실제 잔액과 매매 성과 ({book.base_currency})
+                — 날짜순 매매 성과와 실제 잔액 ({book.base_currency})
                 {benchmark ? `, ${benchmark.symbol} 시세 대조` : ""}
               </span>
             </h2>

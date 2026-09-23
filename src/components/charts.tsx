@@ -52,6 +52,53 @@ const TIME_AXIS = {
   ...AXIS,
 };
 
+const DAY_MS = 86_400_000;
+// 표시 타임존(Asia/Seoul)은 서머타임이 없어 고정 오프셋으로 자정을 잡아도 어긋나지 않는다.
+const KST_OFFSET_MS = 9 * 3_600_000;
+
+/**
+ * 날짜 눈금 — 표시 타임존 자정마다, 너무 많으면 며칠 간격으로 솎는다.
+ *
+ * 시간축에 맡기면 recharts 가 구간을 다섯 칸 남짓으로 나눠 눈금이 자정이 아닌 어중간한
+ * 시각에 드문드문 찍힌다. 하루 단위로 세워 두면 곡선의 어느 굴곡이 며칠인지 바로 읽힌다.
+ */
+function dayTicks(ts: number[], maxTicks = 16): number[] {
+  if (ts.length === 0) return [];
+  const lo = Math.min(...ts);
+  const hi = Math.max(...ts);
+  const first = Math.ceil((lo + KST_OFFSET_MS) / DAY_MS) * DAY_MS - KST_OFFSET_MS;
+  const days = Math.floor((hi - first) / DAY_MS) + 1;
+  const step = Math.max(1, Math.ceil(days / maxTicks));
+  const out: number[] = [];
+  for (let t = first; t <= hi; t += step * DAY_MS) out.push(t);
+  return out;
+}
+
+/** 보조 선의 색 — 같은 색을 옅게. 범례 견본과 선이 같은 값을 쓰도록 문자열로 둔다. */
+function faint(color: string, percent: number): string {
+  return `color-mix(in srgb, ${color} ${percent}%, transparent)`;
+}
+
+/**
+ * 세로축 범위와 눈금 — 주어진 값들을 덮는 가장 가까운 「깔끔한」 간격.
+ *
+ * 수익률 축에서 벤치마크를 빼고 내 선만으로 범위를 잡을 때 쓴다. 자동 범위에 맡기면
+ * BTC 가 크게 움직인 달에 축이 그쪽으로 늘어나 내 곡선의 굴곡이 납작해진다.
+ */
+function fitTicks(values: number[]): { domain: [number, number]; ticks: number[] } {
+  const lo = Math.min(...values);
+  const hi = Math.max(...values);
+  const raw = Math.max(hi - lo, 0.002) / 4;
+  const mag = 10 ** Math.floor(Math.log10(raw));
+  const step = ([1, 2, 2.5, 5, 10].find((m) => m * mag >= raw) ?? 10) * mag;
+  const a = Math.floor(lo / step) * step;
+  const b = Math.ceil(hi / step) * step;
+  const ticks: number[] = [];
+  // 부동소수 누적 오차로 마지막 눈금이 빠지지 않게 반 칸 여유를 둔다.
+  for (let v = a; v <= b + step / 2; v += step) ticks.push(v);
+  return { domain: [a, b], ticks };
+}
+
 function TooltipBox({ rows }: { rows: [string, string, string?][] }) {
   return (
     <div className="rounded-lg border border-border bg-surface px-3 py-2 text-xs shadow-lg">
@@ -202,6 +249,47 @@ export function EquityCurve({
     benchmarkLabel !== null && data.some((d) => typeof d.benchmark === "number");
   // 스냅샷이 한 점도 없으면(수동 북) 그 선과 범례를 아예 두지 않는다.
   const hasSnapshot = data.some((d) => typeof d.snapshot === "number");
+  /**
+   * 거래로 쌓은 장부 잔액 선을 그릴까.
+   *
+   * 거래소 스냅샷이 있으면 그쪽이 진짜 잔액이고, 장부 선은 그 옆을 따라가는 근사치다 —
+   * 같은 자리를 두 선이 지나면 볼 때마다 어느 쪽을 믿을지부터 정해야 한다. 둘의 차이는
+   * 현재자금 아래 한 줄(BalanceGap)이 이미 말해 준다.
+   *
+   * 스냅샷이 없는 북에서는 이 선이 유일한 잔액이라 그대로 둔다 — 거기서는 이름도
+   * 「장부 잔액」이 아니라 「실제 잔액」이다.
+   */
+  const showBookLine = !hasSnapshot;
+
+  /**
+   * 출금이 있었던 지점의 점.
+   *
+   * 장부 선이 있으면 그 선에 얹는다 — 곡선이 꺾인 이유를 그 자리에서 알리려는 것이다.
+   * 장부 선이 없으면 매매 성과 선으로 옮긴다. 그 선은 출금에 꺾이지 않지만, 점이 가리키는
+   * 것은 꺾임이 아니라 시점이라 뜻은 남는다.
+   */
+  const withdrawalDot = (props: unknown) => {
+    const { cx, cy, payload, index } = props as {
+      cx?: number;
+      cy?: number;
+      index: number;
+      payload: EquityPoint;
+    };
+    if (payload.withdrawnStep <= 0 || cx === undefined || cy === undefined) {
+      return <g key={`nodot-${index}`} />;
+    }
+    return (
+      <circle
+        key={`w-${index}`}
+        cx={cx}
+        cy={cy}
+        r={4}
+        fill="var(--beta)"
+        stroke="var(--surface)"
+        strokeWidth={2}
+      />
+    );
+  };
   // 분모가 0 이하면 수익률을 낼 수 없다 — 토글을 감추고 금액 축으로 고정한다.
   const base = returnBase ?? initialCapital;
   const canPct = base > 0;
@@ -226,15 +314,37 @@ export function EquityCurve({
     }));
   }, [data, initialCapital, base, canPct]);
 
+  const xTicks = useMemo(() => dayTicks(data.map((d) => d.t)), [data]);
+
+  // 수익률 축에서 BTC 는 내 선과 같은 축에 얹되 범위는 내 선이 정한다 — 넘치는 부분은 잘린다.
+  const yFit = useMemo(() => {
+    if (!pctMode || !hasBenchmark || rows.length === 0) return null;
+    const mine = [0];
+    for (const r of rows) {
+      mine.push(r.performancePct);
+      if (showBookLine) mine.push(r.equityPct);
+      if (r.snapshotPct !== null) mine.push(r.snapshotPct);
+    }
+    return fitTicks(mine);
+  }, [rows, pctMode, hasBenchmark, showBookLine]);
+  // 범위가 좁으면 정수 퍼센트 눈금이 겹쳐 같은 글자가 반복된다.
+  const pctDecimals = yFit && yFit.ticks.length > 1 && yFit.ticks[1] - yFit.ticks[0] < 0.01 ? 1 : 0;
+
+  // 선의 무게 — 매매 성과가 주인공, 잔액은 흐름만, BTC 는 배경.
+  const balanceColor = faint(showBookLine ? "var(--accent)" : "var(--beta)", 55);
+  const benchmarkColor = faint("var(--text-dim)", 40);
+
   return (
     <div className="space-y-2">
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
         <Legend
           items={[
-            [hasSnapshot ? "장부 잔액 (거래 기반)" : "실제 잔액", "var(--accent)", false],
-            ["매매 성과 (입출금 제외)", "var(--alpha)", true],
+            ["매매 성과 (입출금 제외)", "var(--alpha)", false],
+            ...(showBookLine
+              ? ([["실제 잔액", balanceColor, false]] as [string, string, boolean][])
+              : []),
             ...(hasSnapshot
-              ? ([["실제 잔액 (거래소 스냅샷 · 미실현 포함)", "var(--beta)", false]] as [
+              ? ([["실제 잔액 (거래소 스냅샷 · 미실현 포함)", balanceColor, false]] as [
                   string,
                   string,
                   boolean,
@@ -244,7 +354,7 @@ export function EquityCurve({
               ? ([
                   [
                     pctMode ? `${benchmarkLabel} 수익률` : `${benchmarkLabel} 시세 (우축)`,
-                    "var(--text-dim)",
+                    benchmarkColor,
                     false,
                   ],
                 ] as [string, string, boolean][])
@@ -256,15 +366,22 @@ export function EquityCurve({
       <ResponsiveContainer width="100%" height={220}>
         <LineChart data={rows} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
           <CartesianGrid stroke={GRID} strokeDasharray="3 3" vertical={false} />
-          <XAxis {...TIME_AXIS} />
+          <XAxis
+            {...TIME_AXIS}
+            ticks={xTicks}
+            minTickGap={8}
+            tick={{ fill: "var(--text)", fontSize: 11 }}
+          />
           <YAxis
             yAxisId="left"
             {...AXIS}
             tickLine={false}
             axisLine={false}
             width={56}
-            domain={["auto", "auto"]}
-            tickFormatter={(v: number) => (pctMode ? pct(v, 0) : num(v, 0))}
+            domain={yFit?.domain ?? ["auto", "auto"]}
+            ticks={yFit?.ticks}
+            allowDataOverflow={yFit !== null}
+            tickFormatter={(v: number) => (pctMode ? pct(v, pctDecimals) : num(v, 0))}
           />
           {hasBenchmark && !pctMode ? (
             <YAxis
@@ -285,7 +402,8 @@ export function EquityCurve({
             strokeDasharray="4 4"
             label={{
               value: pctMode ? "시작" : "초기자금",
-              position: "insideTopLeft",
+              // 선 위에 붙인다 — 수익률 축이 0에서 시작하면 선 아래 글자가 날짜 눈금과 겹친다.
+              position: "insideBottomLeft",
               fill: "var(--text-dim)",
               fontSize: 10,
             }}
@@ -301,7 +419,26 @@ export function EquityCurve({
                 <TooltipBox
                   rows={[
                     [p.label, ""],
-                    [`${hasSnapshot ? "장부 잔액" : "실제 잔액"} (${currency})`, num(p.equity, 2)],
+                    ["매매 성과", num(p.performance, 2), pnlClass(p.performance - initialCapital)],
+                    ...(canPct
+                      ? ([
+                          ["성과 수익률", signedPct(p.performancePct), pnlClass(p.performancePct)],
+                        ] as [string, string, string?][])
+                      : []),
+                    ...(canPct && excess !== null
+                      ? ([["시장 대비", signedPct(excess), pnlClass(excess)]] as [
+                          string,
+                          string,
+                          string?,
+                        ][])
+                      : []),
+                    ...(showBookLine
+                      ? ([[`실제 잔액 (${currency})`, num(p.equity, 2)]] as [
+                          string,
+                          string,
+                          string?,
+                        ][])
+                      : []),
                     ...(hasSnapshot
                       ? ([
                           [
@@ -314,18 +451,12 @@ export function EquityCurve({
                             : []),
                         ] as [string, string, string?][])
                       : []),
-                    ...(canPct
+                    ...(canPct && showBookLine
                       ? ([["잔액 수익률", signedPct(p.equityPct), pnlClass(p.equityPct)]] as [
                           string,
                           string,
                           string?,
                         ][])
-                      : []),
-                    ["매매 성과", num(p.performance, 2), pnlClass(p.performance - initialCapital)],
-                    ...(canPct
-                      ? ([
-                          ["성과 수익률", signedPct(p.performancePct), pnlClass(p.performancePct)],
-                        ] as [string, string, string?][])
                       : []),
                     ...(hasBenchmark
                       ? ([[`${benchmarkLabel} 시세`, num(p.benchmark ?? null, 0)]] as [
@@ -336,13 +467,6 @@ export function EquityCurve({
                       : []),
                     ...(hasBenchmark && p.benchmarkPct !== null
                       ? ([[`${benchmarkLabel} 수익률`, signedPct(p.benchmarkPct)]] as [
-                          string,
-                          string,
-                          string?,
-                        ][])
-                      : []),
-                    ...(canPct && excess !== null
-                      ? ([["시장 대비", signedPct(excess), pnlClass(excess)]] as [
                           string,
                           string,
                           string?,
@@ -371,86 +495,69 @@ export function EquityCurve({
               yAxisId={pctMode ? "left" : "right"}
               type="monotone"
               dataKey={pctMode ? "benchmarkPct" : "benchmark"}
-              stroke="var(--text-dim)"
-              strokeWidth={1.5}
-              strokeOpacity={0.55}
+              stroke={benchmarkColor}
+              strokeWidth={1}
               dot={false}
               activeDot={false}
               connectNulls
             />
           ) : null}
-          <Line
-            yAxisId="left"
-            type="monotone"
-            dataKey={pctMode ? "performancePct" : "performance"}
-            stroke="var(--alpha)"
-            strokeWidth={2}
-            strokeDasharray="5 4"
-            dot={false}
-            activeDot={false}
-          />
-          <Line
-            yAxisId="left"
-            type="monotone"
-            dataKey={pctMode ? "equityPct" : "equity"}
-            stroke="var(--accent)"
-            strokeWidth={2}
-            // 출금이 일어난 지점만 점으로 찍는다 — 곡선이 꺾인 이유를 그 자리에서 알리기 위해.
-            dot={(props) => {
-              const { cx, cy, payload, index } = props as {
-                cx?: number;
-                cy?: number;
-                index: number;
-                payload: EquityPoint;
-              };
-              if (payload.withdrawnStep <= 0 || cx === undefined || cy === undefined) {
-                return <g key={`nodot-${index}`} />;
-              }
-              return (
-                <circle
-                  key={`w-${index}`}
-                  cx={cx}
-                  cy={cy}
-                  r={4}
-                  fill="var(--beta)"
-                  stroke="var(--surface)"
-                  strokeWidth={2}
-                />
-              );
-            }}
-            activeDot={{ r: 4, strokeWidth: 2, stroke: "var(--surface)" }}
-          />
+          {showBookLine ? (
+            <Line
+              yAxisId="left"
+              type="monotone"
+              dataKey={pctMode ? "equityPct" : "equity"}
+              stroke={balanceColor}
+              strokeWidth={1.25}
+              dot={withdrawalDot}
+              activeDot={false}
+            />
+          ) : null}
           {/* 거래소 잔액 — 이어지지 않는 날 사이는 null 이라 여기서 끊긴다(connectNulls 금지). */}
           {hasSnapshot ? (
             <Line
               yAxisId="left"
               type="monotone"
               dataKey={pctMode ? "snapshotPct" : "snapshot"}
-              stroke="var(--beta)"
-              strokeWidth={1.5}
+              stroke={balanceColor}
+              strokeWidth={1.25}
               dot={false}
-              activeDot={{ r: 3, strokeWidth: 2, stroke: "var(--surface)" }}
+              activeDot={false}
             />
           ) : null}
+          {/* 매매 성과는 맨 마지막에 그려 어떤 선에도 가려지지 않게 한다. */}
+          <Line
+            yAxisId="left"
+            type="monotone"
+            dataKey={pctMode ? "performancePct" : "performance"}
+            stroke="var(--alpha)"
+            strokeWidth={2.5}
+            dot={showBookLine ? false : withdrawalDot}
+            activeDot={{ r: 4, strokeWidth: 2, stroke: "var(--surface)" }}
+          />
         </LineChart>
       </ResponsiveContainer>
       {hasSnapshot ? (
         <p className="text-[11px] text-dim">
           <span className="text-beta">—</span> 거래소 잔액은 하루에 마지막 스냅샷 하나로 그립니다.
           이어지지 않는 날 사이는 선을 끊어 두었습니다 — 빈 구간을 &ldquo;변동 없음&rdquo;으로 읽지
-          않게. 장부 선과의 간격이 미실현 손익과 장부가 놓친 비용입니다.
+          않게. 거래로 쌓은 장부 잔액 선은 그리지 않습니다 — 장부와 거래소의 차이(미실현 손익과
+          장부가 놓친 비용)는 현재자금 아래 한 줄에서 봅니다.
         </p>
       ) : null}
       {pctMode && hasBenchmark ? (
         <p className="text-[11px] text-dim">
           시장과 견줄 선은 <span className="text-alpha">매매 성과</span>입니다 — 실제 잔액에는
-          넣고 뺀 돈이 섞여 있어 수익률로 바꿔도 그만큼 부풀거나 꺼집니다.
+          넣고 뺀 돈이 섞여 있어 수익률로 바꿔도 그만큼 부풀거나 꺼집니다. 세로축은 내 선에
+          맞춰 두어, {benchmarkLabel} 가 그 범위를 벗어난 구간은 차트 밖으로 잘립니다.
         </p>
       ) : null}
       {hasWithdrawal ? (
         <p className="text-[11px] text-dim">
-          <span className="text-beta">●</span> 표시는 그 거래 구간에 출금이 있었던 지점입니다. 두 선의
-          간격이 벌어질수록 계좌 밖으로 뺀 돈(또는 넣은 돈)이 많다는 뜻입니다.
+          <span className="text-beta">●</span> 표시는 그 거래 구간에 출금이 있었던 지점입니다.
+          {showBookLine
+            ? " 두 선의 간격이 벌어질수록 계좌 밖으로 뺀 돈(또는 넣은 돈)이 많다는 뜻입니다."
+            : " 매매 성과 선은 출금에 꺾이지 않으므로, 점이 가리키는 것은 꺾임이 아니라 시점입니다."}
         </p>
       ) : null}
     </div>
