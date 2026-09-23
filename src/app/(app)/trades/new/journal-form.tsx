@@ -653,7 +653,7 @@ function FreeRecordFields({
   );
 }
 
-function FreeRecordForm({
+export function FreeRecordForm({
   bookId,
   userId,
   suggestions,

@@ -37,11 +37,16 @@ export function TradeList({
   notesByTrade,
   selectedId,
   filter,
+  generalCount,
+  generalActive,
 }: {
   trades: Trade[];
   notesByTrade: Record<string, JournalNote[]>;
   selectedId: string | null;
   filter: NotesFilter;
+  /** 매매와 무관한 기록 수 — 목록 맨 위 항목으로 연다(REQ-0075) */
+  generalCount: number;
+  generalActive: boolean;
 }) {
   const shown = trades.filter((t) => matches(t, filter));
   return (
@@ -61,6 +66,19 @@ export function TradeList({
           </Link>
         ))}
       </nav>
+
+      <Link
+        href={filter === "all" ? "/notes?view=general" : `/notes?filter=${filter}&view=general`}
+        aria-current={generalActive ? "true" : undefined}
+        className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-xs ${
+          generalActive ? "border-accent bg-accent/5" : "border-border bg-surface hover:border-dim"
+        }`}
+      >
+        <span aria-hidden>📝</span>
+        <span className="font-medium">일반 기록</span>
+        <span className="text-dim">매매와 무관한 관찰·감정</span>
+        <span className="tnum ml-auto text-dim">{generalCount}</span>
+      </Link>
 
       {shown.length === 0 ? (
         <p className="rounded-xl border border-dashed border-border p-4 text-center text-xs text-dim">
