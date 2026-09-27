@@ -121,3 +121,102 @@ describe('candleCursors — 페이지를 미리 계산해 한꺼번에 받는다
     expect(candleCursors('1H', to, to)).toEqual([to]);
   });
 });
+
+describe('candleCursors — 닫힌 봉 경계를 주면 from 기준 안정 커서로 캐시를 맞춘다', () => {
+  const to = Date.parse('2026-07-27T00:00:00Z');
+  const page = (bar: Parameters<typeof candleCursors>[0]) => BAR_MS[bar] * 100;
+
+  /** 각 커서 a 가 (a−span, a] 를 덮는다고 보고, from~to 전체가 빈틈 없이 덮이는지. */
+  const covers = (cursors: number[], span: number, from: number, until: number) => {
+    let reached = from;
+    for (const a of [...cursors].sort((x, y) => x - y)) {
+      if (a - span > reached) return false;
+      reached = Math.max(reached, a);
+    }
+    return reached >= until;
+  };
+
+  it('경계가 없으면 예전 그대로 to 기준이다', () => {
+    const from = to - 250 * BAR_MS['15m'];
+    expect(candleCursors('15m', from, to, MAX_CANDLE_PAGES, undefined)).toEqual(
+      candleCursors('15m', from, to),
+    );
+  });
+
+  it('전부 닫혔으면 안정 커서는 from 에서 올라오고, to 가 한 봉 밀려도 그대로다', () => {
+    const from = to - 250 * BAR_MS['15m'];
+    const first = candleCursors('15m', from, to, MAX_CANDLE_PAGES, to);
+    expect(first).toEqual([to, from + 2 * page('15m'), from + page('15m')]);
+
+    const shifted = to + BAR_MS['15m'];
+    const second = candleCursors('15m', from, shifted, MAX_CANDLE_PAGES, shifted);
+    // 끝 페이지 하나만 바뀌고 앞쪽(안정) 커서는 같다 — 하루 캐시가 그대로 맞는다.
+    expect(second[0]).toBe(shifted);
+    expect(second.slice(1)).toEqual(first.slice(1));
+  });
+
+  it('페이지 수는 예전과 같다 — 안정 n + 최근 1', () => {
+    const from = to - 250 * BAR_MS['15m'];
+    expect(candleCursors('15m', from, to, MAX_CANDLE_PAGES, to)).toHaveLength(
+      candleCursors('15m', from, to).length,
+    );
+    // 구간이 페이지의 정수배여도 마찬가지.
+    const exact = to - 300 * BAR_MS['15m'];
+    expect(candleCursors('15m', exact, to, MAX_CANDLE_PAGES, to)).toHaveLength(3);
+  });
+
+  it('닫힌 경계가 중간에 있으면 안정 커서와 최근 커서를 이어 붙인다', () => {
+    const from = to - 350 * BAR_MS['1H'];
+    const closed = to - 120 * BAR_MS['1H'];
+    const cursors = candleCursors('1H', from, to, MAX_CANDLE_PAGES, closed);
+
+    // 안정: from+100h, from+200h(=to−150h). from+300h 는 경계를 넘어 빠진다.
+    // 최근: to, to−100h — to−100h 페이지가 to−200h 까지 내려와 안정 커서에 닿는다.
+    expect(cursors).toEqual([to, to - page('1H'), from + 2 * page('1H'), from + page('1H')]);
+    // 경계 아래는 전부 안정 커서(from 기준), 위는 전부 최근 커서(to 기준).
+    expect(cursors.filter((a) => a <= closed)).toEqual([from + 2 * page('1H'), from + page('1H')]);
+    expect(cursors.filter((a) => a > closed)).toEqual([to, to - page('1H')]);
+  });
+
+  it('경계와 같은 커서는 안정으로 두지 않는다 — 1D·1W 는 OKX 봉이 16:00 UTC 에 시작해 그 페이지에 진행 중 봉이 든다', () => {
+    // 진입 2026-01-15 03:00Z, 지금은 100일 뒤 05:00Z. floorToBar(지금) = 04-25 00:00Z 인데 진행 중 일봉은 04-24 16:00Z 시작.
+    const from = floorToBar(Date.parse('2026-01-15T03:00:00Z'), '1D');
+    const closed = from + 100 * BAR_MS['1D'];
+    const until = closed + BAR_MS['1D'];
+    const cursors = candleCursors('1D', from, until, MAX_CANDLE_PAGES, closed);
+
+    // after=04-25 00:00Z 페이지의 최신 봉은 04-24 16:00Z(진행 중) — 하루 캐시하면 안 된다.
+    // 안정 커서 없이 전부 to 기준으로 내려온다(to 격자).
+    expect(cursors).not.toContain(closed);
+    expect(cursors.every((a) => (until - a) % page('1D') === 0)).toBe(true);
+    expect(covers(cursors, page('1D'), from, until)).toBe(true);
+  });
+
+  it('커버 구간에 빈틈도 중복 커서도 없다', () => {
+    const cases: Array<[Parameters<typeof candleCursors>[0], number, number | undefined]> = [
+      ['15m', 250, to],
+      ['15m', 300, to],
+      ['1H', 350, to - 120 * BAR_MS['1H']],
+      ['1H', 350, to - 1],
+      ['5m', 1_001, to - 7 * BAR_MS['5m']],
+      ['1H', 50, to],
+      ['1H', 250, undefined],
+    ];
+    for (const [bar, bars, closed] of cases) {
+      const from = to - bars * BAR_MS[bar];
+      const cursors = candleCursors(bar, from, to, MAX_CANDLE_PAGES, closed);
+      expect(covers(cursors, page(bar), from, to), `${bar} ${bars}봉`).toBe(true);
+      expect(new Set(cursors).size, `${bar} ${bars}봉 중복`).toBe(cursors.length);
+    }
+  });
+
+  it('상한을 넘으면 오래된 쪽을 자른다', () => {
+    const from = to - 1_000 * BAR_MS['1H'];
+    const full = candleCursors('1H', from, to, Infinity, to);
+    const limited = candleCursors('1H', from, to, 4, to);
+
+    expect(full).toHaveLength(10);
+    expect(limited).toEqual(full.slice(0, 4));
+    expect(Math.min(...limited)).toBeGreaterThan(Math.min(...full));
+  });
+});

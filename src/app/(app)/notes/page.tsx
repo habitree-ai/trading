@@ -71,13 +71,12 @@ export default async function NotesPage({
     listJournalNotes(book.id, JOURNAL_SCAN),
     listBooks(),
   ]);
-  // 경로 복기(REQ-0079)는 북을 가리지 않는다 — 과거 기록 전체에서 문제가 어디에 몰렸는지 본다.
-  // 대상은 청산됐고 TP 를 적은 거래만(사용자 결정). 캔들 계산은 그 보기를 열 때만 한다.
+  // 경로 복기(REQ-0079·0081)는 북을 가리지 않는다 — 과거 기록 전체에서 문제가 어디에 몰렸는지 본다.
+  // 대상은 TP 를 적은 거래 전부, 보유중 포함 — 실제 청산과 무관하게 TP 도달을 보므로. 캔들 계산은 그 보기를 열 때만 한다.
   const allTrades = (
     await Promise.all(books.map((b) => (b.id === book.id ? trades : listTrades(b.id))))
   ).flat();
-  const closedAll = allTrades.filter((t) => !isOpenTrade(t));
-  const pathTargets = closedAll
+  const pathTargets = allTrades
     .filter((t) => activeTargetPrices(t)[0] !== null)
     .sort((a, b) => b.entry_at.localeCompare(a.entry_at));
   const bookNames = Object.fromEntries(books.map((b) => [b.id, b.name]));
@@ -151,7 +150,7 @@ export default async function NotesPage({
               <PathReviewList
                 trades={pathTargets}
                 bookNames={bookNames}
-                excludedNoTp={closedAll.length - pathTargets.length}
+                excludedNoTp={allTrades.length - pathTargets.length}
                 now={now}
                 backHref={backHref}
               />

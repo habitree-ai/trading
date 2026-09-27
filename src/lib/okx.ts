@@ -96,6 +96,40 @@ export const MAX_CANDLE_PAGES = 40;
 const BATCH = 8;
 
 /**
+ * 한도(429)를 맞으면 모든 페이지 요청이 이 시각까지 멈춘다 — 호출 사이에 공유한다.
+ *
+ * 경로 복기 리스트는 거래를 차례로 돌며 수십 페이지씩 받는다. 캐시가 비어 있으면 한도(20회/2초)를
+ * 금방 넘는데, 429 를 맞은 요청만 물러서고 다른 배치가 계속 밀고 들어오면 물러선 요청이 다시 429 를
+ * 맞아 결국 오류로 올라온다 — 리스트에서 거래 몇 건이 통째로 빠지고 요약 숫자가 로드마다 달라졌다.
+ * 한 번 맞으면 전부 같이 멈춰야 한도 창(2초)이 실제로 비워진다.
+ *
+ * 배치마다 무조건 간격을 두지 않는 이유: 캐시에서 오는 페이지는 한도를 쓰지 않는다. 그런데 Next 의
+ * fetch 캐시는 적중 여부를 미리 알 수 없어, 간격을 두면 캐시가 다 찬 두 번째 로드까지 거래 수만큼
+ * 느려진다. 실제로 한도를 맞았을 때만 멈추면 캐시 로드는 그대로 빠르다.
+ */
+let pausedUntil = 0;
+const PAUSE_MS = 2_100;
+const MAX_LIMIT_RETRIES = 3;
+
+/** 한도로 멈춰 있으면 풀릴 때까지 기다린다. */
+async function waitIfPaused(): Promise<void> {
+  const wait = pausedUntil - Date.now();
+  if (wait > 0) await new Promise((resolve) => setTimeout(resolve, wait));
+}
+
+/**
+ * `after` 커서 페이지가 닫힌 봉만 담는가 — 한 봉 보수적으로 본다.
+ *
+ * `closedBeforeMs` 는 `floorToBar(지금)` 이라 UTC 자정 격자인데, OKX 의 1D·1W 봉은 홍콩 자정(16:00 UTC)
+ * 에 시작해 격자가 어긋난다. `after <= closedBeforeMs` 만 보면 00:00~16:00 UTC 사이에는 진행 중인 일봉이
+ * 든 페이지를 닫힌 것으로 잘못 본다. 페이지의 마지막 봉은 `after` 앞에서 시작하니 그 끝은 `after + 한 봉`
+ * 앞 — 그게 경계 안이면 어느 격자든 닫혔다.
+ */
+function isClosedPage(bar: Bar, after: number, closedBeforeMs: number): boolean {
+  return after + BAR_MS[bar] <= closedBeforeMs;
+}
+
+/**
  * 받아야 할 페이지들의 `after` 커서를 미리 계산한다.
  *
  * 예전에는 응답을 보고 다음 커서를 정했다. 그러면 페이지 수만큼 왕복이 순서대로 쌓여,
@@ -105,38 +139,71 @@ const BATCH = 8;
  * 봉 간격이 고정이라 커서는 계산으로 나온다. 미리 알면 한꺼번에 띄울 수 있다.
  * 거래가 없어 봉이 빠진 구간에서는 페이지가 겹치거나 덜 오는데, 받은 캔들을 시각으로
  * 묶어 담으므로 겹침은 저절로 지워지고 빈 곳은 그냥 비어 온다.
+ *
+ * 커서는 `from` 에서 위로 쌓는다 — 캐시 때문이다. `to` 에서 아래로 내리면 끝이 한 봉만
+ * 밀려도 모든 페이지의 URL 이 바뀌어 하루 캐시가 통째로 빗나간다. 경로 복기는 진입부터
+ * **지금**까지를 보므로 끝은 봉마다 밀리고, 그때마다 수십 페이지를 다시 받으면 한도(429)에
+ * 걸린다. 진입 시각은 변하지 않으니 거기서 올라오는 커서는 로드마다 같다.
+ *
+ * 단, 안정 커서는 닫힌 봉만 담는 페이지(`isClosedPage`, 한 봉 보수적)까지만 둔다. 진행 중이거나
+ * 아직 오지 않은 봉이 든 페이지를 하루 캐시하면, 그 뒤에 들어온 봉이 빠진 채로 굳는다.
+ * 그 위 나머지는 예전처럼 `to` 에서 내려오는 커서로 덮는다 — 끝 한두 장만 새로 받는다.
+ * `closedBeforeMs` 가 없으면 전부 `to` 기준이다(예전과 같은 결과).
+ *
+ * 순서는 최신부터. 상한을 넘으면 오래된 쪽을 자른다.
  */
 export function candleCursors(
   bar: Bar,
   from: number,
   to: number,
   maxPages = MAX_CANDLE_PAGES,
+  closedBeforeMs?: number,
 ): number[] {
   const span = BAR_MS[bar] * PAGE_SIZE;
-  const needed = Math.ceil((to - from) / span);
-  const pages = Math.min(Math.max(needed, 1), Math.max(maxPages, 1));
-  return Array.from({ length: pages }, (_, i) => to - i * span);
+
+  // 안정 커서 — from 기준. 닫힌 봉만 담는 페이지까지.
+  const stable: number[] = [];
+  if (closedBeforeMs !== undefined) {
+    for (let a = from + span; a < to && isClosedPage(bar, a, closedBeforeMs); a += span) stable.push(a);
+  }
+  const covered = stable.length > 0 ? stable[stable.length - 1] : from;
+
+  // 최근 커서 — to 기준. 안정 커서가 덮은 곳까지 내려온다.
+  const recent: number[] = [];
+  for (let a = to; ; a -= span) {
+    recent.push(a);
+    if (a - span <= covered) break;
+  }
+
+  return [...recent, ...stable.reverse()].slice(0, Math.max(maxPages, 1));
 }
 
-async function fetchPage(instId: string, bar: Bar, after: number): Promise<string[][]> {
+/** 페이지 하나. `closed` 는 닫힌 봉만 담는 페이지인지(`isClosedPage`) — 캐시할지를 가른다. */
+async function fetchPage(instId: string, bar: Bar, after: number, closed: boolean): Promise<string[][]> {
   const url = `${BASE}/market/history-candles?instId=${encodeURIComponent(
     instId,
   )}&bar=${bar}&after=${after}&limit=${PAGE_SIZE}`;
 
   for (let attempt = 0; ; attempt += 1) {
+    await waitIfPaused();
     const res = await fetch(url, {
-      // 지나간 캔들은 변하지 않는다 — 하루 캐시.
-      next: { revalidate: 86_400 },
+      /*
+       * 지나간 캔들은 변하지 않는다 — 닫힌 페이지는 하루 캐시. 진행 중·아직 오지 않은 봉이 들 수 있는
+       * 끝 페이지는 저장하지 않는다: `to` 커서가 마침 `from` 격자에 떨어지면 같은 URL 이 다음 봉부터
+       * 안정 커서로 재사용되는데, 그때 하루 캐시된 낡은 페이지가 진행 중이던 봉을 그대로 준다.
+       */
+      ...(closed ? { next: { revalidate: 86_400 } } : { cache: "no-store" as const }),
       headers: { accept: "application/json" },
     });
 
     /*
-     * 한도(IP당 20회/2초) 초과 — 4분할처럼 여러 창이 콜드 캐시에서 동시에 당기면
-     * 나온다. 429 는 캐시에 남지 않으므로, 한도 창(2초)을 넘겨 다시 부르면 된다.
-     * 두 번 물러서도 안 되면 그때는 진짜 문제다 — 오류로 올린다.
+     * 한도(IP당 20회/2초) 초과 — 4분할처럼 여러 창이 콜드 캐시에서 동시에 당기거나 경로 복기
+     * 리스트가 거래를 이어 돌 때 나온다. 429 는 캐시에 남지 않으므로, 한도 창(2초)을 넘겨 다시
+     * 부르면 된다. 이 모듈의 모든 요청을 같이 멈춘다(`pausedUntil`) — 나만 물러서면 소용없다.
+     * 세 번 물러서도 안 되면 그때는 진짜 문제다 — 오류로 올린다.
      */
-    if (res.status === 429 && attempt < 2) {
-      await new Promise((resolve) => setTimeout(resolve, 2_100 * (attempt + 1)));
+    if (res.status === 429 && attempt < MAX_LIMIT_RETRIES) {
+      pausedUntil = Math.max(pausedUntil, Date.now() + PAUSE_MS);
       continue;
     }
     if (!res.ok) throw new Error(`OKX 응답 오류 ${res.status}`);
@@ -155,12 +222,16 @@ export async function fetchCandles(
   to: number,
   maxPages = MAX_CANDLE_PAGES,
 ): Promise<Candle[]> {
-  const cursors = candleCursors(bar, from, to, maxPages);
+  // 서버 전용 함수라 시계를 읽어도 된다 — 지금 진행 중인 봉의 시작까지가 닫힌 봉의 경계.
+  const closedBeforeMs = floorToBar(Date.now(), bar);
+  const cursors = candleCursors(bar, from, to, maxPages, closedBeforeMs);
   const out = new Map<number, Candle>();
 
   for (let i = 0; i < cursors.length; i += BATCH) {
     const batch = await Promise.all(
-      cursors.slice(i, i + BATCH).map((after) => fetchPage(instId, bar, after)),
+      cursors
+        .slice(i, i + BATCH)
+        .map((after) => fetchPage(instId, bar, after, isClosedPage(bar, after, closedBeforeMs))),
     );
 
     for (const rows of batch) {

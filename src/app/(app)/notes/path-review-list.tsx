@@ -4,7 +4,7 @@ import { ChartDialogButton } from "@/app/(app)/notes/chart-dialog";
 import { formatDuration } from "@/components/measure-tool";
 import { SIDE_LABEL, type Trade } from "@/lib/domain";
 import { date, pnlClass, signed } from "@/lib/format";
-import { netOf } from "@/lib/metrics";
+import { isOpenTrade, netOf } from "@/lib/metrics";
 import { fetchCandles, toInstId } from "@/lib/okx";
 import {
   pathRequest,
@@ -19,14 +19,18 @@ import {
 interface Row {
   trade: Trade;
   bookName: string;
-  net: number;
+  /** 실현손익 — 보유중이면 null("보유중" 표기, 요약 합산 제외). `netOf` 는 보유중 거래에 수수료만 돌려준다 */
+  net: number | null;
+  /** 기록된 손절가 — 없으면 손절선 칸에 "미기록" */
+  stop: number | null;
   review: PathReview | null;
   error: string | null;
 }
 
 /**
- * 경로 복기 리스트(REQ-0079) — TP 를 기록한 과거 거래를 모아 문제가 타점·기다림·버티는 위치 중
- * 어디에 몰렸는지 본다. 사용자 노트의 모형(진입 → 1차 최대수익 → 최대손실 → TP 도달)을 거래마다 계산한다.
+ * 경로 복기 리스트(REQ-0079, REQ-0081 개편) — TP 를 기록한 거래(보유중 포함)를 모아 실제 청산과 무관하게
+ * TP 에 언제 닿았는지, 닿기 전에 얼마나 잃을 뻔했는지, 문제가 방향성·진입·목표가·청산 타이밍 중 어디에
+ * 몰렸는지 본다.
  *
  * 서버에서 캔들을 받아 계산한다(하루 캐시). 봉·구간은 팝업과 같은 `pathRequest` — 행의 📈 로 연
  * 팝업과 숫자가 같다. OKX 가 몰리지 않게 거래는 하나씩 부른다.
@@ -38,10 +42,10 @@ export async function PathReviewList({
   now,
   backHref,
 }: {
-  /** 청산됐고 TP 를 기록한 거래 — 최신순 */
+  /** TP 를 기록한 거래(보유중 포함) — 최신순 */
   trades: Trade[];
   bookNames: Record<string, string>;
-  /** TP 를 안 적어 뺀 청산 거래 수 */
+  /** TP 를 안 적어 뺀 거래 수 */
   excludedNoTp: number;
   now: number;
   backHref: string;
@@ -59,12 +63,20 @@ export async function PathReviewList({
         error = e instanceof Error ? e.message : "캔들을 가져오지 못했습니다";
       }
     }
-    rows.push({ trade, bookName: bookNames[trade.book_id] ?? "", net: netOf(trade), review, error });
+    rows.push({
+      trade,
+      bookName: bookNames[trade.book_id] ?? "",
+      net: isOpenTrade(trade) ? null : netOf(trade),
+      stop: req.input?.stop ?? null,
+      review,
+      error,
+    });
   }
 
   const reviewed = rows.flatMap((r) => (r.review ? [{ review: r.review, net: r.net }] : []));
   const summary = summarizePathReviews(reviewed);
   const avg = (ms: number | null) => (ms === null ? "—" : formatDuration(ms));
+  const troughAvg = summary.avgTroughAmount === null ? "—" : `${signed(summary.avgTroughAmount)} USDT`;
 
   return (
     <div className="space-y-3">
@@ -74,7 +86,7 @@ export async function PathReviewList({
         </Link>
         <h2 className="text-base font-medium">경로 복기</h2>
         <span className="text-xs text-dim">
-          진입 → 1차 최대수익 → 최대손실 → TP 도달 · TP 기록 거래 {rows.length}건(북 전체)
+          진입 → TP 도달(실제 청산 무관) · TP 기록 거래 {rows.length}건(북 전체·보유중 포함)
         </span>
       </div>
 
@@ -107,17 +119,22 @@ export async function PathReviewList({
                   <td className="py-0.5 text-right">{summary.clean.count}</td>
                   <td className={`py-0.5 text-right ${pnlClass(summary.clean.net)}`}>{signed(summary.clean.net)}</td>
                 </tr>
+                <tr className="text-dim">
+                  <td className="py-0.5">보유중 · 미도달</td>
+                  <td className="py-0.5 text-right">{summary.pending}</td>
+                  <td className="py-0.5 text-right">—</td>
+                </tr>
               </tbody>
             </table>
             <p className="mt-2 text-xs">
               {summary.top === null
                 ? "규칙에 걸린 거래가 없습니다."
                 : `가장 많은 문제: ${VERDICT_LABEL[summary.top]} ${summary.byVerdict[summary.top].count}건`}
-              <span className="text-dim"> · 한 거래가 여러 판정에 걸리면 각각 센다</span>
+              <span className="text-dim"> · 한 거래가 여러 판정에 걸리면 각각 센다 · 보유중은 건수만, 순손익 합에는 넣지 않는다</span>
             </p>
             <p className="mt-1 text-xs text-dim">
-              평균 경과 — 1차 최대수익 {avg(summary.avgToPeakMs)} · 최대손실 {avg(summary.avgToTroughMs)} · TP 도달{" "}
-              {avg(summary.avgToTpMs)} (도달 {summary.tpReached}/{summary.total}건)
+              도달 {summary.tpReached}/{summary.total}건 · 평균 도달 시간 {avg(summary.avgToTpMs)} · 도달 전 최대손실 평균 금액{" "}
+              {troughAvg}
             </p>
           </>
         )}
@@ -130,17 +147,17 @@ export async function PathReviewList({
               <th className="px-2 py-1.5 font-normal">진입</th>
               <th className="px-2 py-1.5 font-normal">거래</th>
               <th className="px-2 py-1.5 text-right font-normal">손익</th>
-              <th className="px-2 py-1.5 font-normal">1차 최대수익</th>
-              <th className="px-2 py-1.5 font-normal">최대손실</th>
-              <th className="px-2 py-1.5 font-normal">TP 도달</th>
-              <th className="px-2 py-1.5 font-normal">문제 후보</th>
+              <th className="px-2 py-1.5 font-normal">TP 도달 · 청산</th>
+              <th className="px-2 py-1.5 font-normal">도달 전 최대손실</th>
+              <th className="px-2 py-1.5 font-normal">손절선</th>
+              <th className="px-2 py-1.5 font-normal">판정</th>
               <th className="px-2 py-1.5 font-normal">
                 <span className="sr-only">경로 복기</span>
               </th>
             </tr>
           </thead>
           <tbody className="tnum">
-            {rows.map(({ trade, bookName, net, review, error }) => (
+            {rows.map(({ trade, bookName, net, stop, review, error }) => (
               <tr key={trade.id} className="border-t border-border align-top">
                 <td className="px-2 py-1.5 whitespace-nowrap">
                   {date(trade.entry_at)}
@@ -150,25 +167,43 @@ export async function PathReviewList({
                   #{trade.seq} {trade.symbol}{" "}
                   <span className={trade.side === "long" ? "text-profit" : "text-loss"}>{SIDE_LABEL[trade.side]}</span>
                 </td>
-                <td className={`px-2 py-1.5 text-right whitespace-nowrap ${pnlClass(net)}`}>{signed(net)}</td>
+                <td className={`px-2 py-1.5 text-right whitespace-nowrap ${net === null ? "text-dim" : pnlClass(net)}`}>
+                  {net === null ? "보유중" : signed(net)}
+                </td>
                 {review ? (
                   <>
-                    <PointCell point={review.peak} note={review.peakFirst ? null : "손실 뒤"} />
-                    <PointCell point={review.trough} />
+                    {/* 첫 줄은 도달 경과(또는 미도달), 둘째 줄은 실제 청산과의 관계 — 열 하나를 아끼려 합쳤다. */}
                     <td className="px-2 py-1.5 whitespace-nowrap">
                       {review.tp ? (
-                        formatDuration(review.tp.elapsedMs)
+                        <>
+                          {formatDuration(review.tp.elapsedMs)}{" "}
+                          <span className={pnlClass(review.tp.pct)}>{signed(review.tp.pct)}%</span>
+                          <span className="block text-[10px] text-dim">{exitVsTp(review, trade)}</span>
+                        </>
                       ) : (
                         <span className="text-dim">
                           미도달
-                          {review.tpAfterExit ? (
-                            <span className="block text-[10px]">청산 {formatDuration(review.tpAfterExit.afterExitMs)} 뒤 도달</span>
-                          ) : null}
+                          <span className="block text-[10px]">
+                            {formatDuration(Math.max(0, review.analyzedUntilMs - Date.parse(trade.entry_at)))} 추적 ·{" "}
+                            {review.status === "open-unreached" ? "보유중" : "청산됨"}
+                          </span>
                         </span>
                       )}
                     </td>
+                    <PointCell point={review.trough} />
+                    <td className="px-2 py-1.5 whitespace-nowrap">
+                      {review.stopHit ? (
+                        <>
+                          {formatDuration(review.stopHit.elapsedMs)} <span className="text-loss">도달</span>
+                        </>
+                      ) : (
+                        <span className="text-dim">{stop === null ? "미기록" : "—"}</span>
+                      )}
+                    </td>
                     <td className="px-2 py-1.5">
-                      {review.verdicts.length === 0 ? (
+                      {review.status === "open-unreached" ? (
+                        <span className="rounded-full border border-border px-1.5 py-0.5 whitespace-nowrap text-dim">대기</span>
+                      ) : review.verdicts.length === 0 ? (
                         <span className="text-dim">—</span>
                       ) : (
                         <div className="flex flex-wrap gap-1">
@@ -208,21 +243,31 @@ export async function PathReviewList({
       </div>
 
       <p className="px-1 text-[11px] text-dim/80">
-        TP 미기록 청산 {excludedNoTp}건은 제외 — 매매 노트의 🧭 경로 복기나 거래 표에서 TP 를 적으면 여기에 들어온다. 봉 단위 근사라 같은 봉 안의
-        순서는 모른다. 판정은 후보다.
+        TP 미기록 {excludedNoTp}건은 제외 — 매매 노트의 🧭 경로 복기나 거래 표에서 TP 를 적으면 여기에 들어온다. 실제 청산과 무관하게
+        진입부터 지금까지 추적. 봉 단위 근사라 같은 봉 안의 순서는 모른다. 판정은 후보다.
       </p>
     </div>
   );
 }
 
-/** 시점 한 칸 — 진입 후 경과와 가격 기준 손익% */
-function PointCell({ point, note }: { point: PathPoint | null; note?: string | null }) {
+/** 시점 한 칸 — 진입 후 경과와 가격 기준 손익%, 명목가를 알면 금액(USDT) */
+function PointCell({ point }: { point: PathPoint | null }) {
   if (!point) return <td className="px-2 py-1.5 text-dim">—</td>;
   return (
     <td className="px-2 py-1.5 whitespace-nowrap">
       {formatDuration(point.elapsedMs)}{" "}
       <span className={pnlClass(point.pct)}>{signed(point.pct)}%</span>
-      {note ? <span className="block text-[10px] text-dim">{note}</span> : null}
+      {point.amount !== null ? <span className="block text-[10px] text-dim">{signed(point.amount)} USDT</span> : null}
     </td>
   );
+}
+
+/**
+ * 도달한 거래의 실제 청산이 TP 도달 전인지 뒤인지 한 마디로. 청산이 없으면 "보유중". 청산가 없이 청산
+ * 시각만 있는 거래는 `review.exit` 가 비므로 시각은 거래 행에서 읽는다.
+ */
+function exitVsTp(review: PathReview, trade: Trade): string {
+  if (!trade.exit_at) return "보유중";
+  if (review.tpVsExit === "after-exit" && review.tp) return `청산 ${formatDuration(review.tp.ms - Date.parse(trade.exit_at))} 뒤 도달`;
+  return "도달 후 청산";
 }

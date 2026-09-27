@@ -10,10 +10,11 @@ import type { Trade } from "@/lib/domain";
 import { activeTargetPrices, activeTargetShares } from "@/lib/exit-plan";
 import { dateTime, num, pnlClass, signed } from "@/lib/format";
 import type { Candle } from "@/lib/okx";
-import { pathRequest, reviewPath, type PathPoint } from "@/lib/trade-path";
+import { pathRequest, reviewPath, type PathPoint, type PathReview } from "@/lib/trade-path";
 
 /**
- * 거래 하나의 경로 복기 계산 — 경로 캔들을 받아 세 시점·판정·차트 마커를 낸다(REQ-0077·0080).
+ * 거래 하나의 경로 복기 계산 — 경로 캔들을 받아 시점(TP 도달·도달 전 최대손실·손절선·청산)·판정·차트 마커를
+ * 낸다(REQ-0077·0080·0081). 실제 청산과 무관하게 진입부터 지금까지 추적한다.
  *
  * 차트가 쓰는 봉(구간 약 60봉)은 시점을 재기에 거칠어, 경로는 따로 가장 짧은 봉으로 받는다.
  * 봉·구간·입력은 경로 복기 리스트(서버)와 같은 `pathRequest` — 두 화면의 숫자가 같게.
@@ -62,33 +63,40 @@ export function usePathReview(trade: Trade, now: number, enabled = true) {
   // 차트가 렌더마다 마커를 다시 긋지 않게 경로 결과가 바뀔 때만 새로 만든다.
   const markers = useMemo<ChartMarker[]>(() => {
     if (!review) return [];
+    // 손실 마커는 불리한 쪽(롱은 아래·숏은 위), 수익·TP 마커는 유리한 쪽에 찍는다.
+    const adverse = trade.side === "long" ? "belowBar" : "aboveBar";
+    const favorable = trade.side === "long" ? "aboveBar" : "belowBar";
     const out: ChartMarker[] = [];
-    if (review.peak) {
-      out.push({
-        ms: review.peak.ms,
-        position: trade.side === "long" ? "aboveBar" : "belowBar",
-        tone: "profit",
-        text: `${review.peakFirst ? "1차 최대수익" : "최대수익"} ${pctText(review.peak.pct)}`,
-      });
-    }
     if (review.trough) {
-      out.push({
-        ms: review.trough.ms,
-        position: trade.side === "long" ? "belowBar" : "aboveBar",
-        tone: "loss",
-        text: `최대손실 ${pctText(review.trough.pct)}`,
-      });
+      out.push({ ms: review.trough.ms, position: adverse, tone: "loss", text: `도달 전 최대손실 ${pctText(review.trough.pct)}` });
+    }
+    if (review.stopHit) {
+      out.push({ ms: review.stopHit.ms, position: adverse, tone: "loss", text: "손절선 도달" });
     }
     if (review.tp) {
-      out.push({ ms: review.tp.ms, position: "aboveBar", tone: "accent", text: "TP 도달" });
+      out.push({ ms: review.tp.ms, position: favorable, tone: "accent", text: `TP 도달 ${pctText(review.tp.pct)}` });
     }
-    if (review.tpAfterExit) {
-      out.push({ ms: review.tpAfterExit.ms, position: "aboveBar", tone: "accent", text: "청산 뒤 TP" });
+    // 최대수익은 미도달일 때만 — 도달했으면 TP 도달점이 그 자리다.
+    if (review.peak && review.status !== "reached") {
+      out.push({ ms: review.peak.ms, position: favorable, tone: "profit", text: `최대수익 ${pctText(review.peak.pct)}` });
     }
     return out;
   }, [review, trade.side]);
 
-  return { req, candles, error, review, markers };
+  // 청산 뒤에 찍히는 마커(TP·손절선 도달, 미도달이면 지금까지 본 최대손실·최대수익)가 있으면 차트를 그 봉까지
+  // 늘린다 — 차트 밖 시각의 마커는 마지막 봉에 붙어 잘못 읽힌다. 보유중이거나 전부 청산 전이면 null(차트 기본 구간).
+  const showUntilMs = useMemo(() => {
+    if (!review || review.exit === null) return null;
+    const until = Math.max(
+      review.tp?.ms ?? 0,
+      review.stopHit?.ms ?? 0,
+      review.trough?.ms ?? 0,
+      review.status !== "reached" ? (review.peak?.ms ?? 0) : 0,
+    );
+    return until > review.exit.ms ? until : null;
+  }, [review]);
+
+  return { req, candles, error, review, markers, showUntilMs };
 }
 
 /**
@@ -96,8 +104,8 @@ export function usePathReview(trade: Trade, now: number, enabled = true) {
  * 없으면 추가 요청 없이 지금 차트와 같다.
  */
 export function PathMarkedChart({ trade, now, startInReplay }: { trade: Trade; now: number; startInReplay?: boolean }) {
-  const { markers } = usePathReview(trade, now, activeTargetPrices(trade)[0] !== null);
-  return <TradeChartFor trade={trade} now={now} markers={markers} startInReplay={startInReplay} />;
+  const { markers, showUntilMs } = usePathReview(trade, now, activeTargetPrices(trade)[0] !== null);
+  return <TradeChartFor trade={trade} now={now} markers={markers} showUntilMs={showUntilMs} startInReplay={startInReplay} />;
 }
 
 /** 거래 행 하나로 `TradeChart` 를 그린다 — 팝업·거래 표가 같은 props 로. 마커를 안 주면 진입·청산만 */
@@ -105,11 +113,14 @@ export function TradeChartFor({
   trade,
   now,
   markers,
+  showUntilMs,
   startInReplay,
 }: {
   trade: Trade;
   now: number;
   markers?: ChartMarker[];
+  /** 경로 복기가 청산 뒤 TP 도달·손절 도달 봉까지 차트를 늘릴 때 */
+  showUntilMs?: number | null;
   startInReplay?: boolean;
 }) {
   return (
@@ -128,26 +139,32 @@ export function TradeChartFor({
       now={now}
       startInReplay={startInReplay}
       extraMarkers={markers}
+      showUntilMs={showUntilMs}
     />
   );
 }
 
 /**
- * 경로 복기 팝업 본문(REQ-0077·0080) — 경로 마커 차트 + 세 시점 표 + 판정 + TP 입력.
+ * 경로 복기 팝업 본문(REQ-0077·0080·0081) — 경로 마커 차트 + 시점 표(TP 도달·도달 전 최대손실·손절선·
+ * 실제 청산·도달 전 최대수익) + 판정 + TP 입력.
  * TP 를 저장하면 페이지가 새 값을 내려보내고 그 자리에서 다시 계산된다(청산된 거래도).
  */
 export function TradePathChart({ trade, now }: { trade: Trade; now: number }) {
-  const { req, candles, error, review, markers } = usePathReview(trade, now);
+  const { req, candles, error, review, markers, showUntilMs } = usePathReview(trade, now);
   const tp = req.input?.tp ?? null;
+  const stop = req.input?.stop ?? null;
+  const entryMs = Date.parse(trade.entry_at);
 
   return (
     <div className="space-y-2">
-      <TradeChartFor trade={trade} now={now} markers={markers} />
+      <TradeChartFor trade={trade} now={now} markers={markers} showUntilMs={showUntilMs} />
 
       <TargetsForm trade={trade} />
 
       <section className="rounded-lg border border-border p-2 text-xs">
-        <h3 className="px-1 font-medium text-dim">TP 도달 경로</h3>
+        <h3 className="px-1 font-medium text-dim">
+          TP 도달 경로 <span className="font-normal">— 실제 청산과 무관하게 진입부터 지금까지 추적</span>
+        </h3>
         {error ? (
           <p className="mt-1 px-1 text-loss">{error}</p>
         ) : trade.entry_price === null ? (
@@ -167,36 +184,32 @@ export function TradePathChart({ trade, now }: { trade: Trade; now: number }) {
                   <th className="px-1 py-0.5 text-right font-normal">가격</th>
                   <th className="px-1 py-0.5 text-right font-normal">손익(가격)</th>
                   <th className="px-1 py-0.5 text-right font-normal">손익(증거금)</th>
+                  <th className="px-1 py-0.5 text-right font-normal">금액(USDT)</th>
                 </tr>
               </thead>
               <tbody className="tnum">
                 <PointRow
-                  label={review.peakFirst ? "1차 최대수익" : "최대수익(손실 뒤)"}
-                  point={review.peak}
-                  empty="진입가 위로 간 적 없음"
+                  label="TP 도달"
+                  point={review.tp}
+                  empty={
+                    tp === null
+                      ? "TP 없음"
+                      : `미도달 — 진입 후 ${formatDuration(Math.max(0, review.analyzedUntilMs - entryMs))} 추적(지금까지) · ${
+                          review.status === "open-unreached" ? "보유중" : "청산됨"
+                        }`
+                  }
                 />
-                <PointRow label="최대손실" point={review.trough} empty="역행 없음" />
-                {review.tp ? (
-                  <PointRow label="TP 도달" point={review.tp} />
-                ) : review.exit ? (
-                  <PointRow label={tp === null ? "청산" : "청산(TP 미도달)"} point={review.exit} />
-                ) : (
-                  <tr>
-                    <td className="px-1 py-0.5">TP</td>
-                    <td colSpan={5} className="px-1 py-0.5 text-dim">
-                      {tp === null ? "TP 없음" : "보유중 — 아직 미도달"}
-                    </td>
-                  </tr>
-                )}
+                <PointRow label="도달 전 최대손실" point={review.trough} empty="역행 없음" />
+                {/* 손절 기록이 있을 때만 — 없으면 닿을 선이 없다. */}
+                {stop !== null ? <PointRow label="손절선 도달" point={review.stopHit} empty="닿지 않음" /> : null}
+                <PointRow label="실제 청산" point={review.exit} empty="보유중" note={exitNote(review, tp)} />
+                <PointRow
+                  label="도달 전 최대수익"
+                  point={review.peak}
+                  empty={`진입가 ${trade.side === "long" ? "위" : "아래"}로 간 적 없음`}
+                />
               </tbody>
             </table>
-
-            {review.tpAfterExit ? (
-              <p className="mt-1 px-1 text-dim">
-                청산 {formatDuration(review.tpAfterExit.afterExitMs)} 뒤 TP 도달 (
-                {dateTime(new Date(review.tpAfterExit.ms).toISOString())})
-              </p>
-            ) : null}
 
             <div className="mt-2 flex flex-wrap items-center gap-1.5 px-1">
               <span className="text-dim">문제 후보</span>
@@ -271,12 +284,41 @@ function pctText(value: number): string {
   return `${signed(value)}%`;
 }
 
-function PointRow({ label, point, empty }: { label: string; point: PathPoint | null; empty?: string }) {
+/**
+ * 실제 청산 행의 비고 — TP 도달이 청산 전인지 뒤인지. 청산이 없거나 TP 가 없으면 비운다.
+ * `before-exit` 는 TP 가 청산보다 먼저(같은 봉 포함) 닿은 것이라 "TP 도달 뒤 청산".
+ */
+function exitNote(review: PathReview, tp: number | null): string | null {
+  if (review.exit === null || tp === null) return null;
+  if (review.tpVsExit === "before-exit") return "TP 도달 뒤 청산";
+  if (review.tpVsExit === "after-exit" && review.tp) return `TP 도달 ${formatDuration(review.tp.ms - review.exit.ms)} 전에 청산`;
+  if (review.tpVsExit === "unreached") return "TP 미도달";
+  return null;
+}
+
+function PointRow({
+  label,
+  point,
+  empty,
+  note,
+}: {
+  label: string;
+  point: PathPoint | null;
+  empty?: string;
+  /** 시점 이름 아래 한 줄 — 청산 행의 TP 도달 전·뒤 */
+  note?: string | null;
+}) {
+  const head = (
+    <td className="px-1 py-0.5">
+      {label}
+      {note ? <span className="block text-[10px] text-dim">{note}</span> : null}
+    </td>
+  );
   if (!point) {
     return (
       <tr>
-        <td className="px-1 py-0.5">{label}</td>
-        <td colSpan={5} className="px-1 py-0.5 text-dim">
+        {head}
+        <td colSpan={6} className="px-1 py-0.5 text-dim">
           {empty ?? "—"}
         </td>
       </tr>
@@ -284,13 +326,16 @@ function PointRow({ label, point, empty }: { label: string; point: PathPoint | n
   }
   return (
     <tr>
-      <td className="px-1 py-0.5">{label}</td>
+      {head}
       <td className="px-1 py-0.5">{dateTime(new Date(point.ms).toISOString())}</td>
       <td className="px-1 py-0.5">{formatDuration(point.elapsedMs)}</td>
       <td className="px-1 py-0.5 text-right">{num(point.price)}</td>
       <td className={`px-1 py-0.5 text-right ${pnlClass(point.pct)}`}>{pctText(point.pct)}</td>
       <td className={`px-1 py-0.5 text-right ${pnlClass(point.marginPct)}`}>
         {point.marginPct === null ? "—" : pctText(point.marginPct)}
+      </td>
+      <td className={`px-1 py-0.5 text-right ${pnlClass(point.amount)}`}>
+        {point.amount === null ? "—" : signed(point.amount)}
       </td>
     </tr>
   );

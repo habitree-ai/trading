@@ -6,8 +6,8 @@ import { TradeChartFor, TradePathChart } from "@/app/(app)/notes/trade-path-view
 import { SIDE_LABEL, type Trade } from "@/lib/domain";
 
 /**
- * 매매 노트의 팝업 — 「차트」(REQ-0078, 진입·청산만)와 「경로 복기」(REQ-0077·0080, 경로 마커 +
- * 세 시점 표 + 판정 + TP 입력)를 `mode` 로 나눈다.
+ * 매매 노트의 팝업 — 「차트」(REQ-0078, 진입·청산만)와 「경로 복기」(REQ-0077·0080·0081, 경로 마커 +
+ * 시점 표 + 판정 + TP 입력)를 `mode` 로 나눈다.
  *
  * 앱에 모달이 없어 네이티브 `<dialog>` 를 쓴다(Esc·포커스 가두기가 딸려 온다). 차트는 열렸을
  * 때만 마운트한다 — 목록의 행마다 버튼이 있으니 닫힌 동안 캔들을 부르지 않게.

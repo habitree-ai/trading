@@ -51,7 +51,7 @@ export function TradeList({
   /** 매매와 무관한 기록 수 — 목록 맨 위 항목으로 연다(REQ-0075) */
   generalCount: number;
   generalActive: boolean;
-  /** 경로 복기 대상(청산·TP 기록) 거래 수 — 북 전체(REQ-0079) */
+  /** 경로 복기 대상(TP 기록, 보유중 포함) 거래 수 — 북 전체(REQ-0079) */
   pathCount: number;
   pathActive: boolean;
   /** 페이지를 그린 시각 — 행의 차트 팝업(REQ-0078)이 쓴다 */
@@ -98,7 +98,7 @@ export function TradeList({
       >
         <span aria-hidden>🧭</span>
         <span className="font-medium">경로 복기</span>
-        <span className="text-dim">타점·기다림·버티는 위치</span>
+        <span className="text-dim">TP 도달·최대손실·청산 시점</span>
         <span className="tnum ml-auto text-dim">{pathCount}</span>
       </Link>
 

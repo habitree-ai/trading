@@ -179,7 +179,7 @@ const NO_FILLS: TradeFill[] = [];
 const NO_ANNOTATIONS: TradeAnnotation[] = [];
 const NO_TARGETS: readonly [number | null, number | null, number | null] = [null, null, null];
 
-/** 부르는 쪽이 더 찍는 마커 — 경로 복기(REQ-0077)의 최대수익·최대손실·TP 도달점. */
+/** 부르는 쪽이 더 찍는 마커 — 경로 복기(REQ-0077·0081)의 도달 전 최대손실·손절선·TP 도달점. */
 export interface ChartMarker {
   ms: number;
   position: "aboveBar" | "belowBar";
@@ -242,6 +242,7 @@ export function TradeChart({
   now,
   startInReplay = false,
   extraMarkers = NO_MARKERS,
+  showUntilMs = null,
 }: {
   /** 메모를 어느 거래에 붙일지 — 차트에서 바로 저장한다. `store` 를 주면 그쪽이 우선이다 */
   tradeId?: string;
@@ -285,6 +286,8 @@ export function TradeChart({
   startInReplay?: boolean;
   /** 진입·청산 말고 더 찍을 마커. 렌더마다 새 배열을 주면 다시 그리니 부르는 쪽이 고정한다 */
   extraMarkers?: readonly ChartMarker[];
+  /** 경로 복기가 청산 뒤 TP 도달·손절 도달 봉까지 보이려 구간을 늘릴 때(ms). 청산·지금보다 앞이면 영향 없다 */
+  showUntilMs?: number | null;
 }) {
   const entryMs = Date.parse(entryAt);
   const exitMs = exitAt ? Date.parse(exitAt) : null;
@@ -497,8 +500,8 @@ export function TradeChart({
     [annotations, moving],
   );
 
-  /** 차트가 어디까지 보여 줄지 — 청산된 거래는 청산 시각, 들고 있는 거래는 지금. */
-  const endMs = exitMs ?? now;
+  /** 차트가 어디까지 보여 줄지 — 청산된 거래는 청산 시각, 들고 있는 거래는 지금. 경로 복기가 더 뒤를 요구하면 그때까지. */
+  const endMs = Math.max(exitMs ?? now, showUntilMs ?? 0);
 
   const bar: OkxBar = useMemo(
     () => (view === "auto" ? pickBar(Math.max(endMs - entryMs, BAR_MS["1m"])) : view),

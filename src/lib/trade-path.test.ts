@@ -1,7 +1,17 @@
 import { describe, expect, it } from "vitest";
 
+import type { Trade } from "@/lib/domain";
 import type { Candle } from "@/lib/okx";
-import { pickPathBar, reviewPath, summarizePathReviews, type PathInput, type PathReview } from "@/lib/trade-path";
+import {
+  pathRequest,
+  pickPathBar,
+  reviewPath,
+  summarizePathReviews,
+  type PathInput,
+  type PathPoint,
+  type PathReview,
+  type VerdictKey,
+} from "@/lib/trade-path";
 
 const M = 60_000;
 const T0 = Date.UTC(2026, 8, 20, 0, 0);
@@ -20,6 +30,7 @@ const base: PathInput = {
   tp: 110,
   stop: 90,
   leverage: 10,
+  notional: 1000,
   nowMs: T0 + 100 * M,
 };
 
@@ -32,33 +43,50 @@ describe("pickPathBar", () => {
 });
 
 describe("reviewPath", () => {
-  it("롱 — 1차 수익 → 최대손실 → TP 도달", () => {
+  it("롱 — 청산 전 TP 도달: 도달점·도달 전 최대손실·최대수익, 청산점은 따로", () => {
     const c = bars([
       [101, 99], // 진입 봉
-      [106, 101], // 1차 최대수익 106
-      [103, 92], // 최대손실 92
-      [104, 95],
+      [106, 101], // 도달 전 최대수익 106
+      [103, 96], // 도달 전 최대손실 96
+      [104, 98],
       [111, 100], // TP
-      [115, 105], // TP 뒤 — 경로 밖
+      [115, 105], // TP 뒤 — 추적 밖
     ]);
     const r = reviewPath(base, c, "1m")!;
-    expect(r.peak).toMatchObject({ ms: T0 + M, price: 106, elapsedMs: M });
-    expect(r.peak!.pct).toBeCloseTo(6);
-    expect(r.peak!.marginPct).toBeCloseTo(60);
-    expect(r.peakFirst).toBe(true);
-    expect(r.trough).toMatchObject({ ms: T0 + 2 * M, price: 92 });
-    expect(r.trough!.pct).toBeCloseTo(-8);
     expect(r.tp).toMatchObject({ ms: T0 + 4 * M, price: 110, elapsedMs: 4 * M });
-    expect(r.exit).toBeNull();
-    // 손절폭 10% 중 8% 역행 = 80% → 손절라인(90%) 아님. 역행이 경로 50% 지점 → 타점(25%) 아님.
-    // 1차 수익 6% / TP 거리 10% = 60% → 수익라인(70%) 아님.
+    expect(r.tp!.pct).toBeCloseTo(10);
+    expect(r.tp!.marginPct).toBeCloseTo(100);
+    expect(r.trough).toMatchObject({ ms: T0 + 2 * M, price: 96, elapsedMs: 2 * M });
+    expect(r.trough!.pct).toBeCloseTo(-4);
+    expect(r.peak).toMatchObject({ ms: T0 + M, price: 106 });
+    expect(r.peak!.pct).toBeCloseTo(6);
+    expect(r.stopHit).toBeNull();
+    expect(r.exit).toMatchObject({ ms: T0 + 5 * M, price: 110 });
+    expect(r.status).toBe("reached");
+    expect(r.tpVsExit).toBe("before-exit");
+    expect(r.analyzedUntilMs).toBe(T0 + 4 * M);
+    // 손절폭 10% 중 4% 역행 = 40% → 진입의 문제(50%) 아님.
     expect(r.verdicts).toEqual([]);
+    expect(r.skipped).toEqual([]);
+  });
+
+  it("TP 봉의 저가도 최대손실에 넣는다(봉 안 순서를 모르니 보수적으로)", () => {
+    const c = bars([
+      [101, 99],
+      [111, 93], // 같은 봉에서 93 까지 밀렸다가 TP
+    ]);
+    const r = reviewPath(base, c, "1m")!;
+    expect(r.tp).toMatchObject({ ms: T0 + M });
+    expect(r.trough).toMatchObject({ ms: T0 + M, price: 93 });
+    expect(r.peak).toMatchObject({ ms: T0, price: 101 }); // TP 봉은 최대수익에서 뺀다
+    expect(r.verdicts.map((v) => v.key)).toEqual(["entry"]);
+    expect(r.verdicts[0].reason).toBe("도달 전 손절폭의 70% 역행");
   });
 
   it("숏 — 방향이 뒤집힌다", () => {
     const c = bars([
       [101, 99],
-      [99, 95], // 1차 최대수익 95
+      [99, 95], // 최대수익 95
       [108, 97], // 최대손실 108
       [96, 89], // TP 90
     ]);
@@ -68,74 +96,167 @@ describe("reviewPath", () => {
     expect(r.trough).toMatchObject({ price: 108 });
     expect(r.trough!.pct).toBeCloseTo(-8);
     expect(r.tp).toMatchObject({ ms: T0 + 3 * M, price: 90 });
+    expect(r.stopHit).toBeNull();
+    expect(r.verdicts.map((v) => v.key)).toEqual(["entry"]);
+    expect(r.verdicts[0].reason).toBe("도달 전 손절폭의 80% 역행");
   });
 
-  it("손실 먼저 — 진입 직후 크게 역행하면 타점·손절라인 후보", () => {
-    const c = bars([
-      [100.5, 90.5], // 진입 봉에서 손절폭 95% 역행
-      [102, 96],
-      [104, 99],
-      [106, 101],
-      [108, 103],
-      [111, 106], // TP
-    ]);
-    const r = reviewPath({ ...base, exitMs: T0 + 10 * M }, c, "1m")!;
-    expect(r.peakFirst).toBe(false);
-    expect(r.trough).toMatchObject({ ms: T0, elapsedMs: 0, price: 90.5 });
-    expect(r.peak).toMatchObject({ price: 108 }); // TP 봉은 뺀다
-    expect(r.verdicts.map((v) => v.key)).toEqual(["entry", "hold-stop"]);
-  });
-
-  it("TP 미도달 청산 — 청산점, 청산 뒤 TP 도달이면 기다림", () => {
+  it("청산 뒤 도달 — tp 가 채워지고 after-exit, 조급한 청산", () => {
     const c = bars([
       [101, 99],
-      [108, 100], // 1차 최대수익 108 = TP 거리 80%
-      [104, 97], // 최대손실 97
+      [104, 100],
+      [103, 97], // 최대손실 97
       [103, 100], // 청산 봉
       [105, 101],
       [110.5, 104], // 청산 뒤 TP
     ]);
     const r = reviewPath({ ...base, exitMs: T0 + 3 * M + 30_000, exitPrice: 102 }, c, "1m")!;
-    expect(r.tp).toBeNull();
+    expect(r.tp).toMatchObject({ ms: T0 + 5 * M, price: 110, elapsedMs: 5 * M });
     expect(r.exit).toMatchObject({ ms: T0 + 3 * M + 30_000, price: 102 });
     expect(r.exit!.pct).toBeCloseTo(2);
-    expect(r.tpAfterExit).toEqual({ ms: T0 + 5 * M, afterExitMs: 90_000 });
-    expect(r.verdicts.map((v) => v.key)).toEqual(["hold-profit", "wait"]);
+    expect(r.status).toBe("reached");
+    expect(r.tpVsExit).toBe("after-exit");
+    expect(r.trough).toMatchObject({ price: 97 });
+    expect(r.verdicts).toEqual([{ key: "wait", label: "조급한 청산", reason: "청산 1분 30초 뒤 TP 도달" }]);
   });
 
-  it("손절 미기록·TP 없음 — 판정 생략 사유만", () => {
+  it("손절선 먼저 닿고 계속 추적해 도달 — stopHit + tp, 진입의 문제(손절선 넘김)", () => {
+    const c = bars([
+      [101, 99],
+      [100, 89], // 손절선 90 도달, 최대손실 89
+      [95, 91],
+      [103, 99],
+      [111, 105], // TP
+    ]);
+    const r = reviewPath({ ...base, exitMs: T0 + M + 30_000, exitPrice: 89.5 }, c, "1m")!;
+    expect(r.stopHit).toMatchObject({ ms: T0 + M, price: 90, elapsedMs: M });
+    expect(r.stopHit!.pct).toBeCloseTo(-10);
+    expect(r.trough).toMatchObject({ ms: T0 + M, price: 89 });
+    expect(r.tp).toMatchObject({ ms: T0 + 4 * M, price: 110 });
+    expect(r.status).toBe("reached");
+    expect(r.tpVsExit).toBe("after-exit");
+    expect(r.verdicts.map((v) => v.key)).toEqual(["entry", "wait"]);
+    expect(r.verdicts[0].reason).toBe("손절선 넘김(손절폭의 110%) 뒤 도달");
+    expect(r.verdicts[1].reason).toBe("청산 2분 30초 뒤 TP 도달");
+  });
+
+  it("청산됐는데 끝까지 미도달 — closed-unreached, 방향성 실패 + TP 거리 70%↑면 목표가의 문제", () => {
+    const c = bars([
+      [101, 99],
+      [108, 100], // 최대수익 108 = TP 거리 80%
+      [104, 97], // 최대손실 97
+      [103, 100], // 청산 봉
+      [105, 101],
+      [106, 104], // 끝까지 110 못 닿음
+    ]);
+    const r = reviewPath({ ...base, exitMs: T0 + 3 * M + 30_000, exitPrice: 102 }, c, "1m")!;
+    expect(r.tp).toBeNull();
+    expect(r.status).toBe("closed-unreached");
+    expect(r.tpVsExit).toBe("unreached");
+    expect(r.exit).toMatchObject({ ms: T0 + 3 * M + 30_000, price: 102 });
+    expect(r.analyzedUntilMs).toBe(T0 + 5 * M);
+    expect(r.peak).toMatchObject({ price: 108 });
+    expect(r.trough).toMatchObject({ price: 97 });
+    expect(r.verdicts).toEqual([
+      { key: "direction", label: "방향성 실패", reason: "5분 동안 미도달" },
+      { key: "target", label: "목표가의 문제", reason: "TP 거리의 80%까지 갔다가 미도달" },
+    ]);
+  });
+
+  it("미도달 청산에 손절선 먼저 — 방향성 실패 사유에 붙고, 최대수익이 작으면 목표가 판정 없음", () => {
+    const c = bars([
+      [101, 99],
+      [100, 89], // 손절선 도달
+      [95, 91],
+    ]);
+    const r = reviewPath({ ...base, exitMs: T0 + M + 30_000, exitPrice: 89.5 }, c, "1m")!;
+    expect(r.stopHit).toMatchObject({ ms: T0 + M, price: 90 });
+    expect(r.status).toBe("closed-unreached");
+    expect(r.verdicts).toEqual([{ key: "direction", label: "방향성 실패", reason: "2분 동안 미도달 · 손절선 먼저 도달" }]);
+  });
+
+  it("보유중 미도달 — open-unreached, 판정 없음, 지금(nowMs)까지만 본다", () => {
+    const c = bars([
+      [101, 98],
+      [104, 99],
+      [111, 100], // nowMs 뒤 봉 — 구간 밖
+    ]);
+    const r = reviewPath({ ...base, exitMs: null, exitPrice: null, nowMs: T0 + 90_000 }, c, "1m")!;
+    expect(r.tp).toBeNull();
+    expect(r.exit).toBeNull();
+    expect(r.stopHit).toBeNull();
+    expect(r.status).toBe("open-unreached");
+    expect(r.tpVsExit).toBe("unreached");
+    expect(r.analyzedUntilMs).toBe(T0 + M);
+    expect(r.peak).toMatchObject({ price: 104 });
+    expect(r.trough).toMatchObject({ price: 98 });
+    expect(r.verdicts).toEqual([]);
+    expect(r.skipped).toEqual([]);
+  });
+
+  it("보유중 도달 — no-exit, 청산점 없음", () => {
+    const c = bars([
+      [101, 99],
+      [111, 100],
+    ]);
+    const r = reviewPath({ ...base, exitMs: null, exitPrice: null }, c, "1m")!;
+    expect(r.status).toBe("reached");
+    expect(r.tpVsExit).toBe("no-exit");
+    expect(r.exit).toBeNull();
+  });
+
+  it("TP 없음 — 도달·판정 생략 사유만", () => {
     const c = bars([
       [101, 99],
       [103, 95],
     ]);
-    const r = reviewPath({ ...base, stop: null, tp: null, leverage: null, exitMs: T0 + M, exitPrice: 97 }, c, "1m")!;
+    const r = reviewPath({ ...base, tp: null, exitMs: T0 + M, exitPrice: 97 }, c, "1m")!;
     expect(r.tp).toBeNull();
-    expect(r.trough!.marginPct).toBeNull();
+    expect(r.status).toBe("closed-unreached");
+    expect(r.tpVsExit).toBe("unreached");
+    expect(r.trough).toMatchObject({ price: 95 });
+    expect(r.exit).toMatchObject({ price: 97 });
     expect(r.verdicts).toEqual([]);
-    expect(r.skipped).toHaveLength(2);
+    expect(r.skipped).toEqual(["TP 없음 — 도달·판정 생략"]);
   });
 
-  it("역행이 한 번도 없으면 최대손실 없음", () => {
+  it("손절 미기록·무효 — 도달했어도 진입 판정 생략, stopHit 없음", () => {
     const c = bars([
-      [102, 100],
-      [111, 101],
+      [101, 99],
+      [103, 92], // 손절폭 기준을 못 세우니 진입 판정 없음
+      [111, 100],
+    ]);
+    const r = reviewPath({ ...base, stop: null }, c, "1m")!;
+    expect(r.tp).toMatchObject({ ms: T0 + 2 * M });
+    expect(r.trough).toMatchObject({ price: 92 });
+    expect(r.stopHit).toBeNull();
+    expect(r.verdicts).toEqual([]);
+    expect(r.skipped).toEqual(["손절 미기록 — 진입 판정 생략"]);
+
+    // 롱인데 손절이 진입가 위(본절 이상) — 손절폭을 못 재니 판정은 같이 생략하되 사유는 다르다
+    const r2 = reviewPath({ ...base, stop: 105 }, c, "1m")!;
+    expect(r2.stopHit).toBeNull();
+    expect(r2.skipped).toEqual(["손절이 진입가보다 유리한 쪽 — 진입 판정 생략"]);
+  });
+
+  it("금액 = 명목가 × pct/100, 명목가·레버리지 없으면 null", () => {
+    const c = bars([
+      [101, 99],
+      [106, 101],
+      [103, 96],
+      [104, 98],
+      [111, 100],
     ]);
     const r = reviewPath(base, c, "1m")!;
-    expect(r.trough).toBeNull();
-    expect(r.peakFirst).toBe(true);
-    expect(r.peak).toMatchObject({ price: 102 });
-    expect(r.tp).not.toBeNull();
-  });
+    expect(r.tp!.amount).toBeCloseTo(100);
+    expect(r.trough!.amount).toBeCloseTo(-40);
+    expect(r.peak!.amount).toBeCloseTo(60);
+    expect(r.exit!.amount).toBeCloseTo(100);
 
-  it("보유중 — 끝은 지금, 청산점 없음", () => {
-    const c = bars([
-      [101, 98],
-      [104, 99],
-    ]);
-    const r = reviewPath({ ...base, exitMs: null, exitPrice: null, nowMs: T0 + 90_000 }, c, "1m")!;
-    expect(r.exit).toBeNull();
-    expect(r.tpAfterExit).toBeNull();
-    expect(r.peak).toMatchObject({ price: 104 });
+    const r2 = reviewPath({ ...base, notional: null, leverage: null }, c, "1m")!;
+    expect(r2.tp!.amount).toBeNull();
+    expect(r2.trough!.amount).toBeNull();
+    expect(r2.tp!.marginPct).toBeNull();
   });
 
   it("경로에 봉이 없으면 null", () => {
@@ -143,37 +264,98 @@ describe("reviewPath", () => {
   });
 });
 
+describe("pathRequest", () => {
+  const trade = {
+    side: "long",
+    entry_at: "2026-09-20T00:00:00Z",
+    exit_at: "2026-09-20T00:05:00Z",
+    entry_price: 100,
+    exit_price: 110,
+    notional: 1000,
+    leverage: 10,
+    stop_price: 90,
+    okx_stop_price: null,
+    tp1_price: 110,
+    tp2_price: null,
+    tp3_price: null,
+    okx_tp_price: null,
+  } as Trade;
+
+  it("끝은 청산과 무관하게 지금까지, notional 을 넘긴다", () => {
+    const now = T0 + 100 * M;
+    const q = pathRequest(trade, now);
+    expect(q.bar).toBe("1m");
+    expect(q.from).toBe(T0);
+    expect(q.to).toBe(now + M);
+    expect(q.input).toMatchObject({ side: "long", entryMs: T0, entryPrice: 100, exitMs: T0 + 5 * M, exitPrice: 110, tp: 110, stop: 90, leverage: 10, notional: 1000, nowMs: now });
+  });
+
+  it("청산이 5분 뒤여도 지금이 10일 뒤면 봉은 10일 기준", () => {
+    const now = T0 + 10 * 24 * 60 * M;
+    const q = pathRequest(trade, now);
+    expect(q.bar).toBe("5m"); // 14400분 → 1m 은 3800봉 초과
+    expect(q.to).toBe(now + 5 * M);
+  });
+
+  it("진입가가 없으면 input 은 null", () => {
+    expect(pathRequest({ ...trade, entry_price: null }, T0 + M).input).toBeNull();
+  });
+});
+
 describe("summarizePathReviews", () => {
-  const pt = (elapsedMs: number) => ({ ms: 0, price: 0, elapsedMs, pct: 0, marginPct: null });
-  const rv = (keys: PathReview["verdicts"][number]["key"][], o: Partial<PathReview> = {}): PathReview => ({
-    bar: "1m", peak: null, peakFirst: true, trough: null, tp: null, exit: null, tpAfterExit: null, skipped: [],
+  const pt = (elapsedMs: number, amount: number | null = null): PathPoint => ({ ms: 0, price: 0, elapsedMs, pct: 0, marginPct: null, amount });
+  const rv = (status: PathReview["status"], keys: VerdictKey[], o: Partial<PathReview> = {}): PathReview => ({
+    bar: "1m", analyzedUntilMs: 0, tp: null, trough: null, peak: null, stopHit: null, exit: null, status, tpVsExit: "unreached", skipped: [],
     verdicts: keys.map((key) => ({ key, label: key, reason: "" })),
     ...o,
   });
 
-  it("판정별 건수·순손익, 복수 판정은 각각, 없으면 clean", () => {
+  it("판정별 건수·순손익, 보유중은 pending, 청산됐고 판정 없으면 clean, 최대손실 평균 금액", () => {
     const s = summarizePathReviews([
-      { review: rv(["entry", "hold-stop"], { trough: pt(60_000) }), net: -10 },
-      { review: rv(["hold-profit"], { peak: pt(120_000), trough: pt(300_000), tp: pt(600_000) }), net: 5 },
-      { review: rv(["hold-profit"], { peak: pt(240_000) }), net: -3 },
-      { review: rv([], { tp: pt(1_200_000) }), net: 8 },
+      { review: rv("reached", ["entry"], { tp: pt(600_000), trough: pt(60_000, -50) }), net: 5 },
+      { review: rv("closed-unreached", ["direction", "target"], { trough: pt(120_000, -30) }), net: -10 },
+      { review: rv("open-unreached", [], { trough: pt(30_000, null) }), net: null },
+      { review: rv("reached", ["wait"], { tp: pt(1_200_000) }), net: 3 },
+      { review: rv("reached", [], { tp: pt(300_000), trough: pt(90_000, -10) }), net: 8 },
+      { review: rv("reached", ["entry"], { tp: pt(900_000) }), net: -2 },
     ]);
-    expect(s.total).toBe(4);
-    expect(s.byVerdict.entry).toEqual({ count: 1, net: -10 });
-    expect(s.byVerdict["hold-stop"]).toEqual({ count: 1, net: -10 });
-    expect(s.byVerdict["hold-profit"]).toEqual({ count: 2, net: 2 });
-    expect(s.byVerdict.wait).toEqual({ count: 0, net: 0 });
+    expect(s.total).toBe(6);
+    expect(s.byVerdict.direction).toEqual({ count: 1, net: -10 });
+    expect(s.byVerdict.entry).toEqual({ count: 2, net: 3 });
+    expect(s.byVerdict.target).toEqual({ count: 1, net: -10 });
+    expect(s.byVerdict.wait).toEqual({ count: 1, net: 3 });
     expect(s.clean).toEqual({ count: 1, net: 8 });
-    expect(s.tpReached).toBe(2);
-    expect(s.avgToPeakMs).toBe(180_000);
-    expect(s.avgToTroughMs).toBe(180_000);
-    expect(s.avgToTpMs).toBe(900_000);
-    expect(s.top).toBe("hold-profit");
+    expect(s.pending).toBe(1);
+    expect(s.tpReached).toBe(4);
+    expect(s.avgToTpMs).toBe(750_000);
+    expect(s.avgTroughAmount).toBe(-30);
+    expect(s.top).toBe("entry");
   });
 
-  it("비어 있으면 평균·top 은 null", () => {
+  it("보유중(net null)인데 TP 에 닿아 판정에 걸리면 건수만 세고 순손익 합에는 넣지 않는다", () => {
+    const s = summarizePathReviews([
+      { review: rv("reached", ["entry"], { tp: pt(600_000) }), net: null },
+      { review: rv("reached", [], { tp: pt(300_000) }), net: null },
+      { review: rv("reached", ["entry"], { tp: pt(900_000) }), net: -2 },
+    ]);
+    expect(s.byVerdict.entry).toEqual({ count: 2, net: -2 });
+    expect(s.clean).toEqual({ count: 1, net: 0 });
+    expect(s.pending).toBe(0);
+  });
+
+  it("동수면 VERDICT_KEYS 앞선 것이 top", () => {
+    const s = summarizePathReviews([
+      { review: rv("closed-unreached", ["direction"]), net: -1 },
+      { review: rv("reached", ["wait"]), net: 1 },
+    ]);
+    expect(s.top).toBe("direction");
+  });
+
+  it("비어 있으면 평균·top 은 null, pending 0", () => {
     const s = summarizePathReviews([]);
     expect(s.top).toBeNull();
     expect(s.avgToTpMs).toBeNull();
+    expect(s.avgTroughAmount).toBeNull();
+    expect(s.pending).toBe(0);
   });
 });

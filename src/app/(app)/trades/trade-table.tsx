@@ -476,7 +476,7 @@ export function TradeTable({
                         className="sticky left-0 p-3"
                         style={{ width: viewWidth || undefined }}
                       >
-                        {/* TP 가 있으면 경로 복기 마커(1차 최대수익·최대손실·TP 도달)를 함께 찍는다(REQ-0080). */}
+                        {/* TP 가 있으면 경로 복기 마커(도달 전 최대손실·손절선·TP 도달)를 함께 찍는다(REQ-0080·0081). */}
                         <PathMarkedChart trade={trade} now={now} startInReplay={replayFor === trade.id} />
                       </div>
                     </td>
