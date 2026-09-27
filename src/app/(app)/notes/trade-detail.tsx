@@ -333,6 +333,9 @@ export function TradeDetail({
         <ChartDialogButton trade={trade} now={now} className="ml-auto text-xs text-accent hover:underline">
           차트
         </ChartDialogButton>
+        <ChartDialogButton trade={trade} now={now} mode="path" className="text-xs text-accent hover:underline">
+          경로 복기
+        </ChartDialogButton>
         <Link href={`/trades/${trade.id}`} className="text-xs text-accent hover:underline">
           숫자 고치기 →
         </Link>

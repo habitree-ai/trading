@@ -2,12 +2,12 @@
 
 import { useRef, useState } from "react";
 
-import { TradePathChart } from "@/app/(app)/notes/trade-path-view";
+import { TradeChartFor, TradePathChart } from "@/app/(app)/notes/trade-path-view";
 import { SIDE_LABEL, type Trade } from "@/lib/domain";
 
 /**
- * 매매 노트의 차트 팝업(REQ-0078) — 누르면 그 거래 구간의 차트를 모달로 띄운다. 차트 아래에
- * TP 도달 경로 복기(REQ-0077)가 붙는다.
+ * 매매 노트의 팝업 — 「차트」(REQ-0078, 진입·청산만)와 「경로 복기」(REQ-0077·0080, 경로 마커 +
+ * 세 시점 표 + 판정 + TP 입력)를 `mode` 로 나눈다.
  *
  * 앱에 모달이 없어 네이티브 `<dialog>` 를 쓴다(Esc·포커스 가두기가 딸려 온다). 차트는 열렸을
  * 때만 마운트한다 — 목록의 행마다 버튼이 있으니 닫힌 동안 캔들을 부르지 않게.
@@ -15,12 +15,14 @@ import { SIDE_LABEL, type Trade } from "@/lib/domain";
 export function ChartDialogButton({
   trade,
   now,
+  mode = "chart",
   className,
   children,
 }: {
   trade: Trade;
   /** 페이지를 그린 시각 — `TradeChart` 가 보유중 거래를 어디까지 그릴지 정한다 */
   now: number;
+  mode?: "chart" | "path";
   className?: string;
   children: React.ReactNode;
 }) {
@@ -41,7 +43,7 @@ export function ChartDialogButton({
       </button>
       <dialog
         ref={ref}
-        aria-label={`#${trade.seq} ${trade.symbol} 차트`}
+        aria-label={`#${trade.seq} ${trade.symbol} ${mode === "path" ? "경로 복기" : "차트"}`}
         onClose={() => setOpen(false)}
         // 백드롭은 dialog 자신이 받는다 — 안쪽 상자 밖을 누르면 닫는다.
         onClick={(e) => {
@@ -54,6 +56,7 @@ export function ChartDialogButton({
             <span className="font-medium">
               #{trade.seq} {trade.symbol}{" "}
               <span className={trade.side === "long" ? "text-profit" : "text-loss"}>{SIDE_LABEL[trade.side]}</span>
+              {mode === "path" ? <span className="font-normal text-dim"> · 경로 복기</span> : null}
             </span>
             <button
               type="button"
@@ -64,7 +67,11 @@ export function ChartDialogButton({
             </button>
           </div>
           {open ? (
-            <TradePathChart trade={trade} now={now} />
+            mode === "path" ? (
+              <TradePathChart trade={trade} now={now} />
+            ) : (
+              <TradeChartFor trade={trade} now={now} />
+            )
           ) : null}
         </div>
       </dialog>

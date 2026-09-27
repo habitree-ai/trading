@@ -119,7 +119,7 @@ export function TradeList({
                 <Link
                   href={href(filter, t.id)}
                   aria-current={active ? "true" : undefined}
-                  className={`block rounded-lg border py-2 pl-3 pr-9 ${
+                  className={`block rounded-lg border py-2 pl-3 pr-14 ${
                     active ? "border-accent bg-accent/5" : "border-border bg-surface hover:border-dim"
                   }`}
                 >
@@ -145,14 +145,21 @@ export function TradeList({
                   </div>
                 </Link>
                 {/* 링크 밖(형제)에 둔다 — 누르면 상세로 이동하지 않고 팝업만 뜬다. */}
-                <ChartDialogButton
-                  trade={t}
-                  now={now}
-                  className="absolute right-1.5 bottom-1.5 rounded px-1 text-sm text-dim hover:text-accent"
-                >
-                  <span aria-hidden>📈</span>
-                  <span className="sr-only">차트</span>
-                </ChartDialogButton>
+                <div className="absolute right-1.5 bottom-1.5 flex">
+                  <ChartDialogButton trade={t} now={now} className="rounded px-1 text-sm text-dim hover:text-accent">
+                    <span aria-hidden>📈</span>
+                    <span className="sr-only">차트</span>
+                  </ChartDialogButton>
+                  <ChartDialogButton
+                    trade={t}
+                    now={now}
+                    mode="path"
+                    className="rounded px-1 text-sm text-dim hover:text-accent"
+                  >
+                    <span aria-hidden>🧭</span>
+                    <span className="sr-only">경로 복기</span>
+                  </ChartDialogButton>
+                </div>
               </li>
             );
           })}

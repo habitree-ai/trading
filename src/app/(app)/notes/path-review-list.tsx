@@ -135,7 +135,7 @@ export async function PathReviewList({
               <th className="px-2 py-1.5 font-normal">TP 도달</th>
               <th className="px-2 py-1.5 font-normal">문제 후보</th>
               <th className="px-2 py-1.5 font-normal">
-                <span className="sr-only">차트</span>
+                <span className="sr-only">경로 복기</span>
               </th>
             </tr>
           </thead>
@@ -191,9 +191,14 @@ export async function PathReviewList({
                   </td>
                 )}
                 <td className="px-2 py-1.5">
-                  <ChartDialogButton trade={trade} now={now} className="rounded px-1 text-sm text-dim hover:text-accent">
-                    <span aria-hidden>📈</span>
-                    <span className="sr-only">차트</span>
+                  <ChartDialogButton
+                    trade={trade}
+                    now={now}
+                    mode="path"
+                    className="rounded px-1 text-sm text-dim hover:text-accent"
+                  >
+                    <span aria-hidden>🧭</span>
+                    <span className="sr-only">경로 복기</span>
                   </ChartDialogButton>
                 </td>
               </tr>
@@ -203,7 +208,7 @@ export async function PathReviewList({
       </div>
 
       <p className="px-1 text-[11px] text-dim/80">
-        TP 미기록 청산 {excludedNoTp}건은 제외 — 거래 표에서 TP 를 적으면 여기에 들어온다. 봉 단위 근사라 같은 봉 안의
+        TP 미기록 청산 {excludedNoTp}건은 제외 — 매매 노트의 🧭 경로 복기나 거래 표에서 TP 를 적으면 여기에 들어온다. 봉 단위 근사라 같은 봉 안의
         순서는 모른다. 판정은 후보다.
       </p>
     </div>

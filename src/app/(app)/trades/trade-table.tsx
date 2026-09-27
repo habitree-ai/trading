@@ -3,10 +3,10 @@
 import Link from "next/link";
 import { Fragment, useEffect, useMemo, useRef, useState, useTransition } from "react";
 
+import { PathMarkedChart } from "@/app/(app)/notes/trade-path-view";
 import { deleteTrade, updateTradeTargets } from "@/app/(app)/trades/actions";
 import { ExitPlanLines } from "@/components/exit-plan";
 import { formatDuration } from "@/components/measure-tool";
-import { TradeChart } from "@/components/trade-chart";
 import { TradesOverviewChart } from "@/components/trades-overview-chart";
 import {
   isCounterTrend,
@@ -17,7 +17,7 @@ import {
   type TradeFill,
   type TradeResult,
 } from "@/lib/domain";
-import { activeTargetPrices, activeTargetShares, summarizeExits } from "@/lib/exit-plan";
+import { summarizeExits } from "@/lib/exit-plan";
 import { DASH, dateTime, num, pct, pnlClass, signed, signedPct } from "@/lib/format";
 import { describeImpulse, impulseTone, type Impulse } from "@/lib/impulse";
 import type { TradeDerived } from "@/lib/metrics";
@@ -476,21 +476,8 @@ export function TradeTable({
                         className="sticky left-0 p-3"
                         style={{ width: viewWidth || undefined }}
                       >
-                        <TradeChart
-                          tradeId={trade.id}
-                          symbol={trade.symbol}
-                          side={trade.side}
-                          entryAt={trade.entry_at}
-                          exitAt={trade.exit_at}
-                          entryPrice={trade.entry_price}
-                          exitPrice={trade.exit_price}
-                          stopPrice={trade.okx_stop_price ?? trade.stop_price}
-                          targets={activeTargetPrices(trade)}
-                          targetShares={activeTargetShares(trade)}
-                          notional={trade.notional}
-                          now={now}
-                          startInReplay={replayFor === trade.id}
-                        />
+                        {/* TP 가 있으면 경로 복기 마커(1차 최대수익·최대손실·TP 도달)를 함께 찍는다(REQ-0080). */}
+                        <PathMarkedChart trade={trade} now={now} startInReplay={replayFor === trade.id} />
                       </div>
                     </td>
                   </tr>
