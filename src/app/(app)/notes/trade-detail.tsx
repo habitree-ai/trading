@@ -15,6 +15,7 @@ import {
   SuggestField,
   SuggestTextarea,
 } from "@/app/(app)/trades/trade-form";
+import { formatDuration } from "@/components/measure-tool";
 import { PhotoRow, PhotoStrip } from "@/components/photos";
 import {
   BIAS_TIMEFRAMES,
@@ -31,6 +32,7 @@ import {
   type TradeFill,
 } from "@/lib/domain";
 import { dateTime } from "@/lib/format";
+import { describeImpulse, impulseTone, type Impulse } from "@/lib/impulse";
 import type { FieldSuggestions } from "@/lib/queries";
 
 export interface PrincipleMark {
@@ -298,6 +300,8 @@ export function TradeDetail({
   suggestions,
   userId,
   now,
+  sinceLastExitMs,
+  impulse,
   backHref,
 }: {
   trade: Trade;
@@ -308,6 +312,10 @@ export function TradeDetail({
   userId: string;
   /** 페이지를 그린 시각 — 차트 팝업이 보유중 거래를 어디까지 그릴지 */
   now: number;
+  /** 직전 청산 → 이 진입 간격(REQ-0063). 첫 거래면 null */
+  sinceLastExitMs: number | null;
+  /** 뇌동매매지수(REQ-0076). 첫 거래면 null */
+  impulse: Impulse | null;
   /** 좁은 화면에서 목록으로 돌아가는 링크 */
   backHref: string;
 }) {
@@ -331,6 +339,21 @@ export function TradeDetail({
       </div>
 
       <PositionCard trade={trade} />
+
+      {sinceLastExitMs !== null ? (
+        <p className="px-1 text-xs text-dim">
+          직전 청산 +{formatDuration(sinceLastExitMs)}
+          {impulse ? (
+            <>
+              {" · "}
+              <span className={impulseTone(impulse.score)}>
+                뇌동 {impulse.score}
+              </span>
+              {` (${describeImpulse(impulse)})`}
+            </>
+          ) : null}
+        </p>
+      ) : null}
 
       <NotesCard trade={trade} section="basis" title="근거">
         {(savedAt) => <BasisFields key={savedAt} trade={trade} suggestions={suggestions} />}

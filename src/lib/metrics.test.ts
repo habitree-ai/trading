@@ -10,6 +10,7 @@ import {
   deriveTrades,
   groupPerformance,
   kellyFraction,
+  latestExit,
   lastActivityAt,
   monthKey,
   summarizePerformance,
@@ -1234,5 +1235,32 @@ describe('sinceLastExitMs — 직전 청산에서 이 진입까지 (청산 후 6
     const b = trade({ pnl: 1, result: 'win', entry_at: '2026-09-01T01:30:00Z', exit_at: '2026-09-01T01:30:00Z' });
 
     expect(deriveTrades(book, [a, b])[1].sinceLastExitMs).toBe(30 * 60_000);
+  });
+});
+
+describe('impulse — 뇌동매매지수 (REQ-0076)', () => {
+  it('기산점 거래의 손실·증거금과 간격으로 잰다', () => {
+    seq = 0;
+    // 초기자금 100 에서 −5 손실(5%) → 30분 뒤 증거금 두 배로 진입.
+    const a = trade({ pnl: -5, result: 'loss', notional: 1000, leverage: 10, entry_at: '2026-09-01T00:00:00Z', exit_at: '2026-09-01T01:00:00Z' });
+    const b = trade({ pnl: 1, result: 'win', notional: 2000, leverage: 10, entry_at: '2026-09-01T01:30:00Z', exit_at: '2026-09-01T02:00:00Z' });
+
+    const [da, db] = deriveTrades(book, [a, b]);
+    expect(da.impulse).toBeNull();
+    expect(db.impulse).toMatchObject({ score: 76, gapMs: 30 * 60_000, marginRatio: 2, waitMs: 150 * 60_000 });
+    expect(db.impulse?.prevNetPct).toBeCloseTo(-0.05);
+  });
+
+  it('latestExit — 종목을 가리지 않고 가장 늦은 청산, 보유중은 뺀다', () => {
+    seq = 0;
+    const a = trade({ pnl: -5, result: 'loss', notional: 1000, leverage: 10, entry_at: '2026-09-01T00:00:00Z', exit_at: '2026-09-01T03:00:00Z' });
+    const b = trade({ pnl: 2, result: 'win', symbol: 'ETH', entry_at: '2026-09-01T01:00:00Z', exit_at: '2026-09-01T02:00:00Z' });
+    const open = trade({ pnl: 0, result: 'open', entry_at: '2026-09-01T04:00:00Z', exit_at: null });
+
+    expect(latestExit(deriveTrades(book, [a, b, open]))).toEqual({
+      exitMs: Date.parse('2026-09-01T03:00:00Z'),
+      prev: { net: -5, equityBefore: 100, margin: 100 },
+    });
+    expect(latestExit([])).toBeNull();
   });
 });

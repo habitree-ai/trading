@@ -12,6 +12,7 @@
 
 import type { Book, CashFlow, Trade, TradeResult } from '@/lib/domain';
 import { DISPLAY_TZ } from '@/lib/format';
+import { impulseIndex, type Impulse, type PrevExit } from '@/lib/impulse';
 
 /** 표본이 없어 정의되지 않는 지표는 null로 돌려준다 — 0과 구분하기 위해. */
 type Maybe = number | null;
@@ -86,6 +87,11 @@ export interface TradeDerived {
    * 앞 거래의 청산으로 재면 음수가 나온다. 앞서 끝난 거래가 없으면 null.
    */
   sinceLastExitMs: number | null;
+  /**
+   * 뇌동매매지수(REQ-0076) — 위 간격에 기산점 거래의 손실·증거금을 더해 잰다. 기산점이 없으면 null.
+   * 권장 대기시간(`waitMs`)은 그 기산점 청산 뒤에 기다렸어야 할 시간이다.
+   */
+  impulse: Impulse | null;
 }
 
 /**
@@ -163,6 +169,8 @@ export function deriveTrades(
   let nextExit = 0;
   let withdrawnTotal = 0;
   let netTotal = 0;
+  // 기산점 거래의 손익·증거금 — 청산이 이 진입보다 먼저이니 그 거래는 이미 지나왔다.
+  const prevById = new Map<string, PrevExit>();
 
   return sorted.map((trade) => {
     // 진입 시각을 경계로 이체를 반영한다 — 거래 도중에 들어온 돈이 그 거래의
@@ -195,6 +203,9 @@ export function deriveTrades(
     // 수기 입력은 분 단위라 진입·청산이 같은 시각으로 적힐 수 있다 — 자기 청산은 기산점이 아니다.
     let lastExit = nextExit - 1;
     if (lastExit >= 0 && exits[lastExit].id === trade.id) lastExit -= 1;
+    const sinceLastExitMs = lastExit >= 0 ? entryMs - exits[lastExit].ms : null;
+    const prev = lastExit >= 0 ? prevById.get(exits[lastExit].id) : undefined;
+    prevById.set(trade.id, { net, equityBefore, margin });
 
     return {
       trade,
@@ -210,9 +221,29 @@ export function deriveTrades(
       pnlPct: trade.pnl === null ? null : ratio(net, margin),
       riskPct: riskPct(trade),
       rr: [rrFor(trade, trade.tp1_price), rrFor(trade, trade.tp2_price), rrFor(trade, trade.tp3_price)],
-      sinceLastExitMs: lastExit >= 0 ? entryMs - exits[lastExit].ms : null,
+      sinceLastExitMs,
+      impulse: prev && sinceLastExitMs !== null ? impulseIndex(prev, sinceLastExitMs, margin) : null,
     };
   });
+}
+
+/**
+ * 가장 최근에 끝난 거래 — 주문 화면이 「지금 들어가면」의 뇌동매매지수와 남은 대기시간을 잰다(REQ-0076).
+ * 기산점은 `sinceLastExitMs` 와 같다: 종목을 가리지 않고 가장 늦은 청산.
+ */
+export function latestExit(derived: readonly TradeDerived[]): { exitMs: number; prev: PrevExit } | null {
+  let best: TradeDerived | null = null;
+  let bestMs = -Infinity;
+  for (const d of derived) {
+    if (isOpenTrade(d.trade) || d.trade.exit_at === null) continue;
+    const ms = Date.parse(d.trade.exit_at);
+    if (ms > bestMs) {
+      best = d;
+      bestMs = ms;
+    }
+  }
+  if (best === null) return null;
+  return { exitMs: bestMs, prev: { net: best.net, equityBefore: best.equityBefore, margin: best.margin } };
 }
 
 /** 이 거래가 장부에 확정되는 시각 — 청산했으면 청산 시각, 아직 들고 있으면 진입 시각. */

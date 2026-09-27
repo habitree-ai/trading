@@ -7,6 +7,7 @@ import { placeManualOrder, type ManualOrderState } from "@/app/(app)/order/actio
 import { OrderChart } from "@/app/(app)/order/order-chart";
 import type { OrderAccountStatus } from "@/app/(app)/order/status";
 import { DRAW_TOOLS, DrawToolbar, useDrawingBoard } from "@/components/drawing-board";
+import { formatDuration } from "@/components/measure-tool";
 import { VoiceInput } from "@/components/voice-input";
 import { formatLevel } from "@/lib/annotation-levels";
 import { ATR_PERIOD, ATR_STOP_MAX, ATR_STOP_MIN, atrPercent, stopAtrMultiple } from "@/lib/atr";
@@ -28,6 +29,7 @@ import {
   type Trend,
 } from "@/lib/domain";
 import { num, pct } from "@/lib/format";
+import { describeImpulse, impulseIndex, impulseTone, type PrevExit } from "@/lib/impulse";
 import {
   MAX_LEVERAGE,
   MIN_RATIONALE_CHARS,
@@ -87,6 +89,7 @@ export function OrderPanel({
   suggestions,
   daily,
   halfKelly,
+  lastExit,
   now: initialNow,
 }: {
   status: OrderAccountStatus;
@@ -94,6 +97,8 @@ export function OrderPanel({
   daily: DailyStatus;
   /** 절반 켈리(0~1) — 완결 거래가 모자라면 null */
   halfKelly: number | null;
+  /** 가장 최근 청산 — 지금 들어가면의 뇌동매매지수·남은 대기시간(REQ-0076). 끝난 거래가 없으면 null */
+  lastExit: { exitMs: number; prev: PrevExit } | null;
   now: number;
 }) {
   const [symbol, setSymbol] = useState("BTC");
@@ -253,6 +258,9 @@ export function OrderPanel({
   const balanceOk = margin !== null && equity !== null && equity >= margin.need;
   const ready = market !== null && gateOpen(gate) && accountOk && sizeOk && balanceOk;
 
+  // 지금 들어가면 — 입력한 증거금으로 뇌동매매지수를 재고, 권장 대기까지 남은 시간을 센다. 경고만 한다.
+  const impulse = lastExit ? impulseIndex(lastExit.prev, now - lastExit.exitMs, margin?.margin ?? null) : null;
+  const waitLeftMs = impulse ? impulse.waitMs - impulse.gapMs : 0;
   const halfKellyAmount = halfKelly !== null && equity !== null ? halfKelly * equity : null;
   const overKelly = risk !== null && halfKellyAmount !== null && risk.riskAmount > halfKellyAmount;
 
@@ -709,6 +717,16 @@ export function OrderPanel({
             {daily.overEntries ? " — 상한을 넘는 진입입니다" : ""}
             {daily.overLosses ? " — 오늘은 그만두기로 한 날입니다" : ""}
           </p>
+
+          {/* 공백·뇌동매매지수 — 경고만 한다(REQ-0076). 주문 버튼은 게이트만 본다 */}
+          {impulse ? (
+            <p className={`text-[11px] ${waitLeftMs > 0 ? "font-medium text-loss" : "text-dim"}`}>
+              직전 청산 후 {formatDuration(impulse.gapMs)} · 권장 대기 {formatDuration(impulse.waitMs)}
+              {waitLeftMs > 0 ? ` → ${formatDuration(waitLeftMs)} 남음` : " 지남"} · 지금 진입 시{" "}
+              <span className={impulseTone(impulse.score)}>뇌동 {impulse.score}</span>
+              <span className="block font-normal text-dim">{describeImpulse(impulse)}</span>
+            </p>
+          ) : null}
 
           {/* 게이트 — 전부 초록이어야 버튼이 열린다 */}
           <ul className="space-y-1 rounded-lg border border-border bg-bg p-2.5 text-[12px]">

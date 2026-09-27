@@ -4,11 +4,12 @@ import { GeneralNotes } from "@/app/(app)/notes/general-notes";
 import { TradeDetail, type PrincipleMark } from "@/app/(app)/notes/trade-detail";
 import { NOTES_FILTERS, TradeList, type NotesFilter } from "@/app/(app)/notes/trade-list";
 import type { JournalEntry } from "@/app/(app)/trades/new/journal-list";
-import { isOpenTrade } from "@/lib/metrics";
+import { deriveTrades, isOpenTrade } from "@/lib/metrics";
 import { nowMs } from "@/lib/okx";
 import {
   getActiveBook,
   listAnnotationsByOwner,
+  listCashFlows,
   listFieldSuggestions,
   listFillsByTrade,
   listJournalNotes,
@@ -56,8 +57,9 @@ export default async function NotesPage({
 
   const filter: NotesFilter = isFilter(params.filter) ? params.filter : "all";
   const general = params.view === "general";
-  const [trades, suggestions, principles, checks, journal] = await Promise.all([
+  const [trades, flows, suggestions, principles, checks, journal] = await Promise.all([
     listTrades(book.id),
+    listCashFlows(book.id),
     listFieldSuggestions(book.id),
     listPrinciples(book.id),
     listPrincipleChecksByBook(book.id),
@@ -71,6 +73,8 @@ export default async function NotesPage({
 
   // 고른 거래가 없으면 목록 맨 위를 연다(넓은 화면). 좁은 화면은 목록부터 보인다.
   const selected = sorted.find((t) => t.id === params.trade) ?? sorted[0] ?? null;
+  // 공백·뇌동매매지수(REQ-0076) — 잔고 대비 손실을 재려면 이체까지 넣어 북 전체로 파생한다.
+  const derivedSelected = selected ? deriveTrades(book, trades, flows).find((d) => d.trade.id === selected.id) : undefined;
   const fills = selected ? ((await listFillsByTrade([selected.id]))[selected.id] ?? []) : [];
 
   const titleById = new Map(principles.map((p) => [p.id, p.title]));
@@ -141,6 +145,8 @@ export default async function NotesPage({
               suggestions={suggestions}
               userId={user.id}
               now={now}
+              sinceLastExitMs={derivedSelected?.sinceLastExitMs ?? null}
+              impulse={derivedSelected?.impulse ?? null}
               backHref={backHref}
             />
           </div>

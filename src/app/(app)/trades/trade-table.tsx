@@ -19,6 +19,7 @@ import {
 } from "@/lib/domain";
 import { activeTargetPrices, activeTargetShares, summarizeExits } from "@/lib/exit-plan";
 import { DASH, dateTime, num, pct, pnlClass, signed, signedPct } from "@/lib/format";
+import { describeImpulse, impulseTone, type Impulse } from "@/lib/impulse";
 import type { TradeDerived } from "@/lib/metrics";
 
 type ResultFilter = TradeResult | "all";
@@ -322,7 +323,7 @@ export function TradeTable({
                   ) : null}
                 </td>
                 <td className="px-2 py-1.5 font-medium">{trade.symbol}</td>
-                <FillCell price={trade.entry_price} at={trade.entry_at} sinceLastExitMs={row.sinceLastExitMs} />
+                <FillCell price={trade.entry_price} at={trade.entry_at} sinceLastExitMs={row.sinceLastExitMs} impulse={row.impulse} />
                 {/* 진입 옆 — 단계별 청산. 체결된 차수는 실현값, 아직이면 등록된 TP 기준 예상치. */}
                 <td className="px-2 py-1.5 whitespace-nowrap">
                   <ExitPlanLines summary={exits} />
@@ -511,16 +512,18 @@ const COOLDOWN_MS = 60 * 60_000;
  * 체결 한 칸에 가격과 시각을 함께 담는다 — 둘을 따로 보면 짝짓기가 어렵다.
  *
  * 진입 칸에는 직전 청산에서 얼마 만에 들어왔는지를 한 줄 더 단다(REQ-0063). 앞서 끝난 거래가
- * 없으면(첫 거래) 줄을 그리지 않는다.
+ * 없으면(첫 거래) 줄을 그리지 않는다. 그 아래 뇌동매매지수(REQ-0076) — 같은 줄에 붙이면 열이 넓어진다.
  */
 function FillCell({
   price,
   at,
   sinceLastExitMs,
+  impulse,
 }: {
   price: number | null;
   at: string | null;
   sinceLastExitMs?: number | null;
+  impulse?: Impulse | null;
 }) {
   const hurried = typeof sinceLastExitMs === "number" && sinceLastExitMs < COOLDOWN_MS;
   return (
@@ -533,6 +536,11 @@ function FillCell({
           className={`tnum text-[10px] ${hurried ? "text-beta" : "text-dim"}`}
         >
           직전 +{formatDuration(sinceLastExitMs)}
+        </div>
+      ) : null}
+      {impulse ? (
+        <div title={describeImpulse(impulse)} className={`tnum text-[10px] ${impulseTone(impulse.score)}`}>
+          뇌동 {impulse.score}
         </div>
       ) : null}
     </td>

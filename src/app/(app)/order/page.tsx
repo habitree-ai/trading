@@ -3,7 +3,7 @@ import { readOrderStatus } from "@/app/(app)/order/status";
 import { EmptyBook } from "@/components/empty-book";
 import { RationaleAlert } from "@/components/rationale-alert";
 import { dailyStatus } from "@/lib/manual-order";
-import { computeMetrics, deriveTrades, isOpenTrade } from "@/lib/metrics";
+import { computeMetrics, deriveTrades, isOpenTrade, latestExit } from "@/lib/metrics";
 import { nowMs } from "@/lib/okx";
 import { getActiveBook, listCashFlows, listFieldSuggestions, listTrades } from "@/lib/queries";
 import { unjustifiedTrades } from "@/lib/rationale";
@@ -28,7 +28,8 @@ export default async function OrderPage() {
   const now = nowMs();
 
   // 절반 켈리 — 대시보드와 같은 계산. 이 주문의 리스크가 상한을 넘는지 옆에 적는다.
-  const m = computeMetrics(book, deriveTrades(book, trades, flows), flows);
+  const derived = deriveTrades(book, trades, flows);
+  const m = computeMetrics(book, derived, flows);
   const halfKelly = m.kelly === null ? null : Math.max(m.kelly, 0) / 2;
 
   const unjustified = unjustifiedTrades(trades, now).map((t) => ({
@@ -58,6 +59,7 @@ export default async function OrderPage() {
         suggestions={suggestions}
         daily={dailyStatus(trades, new Date(now).toISOString())}
         halfKelly={halfKelly}
+        lastExit={latestExit(derived)}
         now={now}
       />
     </div>
