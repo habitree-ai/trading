@@ -179,6 +179,15 @@ const NO_FILLS: TradeFill[] = [];
 const NO_ANNOTATIONS: TradeAnnotation[] = [];
 const NO_TARGETS: readonly [number | null, number | null, number | null] = [null, null, null];
 
+/** 부르는 쪽이 더 찍는 마커 — 경로 복기(REQ-0077)의 최대수익·최대손실·TP 도달점. */
+export interface ChartMarker {
+  ms: number;
+  position: "aboveBar" | "belowBar";
+  tone: "profit" | "loss" | "accent";
+  text: string;
+}
+const NO_MARKERS: readonly ChartMarker[] = [];
+
 /** 수량 — 코인 개수는 자릿수가 제각각이라 유효숫자 4개로 맞춘다(0.0033 · 12.5 · 1,234). */
 function qtyText(qty: number): string {
   return qty.toLocaleString("ko-KR", { maximumSignificantDigits: 4 });
@@ -232,6 +241,7 @@ export function TradeChart({
   notional = null,
   now,
   startInReplay = false,
+  extraMarkers = NO_MARKERS,
 }: {
   /** 메모를 어느 거래에 붙일지 — 차트에서 바로 저장한다. `store` 를 주면 그쪽이 우선이다 */
   tradeId?: string;
@@ -273,6 +283,8 @@ export function TradeChart({
   now: number;
   /** 목록의 "복기"로 열렸는가 — 켜지면 캔들이 도착하는 대로 복기를 시작한다. */
   startInReplay?: boolean;
+  /** 진입·청산 말고 더 찍을 마커. 렌더마다 새 배열을 주면 다시 그리니 부르는 쪽이 고정한다 */
+  extraMarkers?: readonly ChartMarker[];
 }) {
   const entryMs = Date.parse(entryAt);
   const exitMs = exitAt ? Date.parse(exitAt) : null;
@@ -764,6 +776,18 @@ export function TradeChart({
         text: `${isOpen ? "진입" : "청산"}${count > 1 ? ` ${order}` : ""} ${num(p.price)}`,
       };
     });
+    const toneColor = { profit: theme.up, loss: theme.down, accent: theme.accent };
+    for (const m of extraMarkers) {
+      markers.push({
+        time: (Math.floor(m.ms / BAR_MS[bar]) * BAR_MS[bar] / 1000) as UTCTimestamp,
+        position: m.position,
+        shape: "circle",
+        color: toneColor[m.tone],
+        text: m.text,
+      });
+    }
+    // 차트 라이브러리는 시간순 마커를 기대한다 — 체결 뒤에 붙인 것까지 한 번에 맞춘다.
+    markers.sort((a, b) => (a.time as number) - (b.time as number));
     // 복기 중에는 아직 오지 않은 봉의 마커(청산 등)를 감춘다.
     const shownMarkers =
       replayIdx === null ? markers : markers.filter((m) => (m.time as number) <= lastBarSec);
@@ -832,7 +856,7 @@ export function TradeChart({
       markerApi.detach();
       for (const line of lines) series.removePriceLine(line);
     };
-  }, [candles, fills, entryPrice, exitPrice, stopPrice, tp1, tp2, tp3, sh1, sh2, sh3, notional, symbol, entryMs, exitMs, bar, replayIdx, entryIdx]);
+  }, [candles, fills, entryPrice, exitPrice, stopPrice, tp1, tp2, tp3, sh1, sh2, sh3, notional, symbol, entryMs, exitMs, bar, replayIdx, entryIdx, extraMarkers]);
 
   /* ---------- 측정(자)·메모 도구 ---------- */
   const toPoint = useCallback((x: number, y: number): MeasurePoint | null => {

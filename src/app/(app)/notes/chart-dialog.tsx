@@ -2,12 +2,12 @@
 
 import { useRef, useState } from "react";
 
-import { TradeChart } from "@/components/trade-chart";
+import { TradePathChart } from "@/app/(app)/notes/trade-path-view";
 import { SIDE_LABEL, type Trade } from "@/lib/domain";
-import { activeTargetPrices, activeTargetShares } from "@/lib/exit-plan";
 
 /**
- * 매매 노트의 차트 팝업(REQ-0078) — 누르면 그 거래 구간의 차트를 모달로 띄운다.
+ * 매매 노트의 차트 팝업(REQ-0078) — 누르면 그 거래 구간의 차트를 모달로 띄운다. 차트 아래에
+ * TP 도달 경로 복기(REQ-0077)가 붙는다.
  *
  * 앱에 모달이 없어 네이티브 `<dialog>` 를 쓴다(Esc·포커스 가두기가 딸려 온다). 차트는 열렸을
  * 때만 마운트한다 — 목록의 행마다 버튼이 있으니 닫힌 동안 캔들을 부르지 않게.
@@ -64,20 +64,7 @@ export function ChartDialogButton({
             </button>
           </div>
           {open ? (
-            <TradeChart
-              tradeId={trade.id}
-              symbol={trade.symbol}
-              side={trade.side}
-              entryAt={trade.entry_at}
-              exitAt={trade.exit_at}
-              entryPrice={trade.entry_price}
-              exitPrice={trade.exit_price}
-              stopPrice={trade.okx_stop_price ?? trade.stop_price}
-              targets={activeTargetPrices(trade)}
-              targetShares={activeTargetShares(trade)}
-              notional={trade.notional}
-              now={now}
-            />
+            <TradePathChart trade={trade} now={now} />
           ) : null}
         </div>
       </dialog>
