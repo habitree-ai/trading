@@ -248,6 +248,44 @@ export function SuggestTextarea({
   );
 }
 
+/**
+ * 근거 칸과 그 아래 「청산 이후 계획」(손절 시·수익 시) — 한 칸 폭에 세로로 쌓는다(REQ-0084).
+ * 격자에 따로 늘어놓으면 넓은 화면에서 계획 칸이 근거 옆으로 가 "근거 아래"가 깨진다.
+ */
+export function RationaleWithPlan({
+  label,
+  rationale,
+  planOnLoss,
+  planOnProfit,
+  options,
+}: {
+  label: string;
+  rationale: string;
+  planOnLoss: string;
+  planOnProfit: string;
+  options: string[];
+}) {
+  return (
+    <div className="space-y-2.5 sm:col-span-3 xl:col-span-2">
+      <SuggestTextarea name="rationale" label={label} rows={5} defaultValue={rationale} options={options} />
+      <SuggestTextarea
+        name="plan_on_loss"
+        label="청산 이후 계획 — 손절 시"
+        rows={3}
+        defaultValue={planOnLoss}
+        options={[]}
+      />
+      <SuggestTextarea
+        name="plan_on_profit"
+        label="청산 이후 계획 — 수익 시"
+        rows={3}
+        defaultValue={planOnProfit}
+        options={[]}
+      />
+    </div>
+  );
+}
+
 export function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <fieldset className="rounded-xl border border-border bg-surface p-3">
@@ -574,11 +612,11 @@ export function TradeForm({
           defaultValue={v("emotion")}
           options={suggestions.emotion}
         />
-        <SuggestTextarea
-          name="rationale"
+        <RationaleWithPlan
           label="근거"
-          rows={5}
-          defaultValue={v("rationale")}
+          rationale={v("rationale")}
+          planOnLoss={v("plan_on_loss")}
+          planOnProfit={v("plan_on_profit")}
           options={suggestions.rationale}
         />
         <SuggestTextarea

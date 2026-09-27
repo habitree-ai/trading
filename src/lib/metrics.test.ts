@@ -73,6 +73,8 @@ function trade(partial: Partial<Trade> & { pnl: number; result: TradeResult }): 
     timeframe_entry: null,
     setup: null,
     rationale: null,
+    plan_on_loss: null,
+    plan_on_profit: null,
     review: null,
     emotion: null,
     note: null,

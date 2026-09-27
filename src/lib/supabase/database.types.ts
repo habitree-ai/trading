@@ -1094,6 +1094,8 @@ export type Database = {
           okx_stop_price: number | null
           okx_tp_price: number | null
           openness: Database["public"]["Enums"]["market_openness"] | null
+          plan_on_loss: string | null
+          plan_on_profit: string | null
           pnl: number | null
           rationale: string | null
           realized_pnl: number | null
@@ -1141,6 +1143,8 @@ export type Database = {
           okx_stop_price?: number | null
           okx_tp_price?: number | null
           openness?: Database["public"]["Enums"]["market_openness"] | null
+          plan_on_loss?: string | null
+          plan_on_profit?: string | null
           pnl?: number | null
           rationale?: string | null
           realized_pnl?: number | null
@@ -1188,6 +1192,8 @@ export type Database = {
           okx_stop_price?: number | null
           okx_tp_price?: number | null
           openness?: Database["public"]["Enums"]["market_openness"] | null
+          plan_on_loss?: string | null
+          plan_on_profit?: string | null
           pnl?: number | null
           rationale?: string | null
           realized_pnl?: number | null

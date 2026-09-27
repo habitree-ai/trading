@@ -172,6 +172,10 @@ export interface Trade {
   setup: string | null;
   /** 시트의 `근거` */
   rationale: string | null;
+  /** 청산 이후 계획 — 손절로 끝났을 때 할 일. 근거 아래에 적는다(REQ-0084) */
+  plan_on_loss: string | null;
+  /** 청산 이후 계획 — 수익으로 끝났을 때 할 일 */
+  plan_on_profit: string | null;
   /** 시트의 `복기` */
   review: string | null;
   /** 시트의 `감정` */

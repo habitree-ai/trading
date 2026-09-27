@@ -10,6 +10,7 @@ import { NewPositionNoteForm, PositionCard, PositionNotes } from "@/app/(app)/tr
 import {
   INPUT,
   LABEL,
+  RationaleWithPlan,
   Section,
   Submit,
   SuggestField,
@@ -126,6 +127,8 @@ function BasisFields({ trade, suggestions }: { trade: Trade; suggestions: FieldS
         <Field label="기준 (셋업)" value={trade.setup} />
         <Field label="트리거 (근거 첫 줄)" value={trigger?.trim() || null} wide />
         {rest.join("\n").trim() ? <Field label="보조 근거" value={rest.join("\n").trim()} wide /> : null}
+        <Field label="청산 이후 계획 — 손절 시" value={trade.plan_on_loss} wide />
+        <Field label="청산 이후 계획 — 수익 시" value={trade.plan_on_profit} wide />
         <div className="sm:col-span-3 xl:col-span-4">
           <button type="button" onClick={() => setEditing(true)} className={EDIT_BUTTON}>
             ✎ 근거 수정
@@ -170,11 +173,11 @@ function BasisFields({ trade, suggestions }: { trade: Trade; suggestions: FieldS
         options={ENTRY_TIMEFRAMES.map((t) => [t, TIMEFRAME_LABEL[t]])}
       />
       <SuggestField name="setup" label="기준 (셋업)" defaultValue={trade.setup ?? ""} options={suggestions.setup} />
-      <SuggestTextarea
-        name="rationale"
+      <RationaleWithPlan
         label="근거 — 첫 줄이 트리거"
-        rows={5}
-        defaultValue={trade.rationale ?? ""}
+        rationale={trade.rationale ?? ""}
+        planOnLoss={trade.plan_on_loss ?? ""}
+        planOnProfit={trade.plan_on_profit ?? ""}
         options={suggestions.rationale}
       />
       <div className="sm:col-span-3 xl:col-span-4 flex items-center gap-3">

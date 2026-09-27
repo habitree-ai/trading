@@ -18,7 +18,14 @@ export type NotesSection = "basis" | "review";
 
 type BasisUpdate = Pick<
   Trade,
-  "trend" | "timeframe_bias" | "timeframe_entry" | "openness" | "setup" | "rationale"
+  | "trend"
+  | "timeframe_bias"
+  | "timeframe_entry"
+  | "openness"
+  | "setup"
+  | "rationale"
+  | "plan_on_loss"
+  | "plan_on_profit"
 >;
 type ReviewUpdate = Pick<Trade, "review" | "emotion" | "note" | "image_paths">;
 
@@ -67,6 +74,8 @@ export function parseNotesUpdate(
         openness,
         setup: text(formData, "setup"),
         rationale: text(formData, "rationale"),
+        plan_on_loss: text(formData, "plan_on_loss"),
+        plan_on_profit: text(formData, "plan_on_profit"),
       },
     };
   }

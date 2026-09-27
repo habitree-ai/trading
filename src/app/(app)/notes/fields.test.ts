@@ -21,6 +21,8 @@ describe('parseNotesUpdate — 근거 카드', () => {
         ['openness', 'top_closed'],
         ['setup', ' 돌파 리테스트 '],
         ['rationale', '1H 저항 돌파 후 되돌림'],
+        ['plan_on_loss', ' 1시간 쉬고 같은 자리 재진입 금지 '],
+        ['plan_on_profit', '절반 익절 뒤 본절로 손절 이동'],
         ['review', '이 값은 무시돼야 한다'],
       ]),
       UID,
@@ -33,6 +35,8 @@ describe('parseNotesUpdate — 근거 카드', () => {
         openness: 'top_closed',
         setup: '돌파 리테스트',
         rationale: '1H 저항 돌파 후 되돌림',
+        plan_on_loss: '1시간 쉬고 같은 자리 재진입 금지',
+        plan_on_profit: '절반 익절 뒤 본절로 손절 이동',
       },
     });
   });
@@ -58,6 +62,8 @@ describe('parseNotesUpdate — 근거 카드', () => {
         openness: null,
         setup: null,
         rationale: null,
+        plan_on_loss: null,
+        plan_on_profit: null,
       },
     });
   });

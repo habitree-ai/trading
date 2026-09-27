@@ -103,6 +103,8 @@ function readForm(formData: FormData) {
     openness: parseOpenness(formData.get("openness")),
     setup: parseText(formData.get("setup")),
     rationale: parseText(formData.get("rationale")),
+    plan_on_loss: parseText(formData.get("plan_on_loss")),
+    plan_on_profit: parseText(formData.get("plan_on_profit")),
     review: parseText(formData.get("review")),
     emotion: parseText(formData.get("emotion")),
     note: parseText(formData.get("note")),

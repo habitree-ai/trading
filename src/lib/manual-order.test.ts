@@ -209,6 +209,8 @@ function trade(partial: Partial<Trade> = {}): Trade {
     timeframe_entry: null,
     setup: null,
     rationale: null,
+    plan_on_loss: null,
+    plan_on_profit: null,
     review: null,
     emotion: null,
     note: null,
