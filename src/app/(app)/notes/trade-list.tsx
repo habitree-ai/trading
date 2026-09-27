@@ -40,6 +40,8 @@ export function TradeList({
   filter,
   generalCount,
   generalActive,
+  pathCount,
+  pathActive,
   now,
 }: {
   trades: Trade[];
@@ -49,6 +51,9 @@ export function TradeList({
   /** 매매와 무관한 기록 수 — 목록 맨 위 항목으로 연다(REQ-0075) */
   generalCount: number;
   generalActive: boolean;
+  /** 경로 복기 대상(청산·TP 기록) 거래 수 — 북 전체(REQ-0079) */
+  pathCount: number;
+  pathActive: boolean;
   /** 페이지를 그린 시각 — 행의 차트 팝업(REQ-0078)이 쓴다 */
   now: number;
 }) {
@@ -82,6 +87,19 @@ export function TradeList({
         <span className="font-medium">일반 기록</span>
         <span className="text-dim">매매와 무관한 관찰·감정</span>
         <span className="tnum ml-auto text-dim">{generalCount}</span>
+      </Link>
+
+      <Link
+        href={filter === "all" ? "/notes?view=path" : `/notes?filter=${filter}&view=path`}
+        aria-current={pathActive ? "true" : undefined}
+        className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-xs ${
+          pathActive ? "border-accent bg-accent/5" : "border-border bg-surface hover:border-dim"
+        }`}
+      >
+        <span aria-hidden>🧭</span>
+        <span className="font-medium">경로 복기</span>
+        <span className="text-dim">타점·기다림·버티는 위치</span>
+        <span className="tnum ml-auto text-dim">{pathCount}</span>
       </Link>
 
       {shown.length === 0 ? (

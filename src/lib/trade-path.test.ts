@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { Candle } from "@/lib/okx";
-import { pickPathBar, reviewPath, type PathInput } from "@/lib/trade-path";
+import { pickPathBar, reviewPath, summarizePathReviews, type PathInput, type PathReview } from "@/lib/trade-path";
 
 const M = 60_000;
 const T0 = Date.UTC(2026, 8, 20, 0, 0);
@@ -140,5 +140,40 @@ describe("reviewPath", () => {
 
   it("경로에 봉이 없으면 null", () => {
     expect(reviewPath(base, [], "1m")).toBeNull();
+  });
+});
+
+describe("summarizePathReviews", () => {
+  const pt = (elapsedMs: number) => ({ ms: 0, price: 0, elapsedMs, pct: 0, marginPct: null });
+  const rv = (keys: PathReview["verdicts"][number]["key"][], o: Partial<PathReview> = {}): PathReview => ({
+    bar: "1m", peak: null, peakFirst: true, trough: null, tp: null, exit: null, tpAfterExit: null, skipped: [],
+    verdicts: keys.map((key) => ({ key, label: key, reason: "" })),
+    ...o,
+  });
+
+  it("판정별 건수·순손익, 복수 판정은 각각, 없으면 clean", () => {
+    const s = summarizePathReviews([
+      { review: rv(["entry", "hold-stop"], { trough: pt(60_000) }), net: -10 },
+      { review: rv(["hold-profit"], { peak: pt(120_000), trough: pt(300_000), tp: pt(600_000) }), net: 5 },
+      { review: rv(["hold-profit"], { peak: pt(240_000) }), net: -3 },
+      { review: rv([], { tp: pt(1_200_000) }), net: 8 },
+    ]);
+    expect(s.total).toBe(4);
+    expect(s.byVerdict.entry).toEqual({ count: 1, net: -10 });
+    expect(s.byVerdict["hold-stop"]).toEqual({ count: 1, net: -10 });
+    expect(s.byVerdict["hold-profit"]).toEqual({ count: 2, net: 2 });
+    expect(s.byVerdict.wait).toEqual({ count: 0, net: 0 });
+    expect(s.clean).toEqual({ count: 1, net: 8 });
+    expect(s.tpReached).toBe(2);
+    expect(s.avgToPeakMs).toBe(180_000);
+    expect(s.avgToTroughMs).toBe(180_000);
+    expect(s.avgToTpMs).toBe(900_000);
+    expect(s.top).toBe("hold-profit");
+  });
+
+  it("비어 있으면 평균·top 은 null", () => {
+    const s = summarizePathReviews([]);
+    expect(s.top).toBeNull();
+    expect(s.avgToTpMs).toBeNull();
   });
 });

@@ -1,14 +1,18 @@
 import Link from "next/link";
+import { Suspense } from "react";
 
 import { GeneralNotes } from "@/app/(app)/notes/general-notes";
+import { PathReviewList } from "@/app/(app)/notes/path-review-list";
 import { TradeDetail, type PrincipleMark } from "@/app/(app)/notes/trade-detail";
 import { NOTES_FILTERS, TradeList, type NotesFilter } from "@/app/(app)/notes/trade-list";
 import type { JournalEntry } from "@/app/(app)/trades/new/journal-list";
+import { activeTargetPrices } from "@/lib/exit-plan";
 import { deriveTrades, isOpenTrade } from "@/lib/metrics";
 import { nowMs } from "@/lib/okx";
 import {
   getActiveBook,
   listAnnotationsByOwner,
+  listBooks,
   listCashFlows,
   listFieldSuggestions,
   listFillsByTrade,
@@ -57,14 +61,26 @@ export default async function NotesPage({
 
   const filter: NotesFilter = isFilter(params.filter) ? params.filter : "all";
   const general = params.view === "general";
-  const [trades, flows, suggestions, principles, checks, journal] = await Promise.all([
+  const pathView = params.view === "path";
+  const [trades, flows, suggestions, principles, checks, journal, books] = await Promise.all([
     listTrades(book.id),
     listCashFlows(book.id),
     listFieldSuggestions(book.id),
     listPrinciples(book.id),
     listPrincipleChecksByBook(book.id),
     listJournalNotes(book.id, JOURNAL_SCAN),
+    listBooks(),
   ]);
+  // 경로 복기(REQ-0079)는 북을 가리지 않는다 — 과거 기록 전체에서 문제가 어디에 몰렸는지 본다.
+  // 대상은 청산됐고 TP 를 적은 거래만(사용자 결정). 캔들 계산은 그 보기를 열 때만 한다.
+  const allTrades = (
+    await Promise.all(books.map((b) => (b.id === book.id ? trades : listTrades(b.id))))
+  ).flat();
+  const closedAll = allTrades.filter((t) => !isOpenTrade(t));
+  const pathTargets = closedAll
+    .filter((t) => activeTargetPrices(t)[0] !== null)
+    .sort((a, b) => b.entry_at.localeCompare(a.entry_at));
+  const bookNames = Object.fromEntries(books.map((b) => [b.id, b.name]));
   // 매매와 무관한 기록 — 거래에 붙은 추가 기록은 각 매매의 상세에서 본다.
   const freeNotes = journal.filter((n) => n.trade_id === null);
   // 최근 진입부터 — 보유중이든 청산이든 매매가 일어난 순서대로 읽는다.
@@ -93,7 +109,7 @@ export default async function NotesPage({
   const freeAnnotations = general ? await listAnnotationsByOwner([], freeNotes.map((n) => n.id)) : {};
   const symbols = [...new Set(trades.map((t) => t.symbol))].sort();
   // 좁은 화면은 무언가를 고른 뒤에만 오른쪽을 보인다.
-  const picked = general || Boolean(params.trade);
+  const picked = general || pathView || Boolean(params.trade);
   const backHref = filter === "all" ? "/notes" : `/notes?filter=${filter}`;
 
   const noReview = sorted.filter((t) => !isOpenTrade(t) && !t.review).length;
@@ -114,14 +130,34 @@ export default async function NotesPage({
           <TradeList
             trades={sorted}
             notesByTrade={notesByTrade}
-            selectedId={general ? null : (selected?.id ?? null)}
+            selectedId={general || pathView ? null : (selected?.id ?? null)}
             filter={filter}
             generalCount={freeNotes.length}
             generalActive={general}
+            pathCount={pathTargets.length}
+            pathActive={pathView}
             now={now}
           />
         </div>
-        {general ? (
+        {pathView ? (
+          <div>
+            <Suspense
+              fallback={
+                <p className="rounded-xl border border-dashed border-border p-6 text-center text-sm text-dim">
+                  경로 계산 중… 거래 {pathTargets.length}건의 캔들을 받고 있습니다
+                </p>
+              }
+            >
+              <PathReviewList
+                trades={pathTargets}
+                bookNames={bookNames}
+                excludedNoTp={closedAll.length - pathTargets.length}
+                now={now}
+                backHref={backHref}
+              />
+            </Suspense>
+          </div>
+        ) : general ? (
           <div>
             <GeneralNotes
               entries={freeEntries}

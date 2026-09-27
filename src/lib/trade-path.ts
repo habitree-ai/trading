@@ -7,7 +7,9 @@
  */
 
 import { formatDuration } from "@/components/measure-tool";
-import { BAR_MS, BARS, type Bar, type Candle } from "@/lib/okx";
+import type { Trade } from "@/lib/domain";
+import { activeTargetPrices } from "@/lib/exit-plan";
+import { BAR_MS, BARS, floorToBar, type Bar, type Candle } from "@/lib/okx";
 
 /** 한 번에 받을 수 있는 봉 수(40페이지 × 100)보다 조금 적게 — 끝 봉이 잘리지 않게. */
 const MAX_PATH_BARS = 3800;
@@ -47,6 +49,40 @@ export interface PathInput {
   nowMs: number;
 }
 
+/**
+ * 거래 하나의 경로 요청 — 봉·캔들 구간·계산 입력. 팝업(브라우저)과 경로 복기 리스트(서버)가 같이 써서
+ * 두 화면의 숫자가 같게 한다. 청산 뒤 같은 길이까지 받는다 — 청산 뒤 TP 도달(기다림)을 보려고.
+ * 진입가가 없으면 input 은 null.
+ */
+export function pathRequest(
+  trade: Trade,
+  nowMs: number,
+): { bar: Bar; from: number; to: number; input: PathInput | null } {
+  const entryMs = Date.parse(trade.entry_at);
+  const exitMs = trade.exit_at ? Date.parse(trade.exit_at) : null;
+  const endMs = exitMs !== null ? exitMs + Math.max(exitMs - entryMs, 0) : nowMs;
+  const bar = pickPathBar(endMs - entryMs);
+  return {
+    bar,
+    from: floorToBar(entryMs, bar),
+    to: floorToBar(endMs, bar) + BAR_MS[bar],
+    input:
+      trade.entry_price === null
+        ? null
+        : {
+            side: trade.side,
+            entryMs,
+            entryPrice: trade.entry_price,
+            exitMs,
+            exitPrice: trade.exit_price,
+            tp: activeTargetPrices(trade)[0],
+            stop: trade.okx_stop_price ?? trade.stop_price,
+            leverage: trade.leverage,
+            nowMs,
+          },
+  };
+}
+
 export interface PathPoint {
   /** 봉 시작 시각(ms) — 청산점은 청산 시각 그대로 */
   ms: number;
@@ -60,6 +96,15 @@ export interface PathPoint {
 }
 
 export type VerdictKey = "entry" | "wait" | "hold-stop" | "hold-profit";
+
+/** 판정 순서·이름 — 한 건 표와 경로 복기 리스트(REQ-0079)의 분포가 같은 순서로 읽힌다 */
+export const VERDICT_KEYS: readonly VerdictKey[] = ["entry", "wait", "hold-stop", "hold-profit"];
+export const VERDICT_LABEL: Record<VerdictKey, string> = {
+  entry: "타점",
+  wait: "기다림",
+  "hold-stop": "버티는 위치 — 손절라인",
+  "hold-profit": "버티는 위치 — 수익라인",
+};
 
 export interface PathVerdict {
   key: VerdictKey;
@@ -182,14 +227,14 @@ export function reviewPath(input: PathInput, candles: readonly Candle[], bar: Ba
     if (trough.elapsedMs <= span * PATH_RULES.earlyShare && ofStop >= PATH_RULES.earlyAdverseOfStop) {
       verdicts.push({
         key: "entry",
-        label: "타점",
+        label: VERDICT_LABEL.entry,
         reason: `진입 후 ${formatDuration(trough.elapsedMs)} 만에 손절폭의 ${Math.round(ofStop * 100)}% 역행`,
       });
     }
     if (ofStop >= PATH_RULES.holdStopOfStop) {
       verdicts.push({
         key: "hold-stop",
-        label: "버티는 위치 — 손절라인",
+        label: VERDICT_LABEL["hold-stop"],
         reason: ofStop > 1 ? `손절선을 넘겨 버팀(손절폭의 ${Math.round(ofStop * 100)}%)` : `손절선 근처까지 역행(손절폭의 ${Math.round(ofStop * 100)}%)`,
       });
     }
@@ -204,7 +249,7 @@ export function reviewPath(input: PathInput, candles: readonly Candle[], bar: Ba
       if (ofTarget >= PATH_RULES.giveBackOfTarget) {
         verdicts.push({
           key: "hold-profit",
-          label: "버티는 위치 — 수익라인",
+          label: VERDICT_LABEL["hold-profit"],
           reason: `TP 거리의 ${Math.round(ofTarget * 100)}%까지 갔다가 반납하고 ${trough.pct.toFixed(2)}%까지 역행`,
         });
       }
@@ -212,11 +257,68 @@ export function reviewPath(input: PathInput, candles: readonly Candle[], bar: Ba
     if (tpAfterExit) {
       verdicts.push({
         key: "wait",
-        label: "기다림",
+        label: VERDICT_LABEL.wait,
         reason: `청산 ${formatDuration(tpAfterExit.afterExitMs)} 뒤 TP 도달 — 조급한 청산`,
       });
     }
   }
 
   return { bar, peak, peakFirst, trough, tp: tpPoint, exit, tpAfterExit, verdicts, skipped };
+}
+
+export interface PathSummary {
+  total: number;
+  /** 판정별 건수·순손익 — 한 거래가 여러 판정에 걸리면 각각에 센다 */
+  byVerdict: Record<VerdictKey, { count: number; net: number }>;
+  /** 규칙에 걸린 것이 없는 거래 */
+  clean: { count: number; net: number };
+  /** TP 에 닿은 거래 수 */
+  tpReached: number;
+  /** 진입 → 각 시점 평균 경과(ms). 해당 시점이 있는 거래만 평균, 없으면 null */
+  avgToPeakMs: number | null;
+  avgToTroughMs: number | null;
+  avgToTpMs: number | null;
+  /** 가장 많이 걸린 판정 — 동수면 VERDICT_KEYS 순서가 앞선 것. 아무것도 없으면 null */
+  top: VerdictKey | null;
+}
+
+/**
+ * 경로 복기 리스트(REQ-0079)의 분포 — 과거 거래에서 문제가 타점·기다림·버티는 위치 중 어디에 몰렸나.
+ * `net` 은 그 거래의 실현손익(`netOf`).
+ */
+export function summarizePathReviews(rows: readonly { review: PathReview; net: number }[]): PathSummary {
+  const byVerdict = Object.fromEntries(VERDICT_KEYS.map((k) => [k, { count: 0, net: 0 }])) as PathSummary["byVerdict"];
+  const clean = { count: 0, net: 0 };
+  const avg = (xs: number[]) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : null);
+  const toPeak: number[] = [];
+  const toTrough: number[] = [];
+  const toTp: number[] = [];
+
+  for (const { review, net } of rows) {
+    if (review.verdicts.length === 0) {
+      clean.count += 1;
+      clean.net += net;
+    }
+    for (const v of review.verdicts) {
+      byVerdict[v.key].count += 1;
+      byVerdict[v.key].net += net;
+    }
+    if (review.peak) toPeak.push(review.peak.elapsedMs);
+    if (review.trough) toTrough.push(review.trough.elapsedMs);
+    if (review.tp) toTp.push(review.tp.elapsedMs);
+  }
+
+  let top: VerdictKey | null = null;
+  for (const k of VERDICT_KEYS) if (byVerdict[k].count > 0 && (top === null || byVerdict[k].count > byVerdict[top].count)) top = k;
+
+  return {
+    total: rows.length,
+    byVerdict,
+    clean,
+    tpReached: toTp.length,
+    avgToPeakMs: avg(toPeak),
+    avgToTroughMs: avg(toTrough),
+    avgToTpMs: avg(toTp),
+    top,
+  };
 }

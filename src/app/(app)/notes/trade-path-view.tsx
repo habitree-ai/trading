@@ -7,8 +7,8 @@ import { TradeChart, type ChartMarker } from "@/components/trade-chart";
 import type { Trade } from "@/lib/domain";
 import { activeTargetPrices, activeTargetShares } from "@/lib/exit-plan";
 import { dateTime, num, pnlClass, signed } from "@/lib/format";
-import { BAR_MS, floorToBar, type Candle } from "@/lib/okx";
-import { pickPathBar, reviewPath, type PathPoint } from "@/lib/trade-path";
+import type { Candle } from "@/lib/okx";
+import { pathRequest, reviewPath, type PathPoint } from "@/lib/trade-path";
 
 /**
  * 차트 팝업 안의 TP 도달 경로 복기(REQ-0077) — 차트에 세 시점을 찍고 아래에 요약을 붙인다.
@@ -17,12 +17,9 @@ import { pickPathBar, reviewPath, type PathPoint } from "@/lib/trade-path";
  * 청산 뒤 같은 길이까지 받는다 — 청산 뒤 TP 에 닿았는지(기다림)를 보려고.
  */
 export function TradePathChart({ trade, now }: { trade: Trade; now: number }) {
-  const entryMs = Date.parse(trade.entry_at);
-  const exitMs = trade.exit_at ? Date.parse(trade.exit_at) : null;
-  const endMs = exitMs !== null ? exitMs + Math.max(exitMs - entryMs, 0) : now;
-  const bar = pickPathBar(endMs - entryMs);
-  const from = floorToBar(entryMs, bar);
-  const to = floorToBar(endMs, bar) + BAR_MS[bar];
+  // 봉·구간·입력은 경로 복기 리스트(서버)와 같은 함수로 — 두 화면의 숫자가 같게.
+  const req = useMemo(() => pathRequest(trade, now), [trade, now]);
+  const { bar, from, to } = req;
 
   const [candles, setCandles] = useState<Candle[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -52,28 +49,11 @@ export function TradePathChart({ trade, now }: { trade: Trade; now: number }) {
     };
   }, [trade.symbol, bar, from, to]);
 
-  const tp = activeTargetPrices(trade)[0];
+  const tp = req.input?.tp ?? null;
   const stop = trade.okx_stop_price ?? trade.stop_price;
   const review = useMemo(
-    () =>
-      candles && trade.entry_price !== null
-        ? reviewPath(
-            {
-              side: trade.side,
-              entryMs,
-              entryPrice: trade.entry_price,
-              exitMs,
-              exitPrice: trade.exit_price,
-              tp,
-              stop,
-              leverage: trade.leverage,
-              nowMs: now,
-            },
-            candles,
-            bar,
-          )
-        : null,
-    [candles, trade.side, entryMs, trade.entry_price, exitMs, trade.exit_price, tp, stop, trade.leverage, now, bar],
+    () => (candles && req.input ? reviewPath(req.input, candles, req.bar) : null),
+    [candles, req],
   );
 
   // 차트가 렌더마다 마커를 다시 긋지 않게 경로 결과가 바뀔 때만 새로 만든다.
