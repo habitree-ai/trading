@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { ChartDialogButton } from "@/app/(app)/notes/chart-dialog";
 import { SIDE_LABEL, type JournalNote, type Trade } from "@/lib/domain";
 import { date, pnlClass, signed } from "@/lib/format";
 import { isOpenTrade } from "@/lib/metrics";
@@ -39,6 +40,7 @@ export function TradeList({
   filter,
   generalCount,
   generalActive,
+  now,
 }: {
   trades: Trade[];
   notesByTrade: Record<string, JournalNote[]>;
@@ -47,6 +49,8 @@ export function TradeList({
   /** 매매와 무관한 기록 수 — 목록 맨 위 항목으로 연다(REQ-0075) */
   generalCount: number;
   generalActive: boolean;
+  /** 페이지를 그린 시각 — 행의 차트 팝업(REQ-0078)이 쓴다 */
+  now: number;
 }) {
   const shown = trades.filter((t) => matches(t, filter));
   return (
@@ -93,11 +97,11 @@ export function TradeList({
             const noteCount = notesByTrade[t.id]?.length ?? 0;
             const active = t.id === selectedId;
             return (
-              <li key={t.id}>
+              <li key={t.id} className="relative">
                 <Link
                   href={href(filter, t.id)}
                   aria-current={active ? "true" : undefined}
-                  className={`block rounded-lg border px-3 py-2 ${
+                  className={`block rounded-lg border py-2 pl-3 pr-9 ${
                     active ? "border-accent bg-accent/5" : "border-border bg-surface hover:border-dim"
                   }`}
                 >
@@ -122,6 +126,15 @@ export function TradeList({
                     {t.image_paths.length > 0 ? <span>사진 {t.image_paths.length}</span> : null}
                   </div>
                 </Link>
+                {/* 링크 밖(형제)에 둔다 — 누르면 상세로 이동하지 않고 팝업만 뜬다. */}
+                <ChartDialogButton
+                  trade={t}
+                  now={now}
+                  className="absolute right-1.5 bottom-1.5 rounded px-1 text-sm text-dim hover:text-accent"
+                >
+                  <span aria-hidden>📈</span>
+                  <span className="sr-only">차트</span>
+                </ChartDialogButton>
               </li>
             );
           })}

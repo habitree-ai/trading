@@ -93,6 +93,8 @@ export default async function NotesPage({
   const backHref = filter === "all" ? "/notes" : `/notes?filter=${filter}`;
 
   const noReview = sorted.filter((t) => !isOpenTrade(t) && !t.review).length;
+  // 차트 팝업(목록 행·상세 헤더)이 보유중 거래를 여기까지 그린다.
+  const now = nowMs();
 
   return (
     <div className="mx-auto max-w-6xl space-y-4">
@@ -112,6 +114,7 @@ export default async function NotesPage({
             filter={filter}
             generalCount={freeNotes.length}
             generalActive={general}
+            now={now}
           />
         </div>
         {general ? (
@@ -137,6 +140,7 @@ export default async function NotesPage({
               principles={marks}
               suggestions={suggestions}
               userId={user.id}
+              now={now}
               backHref={backHref}
             />
           </div>

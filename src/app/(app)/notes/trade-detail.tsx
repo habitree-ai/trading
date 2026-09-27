@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useActionState, useState } from "react";
 
 import { updateTradeNotes } from "@/app/(app)/notes/actions";
+import { ChartDialogButton } from "@/app/(app)/notes/chart-dialog";
 import type { JournalFormState } from "@/app/(app)/trades/new/journal-actions";
 import { NewPositionNoteForm, PositionCard, PositionNotes } from "@/app/(app)/trades/new/journal-form";
 import {
@@ -296,6 +297,7 @@ export function TradeDetail({
   principles,
   suggestions,
   userId,
+  now,
   backHref,
 }: {
   trade: Trade;
@@ -304,6 +306,8 @@ export function TradeDetail({
   principles: PrincipleMark[];
   suggestions: FieldSuggestions;
   userId: string;
+  /** 페이지를 그린 시각 — 차트 팝업이 보유중 거래를 어디까지 그릴지 */
+  now: number;
   /** 좁은 화면에서 목록으로 돌아가는 링크 */
   backHref: string;
 }) {
@@ -318,7 +322,10 @@ export function TradeDetail({
           <span className={trade.side === "long" ? "text-profit" : "text-loss"}>{SIDE_LABEL[trade.side]}</span>
         </h2>
         <span className="tnum text-xs text-dim">{dateTime(trade.entry_at)}</span>
-        <Link href={`/trades/${trade.id}`} className="ml-auto text-xs text-accent hover:underline">
+        <ChartDialogButton trade={trade} now={now} className="ml-auto text-xs text-accent hover:underline">
+          차트
+        </ChartDialogButton>
+        <Link href={`/trades/${trade.id}`} className="text-xs text-accent hover:underline">
           숫자 고치기 →
         </Link>
       </div>
