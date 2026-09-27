@@ -140,20 +140,22 @@ describe("reviewPath", () => {
     expect(r.verdicts[1].reason).toBe("청산 2분 30초 뒤 TP 도달");
   });
 
-  it("청산됐는데 끝까지 미도달 — closed-unreached, 방향성 실패 + TP 거리 70%↑면 목표가의 문제", () => {
-    const c = bars([
-      [101, 99],
-      [108, 100], // 최대수익 108 = TP 거리 80%
-      [104, 97], // 최대손실 97
-      [103, 100], // 청산 봉
-      [105, 101],
-      [106, 104], // 끝까지 110 못 닿음
-    ]);
-    const r = reviewPath({ ...base, exitMs: T0 + 3 * M + 30_000, exitPrice: 102 }, c, "1m")!;
+  // 청산됐는데 끝까지 110 못 닿는 경로 — 최대수익 108(TP 거리 80%), 최대손실 97, 청산 봉은 넷째.
+  const unreached = bars([
+    [101, 99],
+    [108, 100],
+    [104, 97],
+    [103, 100],
+    [105, 101],
+    [106, 104],
+  ]);
+
+  it("손실 청산·미도달 — closed-unreached, 방향성 실패 + TP 거리 70%↑면 목표가의 문제", () => {
+    const r = reviewPath({ ...base, exitMs: T0 + 3 * M + 30_000, exitPrice: 98 }, unreached, "1m")!;
     expect(r.tp).toBeNull();
     expect(r.status).toBe("closed-unreached");
     expect(r.tpVsExit).toBe("unreached");
-    expect(r.exit).toMatchObject({ ms: T0 + 3 * M + 30_000, price: 102 });
+    expect(r.exit).toMatchObject({ ms: T0 + 3 * M + 30_000, price: 98 });
     expect(r.analyzedUntilMs).toBe(T0 + 5 * M);
     expect(r.peak).toMatchObject({ price: 108 });
     expect(r.trough).toMatchObject({ price: 97 });
@@ -161,6 +163,34 @@ describe("reviewPath", () => {
       { key: "direction", label: "방향성 실패", reason: "5분 동안 미도달" },
       { key: "target", label: "목표가의 문제", reason: "TP 거리의 80%까지 갔다가 미도달" },
     ]);
+  });
+
+  it("수익 청산·미도달 — 방향은 맞았으니 방향성 실패 대신 목표가의 문제(REQ-0082)", () => {
+    const r = reviewPath({ ...base, exitMs: T0 + 3 * M + 30_000, exitPrice: 102 }, unreached, "1m")!;
+    expect(r.status).toBe("closed-unreached");
+    expect(r.verdicts).toEqual([
+      { key: "target", label: "목표가의 문제", reason: "수익 청산 +2.00% · 최대수익은 TP 거리의 80%" },
+    ]);
+
+    // 최대수익이 70% 에 못 미쳐도 수익 청산이면 목표가의 문제 — 얼마나 못 미쳤는지 사유에 남는다
+    const small = bars([
+      [101, 99],
+      [103, 100], // 최대수익 103 = TP 거리 30%
+      [102, 100],
+    ]);
+    const r2 = reviewPath({ ...base, exitMs: T0 + M + 30_000, exitPrice: 101 }, small, "1m")!;
+    expect(r2.verdicts).toEqual([
+      { key: "target", label: "목표가의 문제", reason: "수익 청산 +1.00% · 최대수익은 TP 거리의 30%" },
+    ]);
+
+    // 본절 청산은 수익이 아니다 — 방향성 실패
+    const r3 = reviewPath({ ...base, exitMs: T0 + M + 30_000, exitPrice: 100 }, small, "1m")!;
+    expect(r3.verdicts.map((v) => v.key)).toEqual(["direction"]);
+
+    // 청산가를 모르면 수익 청산인지 알 수 없다 — 방향성 실패 쪽
+    const r4 = reviewPath({ ...base, exitMs: T0 + M + 30_000, exitPrice: null }, small, "1m")!;
+    expect(r4.exit).toBeNull();
+    expect(r4.verdicts.map((v) => v.key)).toEqual(["direction"]);
   });
 
   it("미도달 청산에 손절선 먼저 — 방향성 실패 사유에 붙고, 최대수익이 작으면 목표가 판정 없음", () => {

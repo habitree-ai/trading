@@ -222,8 +222,11 @@ export function reviewPath(input: PathInput, candles: readonly Candle[], bar: Ba
   if (tp === null) {
     skipped.push("TP 없음 — 도달·판정 생략");
   } else if (status !== "open-unreached") {
-    // 방향성 실패 — 청산됐는데 지금까지도 TP 미도달.
-    if (status === "closed-unreached") {
+    // 수익 청산(청산가 기준)인데 미도달이면 방향은 맞았던 것 — 방향성 실패가 아니라 목표가의 문제다(REQ-0082).
+    const profitExit = status === "closed-unreached" && exit !== null && exit.pct > 0;
+
+    // 방향성 실패 — 청산됐는데 지금까지도 TP 미도달. 수익 청산은 뺀다.
+    if (status === "closed-unreached" && !profitExit) {
       verdicts.push({
         key: "direction",
         label: VERDICT_LABEL.direction,
@@ -251,15 +254,18 @@ export function reviewPath(input: PathInput, candles: readonly Candle[], bar: Ba
       }
     }
 
-    // 목표가의 문제 — 청산됐고 미도달인데 TP 거리의 70% 이상까지는 갔다.
+    // 목표가의 문제 — 청산됐고 미도달인데 수익 청산이었거나, TP 거리의 70% 이상까지는 갔다.
     const tpDist = dir * (tp - entryPrice) > 0 ? (Math.abs(tp - entryPrice) / entryPrice) * 100 : null;
-    if (status === "closed-unreached" && peak && tpDist !== null) {
-      const ofTarget = peak.pct / tpDist;
-      if (ofTarget >= PATH_RULES.targetNearOfTarget) {
+    if (status === "closed-unreached" && tpDist !== null) {
+      const ofTarget = peak ? peak.pct / tpDist : 0;
+      if (profitExit || ofTarget >= PATH_RULES.targetNearOfTarget) {
         verdicts.push({
           key: "target",
           label: VERDICT_LABEL.target,
-          reason: `TP 거리의 ${Math.round(ofTarget * 100)}%까지 갔다가 미도달`,
+          reason:
+            profitExit && exit !== null
+              ? `수익 청산 +${exit.pct.toFixed(2)}% · 최대수익은 TP 거리의 ${Math.round(ofTarget * 100)}%`
+              : `TP 거리의 ${Math.round(ofTarget * 100)}%까지 갔다가 미도달`,
         });
       }
     }
