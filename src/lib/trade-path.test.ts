@@ -120,7 +120,7 @@ describe("reviewPath", () => {
     expect(r.verdicts).toEqual([{ key: "wait", label: "조급한 청산", reason: "청산 1분 30초 뒤 TP 도달" }]);
   });
 
-  it("손절선 먼저 닿고 계속 추적해 도달 — stopHit + tp, 진입의 문제(손절선 넘김)", () => {
+  it("손절선 먼저 닿고 계속 추적해 도달 — stopHit + tp, 손절폭의 문제(손절선 넘김, REQ-0083)", () => {
     const c = bars([
       [101, 99],
       [100, 89], // 손절선 90 도달, 최대손실 89
@@ -135,9 +135,20 @@ describe("reviewPath", () => {
     expect(r.tp).toMatchObject({ ms: T0 + 4 * M, price: 110 });
     expect(r.status).toBe("reached");
     expect(r.tpVsExit).toBe("after-exit");
-    expect(r.verdicts.map((v) => v.key)).toEqual(["entry", "wait"]);
+    expect(r.verdicts.map((v) => v.key)).toEqual(["stop", "wait"]);
     expect(r.verdicts[0].reason).toBe("손절선 넘김(손절폭의 110%) 뒤 도달");
     expect(r.verdicts[1].reason).toBe("청산 2분 30초 뒤 TP 도달");
+
+    // 저가가 손절가와 정확히 같아도(손절폭의 100%) 손절선에 닿은 것 — stopHit 과 같은 편에 선다
+    const edge = bars([
+      [101, 99],
+      [100, 90],
+      [111, 105],
+    ]);
+    const r2 = reviewPath({ ...base, exitMs: null, exitPrice: null }, edge, "1m")!;
+    expect(r2.stopHit).toMatchObject({ price: 90 });
+    expect(r2.verdicts.map((v) => v.key)).toEqual(["stop"]);
+    expect(r2.verdicts[0].reason).toBe("손절선 넘김(손절폭의 100%) 뒤 도달");
   });
 
   // 청산됐는데 끝까지 110 못 닿는 경로 — 최대수익 108(TP 거리 80%), 최대손실 97, 청산 봉은 넷째.
@@ -352,6 +363,7 @@ describe("summarizePathReviews", () => {
     expect(s.total).toBe(6);
     expect(s.byVerdict.direction).toEqual({ count: 1, net: -10 });
     expect(s.byVerdict.entry).toEqual({ count: 2, net: 3 });
+    expect(s.byVerdict.stop).toEqual({ count: 0, net: 0 });
     expect(s.byVerdict.target).toEqual({ count: 1, net: -10 });
     expect(s.byVerdict.wait).toEqual({ count: 1, net: 3 });
     expect(s.clean).toEqual({ count: 1, net: 8 });

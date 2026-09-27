@@ -5,8 +5,8 @@
  * 모형: 진입 → 도달 전 최대손실(손절선 먼저 닿았으면 그 시각도) → TP 최초 도달. 구간 끝은 항상 지금(nowMs)
  * 이고 실제 청산은 추적을 끊지 않는다 — 청산점은 따로 찍고 TP 도달이 청산 전인지 뒤인지만 가른다.
  * 아직 안 닿았으면 어디까지 봤는지(analyzedUntilMs)와 보유중·청산됨(status)을 낸다. 시점마다 진입 후
- * 경과·가격·손익%·증거금%·금액을 내고, 그 모양으로 문제 후보(방향성 실패·진입의 문제·목표가의 문제·
- * 조급한 청산)를 규칙으로 가린다. 판정은 **후보**다 — 복기 글은 사람이 쓴다. 봉 단위 근사라 같은 봉
+ * 경과·가격·손익%·증거금%·금액을 내고, 그 모양으로 문제 후보(방향성 실패·진입의 문제·손절폭의 문제·
+ * 목표가의 문제·조급한 청산)를 규칙으로 가린다. 판정은 **후보**다 — 복기 글은 사람이 쓴다. 봉 단위 근사라 같은 봉
  * 안의 순서(고가가 먼저인지 저가가 먼저인지)는 모른다.
  */
 
@@ -22,6 +22,8 @@ const MAX_PATH_BARS = 3800;
 export const PATH_RULES = {
   /** TP 도달 전 최대손실이 손절폭의 몇 % 이상이면 진입의 문제 */
   entryLossOfStop: 0.5,
+  /** TP 도달 전 최대손실이 손절폭의 몇 % 이상이면 진입 대신 손절폭의 문제 — 손절선을 넘긴 뒤에야 닿은 것(REQ-0083) */
+  stopWidthOfStop: 1,
   /** 미도달 청산인데 최대수익이 TP 거리의 몇 % 이상까지 갔으면 목표가의 문제 */
   targetNearOfTarget: 0.7,
 } as const;
@@ -99,13 +101,14 @@ export interface PathPoint {
   amount: number | null;
 }
 
-export type VerdictKey = "direction" | "entry" | "target" | "wait";
+export type VerdictKey = "direction" | "entry" | "stop" | "target" | "wait";
 
 /** 판정 순서·이름 — 한 건 표와 경로 복기 리스트(REQ-0079)의 분포가 같은 순서로 읽힌다 */
-export const VERDICT_KEYS: readonly VerdictKey[] = ["direction", "entry", "target", "wait"];
+export const VERDICT_KEYS: readonly VerdictKey[] = ["direction", "entry", "stop", "target", "wait"];
 export const VERDICT_LABEL: Record<VerdictKey, string> = {
   direction: "방향성 실패",
   entry: "진입의 문제",
+  stop: "손절폭의 문제",
   target: "목표가의 문제",
   wait: "조급한 청산",
 };
@@ -234,22 +237,19 @@ export function reviewPath(input: PathInput, candles: readonly Candle[], bar: Ba
       });
     }
 
-    // 진입의 문제 — 도달은 했지만 도달 전 최대손실이 손절폭의 절반 이상.
+    // 진입의 문제 / 손절폭의 문제 — 도달은 했지만 도달 전 최대손실이 손절폭의 절반 이상 / 손절선을 넘겼다.
     if (tpPoint !== null) {
       if (stopDist === null) {
         // 손절이 없거나 진입가보다 유리한 쪽(본절 이상으로 올린 것)이면 손절폭을 잴 수 없다.
         skipped.push(stop === null ? "손절 미기록 — 진입 판정 생략" : "손절이 진입가보다 유리한 쪽 — 진입 판정 생략");
       } else if (trough) {
         const ofStop = -trough.pct / stopDist;
-        if (ofStop >= PATH_RULES.entryLossOfStop) {
-          verdicts.push({
-            key: "entry",
-            label: VERDICT_LABEL.entry,
-            reason:
-              ofStop > 1
-                ? `손절선 넘김(손절폭의 ${Math.round(ofStop * 100)}%) 뒤 도달`
-                : `도달 전 손절폭의 ${Math.round(ofStop * 100)}% 역행`,
-          });
+        const pctOfStop = Math.round(ofStop * 100);
+        if (ofStop >= PATH_RULES.stopWidthOfStop) {
+          // 손절선을 넘긴 뒤에야 닿았다 — 타점이 일렀다기보다 손절폭이 그 변동에 비해 좁았던 것(REQ-0083).
+          verdicts.push({ key: "stop", label: VERDICT_LABEL.stop, reason: `손절선 넘김(손절폭의 ${pctOfStop}%) 뒤 도달` });
+        } else if (ofStop >= PATH_RULES.entryLossOfStop) {
+          verdicts.push({ key: "entry", label: VERDICT_LABEL.entry, reason: `도달 전 손절폭의 ${pctOfStop}% 역행` });
         }
       }
     }
