@@ -61,8 +61,8 @@ export function PostPicker({
                 }}
                 className="block w-full border-b border-border px-3 py-2 text-left last:border-b-0 hover:bg-surface-2"
               >
-                <span className="tnum text-[11px] text-dim">{p.date}</span>
-                <span className="ml-2 text-[11px] text-dim">{p.board}</span>
+                <span className="tnum text-xs text-dim">{p.date}</span>
+                <span className="ml-2 text-xs text-dim">{p.board}</span>
                 <span className="block text-sm">{p.title}</span>
               </button>
             ))

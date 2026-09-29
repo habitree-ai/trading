@@ -50,7 +50,7 @@ export default function LabPage() {
           <section key={group} className="space-y-2">
             <div>
               <h2 className="text-sm font-medium">{meta.label}</h2>
-              <p className="text-[11.5px] text-dim">{meta.desc}</p>
+              <p className="text-[12.5px] text-dim">{meta.desc}</p>
             </div>
 
             <div className="grid gap-2 lg:grid-cols-2">
@@ -60,13 +60,13 @@ export default function LabPage() {
                     <div className="flex items-baseline gap-2">
                       <h3 className="text-[13px] font-medium">{r.title}</h3>
                       {!r.available ? (
-                        <span className="rounded border border-border px-1.5 py-0.5 text-[10px] text-dim">
+                        <span className="rounded border border-border px-1.5 py-0.5 text-xs text-dim">
                           로컬 전용
                         </span>
                       ) : null}
                     </div>
-                    <p className="mt-1 text-[11.5px] leading-snug text-dim">{r.desc}</p>
-                    <p className="tnum mt-2 text-[11px] text-dim">
+                    <p className="mt-1 text-[12.5px] leading-snug text-dim">{r.desc}</p>
+                    <p className="tnum mt-2 text-xs text-dim">
                       {r.available
                         ? `${dateTime(new Date(r.modifiedAt!).toISOString())} · ${sizeLabel(r.bytes)}`
                         : "생성 전"}

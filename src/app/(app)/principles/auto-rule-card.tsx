@@ -22,14 +22,14 @@ export function AutoRuleCard({
     <article className="rounded-lg border border-border bg-surface p-3">
       <div className="flex flex-wrap items-start gap-2">
         <p className="text-sm">{rule.title}</p>
-        <span className="rounded bg-accent/10 px-1.5 py-0.5 text-[10px] text-accent">자동 판정</span>
+        <span className="rounded bg-accent/10 px-1.5 py-0.5 text-xs text-accent">자동 판정</span>
       </div>
       <p className="mt-1 text-xs text-dim">
         {rule.detail}
-        {rule.manual ? <span className="ml-1 text-dim/80">{rule.manual}</span> : null}
+        {rule.manual ? <span className="ml-1 text-dim">{rule.manual}</span> : null}
       </p>
 
-      <p className="tnum mt-2 text-[11px] text-dim">
+      <p className="tnum mt-2 text-xs text-dim">
         {stats.judged === 0 ? (
           "아직 거래가 없습니다"
         ) : (
@@ -55,7 +55,7 @@ export function AutoRuleCard({
       </p>
 
       {stats.brokenTrades.length > 0 ? (
-        <p className="mt-1 flex flex-wrap gap-1.5 text-[11px]">
+        <p className="mt-1 flex flex-wrap gap-1.5 text-xs">
           <span className="text-dim">어긴 거래</span>
           {stats.brokenTrades.map((t) => (
             <Link

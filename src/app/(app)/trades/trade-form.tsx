@@ -111,7 +111,7 @@ function Field({
     <div>
       <label className={LABEL} htmlFor={`f-${name}`}>
         {label}
-        {hint ? <span className="ml-1 text-dim/70">{hint}</span> : null}
+        {hint ? <span className="ml-1 text-dim">{hint}</span> : null}
       </label>
       <input
         id={`f-${name}`}
@@ -153,7 +153,7 @@ export function SuggestField({
     <div>
       <label className={LABEL} htmlFor={`f-${name}`}>
         {label}
-        {hint ? <span className="ml-1 text-dim/70">{hint}</span> : null}
+        {hint ? <span className="ml-1 text-dim">{hint}</span> : null}
       </label>
       <input
         id={`f-${name}`}
@@ -176,7 +176,7 @@ export function SuggestField({
               type="button"
               onClick={() => setValue(o)}
               aria-pressed={value === o}
-              className={`rounded-full border px-2 py-0.5 text-[11px] ${
+              className={`rounded-full border px-2 py-0.5 text-xs ${
                 value === o ? "border-accent text-accent" : "border-border text-dim"
               }`}
             >
@@ -502,14 +502,14 @@ export function TradeForm({
         <div className="sm:col-span-3 xl:col-span-4">
           <span className={LABEL}>
             TP 비중
-            <span className="ml-1 text-dim/70">
+            <span className="ml-1 text-dim">
               %와 금액은 투입(명목가) 기준으로 서로 환산 — 한쪽을 적으면 다른 쪽이 따라옵니다 · 저장은 % · 비우면 균등
             </span>
           </span>
           <div className="flex flex-wrap gap-x-4 gap-y-2">
             {shares.map((s, i) => (
               <div key={i} className="flex items-center gap-1.5">
-                <span className="w-7 text-[11px] text-dim">TP{i + 1}</span>
+                <span className="w-7 text-xs text-dim">TP{i + 1}</span>
                 <div className="relative">
                   <input
                     name={`tp${i + 1}_pct`}
@@ -549,7 +549,7 @@ export function TradeForm({
       <Section title="복기">
         <div>
           <label className={LABEL} htmlFor="f-trend">
-            장기추세 <span className="ml-1 text-dim/70">진입 때의 중장기 판단</span>
+            장기추세 <span className="ml-1 text-dim">진입 때의 중장기 판단</span>
           </label>
           <select id="f-trend" name="trend" defaultValue={v("trend")} className={INPUT}>
             <option value="">미기재</option>
@@ -562,7 +562,7 @@ export function TradeForm({
         </div>
         <div>
           <label className={LABEL} htmlFor="f-tf-bias">
-            방향 시계열 <span className="ml-1 text-dim/70">어느 봉에서 방향을 봤는가</span>
+            방향 시계열 <span className="ml-1 text-dim">어느 봉에서 방향을 봤는가</span>
           </label>
           <select id="f-tf-bias" name="timeframe_bias" defaultValue={v("timeframe_bias")} className={INPUT}>
             <option value="">미기재</option>
@@ -575,7 +575,7 @@ export function TradeForm({
         </div>
         <div>
           <label className={LABEL} htmlFor="f-tf-entry">
-            진입 시계열 <span className="ml-1 text-dim/70">어느 봉에서 타이밍을 잡았는가</span>
+            진입 시계열 <span className="ml-1 text-dim">어느 봉에서 타이밍을 잡았는가</span>
           </label>
           <select id="f-tf-entry" name="timeframe_entry" defaultValue={v("timeframe_entry")} className={INPUT}>
             <option value="">미기재</option>
@@ -588,7 +588,7 @@ export function TradeForm({
         </div>
         <div>
           <label className={LABEL} htmlFor="f-openness">
-            위·아래 <span className="ml-1 text-dim/70">각각 막혀 있었는가</span>
+            위·아래 <span className="ml-1 text-dim">각각 막혀 있었는가</span>
           </label>
           <select id="f-openness" name="openness" defaultValue={v("openness")} className={INPUT}>
             <option value="">미기재</option>
@@ -634,7 +634,7 @@ export function TradeForm({
         </div>
         <div className="sm:col-span-3 xl:col-span-4">
           <div className={LABEL}>
-            사진 <span className="ml-1 text-dim/70">찍어 둔 메모·캡쳐를 이 복기에 붙입니다</span>
+            사진 <span className="ml-1 text-dim">찍어 둔 메모·캡쳐를 이 복기에 붙입니다</span>
           </div>
           <PhotoStrip
             name="image_paths"
@@ -676,7 +676,7 @@ export function TradeForm({
         <Field name="symbol" label="종목 *" defaultValue={v("symbol")} suspect={suspect.has("symbol")} />
         <div>
           <label className={LABEL} htmlFor="f-result">
-            승패 <span className="text-dim/70">비우면 손익 부호로 자동 판정</span>
+            승패 <span className="text-dim">비우면 손익 부호로 자동 판정</span>
           </label>
           <select
             id="f-result"

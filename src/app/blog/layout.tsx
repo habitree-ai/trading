@@ -45,7 +45,7 @@ export default async function BlogLayout({ children }: { children: React.ReactNo
           <div className="ml-auto flex items-center gap-2 sm:gap-3">
             {viewer.admin ? (
               <>
-                <span className="rounded border border-beta/50 px-1.5 py-0.5 text-[10px] text-beta">
+                <span className="rounded border border-beta/50 px-1.5 py-0.5 text-xs text-beta">
                   관리자
                 </span>
                 <Link

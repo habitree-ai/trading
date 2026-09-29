@@ -85,7 +85,7 @@ export default async function BlogHome({
               className="rounded-xl border border-border bg-surface p-4 transition-colors hover:border-beta"
             >
               <h2 className="text-[13px] font-medium">{doc.title}</h2>
-              <p className="mt-1 text-[11.5px] leading-snug text-dim">{doc.desc}</p>
+              <p className="mt-1 text-[12.5px] leading-snug text-dim">{doc.desc}</p>
             </Link>
           ))}
         </div>
@@ -110,7 +110,7 @@ export default async function BlogHome({
                   className="block hover:text-accent"
                 >
                   <h3 className="text-[13px] font-medium">{c.title}</h3>
-                  <p className="tnum mt-1 text-[11.5px] leading-snug text-dim">
+                  <p className="tnum mt-1 text-[12.5px] leading-snug text-dim">
                     {c.symbol} · 「{c.post.title}」 {c.post.date} · {c.post.board}
                   </p>
                 </a>
@@ -119,7 +119,7 @@ export default async function BlogHome({
                     href={`/blog/charts/${encodeURIComponent(c.name)}_옵션.html`}
                     target="_blank"
                     rel="noopener"
-                    className="mt-2 inline-block rounded-lg border border-border px-2 py-0.5 text-[11.5px] text-dim hover:border-beta hover:text-text"
+                    className="mt-2 inline-block rounded-lg border border-border px-2 py-0.5 text-[12.5px] text-dim hover:border-beta hover:text-text"
                   >
                     옵션 자료 — VXN 차트 · 스트래들 % · 이론가 표 ↗
                   </a>
@@ -138,7 +138,7 @@ export default async function BlogHome({
               한 글을 두 시선으로 나란히 둔다 — 왼쪽에 선배님의 글, 오른쪽에 내 생각. 그 둘뿐이다.
             </p>
           </div>
-          <p className="tnum text-[11px] text-dim">
+          <p className="tnum text-xs text-dim">
             노트 {notes.length} · 다룬 글 {covered} · 정리됨 {done} · 전체 글 {posts.length}
           </p>
         </header>
@@ -188,7 +188,7 @@ export default async function BlogHome({
               <Link
                 key={t}
                 href={href({ tag: filter.tag === t ? "" : t }, filter)}
-                className={`rounded px-1.5 py-0.5 text-[11px] ${
+                className={`rounded px-1.5 py-0.5 text-xs ${
                   filter.tag === t ? "bg-accent/15 text-accent" : "bg-surface-2 text-dim hover:text-text"
                 }`}
               >
@@ -222,17 +222,17 @@ export default async function BlogHome({
                       {note.think_at ? date(note.think_at) : "—"}
                     </span>
                     <span className="min-w-0 flex-1 sm:flex sm:items-baseline sm:gap-3">
-                      <span className="block truncate text-[13.5px] font-medium sm:w-56 sm:shrink-0">
+                      <span className="block break-words text-[13.5px] font-medium sm:w-56 sm:shrink-0">
                         {post?.title ?? (note.post_id ? `글 ${note.post_id}` : "(글을 고르지 않은 노트)")}
                       </span>
                       <span
-                        className={`block min-w-0 truncate text-[13px] text-dim sm:flex-1 ${thought ? "" : "italic"}`}
+                        className={`block min-w-0 line-clamp-2 text-[13px] text-dim sm:flex-1 ${thought ? "" : "italic"}`}
                       >
                         {thought || "(내 생각 아직)"}
                       </span>
                     </span>
                     <span
-                      className={`shrink-0 rounded px-1.5 py-0.5 text-[11px] ${
+                      className={`shrink-0 rounded px-1.5 py-0.5 text-xs ${
                         note.status === "done" ? "bg-profit/15 text-profit" : "bg-surface-2 text-dim"
                       }`}
                     >

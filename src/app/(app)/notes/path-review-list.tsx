@@ -161,7 +161,7 @@ export async function PathReviewList({
               <tr key={trade.id} className="border-t border-border align-top">
                 <td className="px-2 py-1.5 whitespace-nowrap">
                   {date(trade.entry_at)}
-                  <span className="block text-[10px] text-dim">{bookName}</span>
+                  <span className="block text-xs text-dim">{bookName}</span>
                 </td>
                 <td className="px-2 py-1.5 whitespace-nowrap">
                   #{trade.seq} {trade.symbol}{" "}
@@ -178,12 +178,12 @@ export async function PathReviewList({
                         <>
                           {formatDuration(review.tp.elapsedMs)}{" "}
                           <span className={pnlClass(review.tp.pct)}>{signed(review.tp.pct)}%</span>
-                          <span className="block text-[10px] text-dim">{exitVsTp(review, trade)}</span>
+                          <span className="block text-xs text-dim">{exitVsTp(review, trade)}</span>
                         </>
                       ) : (
                         <span className="text-dim">
                           미도달
-                          <span className="block text-[10px]">
+                          <span className="block text-xs">
                             {formatDuration(Math.max(0, review.analyzedUntilMs - Date.parse(trade.entry_at)))} 추적 ·{" "}
                             {review.status === "open-unreached" ? "보유중" : "청산됨"}
                           </span>
@@ -242,7 +242,7 @@ export async function PathReviewList({
         </table>
       </div>
 
-      <p className="px-1 text-[11px] text-dim/80">
+      <p className="px-1 text-xs text-dim">
         TP 미기록 {excludedNoTp}건은 제외 — 매매 노트의 🧭 경로 복기나 거래 표에서 TP 를 적으면 여기에 들어온다. 실제 청산과 무관하게
         진입부터 지금까지 추적. 봉 단위 근사라 같은 봉 안의 순서는 모른다. 판정은 후보다.
       </p>
@@ -257,7 +257,7 @@ function PointCell({ point }: { point: PathPoint | null }) {
     <td className="px-2 py-1.5 whitespace-nowrap">
       {formatDuration(point.elapsedMs)}{" "}
       <span className={pnlClass(point.pct)}>{signed(point.pct)}%</span>
-      {point.amount !== null ? <span className="block text-[10px] text-dim">{signed(point.amount)} USDT</span> : null}
+      {point.amount !== null ? <span className="block text-xs text-dim">{signed(point.amount)} USDT</span> : null}
     </td>
   );
 }

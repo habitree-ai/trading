@@ -655,7 +655,7 @@ export function QuadPane({
         <select
           value={bar}
           onChange={(e) => onBarChange(e.target.value as Bar)}
-          className="rounded border border-border bg-surface/80 px-1 py-0.5 text-[11px] text-text backdrop-blur-sm"
+          className="rounded border border-border bg-surface/80 px-1 py-0.5 text-xs text-text backdrop-blur-sm"
           aria-label="봉 단위"
         >
           {BARS.map((b) => (
@@ -669,7 +669,7 @@ export function QuadPane({
             type="button"
             onClick={onToggleMax}
             title={maximizedSelf ? "원래 배치로 돌아갑니다" : "이 창만 크게 봅니다"}
-            className="rounded border border-border bg-surface/80 px-1.5 py-0.5 text-[11px] text-dim backdrop-blur-sm hover:text-text"
+            className="rounded border border-border bg-surface/80 px-1.5 py-0.5 text-xs text-dim backdrop-blur-sm hover:text-text"
           >
             {maximizedSelf ? "🗗" : "⛶"}
           </button>

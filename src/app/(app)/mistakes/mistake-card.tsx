@@ -38,7 +38,7 @@ export function MistakeCard({
         <span className="text-sm font-medium">{g.title}</span>
         <span className="ml-auto flex flex-wrap items-center gap-1.5">
           <span
-            className={`rounded border px-1.5 py-0.5 text-[10px] ${
+            className={`rounded border px-1.5 py-0.5 text-xs ${
               controllable
                 ? "border-accent/40 bg-accent/10 text-accent"
                 : "border-border bg-surface-2 text-dim"
@@ -50,10 +50,10 @@ export function MistakeCard({
         </span>
       </div>
 
-      <p className="mt-1.5 text-[11px] text-dim">판정 기준 — {g.rule}</p>
+      <p className="mt-1.5 text-xs text-dim">판정 기준 — {g.rule}</p>
 
       {/* 2. 증거 — 비교군과의 거래당 차이가 항상 같은 자리에 온다 */}
-      <div className="tnum mt-2 text-[11px] text-dim">
+      <div className="tnum mt-2 text-xs text-dim">
         {num(g.n, 0)}건 · 승률 {pct(g.winRate, 1)}
         {g.baselineWinRate === null ? null : <> (비교군 {pct(g.baselineWinRate, 1)})</>} · 거래당{" "}
         {signed(g.perTrade, 2)}
@@ -67,12 +67,12 @@ export function MistakeCard({
         · 합계 <span className={pnlClass(g.sumNet)}>{signed(g.sumNet, 0)}</span>
       </div>
 
-      <div className="tnum mt-1 text-[11px] text-dim">
+      <div className="tnum mt-1 text-xs text-dim">
         {g.baseline ? (
           <>
             비교군 「{g.baseline.label}」 {num(g.baseline.n, 0)}건 · 귀속{" "}
             <span className={pnlClass(g.attributable)}>{signed(g.attributable, 0)}</span>
-            <span className="ml-1 text-[10px]">(건수 × 거래당 차이)</span>
+            <span className="ml-1 text-xs">(건수 × 거래당 차이)</span>
           </>
         ) : (
           <>비교군 없음 — 이 유형은 손실 거래에만 붙습니다</>
@@ -80,18 +80,18 @@ export function MistakeCard({
       </div>
 
       {/* 3. 판정 */}
-      <p className={`mt-2 text-[11px] leading-snug ${TONE_CLASS[g.verdict.tone]}`}>
+      <p className={`mt-2 text-xs leading-snug ${TONE_CLASS[g.verdict.tone]}`}>
         {g.verdict.text}
       </p>
 
       {/* 4. 그때 그 거래 — 숫자가 사람 기억과 이어지는 유일한 자리 */}
       {g.worst.length > 0 ? (
         <details className="mt-3 border-t border-border pt-2.5">
-          <summary className="cursor-pointer text-[11px] text-dim hover:text-text">
+          <summary className="cursor-pointer text-xs text-dim hover:text-text">
             손실이 큰 {g.worst.length}건 보기
           </summary>
           <div className="mt-2 overflow-x-auto">
-            <table className="tnum w-full min-w-[46rem] text-left text-[11px]">
+            <table className="tnum w-full min-w-[46rem] text-left text-xs">
               <thead className="text-dim">
                 <tr className="border-b border-border">
                   <th className="py-1 pr-2 font-normal">날짜</th>

@@ -21,7 +21,7 @@ const TONE_TEXT: Record<Tone, string> = {
 export function RunBadge({ health }: { health: SystemHealth }) {
   return (
     <span
-      className={`rounded border border-current px-1.5 py-0.5 text-[10px] font-semibold ${TONE_CLASS[health.runTone]}`}
+      className={`rounded border border-current px-1.5 py-0.5 text-xs font-semibold ${TONE_CLASS[health.runTone]}`}
     >
       {health.runLabel}
     </span>
@@ -49,7 +49,7 @@ export function HealthPanel({ health }: { health: SystemHealth }) {
                 <span className={`tnum font-medium ${TONE_CLASS[c.tone]}`}>{c.value}</span>
                 <span className="sr-only">({TONE_TEXT[c.tone]})</span>
               </dt>
-              <dd className="mt-0.5 text-[11px] leading-relaxed text-dim">{c.detail}</dd>
+              <dd className="mt-0.5 text-xs leading-relaxed text-dim">{c.detail}</dd>
             </div>
           </div>
         ))}

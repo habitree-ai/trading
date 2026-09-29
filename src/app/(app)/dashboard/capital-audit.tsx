@@ -46,7 +46,7 @@ function Row({
   return (
     <div className="flex items-baseline gap-3 py-1">
       <span className={`text-xs ${strong ? "text-text" : "text-dim"}`}>{label}</span>
-      {hint ? <span className="text-[10px] text-dim">{hint}</span> : null}
+      {hint ? <span className="text-xs text-dim">{hint}</span> : null}
       <span
         className={`tnum ml-auto ${strong ? "text-sm font-medium" : "text-xs"} ${className}`}
       >
@@ -118,7 +118,7 @@ export function CapitalAudit({
 
       <ul className="mt-3 space-y-2">
         {report.notes.map((note) => (
-          <li key={note.code} className="text-[11px] leading-snug">
+          <li key={note.code} className="text-xs leading-snug">
             <span className={TONE_CLASS[note.tone]}>{note.text}</span>
             {note.fix ? <span className="block text-dim">→ {note.fix}</span> : null}
           </li>
@@ -159,7 +159,7 @@ export function CapitalAudit({
           </div>
 
           {suggested === null ? null : (
-            <p className="text-[11px] text-dim">
+            <p className="text-xs text-dim">
               제안값 <span className="tnum text-text">{num(suggested)}</span> = 거래소 잔고 −
               누적 실현손익 − 순이체 + 출금. 이 값을 넣으면 계산 자금이 거래소 잔고와
               같아집니다. 조회 구간 밖의 거래·이체가 있다면 그 몫까지 초기자금에 담기는

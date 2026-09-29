@@ -36,7 +36,7 @@ export function SeedButton({
 
   if (seeded) {
     return (
-      <p className="mt-3 border-t border-border pt-2.5 text-[11px] text-dim">
+      <p className="mt-3 border-t border-border pt-2.5 text-xs text-dim">
         원칙에 있음 ·{" "}
         {seeded.judged === 0
           ? "아직 판단한 거래가 없습니다 — 거래를 열면 체크리스트에 뜹니다"
@@ -49,7 +49,7 @@ export function SeedButton({
 
   if (!bookId) {
     return (
-      <p className="mt-3 border-t border-border pt-2.5 text-[11px] text-dim">
+      <p className="mt-3 border-t border-border pt-2.5 text-xs text-dim">
         북을 먼저 만들어야 원칙으로 옮길 수 있습니다.
       </p>
     );
@@ -57,7 +57,7 @@ export function SeedButton({
 
   if (state.message) {
     return (
-      <p className="mt-3 border-t border-border pt-2.5 text-[11px] text-profit">{state.message}</p>
+      <p className="mt-3 border-t border-border pt-2.5 text-xs text-profit">{state.message}</p>
     );
   }
 
@@ -83,7 +83,7 @@ export function SeedButton({
             />
           </div>
           <textarea name="detail" defaultValue={draft.detail} rows={2} className={INPUT} />
-          {state.error ? <p className="text-[11px] text-loss">{state.error}</p> : null}
+          {state.error ? <p className="text-xs text-loss">{state.error}</p> : null}
           <div className="flex items-center gap-2">
             <button
               type="submit"
@@ -99,7 +99,7 @@ export function SeedButton({
             >
               취소
             </button>
-            <span className="text-[11px] text-dim">
+            <span className="text-xs text-dim">
               {bookName ? `'${bookName}' 북에 들어갑니다` : ""}
             </span>
           </div>

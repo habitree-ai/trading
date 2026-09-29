@@ -71,7 +71,7 @@ function optionLabel(trade: Trade): string {
 function Stat({ label, wide = false, children }: { label: string; wide?: boolean; children: React.ReactNode }) {
   return (
     <div className={wide ? "col-span-2 min-w-0" : "min-w-0"}>
-      <div className="text-[11px] text-dim">{label}</div>
+      <div className="text-xs text-dim">{label}</div>
       <div className="tnum text-sm break-words">{children}</div>
     </div>
   );
@@ -90,7 +90,7 @@ export function PositionCard({ trade }: { trade: Trade }) {
       <Stat label="상태">{open ? "보유중" : RESULT_LABEL[trade.result]}</Stat>
       <Stat label="진입">
         {num(trade.entry_price)}
-        <span className="block text-[11px] text-dim">{dateTime(trade.entry_at)}</span>
+        <span className="block text-xs text-dim">{dateTime(trade.entry_at)}</span>
       </Stat>
       <Stat label={open ? "평가손익" : "청산"}>
         {open ? (
@@ -98,7 +98,7 @@ export function PositionCard({ trade }: { trade: Trade }) {
         ) : (
           <>
             {num(trade.exit_price)}
-            <span className="block text-[11px] text-dim">{dateTime(trade.exit_at)}</span>
+            <span className="block text-xs text-dim">{dateTime(trade.exit_at)}</span>
           </>
         )}
       </Stat>
@@ -196,7 +196,7 @@ function EntryRecordFields({
       />
       <div className="sm:col-span-3 xl:col-span-4">
         <div className={LABEL}>
-          사진 <span className="ml-1 text-dim/70">찍어 둔 메모·캡쳐를 이 복기에 붙입니다</span>
+          사진 <span className="ml-1 text-dim">찍어 둔 메모·캡쳐를 이 복기에 붙입니다</span>
         </div>
         <PhotoStrip name="image_paths" userId={userId} bookId={trade.book_id} initial={trade.image_paths} />
       </div>
@@ -262,7 +262,7 @@ export function PositionNotes({ notes, deletable = false }: { notes: JournalNote
             {note.event ? <EventChip event={note.event} /> : null}
             {note.event ? <BasisLine event={note.event} basis={note.basis} /> : null}
             {note.emotion ? (
-              <span className="rounded border border-beta/40 px-1.5 py-0.5 text-[11px] text-beta">감정 · {note.emotion}</span>
+              <span className="rounded border border-beta/40 px-1.5 py-0.5 text-xs text-beta">감정 · {note.emotion}</span>
             ) : null}
             {deletable ? (
               <button
@@ -360,7 +360,7 @@ function NewPositionNoteFields({
         <div className="sm:col-span-2 xl:col-span-3">
           <label className={LABEL} htmlFor="f-fill">
             체결{" "}
-            <span className="ml-1 text-dim/70">
+            <span className="ml-1 text-dim">
               {addOns.length === 0 ? "첫 진입 이후 체결이 아직 없습니다 — 체결 없이 남깁니다" : "첫 진입 이후의 진입 체결"}
             </span>
           </label>
@@ -386,7 +386,7 @@ function NewPositionNoteFields({
 
       {event === "change" ? (
         <div className="sm:col-span-3 xl:col-span-4 text-xs">
-          <div className={LABEL}>달라진 것 <span className="ml-1 text-dim/70">직전 기록의 스냅샷과 지금을 견줌</span></div>
+          <div className={LABEL}>달라진 것 <span className="ml-1 text-dim">직전 기록의 스냅샷과 지금을 견줌</span></div>
           {changes.length > 0 ? (
             <ul className="flex flex-wrap gap-1" aria-label="달라진 것">
               {changes.map((c) => (
@@ -414,7 +414,7 @@ function NewPositionNoteFields({
       <div className="sm:col-span-3 xl:col-span-4">
         <div className="mb-1 flex items-center justify-between gap-2">
           <label className="text-xs text-dim" htmlFor="f-note-body">
-            기록 내용 <span className="ml-1 text-dim/70">사진만 붙여도 됩니다</span>
+            기록 내용 <span className="ml-1 text-dim">사진만 붙여도 됩니다</span>
           </label>
           <VoiceInput targetId="f-note-body" />
         </div>
@@ -503,7 +503,7 @@ function PositionPanel({
       <Section title="포지션">
         <div className="sm:col-span-2 xl:col-span-3">
           <label className={LABEL} htmlFor="f-trade">
-            포지션 <span className="ml-1 text-dim/70">보유중이 먼저, 그다음 최근 청산</span>
+            포지션 <span className="ml-1 text-dim">보유중이 먼저, 그다음 최근 청산</span>
           </label>
           <select
             id="f-trade"
@@ -585,7 +585,7 @@ function FreeRecordFields({
       <Section title="일반 기록">
         <div>
           <label className={LABEL} htmlFor="f-symbol">
-            종목 <span className="ml-1 text-dim/70">없어도 됩니다</span>
+            종목 <span className="ml-1 text-dim">없어도 됩니다</span>
           </label>
           <input
             id="f-symbol"
@@ -630,7 +630,7 @@ function FreeRecordFields({
         <div className="sm:col-span-3 xl:col-span-4">
           <div className="mb-1 flex items-center justify-between gap-2">
             <label className="text-xs text-dim" htmlFor="f-body">
-              기록 내용 <span className="ml-1 text-dim/70">사진만 붙여도 됩니다</span>
+              기록 내용 <span className="ml-1 text-dim">사진만 붙여도 됩니다</span>
             </label>
             <VoiceInput targetId="f-body" />
           </div>
@@ -740,7 +740,7 @@ export function JournalForm({
             }`}
           >
             <span className="block text-sm font-medium">{KIND_LABEL[k].label}</span>
-            <span className="block text-[11px] opacity-80">{KIND_LABEL[k].hint}</span>
+            <span className="block text-xs opacity-80">{KIND_LABEL[k].hint}</span>
           </button>
         ))}
       </div>

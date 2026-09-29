@@ -346,7 +346,7 @@ export function OrderPanel({
                 aria-label="종목 — OKX USDT 무기한"
               />
             </label>
-            <span className="tnum mr-1 text-[11px] text-dim">
+            <span className="tnum mr-1 text-xs text-dim">
               {market ? (
                 <>
                   현재가 <b className="text-text">{market.last.toLocaleString()}</b>
@@ -363,7 +363,7 @@ export function OrderPanel({
 
           <OrderChart symbol={symbol} now={now} board={board} />
 
-          <p className="truncate text-[10px] text-dim">
+          <p className="text-xs text-dim">
             {positionStep ? (
               <b className="text-accent">
                 {tool === "long" ? "롱" : "숏"} 손익 — {positionStep} (진입 → 손절 → 목표). 다 찍으면 폼에
@@ -415,7 +415,7 @@ export function OrderPanel({
           {/* 장기추세 — 방향 바로 아래. 판단과 반대로 들어가면 그 자리에서 보인다. */}
           <div>
             <span className={LABEL}>
-              장기추세 * <span className="text-dim/70">중장기 국면 — 고점·저점 갱신 방향</span>
+              장기추세 * <span className="text-dim">중장기 국면 — 고점·저점 갱신 방향</span>
             </span>
             <div className="flex gap-2">
               {TRENDS.map((t) => (
@@ -433,14 +433,14 @@ export function OrderPanel({
               ))}
             </div>
             {isCounterTrend(trend, side) ? (
-              <p className="mt-1 text-[11px] text-beta">역추세 — {TREND_LABEL[trend as Trend]} 판단과 반대 방향입니다. 거래에 그대로 남습니다.</p>
+              <p className="mt-1 text-xs text-beta">역추세 — {TREND_LABEL[trend as Trend]} 판단과 반대 방향입니다. 거래에 그대로 남습니다.</p>
             ) : null}
           </div>
 
           {/* 위·아래 — 추세 아래. 게이트 항목이 아니라 안 골라도 되고, 같은 칩을 다시 누르면 지워진다. */}
           <div>
             <span className={LABEL}>
-              위·아래 <span className="text-dim/70">각각 막혀 있는가 — 위 닫힘은 아래를, 아래 닫힘은 위를 모른다는 뜻</span>
+              위·아래 <span className="text-dim">각각 막혀 있는가 — 위 닫힘은 아래를, 아래 닫힘은 위를 모른다는 뜻</span>
             </span>
             <div className="flex gap-2">
               {OPENNESSES.map((o) => (
@@ -464,7 +464,7 @@ export function OrderPanel({
           <div className="space-y-2">
             <div>
               <span className={LABEL}>
-                방향 시계열 <span className="text-dim/70">어디서 봤는가</span>
+                방향 시계열 <span className="text-dim">어디서 봤는가</span>
               </span>
               <div className="flex gap-1.5">
                 {BIAS_TIMEFRAMES.map((t) => (
@@ -484,7 +484,7 @@ export function OrderPanel({
             </div>
             <div>
               <span className={LABEL}>
-                진입 시계열 <span className="text-dim/70">어디서 잡았는가</span>
+                진입 시계열 <span className="text-dim">어디서 잡았는가</span>
               </span>
               <div className="flex gap-1.5">
                 {ENTRY_TIMEFRAMES.map((t) => (
@@ -506,7 +506,7 @@ export function OrderPanel({
 
           {/* 손절이 이 봉의 평균 흔들림 안쪽이면 방향이 맞아도 가는 길에 먼저 밟힌다. 안내일 뿐 게이트가 아니다. */}
           {atrPct !== null ? (
-            <p className="text-[11px] text-dim">
+            <p className="text-xs text-dim">
               {TIMEFRAME_LABEL[tfBias]} 평균 흔들림(ATR{ATR_PERIOD}){" "}
               <span className="tnum">{atrPct.toFixed(2)}%</span>
               {stopAtr !== null ? (
@@ -515,13 +515,13 @@ export function OrderPanel({
                   <span className={`tnum ${stopAtrOk ? "text-profit" : "text-beta"}`}>
                     {stopAtr.toFixed(1)} ATR
                   </span>
-                  <span className="text-dim/70">
+                  <span className="text-dim">
                     {" "}
                     표준 {ATR_STOP_MIN}~{ATR_STOP_MAX}
                   </span>
                 </>
               ) : (
-                <span className="text-dim/70"> · 손절가를 넣으면 몇 ATR인지 보입니다</span>
+                <span className="text-dim"> · 손절가를 넣으면 몇 ATR인지 보입니다</span>
               )}
             </p>
           ) : null}
@@ -552,7 +552,7 @@ export function OrderPanel({
               />
             </div>
           </div>
-          <p className="tnum text-[11px] text-dim">
+          <p className="tnum text-xs text-dim">
             {sizing && market ? (
               <>
                 {sizing.sz}계약 ≈ {num(sizing.notional, 2)} USDT · 증거금 {num(margin?.margin ?? null, 2)}
@@ -595,7 +595,7 @@ export function OrderPanel({
               </div>
             ))}
           </div>
-          <p className="text-[11px] text-dim">
+          <p className="text-xs text-dim">
             {target !== undefined
               ? "손절과 목표가 거래소 브래킷으로 함께 걸립니다."
               : plan.targets.filter((t) => t !== null).length > 1
@@ -654,7 +654,7 @@ export function OrderPanel({
                     type="button"
                     onClick={() => setSetup(o)}
                     aria-pressed={setup === o}
-                    className={`rounded-full border px-2 py-0.5 text-[11px] ${
+                    className={`rounded-full border px-2 py-0.5 text-xs ${
                       setup === o ? "border-accent text-accent" : "border-border text-dim"
                     }`}
                   >
@@ -668,10 +668,10 @@ export function OrderPanel({
           <div>
             <div className="mb-1 flex items-baseline gap-2">
               <label className="text-xs text-dim" htmlFor="o-rationale">
-                근거 * <span className="text-dim/70">왜 지금, 왜 여기서, 어디서 틀렸다고 볼 것인가</span>
+                근거 * <span className="text-dim">왜 지금, 왜 여기서, 어디서 틀렸다고 볼 것인가</span>
               </label>
               <span
-                className={`tnum ml-auto text-[11px] ${
+                className={`tnum ml-auto text-xs ${
                   rationale.trim().length >= MIN_RATIONALE_CHARS ? "text-profit" : "text-dim"
                 }`}
               >
@@ -690,7 +690,7 @@ export function OrderPanel({
 
           <div>
             <label className={LABEL} htmlFor="o-emotion">
-              감정 <span className="text-dim/70">지금 상태 — 같은 말로 적어야 통계가 묶인다</span>
+              감정 <span className="text-dim">지금 상태 — 같은 말로 적어야 통계가 묶인다</span>
             </label>
             <input
               id="o-emotion"
@@ -708,7 +708,7 @@ export function OrderPanel({
 
           {/* 하루 규칙 — 경고만 한다 */}
           <p
-            className={`text-[11px] ${
+            className={`text-xs ${
               daily.overEntries || daily.overLosses ? "font-medium text-loss" : "text-dim"
             }`}
           >
@@ -720,7 +720,7 @@ export function OrderPanel({
 
           {/* 공백·뇌동매매지수 — 경고만 한다(REQ-0076). 주문 버튼은 게이트만 본다 */}
           {impulse ? (
-            <p className={`text-[11px] ${waitLeftMs > 0 ? "font-medium text-loss" : "text-dim"}`}>
+            <p className={`text-xs ${waitLeftMs > 0 ? "font-medium text-loss" : "text-dim"}`}>
               직전 청산 후 {formatDuration(impulse.gapMs)} · 권장 대기 {formatDuration(impulse.waitMs)}
               {waitLeftMs > 0 ? ` → ${formatDuration(waitLeftMs)} 남음` : " 지남"} · 지금 진입 시{" "}
               <span className={impulseTone(impulse.score)}>뇌동 {impulse.score}</span>
@@ -760,7 +760,7 @@ export function OrderPanel({
             />
           </ul>
 
-          {note ? <p className="text-[11px] text-accent">{note}</p> : null}
+          {note ? <p className="text-xs text-accent">{note}</p> : null}
 
           {state.ok ? (
             <div className="rounded-lg border border-profit/50 bg-profit/10 p-3 text-xs">
@@ -821,7 +821,7 @@ function GateRow({ ok, label, detail }: { ok: boolean; label: string; detail: st
         {ok ? "✓" : "✗"}
       </span>
       <span className={ok ? "" : "text-loss"}>{label}</span>
-      <span className="tnum ml-auto truncate text-right text-dim">{detail}</span>
+      <span className="tnum ml-auto text-right text-dim">{detail}</span>
     </li>
   );
 }
@@ -887,13 +887,13 @@ function AccountCard({ status }: { status: OrderAccountStatus }) {
         </div>
       </div>
       {status.errors.length > 0 ? (
-        <ul className="mt-2 space-y-0.5 text-[11.5px] text-loss">
+        <ul className="mt-2 space-y-0.5 text-[12.5px] text-loss">
           {status.errors.map((e) => (
             <li key={e}>{e}</li>
           ))}
         </ul>
       ) : null}
-      <p className="mt-2 text-[11px] text-dim">
+      <p className="mt-2 text-xs text-dim">
         주문은 이 키의 계좌로, 청산 기록은 동기화 계좌에서 온다 — 둘이 다르면 방금 만든 거래가 영원히 안
         닫히므로 같을 때만 연다. 시장가 · 격리 · 손절 브래킷 부착.
       </p>

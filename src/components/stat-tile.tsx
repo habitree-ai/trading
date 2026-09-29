@@ -21,11 +21,11 @@ export function StatTile({
 }) {
   return (
     <div className="rounded-xl border border-border bg-surface p-3">
-      <div className="text-[11px] text-dim">{label}</div>
+      <div className="text-xs text-dim">{label}</div>
       <div className={`tnum mt-1 text-xl font-semibold ${valueClass}`}>{value}</div>
-      {sub ? <div className="tnum mt-1 text-[11px] text-dim">{sub}</div> : null}
+      {sub ? <div className="tnum mt-1 text-xs text-dim">{sub}</div> : null}
       {verdict ? (
-        <div className={`mt-1.5 text-[11px] leading-snug ${TONE_CLASS[verdict.tone]}`}>
+        <div className={`mt-1.5 text-xs leading-snug ${TONE_CLASS[verdict.tone]}`}>
           {verdict.text}
         </div>
       ) : null}

@@ -233,7 +233,7 @@ export function CapturePanel({
                   alt={a.name}
                   className="h-20 w-20 rounded border border-border object-cover"
                 />
-                <span className="mt-1 block truncate text-[10px] text-dim">
+                <span className="mt-1 block truncate text-xs text-dim">
                   {CAPTURE_KIND_LABEL[a.kind]}
                 </span>
               </li>

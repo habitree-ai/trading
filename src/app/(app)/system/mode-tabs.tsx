@@ -46,7 +46,7 @@ export function ModeTabs({ items, current }: { items: ModeTabItem[]; current: Sy
           >
             {meta.real ? "● " : ""}
             {meta.label}
-            <span className="tnum ml-1.5 text-[10px] opacity-70">
+            <span className="tnum ml-1.5 text-xs opacity-70">
               {closed}
               {open > 0 ? `+${open}` : ""}
             </span>

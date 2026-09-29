@@ -29,13 +29,13 @@ export function BookRow({
       <div className="flex flex-wrap items-center gap-2">
         <h3 className="font-medium">{book.name}</h3>
         {isActive ? (
-          <span className="rounded bg-accent px-1.5 py-0.5 text-[10px] text-white">보는 중</span>
+          <span className="rounded bg-accent px-1.5 py-0.5 text-xs text-white">보는 중</span>
         ) : null}
         {book.status === "closed" ? (
-          <span className="rounded bg-surface-2 px-1.5 py-0.5 text-[10px] text-dim">마감</span>
+          <span className="rounded bg-surface-2 px-1.5 py-0.5 text-xs text-dim">마감</span>
         ) : null}
         {book.exchange_account_id ? (
-          <span className="rounded border border-accent/40 px-1.5 py-0.5 text-[10px] text-accent">
+          <span className="rounded border border-accent/40 px-1.5 py-0.5 text-xs text-accent">
             OKX 동기화
           </span>
         ) : null}
@@ -99,7 +99,7 @@ function Stat({
 }) {
   return (
     <div>
-      <dt className="text-[11px] text-dim">{label}</dt>
+      <dt className="text-xs text-dim">{label}</dt>
       <dd className={`tnum text-sm ${className}`}>{value}</dd>
     </div>
   );

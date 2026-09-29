@@ -81,7 +81,7 @@ export function PerformanceSummary({
       <div className="mt-3 scroll-x">
         <table className="w-full min-w-[30rem] border-collapse text-sm">
           <thead>
-            <tr className="border-b border-border text-[11px] text-dim">
+            <tr className="border-b border-border text-xs text-dim">
               <th className="py-2 pr-3 text-left font-medium">항목</th>
               <th className="py-2 pr-3 text-right font-medium">거래 결과</th>
               <th className="py-2 text-right font-medium">거래 기간</th>
@@ -91,10 +91,10 @@ export function PerformanceSummary({
             {rows.map((row, i) => (
               <tr key={row.label} className="border-b border-border/60 last:border-0">
                 <td className="py-2 pr-3 text-dim">
-                  <span className="tnum mr-1.5 text-[11px] opacity-60">{i + 1}.</span>
+                  <span className="tnum mr-1.5 text-xs opacity-60">{i + 1}.</span>
                   {row.label}
                   {row.hint ? (
-                    <span className="ml-1.5 text-[10px] opacity-70">{row.hint}</span>
+                    <span className="ml-1.5 text-xs opacity-70">{row.hint}</span>
                   ) : null}
                 </td>
                 <td className={`tnum py-2 pr-3 text-right font-medium ${toneClass(row.tone)}`}>

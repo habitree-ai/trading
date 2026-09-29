@@ -18,7 +18,7 @@ import type { SeniorPost } from "@/lib/senior/posts";
 const INPUT =
   "w-full rounded-lg border border-border bg-bg px-3 py-2 text-sm outline-none focus:border-accent";
 const LABEL = "block text-sm font-medium";
-const HINT = "mt-0.5 mb-1.5 text-[11.5px] leading-snug text-dim";
+const HINT = "mt-0.5 mb-1.5 text-[12.5px] leading-snug text-dim";
 
 function Submit() {
   const { pending } = useFormStatus();
@@ -69,14 +69,14 @@ export function NoteForm({
       ))}
 
       <section className="rounded-xl border border-border bg-surface p-4">
-        <p className="text-[10px] font-semibold tracking-widest text-dim uppercase">대상 글</p>
+        <p className="text-xs font-semibold tracking-widest text-dim uppercase">대상 글</p>
         {postId ? (
           <div className="mt-1">
             <h2 className="text-base leading-snug font-semibold">
               {post?.title ?? `글 ${postId}`}
             </h2>
             {post ? (
-              <p className="mt-1 flex flex-wrap gap-2 text-[11px] text-dim">
+              <p className="mt-1 flex flex-wrap gap-2 text-xs text-dim">
                 <span className="rounded border border-border px-1.5">{post.board}</span>
                 <span className="tnum">{post.date}</span>
               </p>
@@ -149,7 +149,7 @@ export function NoteForm({
                   key={id}
                   className="flex items-center gap-2 rounded-lg border border-border bg-surface px-3 py-1.5 text-sm"
                 >
-                  <span className="tnum text-[11px] text-dim">{p?.date ?? "-"}</span>
+                  <span className="tnum text-xs text-dim">{p?.date ?? "-"}</span>
                   <span className="min-w-0 flex-1 truncate">{p?.title ?? `글 ${id}`}</span>
                   <button
                     type="button"

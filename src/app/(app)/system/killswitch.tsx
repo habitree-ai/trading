@@ -26,7 +26,7 @@ export function KillSwitch({ mode, enabled }: { mode: SystemMode; enabled: boole
 
   return (
     <div className="ml-auto text-right">
-      <div className="text-[11px] text-dim">킬스위치</div>
+      <div className="text-xs text-dim">킬스위치</div>
       <div className={`mt-0.5 text-sm font-semibold ${enabled ? "text-profit" : "text-dim"}`}>
         {enabled ? "실주문 허용" : "실주문 차단"}
       </div>
@@ -36,13 +36,13 @@ export function KillSwitch({ mode, enabled }: { mode: SystemMode; enabled: boole
           type="button"
           onClick={() => flip(false)}
           disabled={pending}
-          className="mt-1 rounded border border-loss px-2 py-1 text-[11px] font-medium text-loss disabled:opacity-50"
+          className="mt-1 rounded border border-loss px-2 py-1 text-xs font-medium text-loss disabled:opacity-50"
         >
           {pending ? "…" : "실주문 차단하기"}
         </button>
       ) : (
         <div className="mt-1 flex items-center justify-end gap-2">
-          <label className="flex items-center gap-1 text-[11px] text-dim">
+          <label className="flex items-center gap-1 text-xs text-dim">
             <input
               type="checkbox"
               checked={ack}
@@ -55,14 +55,14 @@ export function KillSwitch({ mode, enabled }: { mode: SystemMode; enabled: boole
             type="button"
             onClick={() => flip(true)}
             disabled={pending || !ack}
-            className="rounded border border-profit px-2 py-1 text-[11px] font-medium text-profit disabled:opacity-40"
+            className="rounded border border-profit px-2 py-1 text-xs font-medium text-profit disabled:opacity-40"
           >
             {pending ? "…" : "허용"}
           </button>
         </div>
       )}
 
-      {error ? <p className="mt-1 max-w-xs text-[11px] text-loss">{error}</p> : null}
+      {error ? <p className="mt-1 max-w-xs text-xs text-loss">{error}</p> : null}
     </div>
   );
 }

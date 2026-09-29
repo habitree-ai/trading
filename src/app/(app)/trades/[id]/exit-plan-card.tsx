@@ -39,17 +39,17 @@ export function ExitPlanCard({ trade, summary }: { trade: Trade; summary: ExitSu
             — 금액 = 명목가 × 가격폭 × 비중 · 수익률 = 금액 ÷ {marginLabel}
           </span>
         </h2>
-        <span className="ml-auto rounded border border-border px-1.5 py-0.5 text-[11px] text-dim">
+        <span className="ml-auto rounded border border-border px-1.5 py-0.5 text-xs text-dim">
           {MODE_LABEL[mode]}
         </span>
       </div>
 
       <p className="tnum mt-2 text-xs">
-        <span className="rounded border border-loss/40 px-1.5 py-0.5 text-[11px] text-loss">손절</span>{" "}
+        <span className="rounded border border-loss/40 px-1.5 py-0.5 text-xs text-loss">손절</span>{" "}
         {stop ? (
           <>
             {num(stop.price)}{" "}
-            <span className="text-[11px] text-dim">
+            <span className="text-xs text-dim">
               {stop.source === "okx" ? "거래소" : "내 계획"}
               {stop.planPrice !== null ? ` · 내 계획 ${num(stop.planPrice)}` : ""}
             </span>
@@ -65,11 +65,11 @@ export function ExitPlanCard({ trade, summary }: { trade: Trade; summary: ExitSu
         )}
       </p>
       {plan.rBasis === "okx" ? (
-        <p className="mt-1 text-[11px] text-dim">
+        <p className="mt-1 text-xs text-dim">
           R 은 거래소 손절(마지막 등록값) 기준입니다 — 계획 손절가를 적으면 그쪽으로 잽니다.
         </p>
       ) : plan.rBasis === null && plan.steps.length > 0 ? (
-        <p className="mt-1 text-[11px] text-dim">손절가가 없어 R 을 잴 수 없습니다.</p>
+        <p className="mt-1 text-xs text-dim">손절가가 없어 R 을 잴 수 없습니다.</p>
       ) : null}
 
       {/* 단계별 — 체결된 차수는 실현값, 아직이면 등록된 TP 기준 예상치. 표보다 이 줄이 먼저 읽힌다. */}
@@ -96,8 +96,8 @@ export function ExitPlanCard({ trade, summary }: { trade: Trade; summary: ExitSu
           <div className="scroll-x mt-1">
             <PlanTable plan={plan} hideTotal={plan.shareProblem !== null} />
           </div>
-          {plan.shareProblem ? <p className="mt-1 text-[11px] text-beta">⚠ {plan.shareProblem}</p> : null}
-          {plan.orderProblem ? <p className="mt-1 text-[11px] text-beta">⚠ {plan.orderProblem}</p> : null}
+          {plan.shareProblem ? <p className="mt-1 text-xs text-beta">⚠ {plan.shareProblem}</p> : null}
+          {plan.orderProblem ? <p className="mt-1 text-xs text-beta">⚠ {plan.orderProblem}</p> : null}
         </div>
 
         {actual ? (
@@ -115,7 +115,7 @@ export function ExitPlanCard({ trade, summary }: { trade: Trade; summary: ExitSu
               체결에는 손익이 없다 — 가격손익은 평균 진입가 대비 추정이라 장부의 비용 전 손익(pnl)과
               견주고, 거래소 실현손익(realized_pnl)은 진입 수수료·펀딩비·ADL 까지 든 값이라 따로 적는다.
             */}
-            <p className="tnum mt-1 text-[11px] text-dim">
+            <p className="tnum mt-1 text-xs text-dim">
               체결 추정 {signed(actual.pnlTotal)} · 장부 손익(비용 전) {signed(trade.pnl)} · 거래소 실현{" "}
               {signed(netOf(trade))}
               {trade.fee !== null ? ` · 총 수수료 ${signed(trade.fee)}` : ""}

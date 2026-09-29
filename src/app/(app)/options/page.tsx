@@ -84,7 +84,7 @@ function dday(dte: number): string {
 function Guide({ id }: { id: IndicatorKey }) {
   const guide = OPTION_GUIDE[id];
   return (
-    <div className="space-y-0.5 text-[11.5px] leading-relaxed text-dim">
+    <div className="space-y-0.5 text-[12.5px] leading-relaxed text-dim">
       <p>
         <span className="text-text">무엇인가</span> · {guide.what}
       </p>
@@ -97,7 +97,7 @@ function Guide({ id }: { id: IndicatorKey }) {
 
 /** 「지금 값의 뜻」 한 줄 — 색은 verdict 의 tone. */
 function VerdictLine({ verdict }: { verdict: Verdict }) {
-  return <p className={`text-[11.5px] leading-snug ${TONE_CLASS[verdict.tone]}`}>{verdict.text}</p>;
+  return <p className={`text-[12.5px] leading-snug ${TONE_CLASS[verdict.tone]}`}>{verdict.text}</p>;
 }
 
 function FlowRow({ label, buy, sell }: { label: string; buy: number; sell: number }) {
@@ -120,7 +120,7 @@ function FlowTable({ flow }: { flow: TakerBlockFlow }) {
     <div className="scroll-x">
       <table className="w-full min-w-[20rem] text-sm">
         <thead>
-          <tr className="text-left text-[11px] text-dim">
+          <tr className="text-left text-xs text-dim">
             <th className="py-1 pr-3 font-normal">BTC</th>
             <th className="py-1 pr-3 text-right font-normal">테이커 매수</th>
             <th className="py-1 pr-3 text-right font-normal">테이커 매도</th>
@@ -179,7 +179,7 @@ export default async function OptionsPage() {
           BTC 옵션 시장이 어느 가격을 방어하고 어디에 베팅하는지 — OKX·Deribit 공개 데이터, 화면을 열 때
           조회
         </p>
-        <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11.5px] text-dim">
+        <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[12.5px] text-dim">
           <span className="tnum">
             기준가 <span className="font-medium text-text">{usdPrice(spot)}</span>
           </span>
@@ -200,7 +200,7 @@ export default async function OptionsPage() {
             })}
           </span>
         </div>
-        <p className="mt-1 text-[11.5px] text-dim">
+        <p className="mt-1 text-[12.5px] text-dim">
           OI·거래량·맥스페인·벽·GEX 는 {venueNote} · IV 지표(ATM IV·기간구조·25Δ 스큐·선도가)는{" "}
           {ivVenue === null ? "재료가 없어 비어 있습니다" : `${VENUE_LABEL[ivVenue]} 값`}
           {ivVenue === "okx" ? " (Deribit IV 를 받지 못해 OKX 로 대체)" : ""}
@@ -276,7 +276,7 @@ export default async function OptionsPage() {
         </h2>
         <dl className="mt-3 grid gap-x-6 gap-y-3 lg:grid-cols-2">
           {(Object.keys(OPTION_GUIDE) as IndicatorKey[]).map((key) => (
-            <div key={key} className="text-[11.5px] leading-relaxed">
+            <div key={key} className="text-[12.5px] leading-relaxed">
               <dt className="font-medium">{GUIDE_LABEL[key]}</dt>
               <dd className="text-dim">
                 <span className="text-text">무엇인가</span> · {OPTION_GUIDE[key].what}
@@ -303,7 +303,7 @@ export default async function OptionsPage() {
           <div className="mt-2 scroll-x">
             <table className="w-full min-w-[40rem] text-sm">
               <thead>
-                <tr className="text-left text-[11px] text-dim">
+                <tr className="text-left text-xs text-dim">
                   <th className="py-1 pr-3 font-normal">만기</th>
                   <th className="py-1 pr-3 font-normal">D-day</th>
                   <th className="py-1 pr-3 text-right font-normal">콜 OI</th>
@@ -334,7 +334,7 @@ export default async function OptionsPage() {
             </table>
           </div>
         )}
-        <p className="mt-2 text-[11px] text-dim">
+        <p className="mt-2 text-xs text-dim">
           D-day 는 올림 · 25Δ RR 은 감싸는 행사가가 없으면(만기 직전·좁은 행사가) 비워 둡니다 · 해석은 D-
           {HEADLINE_MIN_DTE} 이상 남은 첫 만기{headline ? `(${headline.expiry})` : ""} 기준
         </p>
@@ -388,7 +388,7 @@ export default async function OptionsPage() {
           <h2 className="text-sm font-medium">
             GEX <span className="font-normal text-dim">— 감마 익스포저, USD / 현물 1% 변동</span>
           </h2>
-          <span className="tnum text-[11.5px] text-dim">
+          <span className="tnum text-[12.5px] text-dim">
             총합{" "}
             <span className={`font-medium ${gex.total === null ? "" : gex.total > 0 ? "text-profit" : gex.total < 0 ? "text-loss" : ""}`}>
               {gex.total === null ? DASH : `${usdCompact(gex.total)}/1%`}
@@ -402,7 +402,7 @@ export default async function OptionsPage() {
         <div className="mt-3 space-y-2">
           <VerdictLine verdict={gexVerdict} />
           <Guide id="gex" />
-          <p className="rounded-lg border border-beta/40 bg-beta/5 p-2.5 text-[11.5px] leading-relaxed text-dim">
+          <p className="rounded-lg border border-beta/40 bg-beta/5 p-2.5 text-[12.5px] leading-relaxed text-dim">
             <span className="text-beta">추정치입니다.</span> 딜러가 콜 롱·풋 숏 포지션이라는 표준 가정(콜 +, 풋 −)
             위에서 마크 IV 로 낸 블랙-숄즈 감마 × OI × 현물² × 1% 를 더한 값입니다. 실제 딜러 포지션은 공개되지
             않으므로 부호와 자릿수만 참고하고, 플립 행사가도 그 가정 아래의 경계입니다.
@@ -439,7 +439,7 @@ export default async function OptionsPage() {
         ) : (
           <div className="mt-2">
             <FlowTable flow={flow} />
-            <p className="tnum mt-1 text-[11px] text-dim">
+            <p className="tnum mt-1 text-xs text-dim">
               OKX 1D 집계 — {dateTime(new Date(flow.ts - 86_400_000).toISOString())} ~{" "}
               {dateTime(new Date(flow.ts).toISOString())} (UTC+8 하루, 마감값) · 블록 거래량은 OKX 가 단위를
               밝히지 않아 표시하지 않습니다
@@ -453,7 +453,7 @@ export default async function OptionsPage() {
       </section>
 
       {/* ── 9. 출처 ───────────────────────────────── */}
-      <section className="rounded-xl border border-border bg-surface-2 p-4 text-[11.5px] leading-relaxed text-dim">
+      <section className="rounded-xl border border-border bg-surface-2 p-4 text-[12.5px] leading-relaxed text-dim">
         <h2 className="text-sm font-medium text-text">출처와 단위</h2>
         <ul className="mt-2 list-disc space-y-1 pl-4">
           <li>

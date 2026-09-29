@@ -29,7 +29,7 @@ export function Details({
         </span>
         {tone === "warn" || tone === "bad" ? (
           <span
-            className={`rounded border px-1.5 py-0.5 text-[10px] ${
+            className={`rounded border px-1.5 py-0.5 text-xs ${
               tone === "bad" ? "border-loss/40 text-loss" : "border-beta/40 text-beta"
             }`}
           >
@@ -44,7 +44,7 @@ export function Details({
 
 /** 숫자 묶음 밑에 붙는 설명 한 줄. */
 export function Note({ tone = "neutral", children }: { tone?: Tone; children: React.ReactNode }) {
-  return <p className={`text-[11px] leading-snug ${TONE_CLASS[tone]}`}>{children}</p>;
+  return <p className={`text-xs leading-snug ${TONE_CLASS[tone]}`}>{children}</p>;
 }
 
 /** 여럿 중 가장 나쁜 판정 — 접힌 상세의 배지가 이 값을 쓴다. */

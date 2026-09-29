@@ -237,12 +237,12 @@ export function VoiceInput({ targetId }: { targetId: string }) {
   return (
     <span className="inline-flex flex-wrap items-center gap-1.5">
       {listening && preview ? (
-        <span className="max-w-[16rem] truncate text-[11px] text-dim" aria-live="polite">
+        <span className="max-w-[16rem] truncate text-xs text-dim" aria-live="polite">
           {preview}
         </span>
       ) : null}
 
-      {error ? <span className="text-[11px] text-loss">{error}</span> : null}
+      {error ? <span className="text-xs text-loss">{error}</span> : null}
 
       {local === "downloadable" ? (
         <button

@@ -47,7 +47,7 @@ export function RationaleAlert({ trades }: { trades: readonly UnjustifiedTradeRo
               <span className={t.side === "long" ? "text-profit" : "text-loss"}>{SIDE_LABEL[t.side]}</span>
               <span className="font-medium">{t.symbol}</span>
               {t.open ? (
-                <span className="rounded border border-beta/50 px-1.5 py-0.5 text-[10px] text-beta">보유중</span>
+                <span className="rounded border border-beta/50 px-1.5 py-0.5 text-xs text-beta">보유중</span>
               ) : null}
               <span className="tnum ml-auto text-xs text-dim">{dateTime(t.entry_at)}</span>
               <span className="text-xs font-semibold text-loss">근거 등록 →</span>
@@ -55,7 +55,7 @@ export function RationaleAlert({ trades }: { trades: readonly UnjustifiedTradeRo
           </li>
         ))}
       </ul>
-      <p className="mt-3 text-[11px] text-dim">
+      <p className="mt-3 text-xs text-dim">
         보유중이거나 최근 {RATIONALE_ALERT_DAYS}일 안에 진입한 거래만 올립니다. 더 오래된 빈칸은 거래 목록의
         &ldquo;복기 대기&rdquo; 필터에 있습니다.
       </p>

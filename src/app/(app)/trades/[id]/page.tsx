@@ -26,7 +26,7 @@ export default async function EditTradePage({ params }: { params: Promise<{ id: 
   const exits = summarizeExits(trade, fills, isOpenTrade(trade));
 
   return (
-    <div className="mx-auto max-w-4xl space-y-6">
+    <div className="mx-auto max-w-6xl space-y-6">
       <TradeForm
         bookId={trade.book_id}
         userId={trade.user_id}

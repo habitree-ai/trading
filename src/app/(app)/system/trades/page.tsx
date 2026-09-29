@@ -48,7 +48,7 @@ export default async function SystemTradesPage({
         <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
           <h1 className="text-xl font-semibold tracking-tight">자동 거래</h1>
           <span
-            className={`rounded border px-1.5 py-0.5 text-[10px] font-semibold ${
+            className={`rounded border px-1.5 py-0.5 text-xs font-semibold ${
               meta.real ? "border-loss text-loss" : "border-alpha text-alpha"
             }`}
           >
@@ -72,7 +72,7 @@ export default async function SystemTradesPage({
       ) : (
         <div className="scroll-x rounded-xl border border-border bg-surface">
           <table className="w-full min-w-[62rem] text-[12.5px]">
-            <thead className="border-b border-border text-[11px] text-dim">
+            <thead className="border-b border-border text-xs text-dim">
               <tr>
                 <th className="px-3 py-2 text-left font-medium">진입</th>
                 <th className="px-3 py-2 text-left font-medium">기준</th>
@@ -125,14 +125,14 @@ export default async function SystemTradesPage({
                     </td>
                     <td className="px-3 py-2 whitespace-nowrap">
                       {t.open ? (
-                        <span className="rounded border border-alpha/50 px-1.5 py-0.5 text-[10px] text-alpha">
+                        <span className="rounded border border-alpha/50 px-1.5 py-0.5 text-xs text-alpha">
                           진행 중
                         </span>
                       ) : (
                         <>
                           {EXIT_LABEL[t.exitType] ?? t.exitType}
                           {t.holdBars ? (
-                            <span className="tnum ml-1 text-[10px] text-dim">{t.holdBars}봉</span>
+                            <span className="tnum ml-1 text-xs text-dim">{t.holdBars}봉</span>
                           ) : null}
                         </>
                       )}
@@ -147,7 +147,7 @@ export default async function SystemTradesPage({
                     <td className="tnum px-3 py-2 text-right text-dim">
                       {num(t.equityAfter ?? t.eqAtEntry ?? null, 2)}
                     </td>
-                    <td className="tnum px-3 py-2 text-[11px] whitespace-nowrap text-dim">
+                    <td className="tnum px-3 py-2 text-xs whitespace-nowrap text-dim">
                       {indicators || DASH}
                     </td>
                   </tr>
@@ -158,7 +158,7 @@ export default async function SystemTradesPage({
         </div>
       )}
 
-      <p className="text-[11px] text-dim">
+      <p className="text-xs text-dim">
         손익률은 계좌 기준(레버리지·왕복 수수료 0.1% 반영)입니다. 잔고 칸은 청산 직후 값이고,
         진행 중인 행은 진입 시점 잔고를 보여 줍니다.
       </p>

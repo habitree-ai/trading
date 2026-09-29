@@ -225,7 +225,7 @@ export function PhotoStrip({
           {Array.from({ length: uploading }).map((_, i) => (
             <li
               key={`up-${i}`}
-              className="flex h-20 w-20 items-center justify-center rounded-lg border border-dashed border-border text-[11px] text-dim"
+              className="flex h-20 w-20 items-center justify-center rounded-lg border border-dashed border-border text-xs text-dim"
             >
               올리는 중
             </li>

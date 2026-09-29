@@ -89,12 +89,12 @@ export function AnnotationList({
             className={`size-2 shrink-0 rounded-full ${ANNOTATION_DOT_CLASS[a.color]}`}
             aria-hidden
           />
-          <span className="rounded border border-border px-1.5 py-0.5 text-[10px] text-dim">
+          <span className="rounded border border-border px-1.5 py-0.5 text-xs text-dim">
             {ANNOTATION_KIND_LABEL[a.kind]}
           </span>
           {a.locked ? (
             <span
-              className="rounded border border-beta/40 px-1.5 py-0.5 text-[10px] text-beta"
+              className="rounded border border-beta/40 px-1.5 py-0.5 text-xs text-beta"
               title="잠겨 있어 차트에서 끌리지 않습니다"
             >
               잠김

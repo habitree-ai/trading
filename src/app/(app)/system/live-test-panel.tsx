@@ -69,16 +69,16 @@ export function LiveTestPanel({
         <div>
           <h2 className="text-sm font-medium">
             실주문 테스트{" "}
-            <span className="rounded border border-loss px-1.5 py-0.5 text-[10px] font-semibold text-loss">
+            <span className="rounded border border-loss px-1.5 py-0.5 text-xs font-semibold text-loss">
               LIVE
             </span>
           </h2>
-          <p className="mt-0.5 text-[11px] text-dim">
+          <p className="mt-0.5 text-xs text-dim">
             시스템 배선 검증 — 최소 수량(≈${minNotional?.toFixed(2) ?? "?"}) · 레버리지 10배 ·
             손절 −0.1% / 목표 +0.15% 브래킷 자동 부착
           </p>
         </div>
-        <div className="tnum ml-auto text-[11px] text-dim">
+        <div className="tnum ml-auto text-xs text-dim">
           {statusError ? (
             <span className="text-loss">{statusError}</span>
           ) : (
@@ -147,7 +147,7 @@ export function LiveTestPanel({
 
           {state.error ? <p className="mt-2 text-xs text-loss">{state.error}</p> : null}
           {state.ok ? <p className="mt-2 text-xs text-profit">{state.ok.detail}</p> : null}
-          <p className="mt-2 text-[11px] text-dim">
+          <p className="mt-2 text-xs text-dim">
             진입하면 손절·목표가 거래소에 함께 걸린다 — 이 창을 닫아도 보호는 유지된다.
             브래킷이 먼저 걸리면 「포지션 정리」는 &ldquo;정리할 것 없음&rdquo;으로 답한다.
             모든 사건은 <code className="rounded bg-surface-2 px-1">system-trading/data</code>에

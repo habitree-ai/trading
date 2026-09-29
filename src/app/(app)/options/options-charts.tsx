@@ -101,7 +101,7 @@ function TooltipBox({ rows }: { rows: [string, string, string?][] }) {
 /** 색 단독에 기대지 않도록 범례에 색 조각과 이름을 같이 둔다. */
 function Legend({ items }: { items: [string, string][] }) {
   return (
-    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-dim">
+    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-dim">
       {items.map(([label, color]) => (
         <span key={label} className="flex items-center gap-1.5">
           <span aria-hidden className="inline-block h-2.5 w-2.5 rounded-sm" style={{ background: color }} />
@@ -169,7 +169,7 @@ export function StrikeOiChart({
           aria-label="만기 선택"
           value={expiry}
           onChange={(e) => setExpiry(e.target.value)}
-          className="ml-auto rounded border border-border bg-surface px-1.5 py-0.5 text-[11px] text-text"
+          className="ml-auto rounded border border-border bg-surface px-1.5 py-0.5 text-xs text-text"
         >
           <option value="all">전체 만기</option>
           {expiries.map((e) => (
@@ -244,7 +244,7 @@ export function StrikeOiChart({
           </BarChart>
         </ResponsiveContainer>
       )}
-      <p className="tnum text-[11px] text-dim">
+      <p className="tnum text-xs text-dim">
         {spot === null ? "기준가가 없어 전 행사가를 그렸습니다." : "표시 범위 현재가 ×0.5 ~ ×2"}
         {stepNote(step)}
         {hiddenOi > 0 ? ` · 표시 밖 OI ${num(hiddenOi, 0)} BTC` : ""}
@@ -401,7 +401,7 @@ export function GexChart({
           </Bar>
         </BarChart>
       </ResponsiveContainer>
-      <p className="tnum text-[11px] text-dim">
+      <p className="tnum text-xs text-dim">
         {spot === null ? "기준가가 없어 전 행사가를 그렸습니다." : "표시 범위 현재가 ×0.5 ~ ×2"}
         {stepNote(step)}
         {hiddenCount > 0 ? ` · 표시 밖 행사가 ${hiddenCount}개` : ""}
@@ -427,7 +427,7 @@ export function PcrHistoryChart({ data }: { data: OkxHistoryPoint[] }) {
   }
   return (
     <div className="space-y-2">
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-dim">
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-dim">
         <span className="flex items-center gap-1.5">
           <svg width="18" height="8" aria-hidden>
             <line x1="0" y1="4" x2="18" y2="4" stroke="var(--accent)" strokeWidth="2" />

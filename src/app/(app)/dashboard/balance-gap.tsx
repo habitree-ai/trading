@@ -26,7 +26,7 @@ export function BalanceGap({
 }) {
   if (actual === null) {
     return (
-      <p className="text-[11px] text-dim">
+      <p className="text-xs text-dim">
         거래소 잔액을 아직 받지 못했습니다 — OKX 동기화를 돌리면 채워집니다.
       </p>
     );
@@ -35,7 +35,7 @@ export function BalanceGap({
   const verdict = readBalanceGap(computed, actual, unrealizedPnl);
 
   return (
-    <p className="text-[11px] text-dim">
+    <p className="text-xs text-dim">
       거래소 잔액 <span className="tnum text-text">{num(actual)}</span> {currency}
       {at ? ` · ${dateTime(at)}` : ""} ·{" "}
       <span className={TONE_CLASS[verdict.tone]}>{verdict.text}</span>

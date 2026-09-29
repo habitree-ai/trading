@@ -100,7 +100,7 @@ export default async function MistakesPage() {
     ) : null;
 
   return (
-    <div className="mx-auto max-w-4xl space-y-6">
+    <div className="mx-auto max-w-6xl space-y-6">
       <header>
         <h1 className="text-xl font-semibold tracking-tight">오답노트</h1>
         <p className="mt-1 text-sm text-dim">
@@ -272,7 +272,7 @@ export default async function MistakesPage() {
         )}
       </section>
 
-      <section className="rounded-xl border border-border bg-surface p-4 text-[11px] leading-relaxed text-dim">
+      <section className="rounded-xl border border-border bg-surface p-4 text-xs leading-relaxed text-dim">
         <h2 className="text-xs font-medium text-text">출처와 한계</h2>
         <p className="mt-2">
           원본은 <code>{report.source.file}</code> (로컬), 집계본은{" "}

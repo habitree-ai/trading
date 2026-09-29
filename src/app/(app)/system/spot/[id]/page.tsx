@@ -31,12 +31,12 @@ export default async function SpotSignalDetailPage({
   return (
     <div className="space-y-5">
       <header className="space-y-1">
-        <Link href="/system/spot" className="text-[11px] text-dim hover:underline">
+        <Link href="/system/spot" className="text-xs text-dim hover:underline">
           ← 현물신호 목록
         </Link>
         <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
           <h1 className="text-xl font-semibold tracking-tight">{signal.market.slice(4)}</h1>
-          <span className="rounded border border-alpha px-1.5 py-0.5 text-[10px] font-semibold text-alpha">
+          <span className="rounded border border-alpha px-1.5 py-0.5 text-xs font-semibold text-alpha">
             급락 반전
           </span>
           <p className="tnum text-sm text-dim">{dateTime(signal.barTs)} 봉</p>
@@ -46,7 +46,7 @@ export default async function SpotSignalDetailPage({
       <section className="grid grid-cols-2 gap-2 sm:grid-cols-3">
         {facts.map((f) => (
           <div key={f.label} className="rounded-xl border border-border bg-surface px-3 py-2">
-            <p className="text-[10px] text-dim">{f.label}</p>
+            <p className="text-xs text-dim">{f.label}</p>
             <p className={`tnum text-sm font-medium ${f.cls ?? ""}`}>{f.value}</p>
           </div>
         ))}
@@ -75,7 +75,7 @@ export default async function SpotSignalDetailPage({
             <li key={c}>{c}</li>
           ))}
         </ul>
-        <p className="mt-2 text-[11px]">
+        <p className="mt-2 text-xs">
           과거 통계이며 미래를 보장하지 않습니다. 자동 매수 없음 — 진입·크기·청산 판단은 사람 몫입니다.
         </p>
       </section>

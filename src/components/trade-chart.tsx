@@ -1568,7 +1568,7 @@ export function TradeChart({
               >
                 다음 봉 ▶
               </button>
-              <span className="tnum px-1 text-[11px] text-dim">
+              <span className="tnum px-1 text-xs text-dim">
                 진입 +{Math.max(0, replayIdx - entryIdx)}봉
               </span>
             </>
@@ -1707,7 +1707,7 @@ export function TradeChart({
                 취소
               </button>
             </div>
-            {noteError ? <p className="mt-1 text-[11px] text-loss">{noteError}</p> : null}
+            {noteError ? <p className="mt-1 text-xs text-loss">{noteError}</p> : null}
           </div>
         ) : null}
 
@@ -1718,11 +1718,11 @@ export function TradeChart({
             style={{ zIndex: 7 }}
           >
             <div className="flex flex-wrap items-end gap-2">
-              <span className="rounded border border-border px-1.5 py-0.5 text-[10px] text-dim">
+              <span className="rounded border border-border px-1.5 py-0.5 text-xs text-dim">
                 {ANNOTATION_KIND_LABEL[levels.target.kind]}
               </span>
               {levelFields(levels.target.kind).map((field, i) => (
-                <label key={field.index} className="text-[11px] text-dim">
+                <label key={field.index} className="text-xs text-dim">
                   {field.label}
                   <input
                     autoFocus={i === 0}
@@ -1763,7 +1763,7 @@ export function TradeChart({
                 취소
               </button>
             </div>
-            {noteError ? <p className="mt-1 text-[11px] text-loss">{noteError}</p> : null}
+            {noteError ? <p className="mt-1 text-xs text-loss">{noteError}</p> : null}
           </div>
         ) : null}
 
@@ -1774,7 +1774,7 @@ export function TradeChart({
             style={{ zIndex: 7 }}
           >
             <div className="flex flex-wrap items-center gap-2">
-              <span className="rounded border border-border px-1.5 py-0.5 text-[10px] text-dim">
+              <span className="rounded border border-border px-1.5 py-0.5 text-xs text-dim">
                 {ANNOTATION_KIND_LABEL[editing.kind]}
               </span>
               <input
@@ -1843,7 +1843,7 @@ export function TradeChart({
                     aria-pressed={editing.line_width === w}
                     disabled={saving}
                     onClick={() => applyStyle({ lineWidth: w })}
-                    className={`rounded border px-2 py-0.5 text-[11px] ${
+                    className={`rounded border px-2 py-0.5 text-xs ${
                       editing.line_width === w
                         ? "border-accent text-accent"
                         : "border-border text-dim hover:text-text"
@@ -1860,7 +1860,7 @@ export function TradeChart({
                     aria-pressed={(editing.line_style ?? "solid") === s}
                     disabled={saving}
                     onClick={() => applyStyle({ lineStyle: s })}
-                    className={`rounded border px-2 py-0.5 text-[11px] ${
+                    className={`rounded border px-2 py-0.5 text-xs ${
                       (editing.line_style ?? "solid") === s
                         ? "border-accent text-accent"
                         : "border-border text-dim hover:text-text"
@@ -1871,7 +1871,7 @@ export function TradeChart({
                 ))}
               </div>
             ) : null}
-            {noteError ? <p className="mt-1 text-[11px] text-loss">{noteError}</p> : null}
+            {noteError ? <p className="mt-1 text-xs text-loss">{noteError}</p> : null}
           </div>
         ) : null}
 
@@ -1892,7 +1892,7 @@ export function TradeChart({
             }}
           >
             <div
-              className="tnum absolute left-1/2 -translate-x-1/2 rounded-md px-2 py-1 text-center text-[11px] whitespace-nowrap text-white shadow"
+              className="tnum absolute left-1/2 -translate-x-1/2 rounded-md px-2 py-1 text-center text-xs whitespace-nowrap text-white shadow"
               style={{
                 top: state.box.y2 >= state.box.y1 ? "calc(100% + 6px)" : undefined,
                 bottom: state.box.y2 < state.box.y1 ? "calc(100% + 6px)" : undefined,
@@ -1925,7 +1925,7 @@ export function TradeChart({
         ) : null}
       </div>
 
-      <p className="mt-2 text-[11px] text-dim">
+      <p className="mt-2 text-xs text-dim">
         {tool === "measure" ? (
           <b className="text-accent">
             측정 중 — 차트를 끌어 두 지점 사이의 가격·비율·기간을 재세요. 다시 누르면 끕니다.
@@ -1954,12 +1954,12 @@ export function TradeChart({
 
       {/* 도구도 팝오버도 닫혀 있을 때는 알릴 자리가 여기뿐이다. */}
       {noteError && !asking && !editing ? (
-        <p className="mt-1 text-[11px] text-loss">{noteError}</p>
+        <p className="mt-1 text-xs text-loss">{noteError}</p>
       ) : notice ? (
-        <p className="mt-1 text-[11px] text-dim">{notice}</p>
+        <p className="mt-1 text-xs text-dim">{notice}</p>
       ) : null}
 
-      {detailError ? <p className="mt-1 text-[11px] text-loss">{detailError}</p> : null}
+      {detailError ? <p className="mt-1 text-xs text-loss">{detailError}</p> : null}
 
       <AnnotationList annotations={annotations} store={store} onChange={record} />
     </section>

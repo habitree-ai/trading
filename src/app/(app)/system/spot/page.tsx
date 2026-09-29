@@ -20,7 +20,7 @@ export default async function SpotSignalsPage() {
       <header className="space-y-2">
         <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
           <h1 className="text-xl font-semibold tracking-tight">현물신호</h1>
-          <span className="rounded border border-alpha px-1.5 py-0.5 text-[10px] font-semibold text-alpha">
+          <span className="rounded border border-alpha px-1.5 py-0.5 text-xs font-semibold text-alpha">
             업비트 현물 · 알람만
           </span>
           <p className="tnum text-sm text-dim">최근 {signals.length}건</p>
@@ -68,7 +68,7 @@ export default async function SpotSignalsPage() {
       ) : (
         <div className="scroll-x rounded-xl border border-border bg-surface">
           <table className="w-full min-w-[46rem] text-[12.5px]">
-            <thead className="border-b border-border text-[11px] text-dim">
+            <thead className="border-b border-border text-xs text-dim">
               <tr>
                 <th className="px-3 py-2 text-left font-medium">봉 시각</th>
                 <th className="px-3 py-2 text-left font-medium">종목</th>
@@ -97,11 +97,11 @@ export default async function SpotSignalsPage() {
                   <td className="tnum px-3 py-1.5 text-right text-dim">
                     {s.turnoverMed30 !== null ? `${num(s.turnoverMed30 / 1e8, 0)}억` : DASH}
                   </td>
-                  <td className="px-3 py-1.5 text-[11px]">
+                  <td className="px-3 py-1.5 text-xs">
                     {s.notifiedAt ? <span className="text-profit">발송</span> : <span className="text-dim">—</span>}
                   </td>
                   <td className="px-3 py-1.5">
-                    <Link href={`/system/spot/${s.id}`} className="text-[11px] text-alpha hover:underline">
+                    <Link href={`/system/spot/${s.id}`} className="text-xs text-alpha hover:underline">
                       상세 →
                     </Link>
                   </td>

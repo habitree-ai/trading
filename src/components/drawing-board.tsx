@@ -569,7 +569,7 @@ export function DrawingPopovers({ board }: { board: DrawingBoard }) {
               취소
             </button>
           </div>
-          {problem ? <p className="mt-1 text-[11px] text-loss">{problem}</p> : null}
+          {problem ? <p className="mt-1 text-xs text-loss">{problem}</p> : null}
         </div>
       ) : null}
 
@@ -580,11 +580,11 @@ export function DrawingPopovers({ board }: { board: DrawingBoard }) {
           style={{ zIndex: 8 }}
         >
           <div className="flex flex-wrap items-end gap-2">
-            <span className="rounded border border-border px-1.5 py-0.5 text-[10px] text-dim">
+            <span className="rounded border border-border px-1.5 py-0.5 text-xs text-dim">
               {ANNOTATION_KIND_LABEL[levels.target.kind]}
             </span>
             {levelFields(levels.target.kind).map((field, i) => (
-              <label key={field.index} className="text-[11px] text-dim">
+              <label key={field.index} className="text-xs text-dim">
                 {field.label}
                 <input
                   autoFocus={i === 0}
@@ -614,7 +614,7 @@ export function DrawingPopovers({ board }: { board: DrawingBoard }) {
               취소
             </button>
           </div>
-          {problem ? <p className="mt-1 text-[11px] text-loss">{problem}</p> : null}
+          {problem ? <p className="mt-1 text-xs text-loss">{problem}</p> : null}
         </div>
       ) : null}
 
@@ -625,7 +625,7 @@ export function DrawingPopovers({ board }: { board: DrawingBoard }) {
           style={{ zIndex: 7 }}
         >
           <div className="flex flex-wrap items-center gap-2">
-            <span className="rounded border border-border px-1.5 py-0.5 text-[10px] text-dim">
+            <span className="rounded border border-border px-1.5 py-0.5 text-xs text-dim">
               {ANNOTATION_KIND_LABEL[styleTarget.kind]}
             </span>
             <span className="flex items-center gap-1">
@@ -652,7 +652,7 @@ export function DrawingPopovers({ board }: { board: DrawingBoard }) {
                 type="button"
                 aria-pressed={(styleTarget.line_width ?? 1) === w}
                 onClick={() => updateStyle({ line_width: w })}
-                className={`rounded border px-2 py-0.5 text-[11px] ${
+                className={`rounded border px-2 py-0.5 text-xs ${
                   (styleTarget.line_width ?? 1) === w
                     ? "border-accent text-accent"
                     : "border-border text-dim hover:text-text"
@@ -668,7 +668,7 @@ export function DrawingPopovers({ board }: { board: DrawingBoard }) {
                 type="button"
                 aria-pressed={(styleTarget.line_style ?? "solid") === s}
                 onClick={() => updateStyle({ line_style: s })}
-                className={`rounded border px-2 py-0.5 text-[11px] ${
+                className={`rounded border px-2 py-0.5 text-xs ${
                   (styleTarget.line_style ?? "solid") === s
                     ? "border-accent text-accent"
                     : "border-border text-dim hover:text-text"

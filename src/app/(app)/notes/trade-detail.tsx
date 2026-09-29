@@ -54,8 +54,8 @@ function Feedback({ state }: { state: JournalFormState }) {
 function Field({ label, value, wide = false }: { label: string; value: string | null; wide?: boolean }) {
   return (
     <div className={wide ? "sm:col-span-3 xl:col-span-4" : ""}>
-      <div className="text-[11px] text-dim">{label}</div>
-      <div className={`text-sm whitespace-pre-wrap break-words ${value ? "" : "text-dim/60"}`}>
+      <div className="text-xs text-dim">{label}</div>
+      <div className={`text-sm whitespace-pre-wrap break-words ${value ? "" : "text-dim"}`}>
         {value || "미기재"}
       </div>
     </div>
@@ -80,7 +80,7 @@ function Select({
   return (
     <div>
       <label className={LABEL} htmlFor={id}>
-        {label} <span className="ml-1 text-dim/70">{hint}</span>
+        {label} <span className="ml-1 text-dim">{hint}</span>
       </label>
       <select id={id} name={name} defaultValue={value ?? ""} className={INPUT}>
         <option value="">미기재</option>
@@ -246,7 +246,7 @@ function ReviewFields({
       </div>
       <div className="sm:col-span-3 xl:col-span-4">
         <div className={LABEL}>
-          사진 <span className="ml-1 text-dim/70">찍어 둔 메모·캡쳐를 이 복기에 붙입니다</span>
+          사진 <span className="ml-1 text-dim">찍어 둔 메모·캡쳐를 이 복기에 붙입니다</span>
         </div>
         <PhotoStrip name="image_paths" userId={userId} bookId={trade.book_id} initial={trade.image_paths} />
       </div>
@@ -381,7 +381,7 @@ export function TradeDetail({
               </li>
             ))}
           </ul>
-          <p className="mt-2 px-1 text-[11px] text-dim">
+          <p className="mt-2 px-1 text-xs text-dim">
             고치는 곳은 <Link href="/principles" className="text-accent hover:underline">원칙</Link> 화면입니다.
           </p>
         </section>

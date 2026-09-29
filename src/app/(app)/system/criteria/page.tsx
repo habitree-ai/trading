@@ -127,8 +127,8 @@ export default function SystemCriteriaPage() {
             <div key={c.key} className="rounded-xl border border-border bg-surface p-4">
               <div className="flex items-baseline gap-2">
                 <h3 className="text-sm font-medium">{c.name}</h3>
-                <span className="text-[11px] text-dim">{c.meta}</span>
-                <span className="tnum ml-auto rounded border border-profit/40 px-1.5 py-0.5 text-[10px] font-semibold text-profit">
+                <span className="text-xs text-dim">{c.meta}</span>
+                <span className="tnum ml-auto rounded border border-profit/40 px-1.5 py-0.5 text-xs font-semibold text-profit">
                   여유 {c.edge}
                 </span>
               </div>
@@ -144,13 +144,13 @@ export default function SystemCriteriaPage() {
                 <span className="text-dim">백테스트(720일) </span>
                 {c.stats}
               </p>
-              <p className="mt-2 border-t border-border pt-2 text-[11.5px] text-dim">
+              <p className="mt-2 border-t border-border pt-2 text-[12.5px] text-dim">
                 실패 모드 — {c.fail}
               </p>
             </div>
           ))}
         </div>
-        <p className="text-[11px] text-dim">
+        <p className="text-xs text-dim">
           “여유” = 실측 승률 − 손익분기 승률. 손익비 구조가 이미 비용을 이기고 있는 폭이다.
         </p>
       </section>
@@ -162,7 +162,7 @@ export default function SystemCriteriaPage() {
         <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
           {QUAD_SUMMARY.map((q) => (
             <div key={q.label} className="rounded-lg border border-border p-3">
-              <div className="text-[11px] text-dim">{q.label}</div>
+              <div className="text-xs text-dim">{q.label}</div>
               <div className="tnum mt-0.5 text-[13px]">{q.value}</div>
             </div>
           ))}
@@ -189,7 +189,7 @@ export default function SystemCriteriaPage() {
             </tbody>
           </table>
         </div>
-        <p className="mt-2 text-[11px] text-dim">
+        <p className="mt-2 text-xs text-dim">
           검증 계보: 132조합 그리드(720일) → 플레이북 Top 5 → 청산 관리 25조합 → 복리 병행 5방식 →
           실주문 배선 검증 → 라이브.
         </p>

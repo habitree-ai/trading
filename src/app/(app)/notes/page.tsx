@@ -116,7 +116,7 @@ export default async function NotesPage({
   const now = nowMs();
 
   return (
-    <div className="mx-auto max-w-6xl space-y-4">
+    <div className="space-y-4">
       <header>
         <h1 className="text-xl font-semibold tracking-tight">매매 노트</h1>
         <p className="mt-1 text-sm text-dim">

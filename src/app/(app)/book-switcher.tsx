@@ -24,7 +24,7 @@ export function BookSwitcher({ books, activeId }: { books: Book[]; activeId: str
   return (
     // 좁은 화면에서는 "북" 글자를 떼고 폭을 묶는다 — 북 이름이 길면 헤더가 통째로
     // 두 줄로 접혀 차트와 표가 그만큼 밀려 내려갔다.
-    <label className="flex items-center gap-1.5 text-[11px] text-dim">
+    <label className="flex items-center gap-1.5 text-xs text-dim">
       <span className="hidden sm:inline">북</span>
       <select
         aria-label="북 선택"

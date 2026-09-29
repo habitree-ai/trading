@@ -84,7 +84,7 @@ export default async function ResearchPage({
     snapshot !== null && snapshot.sources[key] !== undefined && snapshot.sources[key] !== "ok";
 
   return (
-    <div className="mx-auto max-w-3xl space-y-6">
+    <div className="mx-auto max-w-5xl space-y-6">
       <header>
         <h1 className="text-xl font-semibold tracking-tight">종목 리서치</h1>
         <p className="mt-1 text-sm text-dim">
@@ -202,7 +202,7 @@ export default async function ResearchPage({
                 >
                   {headline.title}
                 </a>
-                <span className="tnum ml-2 text-[11px] text-dim">
+                <span className="tnum ml-2 text-xs text-dim">
                   {headline.source}
                   {headline.published_at ? ` · ${dateTime(headline.published_at)}` : ""}
                 </span>
@@ -267,7 +267,7 @@ export default async function ResearchPage({
           <div className="mt-2 scroll-x">
             <table className="w-full text-sm">
               <thead>
-                <tr className="text-left text-[11px] text-dim">
+                <tr className="text-left text-xs text-dim">
                   <th className="py-1 pr-3 font-normal">수집 시각</th>
                   <th className="py-1 pr-3 font-normal">가격</th>
                   <th className="py-1 pr-3 font-normal">공포탐욕</th>
@@ -284,7 +284,7 @@ export default async function ResearchPage({
                     <td className="tnum py-1.5 pr-3">{s.fear_greed ?? DASH}</td>
                     <td className="tnum py-1.5 pr-3">{fundingPct(s.funding_rate)}</td>
                     <td className="tnum py-1.5 pr-3">{usdCompact(s.open_interest_usd)}</td>
-                    <td className="py-1.5 text-[11px] text-loss">{failedSources(s)}</td>
+                    <td className="py-1.5 text-xs text-loss">{failedSources(s)}</td>
                   </tr>
                 ))}
               </tbody>

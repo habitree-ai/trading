@@ -14,7 +14,7 @@ export default async function SettingsPage() {
   const linked = books.find((b) => b.exchange_account_id === account?.id) ?? null;
 
   return (
-    <div className="mx-auto max-w-3xl space-y-8">
+    <div className="mx-auto max-w-5xl space-y-8">
       <header>
         <h1 className="text-xl font-semibold tracking-tight">설정</h1>
         <p className="mt-1 text-sm text-dim">{user.email}</p>
@@ -25,7 +25,7 @@ export default async function SettingsPage() {
           <h2 className="text-sm font-medium">거래소 계정</h2>
           {account ? (
             <>
-              <span className="rounded border border-accent/40 px-1.5 py-0.5 text-[10px] text-accent">
+              <span className="rounded border border-accent/40 px-1.5 py-0.5 text-xs text-accent">
                 {EXCHANGE_LABEL[account.exchange]} 등록됨
               </span>
               <span className="text-xs text-dim">

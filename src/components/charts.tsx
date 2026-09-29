@@ -138,7 +138,7 @@ export interface EquityPoint {
 /** 색 단독에 기대지 않도록 선 모양(실선/점선)까지 다르게 쓰고 범례에 그대로 옮긴다. */
 function Legend({ items }: { items: [string, string, boolean][] }) {
   return (
-    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-dim">
+    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-dim">
       {items.map(([label, color, dashed]) => (
         <span key={label} className="flex items-center gap-1.5">
           <svg width="18" height="8" aria-hidden>
@@ -186,7 +186,7 @@ function AxisToggle({ mode, onChange }: { mode: AxisMode; onChange: (next: AxisM
           type="button"
           onClick={() => onChange(value)}
           aria-pressed={mode === value}
-          className={`rounded-md px-2.5 py-1 text-[11px] transition-colors ${
+          className={`rounded-md px-2.5 py-1 text-xs transition-colors ${
             mode === value ? "bg-surface-2 font-medium" : "text-dim"
           }`}
         >
@@ -538,7 +538,7 @@ export function EquityCurve({
         </LineChart>
       </ResponsiveContainer>
       {hasSnapshot ? (
-        <p className="text-[11px] text-dim">
+        <p className="text-xs text-dim">
           <span className="text-beta">—</span> 거래소 잔액은 하루에 마지막 스냅샷 하나로 그립니다.
           이어지지 않는 날 사이는 선을 끊어 두었습니다 — 빈 구간을 &ldquo;변동 없음&rdquo;으로 읽지
           않게. 거래로 쌓은 장부 잔액 선은 그리지 않습니다 — 장부와 거래소의 차이(미실현 손익과
@@ -546,14 +546,14 @@ export function EquityCurve({
         </p>
       ) : null}
       {pctMode && hasBenchmark ? (
-        <p className="text-[11px] text-dim">
+        <p className="text-xs text-dim">
           시장과 견줄 선은 <span className="text-alpha">매매 성과</span>입니다 — 실제 잔액에는
           넣고 뺀 돈이 섞여 있어 수익률로 바꿔도 그만큼 부풀거나 꺼집니다. 세로축은 내 선에
           맞춰 두어, {benchmarkLabel} 가 그 범위를 벗어난 구간은 차트 밖으로 잘립니다.
         </p>
       ) : null}
       {hasWithdrawal ? (
-        <p className="text-[11px] text-dim">
+        <p className="text-xs text-dim">
           <span className="text-beta">●</span> 표시는 그 거래 구간에 출금이 있었던 지점입니다.
           {showBookLine
             ? " 두 선의 간격이 벌어질수록 계좌 밖으로 뺀 돈(또는 넣은 돈)이 많다는 뜻입니다."

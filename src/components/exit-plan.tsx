@@ -19,7 +19,7 @@ import { DASH, dateTime, num, pct, pnlClass, signed, signedPct } from "@/lib/for
  * 문자열을 만들어 하이드레이션이 깨진다.
  */
 
-const BADGE = "inline-block rounded border px-1 text-center text-[10px] leading-4";
+const BADGE = "inline-block rounded border px-1 text-center text-xs leading-4";
 const SL_BADGE = `${BADGE} border-loss/40 text-loss`;
 const TP_BADGE = `${BADGE} border-profit/40 text-profit`;
 const ACTUAL_BADGE = `${BADGE} border-beta/40 text-beta`;
@@ -127,7 +127,7 @@ export function ExitPlanLines({ summary }: { summary: ExitSummary }) {
   const stages = mergeStages(summary);
 
   return (
-    <div className="tnum space-y-0.5 text-[11px] leading-4">
+    <div className="tnum space-y-0.5 text-xs leading-4">
       <StopLine stop={plan.stop} />
       {stages.map((s) => (
         <StageLine key={s.n} stage={s} />
@@ -164,7 +164,7 @@ function RCell({ r }: { r: number | null }) {
 export function PlanTable({ plan, hideTotal }: { plan: ExitPlan; hideTotal: boolean }) {
   return (
     <table className="tnum w-full text-xs">
-      <thead className="text-[11px] text-dim">
+      <thead className="text-xs text-dim">
         <tr>
           <th className="py-1 text-left font-medium">단계</th>
           <th className={TH}>가격</th>
@@ -189,7 +189,7 @@ export function PlanTable({ plan, hideTotal }: { plan: ExitPlan; hideTotal: bool
                   <span className={TP_BADGE}>TP{n}</span>
                 </td>
                 <td className="py-1.5 text-right">{DASH}</td>
-                <td colSpan={5} className="py-1.5 text-right text-[11px]">
+                <td colSpan={5} className="py-1.5 text-right text-xs">
                   거래 수정에서 가격을 적으면 채워집니다
                 </td>
               </tr>
@@ -203,7 +203,7 @@ export function PlanTable({ plan, hideTotal }: { plan: ExitPlan; hideTotal: bool
               <td className="py-1.5 text-right">
                 {num(s.price)}
                 {s.source === "okx" ? (
-                  <span className="block text-[11px] text-dim">
+                  <span className="block text-xs text-dim">
                     거래소{s.planPrice !== null ? ` · 내 계획 ${num(s.planPrice)}` : ""}
                   </span>
                 ) : null}
@@ -211,9 +211,9 @@ export function PlanTable({ plan, hideTotal }: { plan: ExitPlan; hideTotal: bool
               <td className="py-1.5 text-right text-dim">
                 {pct(s.share, 0)}
                 {s.shareAmount !== null ? (
-                  <span className="block text-[11px]">{num(s.shareAmount)}</span>
+                  <span className="block text-xs">{num(s.shareAmount)}</span>
                 ) : null}
-                {s.shareSource === "even" ? <span className="block text-[11px]">균등</span> : null}
+                {s.shareSource === "even" ? <span className="block text-xs">균등</span> : null}
               </td>
               <td className={`py-1.5 text-right ${pnlClass(s.movePct)}`}>{signedPct(s.movePct, 2)}</td>
               <td className={`py-1.5 text-right ${pnlClass(s.amount)}`}>{signed(s.amount)}</td>
@@ -225,7 +225,7 @@ export function PlanTable({ plan, hideTotal }: { plan: ExitPlan; hideTotal: bool
       </tbody>
       {/* 합이 100 이 아닐 때의 합계는 그 물량 기준이라 "이 거래 최대" 로 읽힌다 — 숨긴다. */}
       {plan.steps.length > 0 && !hideTotal ? (
-        <tfoot className="border-t border-border text-[11px]">
+        <tfoot className="border-t border-border text-xs">
           <tr>
             <td className="py-1.5 text-dim">합계</td>
             <td />
@@ -254,7 +254,7 @@ export function PlanTable({ plan, hideTotal }: { plan: ExitPlan; hideTotal: bool
 export function ActualTable({ actual }: { actual: ExitActual }) {
   return (
     <table className="tnum w-full text-xs">
-      <thead className="text-[11px] text-dim">
+      <thead className="text-xs text-dim">
         <tr>
           <th className="py-1 text-left font-medium">차수</th>
           <th className={TH}>가격</th>
@@ -275,25 +275,25 @@ export function ActualTable({ actual }: { actual: ExitActual }) {
           <tr key={s.n} className="border-t border-border">
             <td className="py-1.5 whitespace-nowrap">
               <span className={ACTUAL_BADGE}>{s.n}차</span>
-              {s.estimated ? <span className="ml-1 text-[11px] text-dim">추정</span> : null}
+              {s.estimated ? <span className="ml-1 text-xs text-dim">추정</span> : null}
             </td>
             <td className="py-1.5 text-right">
               {num(s.price)}
               {s.fillCount > 1 ? (
-                <span className="block text-[11px] text-dim">{s.fillCount}체결 평균</span>
+                <span className="block text-xs text-dim">{s.fillCount}체결 평균</span>
               ) : null}
             </td>
             <td className="py-1.5 text-right text-dim">
               {pct(s.share, 0)}
               {s.shareAmount !== null ? (
-                <span className="block text-[11px]">{num(s.shareAmount)}</span>
+                <span className="block text-xs">{num(s.shareAmount)}</span>
               ) : null}
             </td>
             <td className={`py-1.5 text-right ${pnlClass(s.movePct)}`}>{signedPct(s.movePct, 2)}</td>
             <td className={`py-1.5 text-right ${pnlClass(s.pnl)}`}>
               {signed(s.pnl)}
               {s.fee !== null ? (
-                <span className="block text-[11px] text-dim">수수료 {signed(s.fee)}</span>
+                <span className="block text-xs text-dim">수수료 {signed(s.fee)}</span>
               ) : null}
             </td>
             <td className={`py-1.5 text-right ${pnlClass(s.returnPct)}`}>{signedPct(s.returnPct)}</td>
@@ -302,7 +302,7 @@ export function ActualTable({ actual }: { actual: ExitActual }) {
           </tr>
         ))}
       </tbody>
-      <tfoot className="border-t border-border text-[11px]">
+      <tfoot className="border-t border-border text-xs">
         <tr>
           <td className="py-1.5 text-dim">합계</td>
           <td />

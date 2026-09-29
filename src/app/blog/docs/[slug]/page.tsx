@@ -76,7 +76,7 @@ export default async function SeniorDocPage({ params }: Props) {
           <TocList toc={toc} />
         </details>
         <div className="hidden md:sticky md:top-20 md:block md:max-h-[calc(100dvh-6rem)] md:overflow-y-auto">
-          <p className="text-[10px] font-semibold tracking-widest text-dim uppercase">{doc.title}</p>
+          <p className="text-xs font-semibold tracking-widest text-dim uppercase">{doc.title}</p>
           <TocList toc={toc} />
         </div>
       </aside>
@@ -100,7 +100,7 @@ function TocList({ toc }: { toc: { level: number; text: string; id: string }[] }
         <a
           key={t.id}
           href={`#${t.id}`}
-          className={`truncate py-1 text-[12.5px] leading-snug hover:text-text ${
+          className={`break-keep py-1 text-[12.5px] leading-snug hover:text-text ${
             t.level <= 2 ? "mt-1 font-medium text-text" : "pl-3 text-dim"
           }`}
         >

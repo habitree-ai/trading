@@ -111,7 +111,7 @@ export function QuadChart({ now: initialNow }: { now: number }) {
             aria-label="종목 — OKX USDT 무기한"
           />
         </label>
-        <span className="mr-1 text-[11px] text-dim">USDT 무기한 · OKX</span>
+        <span className="mr-1 text-xs text-dim">USDT 무기한 · OKX</span>
         <span className="mx-1 w-px self-stretch bg-border" aria-hidden />
         <DrawToolbar board={board} />
       </div>
@@ -153,7 +153,7 @@ export function QuadChart({ now: initialNow }: { now: number }) {
       </div>
 
       {/* 안내는 한 줄로 최소화한다 — 이 화면의 주인공은 차트 면적이다. */}
-      <p className="shrink-0 truncate text-[10px] text-dim">
+      <p className="shrink-0 truncate text-xs text-dim">
         {positionStep ? (
           <b className="text-accent">
             {tool === "long" ? "롱" : "숏"} 손익 — {positionStep} (진입 → 손절 → 목표)

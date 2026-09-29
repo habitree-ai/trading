@@ -114,7 +114,7 @@ export function PrincipleRow({
           {principle.title}
         </p>
         {principle.active ? null : (
-          <span className="rounded bg-surface-2 px-1.5 py-0.5 text-[10px] text-dim">보관</span>
+          <span className="rounded bg-surface-2 px-1.5 py-0.5 text-xs text-dim">보관</span>
         )}
       </div>
 
@@ -123,7 +123,7 @@ export function PrincipleRow({
       ) : null}
 
       {/* 지킨 비율과 어겼을 때의 손익 — 원칙이 값을 하는지 여기서 갈린다. */}
-      <p className="tnum mt-2 text-[11px] text-dim">
+      <p className="tnum mt-2 text-xs text-dim">
         {stats.judged === 0 ? (
           "아직 판단한 거래가 없습니다"
         ) : (

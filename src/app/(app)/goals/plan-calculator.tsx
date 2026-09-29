@@ -83,14 +83,14 @@ export function PlanCalculator({
           <input id="calc_fx" type="number" min="1" step="10" value={fx} onChange={(e) => setFx(Number(e.target.value))} className={INPUT} />
         </div>
       </div>
-      <p className="tnum text-[11px] text-dim">
+      <p className="tnum text-xs text-dim">
         목표 {num(targetKrw, 0)}원 = <b className="text-text">{num(targetUsd, 0)} USDT</b> · 매월 말 납입, 월 복리 기준
       </p>
 
       <div className="scroll-x">
         <table className="w-full text-sm">
           <thead>
-            <tr className="text-left text-[11px] text-dim">
+            <tr className="text-left text-xs text-dim">
               <th className="py-1 pr-3 font-normal">기간</th>
               {columns.map((c) => (
                 <th key={c} className={`py-1 pr-3 font-normal ${c === monthly ? "text-text" : ""}`}>
@@ -104,7 +104,7 @@ export function PlanCalculator({
             {HORIZONS_MONTHS.map((n) => (
               <tr key={n} className="border-t border-border">
                 <td className="tnum py-1.5 pr-3">
-                  {n / 12}년 <span className="text-[11px] text-dim">({n}개월)</span>
+                  {n / 12}년 <span className="text-xs text-dim">({n}개월)</span>
                 </td>
                 {columns.map((c) => {
                   const r = requiredMonthlyRate(startValue, c, targetUsd, n);
@@ -121,7 +121,7 @@ export function PlanCalculator({
           </tbody>
         </table>
       </div>
-      <p className="text-[11px] leading-snug text-dim">
+      <p className="text-xs leading-snug text-dim">
         색: <span className="text-profit">β 이내</span> · <span className="text-beta">β~α</span> ·{" "}
         <span className="text-loss">α 초과</span>. 3년 칸이 전부 붉은 것은 계산 오류가 아닙니다 —
         그 자리는 랩에서 기각된 월 10% 위에 있습니다.
@@ -130,13 +130,13 @@ export function PlanCalculator({
       <div className="grid gap-2 sm:grid-cols-5">
         {rates.map(({ label, rate, tone }) => (
           <div key={label} className="rounded-lg border border-border bg-surface px-3 py-2">
-            <div className={`text-[11px] ${tone || "text-dim"}`}>
+            <div className={`text-xs ${tone || "text-dim"}`}>
               월 {pct(rate, 2)} {label !== `${Math.round(rate * 100)}%` ? `(${label})` : ""}
             </div>
             <div className="tnum mt-0.5 text-sm font-medium">
               {months(monthsToTarget(startValue, monthly, rate, targetUsd))}
             </div>
-            <div className="tnum mt-0.5 text-[11px] text-dim">
+            <div className="tnum mt-0.5 text-xs text-dim">
               주 {pct(weeklyFromMonthly(rate), 2)} · 일 {pct(dailyFromMonthly(rate), 3)} · 연{" "}
               {pct(annualFromMonthly(rate), 0)}
             </div>

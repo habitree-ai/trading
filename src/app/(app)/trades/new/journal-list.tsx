@@ -33,7 +33,7 @@ export type JournalEntry =
 
 const NO_ANNOTATIONS: TradeAnnotation[] = [];
 
-const CHIP = "rounded border px-1.5 py-0.5 text-[11px]";
+const CHIP = "rounded border px-1.5 py-0.5 text-xs";
 
 function entryId(entry: JournalEntry): string {
   return entry.kind === "position" ? entry.trade.id : entry.note.id;
@@ -170,7 +170,7 @@ export function JournalList({
                           if (!result.error && openChart === id) setOpenChart(null);
                         });
                       }}
-                      className="text-[11px] text-loss/70 hover:text-loss disabled:opacity-50"
+                      className="text-xs text-loss hover:underline disabled:opacity-50"
                     >
                       삭제
                     </button>

@@ -109,7 +109,7 @@ export default async function SystemPage({
         <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
           <h1 className="text-xl font-semibold tracking-tight">시스템 운용 현황</h1>
           <span
-            className={`rounded border px-1.5 py-0.5 text-[10px] font-semibold ${
+            className={`rounded border px-1.5 py-0.5 text-xs font-semibold ${
               meta.real ? "border-loss text-loss" : "border-alpha text-alpha"
             }`}
           >
@@ -125,16 +125,16 @@ export default async function SystemPage({
       <section className="rounded-xl border border-border bg-surface p-4">
         <div className="flex flex-wrap items-end gap-x-8 gap-y-3">
           <div>
-            <div className="text-[11px] text-dim">현재 잔고 (USDT)</div>
+            <div className="text-xs text-dim">현재 잔고 (USDT)</div>
             <div className="tnum mt-0.5 text-3xl font-semibold">{num(latest, 2)}</div>
           </div>
           <div>
-            <div className="text-[11px] text-dim">관측 시작 대비</div>
+            <div className="text-xs text-dim">관측 시작 대비</div>
             <div className={`tnum mt-0.5 text-2xl font-semibold ${pnlClass(returnPct)}`}>
               {returnPct === null ? DASH : signedPct(returnPct)}
             </div>
           </div>
-          <div className="tnum text-[11px] leading-relaxed text-dim">
+          <div className="tnum text-xs leading-relaxed text-dim">
             시작 {num(first, 2)} · 완결 {summary.closed}건 · 진행 {openTrades.length}건
           </div>
           {/* 실계좌에만 둔다 — 가상 모드에는 잠글 주문이 없다. */}
@@ -148,12 +148,12 @@ export default async function SystemPage({
             </div>
             <ul className="mt-1 space-y-0.5">
               {warnings.slice(0, 3).map((w, i) => (
-                <li key={i} className="text-[11.5px] text-dim">
+                <li key={i} className="text-[12.5px] text-dim">
                   {dateTime(new Date(w.at).toISOString())} · {w.warn}
                 </li>
               ))}
             </ul>
-            <Link href={`/system/decisions?mode=${mode}`} className="mt-1 inline-block text-[11px] text-alpha">
+            <Link href={`/system/decisions?mode=${mode}`} className="mt-1 inline-block text-xs text-alpha">
               판정 로그에서 전부 보기 →
             </Link>
           </div>
@@ -183,31 +183,31 @@ export default async function SystemPage({
                   <div className="flex items-baseline gap-2">
                     <h3 className="text-sm font-medium">{t.name || MEMBER_LABEL[t.member] || t.member}</h3>
                     <span
-                      className={`rounded border px-1.5 py-0.5 text-[10px] font-semibold ${
+                      className={`rounded border px-1.5 py-0.5 text-xs font-semibold ${
                         t.side === "long" ? "border-profit text-profit" : "border-loss text-loss"
                       }`}
                     >
                       {t.side === "long" ? "롱" : "숏"}
                     </span>
-                    <span className="tnum ml-auto text-[11px] text-dim">
+                    <span className="tnum ml-auto text-xs text-dim">
                       {dateTime(new Date(t.entryTs).toISOString())} 진입
                     </span>
                   </div>
                   <div className="tnum mt-2 grid grid-cols-3 gap-2 text-[12px]">
                     <div>
-                      <div className="text-[10px] text-dim">진입가</div>
+                      <div className="text-xs text-dim">진입가</div>
                       {num(t.entryPrice, 1)}
                     </div>
                     <div>
-                      <div className="text-[10px] text-dim">손절</div>
+                      <div className="text-xs text-dim">손절</div>
                       <span className="text-loss">{num(t.stop ?? pos?.stop ?? null, 1)}</span>
                     </div>
                     <div>
-                      <div className="text-[10px] text-dim">목표</div>
+                      <div className="text-xs text-dim">목표</div>
                       <span className="text-profit">{num(t.target ?? pos?.target ?? null, 1)}</span>
                     </div>
                   </div>
-                  <p className="tnum mt-2 border-t border-border pt-2 text-[11px] text-dim">
+                  <p className="tnum mt-2 border-t border-border pt-2 text-xs text-dim">
                     레버리지 {num(t.lev, 1)}× · 리스크 {risk === null ? DASH : `${num(risk, 0)}%`}
                     {t.notionalUsd ? ` · 명목가 $${num(t.notionalUsd, 0)}` : ""}
                     {t.eqAtEntry ? ` · 진입 시 잔고 $${num(t.eqAtEntry, 2)}` : ""}

@@ -131,10 +131,10 @@ export function TradeList({
                       {open ? "보유중" : signed(pnl)}
                     </span>
                   </div>
-                  <p className={`mt-1 truncate text-xs ${trigger ? "" : "text-dim/70"}`}>
+                  <p className={`mt-1 break-words text-xs ${trigger ? "" : "text-dim"}`}>
                     {trigger || "근거 없음"}
                   </p>
-                  <div className="mt-1 flex gap-2 text-[11px] text-dim">
+                  <div className="mt-1 flex gap-2 text-xs text-dim">
                     {open ? null : t.review ? (
                       <span className="text-profit">복기 ✓</span>
                     ) : (

@@ -210,7 +210,7 @@ export default async function DashboardPage() {
             {latestTrend ? (
               <>
                 {" · "}장기추세 <b className="text-text">{TREND_LABEL[latestTrend.trend]}</b>
-                <span className="text-dim/70"> (#{latestTrend.seq} {date(latestTrend.entry_at)} 판단)</span>
+                <span className="text-dim"> (#{latestTrend.seq} {date(latestTrend.entry_at)} 판단)</span>
               </>
             ) : null}
           </p>
@@ -252,24 +252,24 @@ export default async function DashboardPage() {
       <section className="rounded-xl border border-border bg-surface p-5">
         <div className="flex flex-wrap items-end gap-x-10 gap-y-4">
           <div>
-            <div className="text-[11px] text-dim">현재자금 ({book.base_currency})</div>
+            <div className="text-xs text-dim">현재자금 ({book.base_currency})</div>
             <div className="tnum mt-0.5 text-4xl font-semibold leading-none">
               {num(m.finalEquity, 2)}
             </div>
           </div>
           <div>
-            <div className="text-[11px] text-dim">수익률</div>
+            <div className="text-xs text-dim">수익률</div>
             <div className={`tnum mt-0.5 text-2xl font-semibold leading-none ${pnlClass(m.returnPct)}`}>
               {signedPct(m.returnPct)}
             </div>
           </div>
           <div>
-            <div className="text-[11px] text-dim">누적 손익 (비용 반영)</div>
+            <div className="text-xs text-dim">누적 손익 (비용 반영)</div>
             <div className={`tnum mt-0.5 text-2xl font-semibold leading-none ${pnlClass(m.netPnl)}`}>
               {signed(m.netPnl, 2)}
             </div>
           </div>
-          <div className="tnum text-[11px] leading-relaxed text-dim">
+          <div className="tnum text-xs leading-relaxed text-dim">
             투입원금 {num(m.investedCapital, 0)} · 완결 {m.closedCount}건
             {m.openCount ? ` · 보유 ${m.openCount}건` : ""}
             {openRealized !== 0 ? (

@@ -307,7 +307,7 @@ export function TradeTable({
                   {trade.trend !== null ? (
                     <span
                       title={isCounterTrend(trade.trend, trade.side) ? "역추세 — 장기추세 판단과 반대 방향" : "장기추세 판단"}
-                      className={`mt-0.5 block whitespace-nowrap text-[10px] ${
+                      className={`mt-0.5 block whitespace-nowrap text-xs ${
                         isCounterTrend(trade.trend, trade.side) ? "text-beta" : "text-dim"
                       }`}
                     >
@@ -317,7 +317,7 @@ export function TradeTable({
                   ) : null}
                   {/* 위·아래 판단 — 추세 아래 한 줄. 방향과 견주지 않는다(원문에 방향 지침이 없다). */}
                   {trade.openness !== null ? (
-                    <span title="시장 위·아래 판단" className="mt-0.5 block whitespace-nowrap text-[10px] text-dim">
+                    <span title="시장 위·아래 판단" className="mt-0.5 block whitespace-nowrap text-xs text-dim">
                       {OPENNESS_LABEL[trade.openness]}
                     </span>
                   ) : null}
@@ -331,7 +331,7 @@ export function TradeTable({
                     <div className="mt-1.5 space-y-1">
                       {tpEdit.values.map((v, i) => (
                         <div key={i} className="flex items-center gap-1">
-                          <span className="w-7 text-[10px] text-dim">TP{i + 1}</span>
+                          <span className="w-7 text-xs text-dim">TP{i + 1}</span>
                           <input
                             aria-label={`TP${i + 1} 가격`}
                             value={v}
@@ -347,7 +347,7 @@ export function TradeTable({
                                     },
                               )
                             }
-                            className="tnum w-24 rounded border border-border bg-bg px-1.5 py-0.5 text-[11px] outline-none focus:border-accent"
+                            className="tnum w-24 rounded border border-border bg-bg px-1.5 py-0.5 text-xs outline-none focus:border-accent"
                           />
                         </div>
                       ))}
@@ -356,7 +356,7 @@ export function TradeTable({
                           type="button"
                           disabled={pending}
                           onClick={() => saveTargets(trade.id)}
-                          className="text-[11px] text-accent disabled:opacity-50"
+                          className="text-xs text-accent disabled:opacity-50"
                         >
                           {pending ? "저장 중…" : "저장"}
                         </button>
@@ -366,12 +366,12 @@ export function TradeTable({
                             setTpEdit(null);
                             setTpError(null);
                           }}
-                          className="text-[11px] text-dim"
+                          className="text-xs text-dim"
                         >
                           취소
                         </button>
                       </div>
-                      {tpError ? <p className="text-[10px] text-loss">{tpError}</p> : null}
+                      {tpError ? <p className="text-xs text-loss">{tpError}</p> : null}
                     </div>
                   ) : (
                     <button
@@ -385,7 +385,7 @@ export function TradeTable({
                           ),
                         });
                       }}
-                      className="mt-1 text-[10px] text-accent"
+                      className="mt-1 text-xs text-accent"
                     >
                       {trade.tp1_price !== null || trade.tp2_price !== null || trade.tp3_price !== null
                         ? "TP 수정"
@@ -403,14 +403,14 @@ export function TradeTable({
                   {/* 근거 입력 여부 — 어느 쪽이든 누르면 수정 화면에서 바로 적거나 읽는다. */}
                   <Link
                     href={`/trades/${trade.id}`}
-                    className={`ml-1 rounded border px-1 py-0.5 text-[10px] ${
+                    className={`ml-1 rounded border px-1 py-0.5 text-xs ${
                       hasRationale ? "border-border text-dim" : "border-accent/40 text-accent"
                     }`}
                   >
                     {hasRationale ? "근거 ✓" : "근거 쓰기"}
                   </Link>
                   {needsReview(row) ? (
-                    <span className="ml-1 rounded border border-accent/40 px-1 py-0.5 text-[10px] text-accent">
+                    <span className="ml-1 rounded border border-accent/40 px-1 py-0.5 text-xs text-accent">
                       복기
                     </span>
                   ) : null}
@@ -431,13 +431,13 @@ export function TradeTable({
                   {outcome === "open" ? (
                     <>
                       <div className="tnum font-medium">{signed(trade.unrealized_pnl)}</div>
-                      <div className="text-[11px] text-dim">평가손익</div>
+                      <div className="text-xs text-dim">평가손익</div>
                     </>
                   ) : (
                     <>
                       <div className="tnum font-medium">{signed(net)}</div>
                       {trade.fee ? (
-                        <div className="tnum text-[11px] text-dim">
+                        <div className="tnum text-xs text-dim">
                           {signed(trade.pnl)} · 수수료 {signed(trade.fee)}
                         </div>
                       ) : null}
@@ -460,7 +460,7 @@ export function TradeTable({
                       );
                       if (ok) startTransition(() => void deleteTrade(trade.id));
                     }}
-                    className="text-[11px] text-loss/70 hover:text-loss disabled:opacity-50"
+                    className="text-xs text-loss hover:underline disabled:opacity-50"
                   >
                     삭제
                   </button>
@@ -516,17 +516,17 @@ function FillCell({
   return (
     <td className="px-2 py-1.5 whitespace-nowrap">
       <div className="tnum text-sm">{num(price)}</div>
-      <div className="tnum text-[11px] text-dim">{dateTime(at)}</div>
+      <div className="tnum text-xs text-dim">{dateTime(at)}</div>
       {typeof sinceLastExitMs === "number" ? (
         <div
           title={hurried ? "청산 후 60분 안에 다시 진입 — docs/repeatable §2.2" : "직전 청산에서 이 진입까지"}
-          className={`tnum text-[10px] ${hurried ? "text-beta" : "text-dim"}`}
+          className={`tnum text-xs ${hurried ? "text-beta" : "text-dim"}`}
         >
           직전 +{formatDuration(sinceLastExitMs)}
         </div>
       ) : null}
       {impulse ? (
-        <div title={describeImpulse(impulse)} className={`tnum text-[10px] ${impulseTone(impulse.score)}`}>
+        <div title={describeImpulse(impulse)} className={`tnum text-xs ${impulseTone(impulse.score)}`}>
           뇌동 {impulse.score}
         </div>
       ) : null}
@@ -543,7 +543,7 @@ function ResultBadge({ result }: { result: TradeResult }) {
         : "border-border text-dim";
 
   return (
-    <span className={`rounded border px-1.5 py-0.5 text-[11px] ${tone}`}>
+    <span className={`rounded border px-1.5 py-0.5 text-xs ${tone}`}>
       {RESULT_LABEL[result]}
     </span>
   );

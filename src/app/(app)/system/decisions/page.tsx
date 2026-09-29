@@ -50,7 +50,7 @@ export default async function SystemDecisionsPage({
         <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
           <h1 className="text-xl font-semibold tracking-tight">판정 로그</h1>
           <span
-            className={`rounded border px-1.5 py-0.5 text-[10px] font-semibold ${
+            className={`rounded border px-1.5 py-0.5 text-xs font-semibold ${
               meta.real ? "border-loss text-loss" : "border-alpha text-alpha"
             }`}
           >
@@ -87,7 +87,7 @@ export default async function SystemDecisionsPage({
       ) : (
         <div className="scroll-x rounded-xl border border-border bg-surface">
           <table className="w-full min-w-[54rem] text-[12.5px]">
-            <thead className="border-b border-border text-[11px] text-dim">
+            <thead className="border-b border-border text-xs text-dim">
               <tr>
                 <th className="px-3 py-2 text-left font-medium">시각</th>
                 <th className="px-3 py-2 text-left font-medium">기준</th>
@@ -127,14 +127,14 @@ export default async function SystemDecisionsPage({
                       {d.fired === null ? DASH : d.fired ? <span className="text-profit">●</span> : <span className="text-dim">○</span>}
                     </td>
                     <td className="px-3 py-1.5">
-                      <span className={`rounded border px-1.5 py-0.5 text-[10px] ${action.cls}`}>
+                      <span className={`rounded border px-1.5 py-0.5 text-xs ${action.cls}`}>
                         {action.label}
                       </span>
                     </td>
-                    <td className="px-3 py-1.5 text-[11.5px]">
+                    <td className="px-3 py-1.5 text-[12.5px]">
                       {d.warn ? <span className="text-loss">{d.warn}</span> : (d.skip ?? DASH)}
                     </td>
-                    <td className="tnum px-3 py-1.5 text-[11px] whitespace-nowrap text-dim">
+                    <td className="tnum px-3 py-1.5 text-xs whitespace-nowrap text-dim">
                       {indicators || DASH}
                     </td>
                   </tr>

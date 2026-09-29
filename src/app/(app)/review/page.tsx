@@ -111,7 +111,7 @@ export default async function ReviewPage() {
                       return (
                         <tr key={principle.id} className="border-t border-border">
                           <td className="py-1.5">
-                            <span className="mr-1.5 rounded bg-surface-2 px-1.5 py-0.5 text-[10px] text-dim">
+                            <span className="mr-1.5 rounded bg-surface-2 px-1.5 py-0.5 text-xs text-dim">
                               {PRINCIPLE_CATEGORY_LABEL[principle.category]}
                             </span>
                             <span className={principle.active ? "" : "text-dim"}>
@@ -231,19 +231,19 @@ function KellyCard({ m, currency }: { m: BookMetrics; currency: string }) {
 
       <div className="mt-3 grid gap-3 lg:grid-cols-2">
         <div className="rounded-lg border border-border bg-surface-2 p-3">
-          <div className="text-[11px] text-dim">산식</div>
+          <div className="text-xs text-dim">산식</div>
           <div className="tnum mt-1 text-sm">f* = W − (1 − W) ÷ b</div>
           <dl className="mt-2 space-y-1.5">
             {inputs.map((row) => (
               <div key={row.label} className="flex flex-wrap items-baseline gap-x-2 text-xs">
                 <dt className="w-16 shrink-0 text-dim">{row.label}</dt>
                 <dd className="tnum font-medium">{row.value}</dd>
-                <dd className="text-[11px] text-dim">{row.hint}</dd>
+                <dd className="text-xs text-dim">{row.hint}</dd>
               </div>
             ))}
           </dl>
         </div>
-        <div className="rounded-lg border border-border bg-surface-2 p-3 text-[11px] leading-relaxed text-dim">
+        <div className="rounded-lg border border-border bg-surface-2 p-3 text-xs leading-relaxed text-dim">
           <div className="text-dim">읽는 법</div>
           <ul className="mt-1 list-disc space-y-1 pl-4">
             <li>
@@ -301,12 +301,12 @@ function LensTable({
           <tbody>
             {rows.map((r) => (
               <tr key={r.key} className="border-t border-border">
-                <td className="max-w-[14rem] truncate py-1.5" title={r.key}>
+                <td className="min-w-[14rem] py-1.5" title={r.key}>
                   {formatKey(r.key)}
                 </td>
                 <td className="tnum py-1.5 text-right text-dim">
                   {r.count}
-                  <span className="ml-1 text-[11px]">
+                  <span className="ml-1 text-xs">
                     ({r.wins}/{r.losses})
                   </span>
                 </td>
@@ -332,7 +332,7 @@ function LensTable({
         </table>
       </div>
       {rows.length === 0 ? <p className="mt-2 text-xs text-dim">데이터 없음</p> : null}
-      <p className="mt-2 text-[11px] text-dim">
+      <p className="mt-2 text-xs text-dim">
         총 {num(rows.reduce((a, r) => a + r.count, 0), 0)}건 · 켈리는 승·패가 모두 있는 묶음만,{" "}
         {RELIABLE_SAMPLE}건 미만은 흐리게
       </p>

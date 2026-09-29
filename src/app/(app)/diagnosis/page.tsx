@@ -127,7 +127,7 @@ export default async function DiagnosisPage() {
           {num(report.round.testCount, 0)}개 구간 검정.
           {report.round.question ? ` 이번 회차의 질문: “${report.round.question}”` : ""}
         </p>
-        <nav className="mt-3 flex flex-wrap gap-x-3 gap-y-1 text-[11.5px] text-accent">
+        <nav className="mt-3 flex flex-wrap gap-x-3 gap-y-1 text-[12.5px] text-accent">
           <a href="#confirmed">확정된 것</a>
           <a href="#split">손실의 갈래</a>
           <a href="#problems">문제</a>
@@ -169,7 +169,7 @@ export default async function DiagnosisPage() {
 
         {exitGap ? (
           <div
-            className={`mt-3 rounded-lg border p-3 text-[11.5px] leading-relaxed ${
+            className={`mt-3 rounded-lg border p-3 text-[12.5px] leading-relaxed ${
               exitGap.tone === "bad" ? "border-loss/40 bg-loss/5" : "border-beta/40 bg-beta/5"
             }`}
           >
@@ -203,7 +203,7 @@ export default async function DiagnosisPage() {
           </div>
         )}
 
-        <p className="mt-3 text-[11px] leading-relaxed text-dim">
+        <p className="mt-3 text-xs leading-relaxed text-dim">
           진입 시점에 통제 가능한 확정 발견은 <strong>{confirmedEntry.length}건</strong>입니다. 나머지는
           청산 규율로만 바뀝니다 — 즉 이 원장에서 고칠 것은 &ldquo;어디에 들어갈까&rdquo;보다
           &ldquo;언제 나올까&rdquo;에 가깝습니다.
@@ -238,7 +238,7 @@ export default async function DiagnosisPage() {
         </div>
 
         {giveback20 && neverMfe10 ? (
-          <p className="mt-3 text-[11.5px] leading-relaxed text-dim">
+          <p className="mt-3 text-[12.5px] leading-relaxed text-dim">
             <strong>같은 크기의 두 문제입니다.</strong> 평가익 20%조차 못 간 채 진 거래가{" "}
             <span className={`tnum ${pnlClass(neverMfe10.conditional!.thenSumNet)}`}>
               {signed(neverMfe10.conditional!.thenSumNet, 0)}
@@ -257,14 +257,14 @@ export default async function DiagnosisPage() {
             {p.conditional.filter(canSeed).map((f) => (
               <div key={f.id} className="rounded-xl border border-border bg-surface-2 p-3">
                 <div className="text-[12.5px] font-medium">{f.axisLabel}</div>
-                <div className="tnum mt-1 text-[11px] text-dim">
+                <div className="tnum mt-1 text-xs text-dim">
                   {num(f.conditional!.givenN, 0)}건 중 {num(f.conditional!.thenN, 0)}건 · 합계{" "}
                   <span className={pnlClass(f.conditional!.thenSumNet)}>
                     {signed(f.conditional!.thenSumNet, 0)}
                   </span>
                 </div>
                 {f.evidence ? (
-                  <p className="mt-1 text-[11px] leading-snug text-dim">{f.evidence}</p>
+                  <p className="mt-1 text-xs leading-snug text-dim">{f.evidence}</p>
                 ) : null}
                 {seedFor(f)}
               </div>
@@ -311,7 +311,7 @@ export default async function DiagnosisPage() {
         </h2>
 
         {p.strengths.length === 0 ? (
-          <p className="mt-3 text-[11.5px] leading-relaxed text-dim">
+          <p className="mt-3 text-[12.5px] leading-relaxed text-dim">
             <strong>없습니다.</strong> 문제를 여럿 찾고 강점도 그만큼 찾을 수는 없습니다 — 순손익이{" "}
             {signed(allCohort.baseline.sumNet, 0)}인 원장이라면 강점이 적은 것이 맞는 결과입니다.
             여기 없는 것을 채우면 진단이 아니라 위로가 됩니다.
@@ -323,7 +323,7 @@ export default async function DiagnosisPage() {
                 <FindingCard key={f.id} finding={f} />
               ))}
             </div>
-            <p className="mt-3 text-[11px] leading-relaxed text-dim">
+            <p className="mt-3 text-xs leading-relaxed text-dim">
               문제 {p.problems.length}건에 강점 {p.strengths.length}건입니다. 대칭이 아닌 것이 정상입니다.
             </p>
           </>
@@ -340,7 +340,7 @@ export default async function DiagnosisPage() {
         <h3 className="mt-4 text-[13px] font-medium">
           가. 문제로 세고 있었지만 원인이 아니었던 것
         </h3>
-        <p className="mt-1 text-[11.5px] leading-relaxed text-dim">
+        <p className="mt-1 text-[12.5px] leading-relaxed text-dim">
           기존 복기 리포트의 실패 분류는 <strong>패배한 거래에만</strong> 붙습니다. 승률 0%는 결과가
           아니라 정의입니다. 같은 조건을 승패 무관하게 다시 재면 순위가 통째로 달라집니다.
         </p>
@@ -356,7 +356,7 @@ export default async function DiagnosisPage() {
         {p.reversed.length > 0 ? (
           <>
             <h3 className="mt-5 text-[13px] font-medium">나. 기간 밖에서 부호가 뒤집힌 것</h3>
-            <p className="mt-1 text-[11.5px] leading-relaxed text-dim">
+            <p className="mt-1 text-[12.5px] leading-relaxed text-dim">
               찾은 구간 안에서만 참이었던 것들입니다. 지우지 않고 남깁니다 — 몇 번 틀렸는지가 사라지면
               다음 발견을 얼마나 믿어야 할지 알 수 없게 됩니다.
             </p>
@@ -367,7 +367,7 @@ export default async function DiagnosisPage() {
         ) : null}
 
         <h3 className="mt-5 text-[13px] font-medium">다. 청산 품질 — 차이가 아니라 비율로 읽는 축</h3>
-        <p className="mt-1 text-[11.5px] leading-relaxed text-dim">
+        <p className="mt-1 text-[12.5px] leading-relaxed text-dim">
           보유시간·평가익·역행폭은 진입 뒤 가격이 만든 값입니다. 크게 이긴 거래가 큰 평가익 구간을
           지나간 것은 당연하므로 이 축의 차이를 효과로 읽으면 순환 논리가 됩니다. 순위에서 빼고 여기
           따로 둡니다.
@@ -383,12 +383,12 @@ export default async function DiagnosisPage() {
           회차별 변화 <span className="font-normal text-dim">— 지난 회차와 무엇이 달라졌나</span>
         </h2>
         {report.history.length === 0 ? (
-          <p className="mt-3 text-[11.5px] leading-relaxed text-dim">
+          <p className="mt-3 text-[12.5px] leading-relaxed text-dim">
             회차 {report.round.no}입니다 — 비교할 이전 회차가 없습니다. 다음 회차부터 발견마다 차이와
             등급이 어떻게 움직였는지가 여기 쌓입니다. 사라진 발견도 지우지 않고 남깁니다.
           </p>
         ) : (
-          <p className="mt-3 text-[11.5px] text-dim">
+          <p className="mt-3 text-[12.5px] text-dim">
             보존된 회차 {report.history.length}개 — 발견별 추이는 다음 단계에서 표로 붙습니다.
           </p>
         )}
@@ -397,7 +397,7 @@ export default async function DiagnosisPage() {
       {/* ── 7. 고도화 가이드 ─────────────────────── */}
       <section id="guide" className="scroll-mt-4 rounded-xl border border-border bg-surface-2 p-4">
         <h2 className="text-sm font-medium">이 진단을 고도화하는 법</h2>
-        <ol className="mt-3 list-decimal space-y-2.5 pl-5 text-[11.5px] leading-relaxed text-dim">
+        <ol className="mt-3 list-decimal space-y-2.5 pl-5 text-[12.5px] leading-relaxed text-dim">
           <li>
             <strong className="text-text">회차를 돌린다.</strong>{" "}
             <code className="rounded bg-surface px-1">node re_sys/manual-fetch.mjs</code> →{" "}
@@ -435,7 +435,7 @@ export default async function DiagnosisPage() {
             <h3 className="mt-4 text-[13px] font-medium">
               다음 회차가 답해야 할 질문 — 가설 {hypotheses.length}건 중 금액이 큰 순
             </h3>
-            <ul className="mt-2 list-disc space-y-1 pl-5 text-[11.5px] text-dim">
+            <ul className="mt-2 list-disc space-y-1 pl-5 text-[12.5px] text-dim">
               {[...hypotheses]
                 .sort((a, b) => Math.abs(b.attributable) - Math.abs(a.attributable))
                 .slice(0, 5)
@@ -458,7 +458,7 @@ export default async function DiagnosisPage() {
       {/* ── 8. 출처와 한계 ───────────────────────── */}
       <section
         id="source"
-        className="scroll-mt-4 rounded-xl border border-border bg-surface-2 p-4 text-[11.5px] leading-relaxed text-dim"
+        className="scroll-mt-4 rounded-xl border border-border bg-surface-2 p-4 text-[12.5px] leading-relaxed text-dim"
       >
         <h2 className="text-sm font-medium text-text">출처와 한계</h2>
         <ul className="mt-2 list-disc space-y-1.5 pl-4">
@@ -540,7 +540,7 @@ function FindingTable({ rows, showSplit = false }: { rows: Finding[]; showSplit?
       <tbody>
         {rows.map((f) => (
           <tr key={f.id} className="border-t border-border">
-            <td className="max-w-[16rem] truncate py-1.5" title={`${f.axisLabel} · ${f.bucket}`}>
+            <td className="min-w-[16rem] py-1.5" title={`${f.axisLabel} · ${f.bucket}`}>
               <span className="text-dim">{f.axisLabel}</span> {f.bucket}
             </td>
             <td className="tnum py-1.5 text-right text-dim">{num(f.n, 0)}</td>
@@ -560,7 +560,7 @@ function FindingTable({ rows, showSplit = false }: { rows: Finding[]; showSplit?
             <td className={`tnum py-1.5 text-right ${pnlClass(f.attributable)}`}>
               {signed(f.attributable, 0)}
             </td>
-            <td className="py-1.5 text-right text-[11px] text-dim">
+            <td className="py-1.5 text-right text-xs text-dim">
               {f.confidence === "confirmed" ? "확정" : f.confidence === "likely" ? "유력" : "가설"}
             </td>
           </tr>

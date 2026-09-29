@@ -28,7 +28,7 @@ export default function AppError({
           : "잠시 뒤 다시 시도해 주세요. 계속 같은 화면이면 아래 코드와 함께 알려 주세요."}
       </p>
       {error.digest ? (
-        <p className="tnum mt-2 text-[11px] text-dim">오류 코드 {error.digest}</p>
+        <p className="tnum mt-2 text-xs text-dim">오류 코드 {error.digest}</p>
       ) : null}
 
       <div className="mt-5 flex justify-center gap-2">

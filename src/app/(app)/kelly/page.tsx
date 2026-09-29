@@ -73,7 +73,7 @@ export default function KellyPage() {
           />
         </div>
 
-        <div className="mt-3 rounded-lg border border-loss/40 bg-loss/5 p-3 text-[11.5px] leading-relaxed">
+        <div className="mt-3 rounded-lg border border-loss/40 bg-loss/5 p-3 text-[12.5px] leading-relaxed">
           <p>
             <span className="text-loss">
               전 구간 f* 가 {signedPct(overall.kelly)} 입니다 — 켈리가 허용하는 베팅 크기가 없습니다.
@@ -105,7 +105,7 @@ export default function KellyPage() {
           <div className="mt-3">
             <KellyTable dim={hold} showBar />
           </div>
-          <p className="mt-3 rounded-lg border border-beta/40 bg-beta/5 p-3 text-[11.5px] leading-relaxed text-dim">
+          <p className="mt-3 rounded-lg border border-beta/40 bg-beta/5 p-3 text-[12.5px] leading-relaxed text-dim">
             <span className="text-beta">이 축은 진입 시점에 고르는 값이 아닙니다.</span>{" "}
             손절에 걸린 거래는 져서 일찍 닫히고 이익 거래는 오래 들고 가게 되므로, 보유시간과 결과는 서로를
             만듭니다 — &ldquo;오래 들면 이긴다&rdquo;로 읽으면 인과가 뒤집힙니다. 그래도 두 가지는
@@ -159,7 +159,7 @@ export default function KellyPage() {
             </table>
           </div>
         )}
-        <p className="mt-2 text-[11px] leading-snug text-dim">
+        <p className="mt-2 text-xs leading-snug text-dim">
           같은 거래가 여러 축에 겹쳐 나옵니다 — 축끼리 더하지 마세요. 표본 {MIN_SAMPLE}건 미만인
           칸은 여기 넣지 않았습니다: 2건짜리 종목이 f* +70%로 잡히는 것은 엣지가 아니라 잡음입니다.
         </p>
@@ -183,7 +183,7 @@ export default function KellyPage() {
       </div>
 
       {/* ── 5. 이 숫자가 어디서 왔나 ──────────────── */}
-      <section className="rounded-xl border border-border bg-surface-2 p-4 text-[11.5px] leading-relaxed text-dim">
+      <section className="rounded-xl border border-border bg-surface-2 p-4 text-[12.5px] leading-relaxed text-dim">
         <h2 className="text-sm font-medium text-text">출처와 한계</h2>
         <ul className="mt-2 list-disc space-y-1 pl-4">
           <li>
@@ -247,12 +247,12 @@ function KellyTable({ dim, showBar = false }: { dim: KellyDimension; showBar?: b
             const thin = row.decided < MIN_SAMPLE;
             return (
               <tr key={row.key} className="border-t border-border">
-                <td className={`max-w-[12rem] truncate py-1.5 ${thin ? "text-dim" : ""}`} title={row.key}>
+                <td className={`min-w-[12rem] py-1.5 ${thin ? "text-dim" : ""}`} title={row.key}>
                   {row.key}
                 </td>
                 <td className="tnum py-1.5 text-right text-dim">
                   {num(row.n, 0)}
-                  <span className="ml-1 text-[11px]">
+                  <span className="ml-1 text-xs">
                     ({row.wins}/{row.losses})
                   </span>
                 </td>
@@ -286,7 +286,7 @@ function KellyTable({ dim, showBar = false }: { dim: KellyDimension; showBar?: b
 const BAR_RANGE = 0.6;
 
 function KellyBar({ value, muted }: { value: number | null; muted: boolean }) {
-  if (value === null) return <span className="text-[11px] text-dim">{DASH}</span>;
+  if (value === null) return <span className="text-xs text-dim">{DASH}</span>;
 
   const clamped = Math.max(-BAR_RANGE, Math.min(BAR_RANGE, value));
   const width = (Math.abs(clamped) / BAR_RANGE) * 50;

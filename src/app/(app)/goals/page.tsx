@@ -84,7 +84,7 @@ export default async function GoalsPage() {
   ];
 
   return (
-    <div className="mx-auto max-w-4xl space-y-8">
+    <div className="mx-auto max-w-6xl space-y-8">
       <header>
         <h1 className="text-xl font-semibold tracking-tight">목표</h1>
         <p className="mt-1 text-sm text-dim">
@@ -131,7 +131,7 @@ export default async function GoalsPage() {
             sub={`${num(stage.from, 0)}$ ~ ${Number.isFinite(stage.to) ? `${num(stage.to, 0)}$` : "1억"}`}
           />
         </div>
-        <p className="text-[11.5px] leading-snug text-dim">
+        <p className="text-[12.5px] leading-snug text-dim">
           단계 {stage.level} 승격 조건: {stage.promote}. 지금 답해야 하는 질문은 &ldquo;월 몇
           %&rdquo;가 아니라 &ldquo;잃지 않는 달을 연속으로 몇 번 만드는가&rdquo;입니다 — 복리의
           전제는 기간 단위로 잃지 않는 것입니다.
@@ -157,7 +157,7 @@ export default async function GoalsPage() {
                     aria-hidden
                   />
                   <span
-                    className={`absolute -ml-8 w-16 text-center text-[10px] leading-tight whitespace-nowrap ${
+                    className={`absolute -ml-8 w-16 text-center text-xs leading-tight whitespace-nowrap ${
                       isPlan ? "-top-7 font-semibold text-text" : "top-3 text-dim"
                     }`}
                   >
@@ -169,7 +169,7 @@ export default async function GoalsPage() {
               );
             })}
           </div>
-          <p className="tnum text-[11px] text-dim">
+          <p className="tnum text-xs text-dim">
             0% ─ 10% (월 기하수익률). 내 켈리(전 이력 4,023건)는 음수라 이 축의 왼쪽 밖에 있습니다.
           </p>
         </div>
@@ -177,7 +177,7 @@ export default async function GoalsPage() {
         <div className="scroll-x">
           <table className="w-full text-sm">
             <thead>
-              <tr className="text-left text-[11px] text-dim">
+              <tr className="text-left text-xs text-dim">
                 <th className="py-1 pr-3 font-normal">기준선</th>
                 <th className="py-1 pr-3 font-normal">월</th>
                 <th className="py-1 pr-3 font-normal">연</th>
@@ -196,7 +196,7 @@ export default async function GoalsPage() {
                     {b.monthly === null ? "—" : pct(annualFromMonthly(b.monthly), 0)}
                   </td>
                   <td className="py-1.5 pr-3 text-xs leading-snug text-dim">{b.note}</td>
-                  <td className="py-1.5 text-[11px] text-dim">
+                  <td className="py-1.5 text-xs text-dim">
                     {b.source.startsWith("/") ? (
                       <Link href={b.source} className="hover:text-text">
                         {b.source}
@@ -226,26 +226,26 @@ export default async function GoalsPage() {
                 <span className="text-sm font-medium">
                   {s.level} {s.label}
                 </span>
-                <span className="tnum text-[11px] text-dim">
+                <span className="tnum text-xs text-dim">
                   {num(s.from, 0)}$ ~ {Number.isFinite(s.to) ? `${num(s.to, 0)}$` : "1억"}
                 </span>
                 {s.level === stage.level ? (
-                  <span className="ml-auto rounded bg-accent/15 px-1.5 py-0.5 text-[10px] text-accent">
+                  <span className="ml-auto rounded bg-accent/15 px-1.5 py-0.5 text-xs text-accent">
                     지금
                   </span>
                 ) : null}
               </div>
-              <p className="mt-1.5 text-[11.5px] leading-snug text-dim">승격: {s.promote}</p>
+              <p className="mt-1.5 text-[12.5px] leading-snug text-dim">승격: {s.promote}</p>
             </div>
           ))}
         </div>
-        <p className="text-[11.5px] leading-snug text-dim">강등: {DEMOTION_RULE}.</p>
+        <p className="text-[12.5px] leading-snug text-dim">강등: {DEMOTION_RULE}.</p>
       </section>
 
       <section className="space-y-3">
         <div className="flex flex-wrap items-baseline gap-2">
           <h2 className="text-sm font-medium">계획 β / 목표 α</h2>
-          <span className={`text-[11px] ${saved ? "text-dim" : TONE_CLASS.warn}`}>
+          <span className={`text-xs ${saved ? "text-dim" : TONE_CLASS.warn}`}>
             {saved ? "저장된 값" : "아직 저장하지 않았습니다 — 기본안이 보입니다"}
           </span>
         </div>

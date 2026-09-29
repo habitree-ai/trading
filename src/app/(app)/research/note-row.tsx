@@ -93,9 +93,9 @@ export function NoteRow({ note }: { note: ResearchNote }) {
       <div className="flex flex-wrap items-start gap-2">
         <p className="text-sm font-medium">{note.title}</p>
         {note.importance === 3 ? (
-          <span className="rounded bg-surface-2 px-1.5 py-0.5 text-[10px] text-accent">핵심</span>
+          <span className="rounded bg-surface-2 px-1.5 py-0.5 text-xs text-accent">핵심</span>
         ) : note.importance === 1 ? (
-          <span className="rounded bg-surface-2 px-1.5 py-0.5 text-[10px] text-dim">참고</span>
+          <span className="rounded bg-surface-2 px-1.5 py-0.5 text-xs text-dim">참고</span>
         ) : null}
       </div>
 
@@ -103,7 +103,7 @@ export function NoteRow({ note }: { note: ResearchNote }) {
         <p className="mt-1 text-xs whitespace-pre-line text-dim">{note.body}</p>
       ) : null}
 
-      <p className="tnum mt-2 text-[11px] text-dim">
+      <p className="tnum mt-2 text-xs text-dim">
         {dateTime(note.created_at)}
         {note.source_url ? (
           <>

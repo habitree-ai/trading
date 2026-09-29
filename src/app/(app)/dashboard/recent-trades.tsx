@@ -68,7 +68,7 @@ export function RecentTrades({
               <span className={`tnum w-20 text-right text-xs ${pnlClass(pnlPct)}`}>
                 {signedPct(pnlPct)}
               </span>
-              <span className="w-4 text-center text-[10px] text-dim" aria-hidden>
+              <span className="w-4 text-center text-xs text-dim" aria-hidden>
                 {open ? "▲" : "▼"}
               </span>
             </button>
@@ -78,19 +78,19 @@ export function RecentTrades({
                 <dl className="grid grid-cols-2 gap-x-4 gap-y-3 rounded-lg border border-border bg-surface-2/40 p-3 sm:grid-cols-4">
                   <Item label="진입">
                     <span className="tnum">{num(trade.entry_price)}</span>
-                    <span className="tnum block text-[11px] text-dim">
+                    <span className="tnum block text-xs text-dim">
                       {dateTime(trade.entry_at)}
                     </span>
                   </Item>
                   <Item label="청산">
                     <span className="tnum">{num(trade.exit_price)}</span>
-                    <span className="tnum block text-[11px] text-dim">
+                    <span className="tnum block text-xs text-dim">
                       {dateTime(trade.exit_at)}
                     </span>
                   </Item>
                   <Item label="투입">
                     <span className="tnum">{num(trade.notional, 0)}</span>
-                    <span className="tnum block text-[11px] text-dim">
+                    <span className="tnum block text-xs text-dim">
                       {num(trade.leverage, 1)}배 · 증거금 {num(margin, 0)}
                     </span>
                   </Item>
@@ -112,7 +112,7 @@ export function RecentTrades({
                       <>
                         <span className={`tnum ${pnlClass(net)}`}>{signed(net)}</span>
                         {trade.fee ? (
-                          <span className="tnum block text-[11px] text-dim">
+                          <span className="tnum block text-xs text-dim">
                             {signed(trade.pnl)} · 수수료 {signed(trade.fee)}
                           </span>
                         ) : null}
@@ -121,7 +121,7 @@ export function RecentTrades({
                   </Item>
                   <Item label="손익률">
                     <span className={`tnum ${pnlClass(pnlPct)}`}>{signedPct(pnlPct)}</span>
-                    <span className="block text-[11px] text-dim">증거금 대비</span>
+                    <span className="block text-xs text-dim">증거금 대비</span>
                   </Item>
                   <Item label="자금">
                     <span className="tnum">{num(equityAfter, 0)}</span>
@@ -129,7 +129,7 @@ export function RecentTrades({
                   <Item label="승패">
                     <span>{RESULT_LABEL[result]}</span>
                     {result !== "open" && (trade.review ?? "").trim() === "" ? (
-                      <span className="block text-[11px] text-accent">복기 대기</span>
+                      <span className="block text-xs text-accent">복기 대기</span>
                     ) : null}
                   </Item>
                 </dl>
@@ -170,7 +170,7 @@ function Item({
 }) {
   return (
     <div className={`text-xs ${className}`}>
-      <dt className="text-[11px] text-dim">{label}</dt>
+      <dt className="text-xs text-dim">{label}</dt>
       <dd className="mt-0.5">{children}</dd>
     </div>
   );

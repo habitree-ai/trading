@@ -46,7 +46,7 @@ export default async function SeniorNotePage({ params, searchParams }: Props) {
   return (
     <article className="space-y-6">
       <header className="rounded-xl border border-border bg-surface p-4">
-        <div className="flex flex-wrap items-center gap-2 text-[11px] text-dim">
+        <div className="flex flex-wrap items-center gap-2 text-xs text-dim">
           <span className="font-semibold tracking-widest uppercase">대상 글</span>
           <span
             className={`ml-auto rounded px-1.5 py-0.5 ${
@@ -60,7 +60,7 @@ export default async function SeniorNotePage({ params, searchParams }: Props) {
           {post?.title ?? (note.post_id ? `글 ${note.post_id}` : "(글을 고르지 않은 노트)")}
         </h1>
         {post ? (
-          <p className="mt-1 flex flex-wrap gap-2 text-[11px] text-dim">
+          <p className="mt-1 flex flex-wrap gap-2 text-xs text-dim">
             <span className="rounded border border-border px-1.5">{post.board}</span>
             <span className="tnum">{post.date}</span>
           </p>
@@ -108,7 +108,7 @@ export default async function SeniorNotePage({ params, searchParams }: Props) {
               key={f.key}
               className={`rounded-xl border bg-surface p-4 ${senior ? "border-border" : "border-accent/40"}`}
             >
-              <h2 className="text-[11px] font-semibold tracking-widest text-dim uppercase">
+              <h2 className="text-xs font-semibold tracking-widest text-dim uppercase">
                 {f.label}
                 {f.key === "think" && note.think_at ? (
                   <span className="tnum font-normal tracking-normal"> · {date(note.think_at)}</span>
@@ -129,7 +129,7 @@ export default async function SeniorNotePage({ params, searchParams }: Props) {
       {transcripts.map((t) => (
         <section key={t.name}>
           <h2 className="text-sm font-medium">이 글의 이미지와 판독 — {t.items.length}장</h2>
-          <p className="mt-1 text-[11px] leading-relaxed text-dim">
+          <p className="mt-1 text-xs leading-relaxed text-dim">
             이미지는 네이버 원본을 그 자리에서 띄운다(저장하지 않는다). 오른쪽은 손글씨를 읽은 판독이며 [?] 는
             확신 없는 낱말, [판독 불가] 는 못 읽은 곳. 고치는 곳은 <span className="tnum">선배님/전사/{t.name}.html</span>
             (페이지 안에서 고치고 HTML 저장).
@@ -137,7 +137,7 @@ export default async function SeniorNotePage({ params, searchParams }: Props) {
           <ol className="mt-2 space-y-3">
             {t.items.map((it) => (
               <li key={it.seq} className="rounded-xl border border-border bg-surface p-3">
-                <div className="flex flex-wrap items-baseline gap-2 text-[11px] text-dim">
+                <div className="flex flex-wrap items-baseline gap-2 text-xs text-dim">
                   <span className="text-[13px] font-semibold text-text">
                     {it.seq} · {it.date}
                   </span>
@@ -169,13 +169,13 @@ export default async function SeniorNotePage({ params, searchParams }: Props) {
                     </p>
                     {it.caption ? (
                       <details className="mt-2">
-                        <summary className="cursor-pointer text-[11px] text-dim">선배님 본문 — 이 이미지 바로 뒤 문단</summary>
+                        <summary className="cursor-pointer text-xs text-dim">선배님 본문 — 이 이미지 바로 뒤 문단</summary>
                         <p className="mt-1 border-l-2 border-border pl-3 text-[12.5px] leading-relaxed whitespace-pre-line text-dim">
                           {it.caption}
                         </p>
                       </details>
                     ) : null}
-                    {it.notes ? <p className="mt-2 text-[11px] leading-relaxed text-dim">판독 메모 · {it.notes}</p> : null}
+                    {it.notes ? <p className="mt-2 text-xs leading-relaxed text-dim">판독 메모 · {it.notes}</p> : null}
                   </div>
                 </div>
               </li>
@@ -197,14 +197,14 @@ export default async function SeniorNotePage({ params, searchParams }: Props) {
                   className="block hover:text-accent"
                 >
                   <span className="font-medium">{c.title}</span>
-                  <span className="tnum ml-2 text-[11px] text-dim">{c.symbol}</span>
+                  <span className="tnum ml-2 text-xs text-dim">{c.symbol}</span>
                 </a>
                 {c.hasOptions ? (
                   <a
                     href={`/blog/charts/${encodeURIComponent(c.name)}_옵션.html`}
                     target="_blank"
                     rel="noopener"
-                    className="mt-1 inline-block text-[11.5px] text-dim hover:text-text"
+                    className="mt-1 inline-block text-[12.5px] text-dim hover:text-text"
                   >
                     옵션 자료 — VXN 차트 · 스트래들 % · 이론가 표 ↗
                   </a>
@@ -221,7 +221,7 @@ export default async function SeniorNotePage({ params, searchParams }: Props) {
           <ul className="mt-1.5 space-y-1">
             {linked.map(({ id: lid, post: p }) => (
               <li key={lid} className="flex items-center gap-2 text-sm">
-                <span className="tnum text-[11px] text-dim">{p?.date ?? "-"}</span>
+                <span className="tnum text-xs text-dim">{p?.date ?? "-"}</span>
                 <span className="min-w-0 flex-1 truncate">{p?.title ?? `글 ${lid}`}</span>
                 {p ? (
                   <a href={p.url} target="_blank" rel="noreferrer" className="text-xs text-dim hover:text-text">
@@ -234,7 +234,7 @@ export default async function SeniorNotePage({ params, searchParams }: Props) {
         </section>
       ) : null}
 
-      <footer className="flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-border pt-3 text-[11px] text-dim">
+      <footer className="flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-border pt-3 text-xs text-dim">
         {note.tags.map((t) => (
           <Link key={t} href={`/blog?tag=${encodeURIComponent(t)}`} className="hover:text-text">
             #{t}

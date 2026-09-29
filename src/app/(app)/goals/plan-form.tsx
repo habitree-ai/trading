@@ -56,7 +56,7 @@ export function PlanForm({ beta, alpha }: { beta: PlanTier; alpha: PlanTier }) {
               정지선 — 고점 대비 월 낙폭 (%)
             </label>
             <input id="stop_drawdown" name="stop_drawdown" type="number" step="1" min="1" max="100" defaultValue={pctInput(beta.stopDrawdown)} className={INPUT} required />
-            <p className="mt-1 text-[11px] leading-snug text-dim">
+            <p className="mt-1 text-xs leading-snug text-dim">
               닿으면 그 달 매매 중단. α에도 같은 값이 적용됩니다 — 도전이 정지선을 옮기지는 않습니다.
             </p>
           </div>
@@ -76,7 +76,7 @@ export function PlanForm({ beta, alpha }: { beta: PlanTier; alpha: PlanTier }) {
             </label>
             <input id="alpha_risk" name="alpha_risk" type="number" step="0.1" min="0" max="100" defaultValue={pctInput(alpha.riskPerTrade)} className={INPUT} required />
           </div>
-          <p className="text-[11px] leading-snug text-dim">
+          <p className="text-xs leading-snug text-dim">
             레버리지 상한 {alpha.leverageCap}배는 저장 항목이 아니라 상수입니다 — 복리 회차에서
             10배 이상은 1,944설정 중 0건이 살아남았습니다.
           </p>

@@ -118,13 +118,13 @@ export function AppNav() {
   const { pathname, area, tone } = useArea();
 
   return (
-    <div className="hidden border-border md:block md:w-52 md:shrink-0 md:border-r">
+    <div className="hidden border-border md:block md:w-60 md:shrink-0 md:border-r">
       <div className="px-4 pt-4 pb-2">
-        <div className={`flex items-center gap-1.5 text-[11px] font-semibold ${tone.text}`}>
+        <div className={`flex items-center gap-1.5 text-xs font-semibold ${tone.text}`}>
           <span className={`h-1.5 w-1.5 rounded-full ${tone.dot}`} aria-hidden />
           {area.label}
         </div>
-        <p className="mt-0.5 text-[11px] leading-snug text-dim">{area.tagline}</p>
+        <p className="mt-0.5 text-xs leading-snug text-dim">{area.tagline}</p>
       </div>
 
       <nav aria-label={`${area.label} 화면`} className="flex flex-col gap-1 px-3 pb-4">
@@ -145,7 +145,7 @@ export function AppNav() {
               <span className="min-w-0">
                 {link.label}
                 {link.hint ? (
-                  <span className="block text-[11px] leading-snug font-normal text-dim">
+                  <span className="block text-xs leading-snug font-normal break-keep whitespace-normal text-dim">
                     {link.hint}
                   </span>
                 ) : null}

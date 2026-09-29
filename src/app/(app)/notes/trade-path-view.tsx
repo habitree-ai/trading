@@ -223,7 +223,7 @@ export function TradePathChart({ trade, now }: { trade: Trade; now: number }) {
                 ))
               )}
             </div>
-            <p className="mt-1 px-1 text-[11px] text-dim/80">
+            <p className="mt-1 px-1 text-xs text-dim">
               {review.bar} 봉 기준 근사 — 같은 봉 안에서 무엇이 먼저였는지는 모른다.
               {review.skipped.length > 0 ? ` ${review.skipped.join(" · ")}` : ""}
             </p>
@@ -271,7 +271,7 @@ function TargetsForm({ trade }: { trade: Trade }) {
         </button>
         {message ? <span className={message.ok ? "text-dim" : "text-loss"}>{message.text}</span> : null}
       </div>
-      <p className="mt-1 text-[11px] text-dim/80">
+      <p className="mt-1 text-xs text-dim">
         {trade.okx_tp_price !== null
           ? `경로 기준 TP 는 거래소에 걸렸던 ${num(trade.okx_tp_price)} — 여기 적은 TP1 보다 먼저다.`
           : "청산 뒤에도 적을 수 있다 — 저장하면 경로·판정을 다시 계산하고 경로 복기 리스트에도 들어간다. 비우면 해제."}
@@ -311,7 +311,7 @@ function PointRow({
   const head = (
     <td className="px-1 py-0.5">
       {label}
-      {note ? <span className="block text-[10px] text-dim">{note}</span> : null}
+      {note ? <span className="block text-xs text-dim">{note}</span> : null}
     </td>
   );
   if (!point) {

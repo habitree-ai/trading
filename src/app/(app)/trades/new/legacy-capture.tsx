@@ -23,7 +23,7 @@ export function LegacyCapture(props: { bookId: string; userId: string; suggestio
         className="text-xs text-dim hover:text-text"
       >
         {open ? "▾" : "▸"} 캡쳐로 거래 직접 등록{" "}
-        <span className="text-dim/70">— 거래소 연동이 없는 북에서 숫자까지 손으로 넣을 때</span>
+        <span className="text-dim">— 거래소 연동이 없는 북에서 숫자까지 손으로 넣을 때</span>
       </button>
       {open ? (
         <div className="mt-3">

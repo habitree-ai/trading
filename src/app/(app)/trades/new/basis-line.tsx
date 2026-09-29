@@ -40,7 +40,7 @@ const EVENT_CHIP: Record<JournalEvent, string> = {
 
 export function EventChip({ event }: { event: JournalEvent }) {
   return (
-    <span className={`rounded border px-1.5 py-0.5 text-[11px] ${EVENT_CHIP[event]}`}>
+    <span className={`rounded border px-1.5 py-0.5 text-xs ${EVENT_CHIP[event]}`}>
       {JOURNAL_EVENT_LABEL[event]}
     </span>
   );

@@ -88,7 +88,7 @@ export default async function SystemTestPage() {
             ) : (
               <p className="mt-1 text-[13px] text-dim">계좌를 확인하지 못했습니다.</p>
             )}
-            <p className="mt-2 text-[11.5px] text-dim">
+            <p className="mt-2 text-[12.5px] text-dim">
               봇이 매매하는 계좌와 같아야 합니다 — 배선 검증의 뜻이 “봇에게 맡기기 전에 같은 길을
               사람이 먼저 태워 본다”이기 때문입니다. 다르면{" "}
               <code className="rounded bg-surface-2 px-1">OKX_LIVE_API_KEY</code> 계열 환경변수가
@@ -115,7 +115,7 @@ export default async function SystemTestPage() {
         </p>
       )}
 
-      <p className="text-[11px] text-dim">
+      <p className="text-xs text-dim">
         여기서 검증된 경로가 라이브 봇 제어(진입·수동 정리)의 공용 통로입니다. 기준과 운영 규칙은{" "}
         <Link href="/system/criteria" className="text-alpha">
           매매 기준
