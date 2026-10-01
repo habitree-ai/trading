@@ -156,7 +156,7 @@ export interface Trade {
    * 시장 위·아래 열림/닫힘 — 진입 시점에 사람이 고른 네 경우. 손 입력 전용, 동기화는 건드리지 않는다.
    *
    * 장기추세가 고점·저점 갱신 방향을 묻는다면 이 칸은 위·아래 각각이 막혀 있는가를 묻는다. 네 경우가
-   * 모든 조합을 덮지 않아("둘 다 모름" 없음) 근거 게이트 필수가 아니다 — null 은 미기재.
+   * 모든 조합을 덮지 않아("둘 다 모름" 없음) 필수 칸이 아니다 — null 은 미기재.
    */
   openness: Openness | null;
   /**
@@ -535,10 +535,6 @@ export function isOpenness(value: string): value is Openness {
 export const BIAS_TIMEFRAMES: Timeframe[] = ['15m', '1H', '4H', '1D', '1W'];
 export const ENTRY_TIMEFRAMES: Timeframe[] = ['1m', '5m', '15m', '1H', '4H'];
 
-/** 화면 기본값 — 방향 4시간봉 / 진입 1시간봉. DB 에는 DEFAULT 를 걸지 않는다. */
-export const DEFAULT_BIAS_TIMEFRAME: Timeframe = '4H';
-export const DEFAULT_ENTRY_TIMEFRAME: Timeframe = '1H';
-
 export const TIMEFRAME_LABEL: Record<Timeframe, string> = {
   '1m': '1분봉',
   '5m': '5분봉',
@@ -638,6 +634,19 @@ export interface JournalNote {
   basis: JournalBasis | null;
   created_at: string;
   updated_at: string;
+}
+
+/**
+ * 무포지션 — 내가 눌러서 시작한 "포지션 없음" 구간(REQ-0087).
+ *
+ * 끝은 없다. 시작 뒤 처음 들어온 거래의 진입 시각이 끝이고, 볼 때마다 거래에서 계산한다(`lib/flat`).
+ */
+export interface FlatSession {
+  id: string;
+  book_id: string;
+  user_id: string;
+  started_at: string;
+  created_at: string;
 }
 
 export const CAPTURE_KIND_LABEL: Record<CaptureKind, string> = {

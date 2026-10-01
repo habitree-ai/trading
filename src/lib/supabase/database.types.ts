@@ -210,6 +210,38 @@ export type Database = {
         }
         Relationships: []
       }
+      flat_sessions: {
+        Row: {
+          book_id: string
+          created_at: string
+          id: string
+          started_at: string
+          user_id: string
+        }
+        Insert: {
+          book_id: string
+          created_at?: string
+          id?: string
+          started_at?: string
+          user_id: string
+        }
+        Update: {
+          book_id?: string
+          created_at?: string
+          id?: string
+          started_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "flat_sessions_book_id_fkey"
+            columns: ["book_id"]
+            isOneToOne: false
+            referencedRelation: "books"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       goals: {
         Row: {
           book_id: string

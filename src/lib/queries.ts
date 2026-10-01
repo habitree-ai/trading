@@ -9,6 +9,7 @@ import {
   type Book,
   type CashFlow,
   type ExchangeAccount,
+  type FlatSession,
   type Goal,
   type JournalNote,
   type Principle,
@@ -377,6 +378,19 @@ export async function getLastSync(bookId: string): Promise<SyncRun | null> {
     .limit(1);
   if (error) throw new Error(error.message);
   return (data[0] as SyncRun | undefined) ?? null;
+}
+
+/** 이 북에서 가장 최근에 누른 무포지션 시작 — 끝났는지는 거래와 견줘 `flatState` 가 정한다. */
+export async function getLatestFlat(bookId: string): Promise<FlatSession | null> {
+  const { supabase } = await requireUser();
+  const { data, error } = await supabase
+    .from("flat_sessions")
+    .select("*")
+    .eq("book_id", bookId)
+    .order("started_at", { ascending: false })
+    .limit(1);
+  if (error) throw new Error(error.message);
+  return (data[0] as FlatSession | undefined) ?? null;
 }
 
 export async function listGoals(bookId: string): Promise<Goal[]> {

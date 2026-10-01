@@ -1259,10 +1259,12 @@ describe('impulse — 뇌동매매지수 (REQ-0076)', () => {
     const b = trade({ pnl: 2, result: 'win', symbol: 'ETH', entry_at: '2026-09-01T01:00:00Z', exit_at: '2026-09-01T02:00:00Z' });
     const open = trade({ pnl: 0, result: 'open', entry_at: '2026-09-01T04:00:00Z', exit_at: null });
 
-    expect(latestExit(deriveTrades(book, [a, b, open]))).toEqual({
+    const latest = latestExit(deriveTrades(book, [a, b, open]));
+    expect(latest).toMatchObject({
       exitMs: Date.parse('2026-09-01T03:00:00Z'),
       prev: { net: -5, equityBefore: 100, margin: 100 },
     });
+    expect(latest?.closed.trade.id).toBe(a.id);
     expect(latestExit([])).toBeNull();
   });
 });

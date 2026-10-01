@@ -228,10 +228,12 @@ export function deriveTrades(
 }
 
 /**
- * 가장 최근에 끝난 거래 — 주문 화면이 「지금 들어가면」의 뇌동매매지수와 남은 대기시간을 잰다(REQ-0076).
- * 기산점은 `sinceLastExitMs` 와 같다: 종목을 가리지 않고 가장 늦은 청산.
+ * 가장 최근에 끝난 거래 — 무포지션 화면이 직전 매매를 보여 주고 「지금 들어가면」의 뇌동매매지수와
+ * 남은 대기시간을 잰다(REQ-0076·0087). 기산점은 `sinceLastExitMs` 와 같다: 종목을 가리지 않고 가장 늦은 청산.
  */
-export function latestExit(derived: readonly TradeDerived[]): { exitMs: number; prev: PrevExit } | null {
+export function latestExit(
+  derived: readonly TradeDerived[],
+): { exitMs: number; prev: PrevExit; closed: TradeDerived } | null {
   let best: TradeDerived | null = null;
   let bestMs = -Infinity;
   for (const d of derived) {
@@ -243,7 +245,11 @@ export function latestExit(derived: readonly TradeDerived[]): { exitMs: number; 
     }
   }
   if (best === null) return null;
-  return { exitMs: bestMs, prev: { net: best.net, equityBefore: best.equityBefore, margin: best.margin } };
+  return {
+    exitMs: bestMs,
+    prev: { net: best.net, equityBefore: best.equityBefore, margin: best.margin },
+    closed: best,
+  };
 }
 
 /** 이 거래가 장부에 확정되는 시각 — 청산했으면 청산 시각, 아직 들고 있으면 진입 시각. */

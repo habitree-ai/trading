@@ -1,16 +1,30 @@
 "use client";
 
 import Link from "next/link";
-import { useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 
 import { runOkxSync, type SyncState } from "@/app/(app)/trades/actions";
 
 /** 옆의 `기록 추가`(강조)에 눌리지 않게 한 단계 낮춘 버튼 톤. */
 const SECONDARY = "rounded-lg border border-border px-3 py-2 text-sm text-dim hover:text-text";
 
-export function OkxSyncButton() {
+/**
+ * `auto` 면 화면이 뜰 때 한 번 스스로 받아 온다 — 무포지션 화면(REQ-0087)이 쓴다. 그 화면의 종결은
+ * 새 진입이 동기화돼야 잡히는데, 버튼을 눌러야만 한다면 "저절로 끝난다"가 성립하지 않는다.
+ */
+export function OkxSyncButton({ auto = false }: { auto?: boolean }) {
   const [pending, startTransition] = useTransition();
   const [state, setState] = useState<SyncState>({});
+  // 동기화가 끝나면 화면이 다시 그려지며 `auto` 가 바뀔 수 있다 — 그래도 한 번만 돈다.
+  const autoRan = useRef(false);
+
+  useEffect(() => {
+    if (!auto || autoRan.current) return;
+    autoRan.current = true;
+    startTransition(async () => {
+      setState(await runOkxSync());
+    });
+  }, [auto]);
 
   return (
     <div className="flex flex-wrap items-center gap-2">
@@ -41,8 +55,8 @@ export function OkxSyncButton() {
  *
  * 대시보드와 거래 목록이 같은 자리에 같은 걸 놓으므로 모양을 여기 한 벌만 둔다.
  */
-export function SyncAction({ linked }: { linked: boolean }) {
-  if (linked) return <OkxSyncButton />;
+export function SyncAction({ linked, auto = false }: { linked: boolean; auto?: boolean }) {
+  if (linked) return <OkxSyncButton auto={auto} />;
 
   return (
     <Link href="/settings" className={SECONDARY}>

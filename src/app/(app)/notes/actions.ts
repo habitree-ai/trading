@@ -11,7 +11,7 @@ const SECTION_LABEL: Record<string, string> = { basis: "근거", review: "복기
 /**
  * 매매 노트의 카드 저장 — 근거 카드와 복기 카드가 각자 자기 칸만 고친다(`fields.ts`).
  *
- * 저장 경로가 거래 행이라 `/review` 통계·`/order` 근거 게이트·`/trades/[id]` 폼이 같은 값을 본다.
+ * 저장 경로가 거래 행이라 `/review` 통계·`/flat` 직전 매매·`/trades/[id]` 폼이 같은 값을 본다.
  */
 export async function updateTradeNotes(
   _prev: JournalFormState,

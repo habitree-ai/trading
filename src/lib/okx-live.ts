@@ -9,10 +9,11 @@
  * 흘러가지 않는다 — 이 파일을 클라이언트에서 import 하면 node:crypto 때문에 빌드가
  * 깨진다(의도된 방어).
  *
- * 키 묶음이 둘이다. 같은 배선을 서로 다른 계좌로 태우기 때문에 이름이 계좌를 말해야 한다:
+ * 키 묶음은 이름이 계좌를 말해야 한다:
  *
- * - `OKX_LIVE_*`   — 봇 서브계정. 배선 검증(/system/test)과 라이브 봇 제어.
- * - `OKX_MANUAL_*` — 주 매매계정. 근거를 적은 뒤 사람이 내는 주문(/order).
+ * - `OKX_LIVE_*` — 봇 서브계정. 배선 검증(/system/test)과 라이브 봇 제어.
+ *
+ * 주 매매계정으로 나가는 경로는 없다 — 근거 게이트 주문 화면(`OKX_MANUAL_*`)은 REQ-0087 에서 없앴다.
  *
  * 이름이 `OKX_API_*` 가 아닌 것은 2026-08-19 사고에서 나왔다. 봇(system-trading/bot)도
  * `OKX_API_*` 를 읽는데, 봇은 로컬 PC 에서 돌고 이 코드는 배포 서버에서 돈다 — 이름이 같으니
@@ -20,7 +21,7 @@
  * 주 매매계정을 향하고 있었고, 아무 신호도 없었다. 묶음마다 이름을 갈라 두면 두 경로가
  * 우연히 같은 값을 물려받는 일이 없다.
  *
- * 폴백을 두지 않는 것도 의도다. 한 묶음이 비었을 때 다른 묶음으로 흘러가면 정확히 그 사고가
+ * 폴백을 두지 않는 것도 의도다. 묶음이 비었을 때 다른 이름으로 흘러가면 정확히 그 사고가
  * 조용히 되살아난다. 없으면 키가 없는 것으로 치고 화면이 닫힌다.
  */
 import { createHmac } from "node:crypto";
@@ -46,7 +47,7 @@ interface OkxRow {
 }
 
 /** 환경변수 접두사 — 어느 계좌 묶음인지가 이름에 있다. */
-export type OkxKeyPrefix = "OKX_LIVE" | "OKX_MANUAL";
+export type OkxKeyPrefix = "OKX_LIVE";
 
 interface Keys {
   key: string;
@@ -102,19 +103,6 @@ export interface OkxPosition {
   posId: string;
 }
 
-/** 주문 1건의 체결 상태 — 시장가가 실제로 얼마에 몇 계약 잡혔는지. */
-export interface OkxOrderDetail {
-  state: string;
-  /** 평균 체결가. 아직 체결 전이면 null */
-  avgPx: number | null;
-  /** 누적 체결 수량(계약) */
-  accFillSz: number;
-  /** 마지막 체결 시각(ms). 체결 전이면 null */
-  fillTime: number | null;
-  /** 지금까지 낸 수수료 — 부호 포함(보통 음수) */
-  fee: number | null;
-}
-
 /**
  * 한 키 묶음에 매인 주문 클라이언트.
  *
@@ -139,7 +127,6 @@ export interface OkxTradeClient {
     tickSz: number;
     pxDecimals: number;
   }): Promise<string>;
-  orderDetails(instId: string, ordId: string): Promise<OkxOrderDetail | null>;
   algoDetails(algoClOrdId: string): Promise<OkxRow | { error: string } | null>;
   cancelAlgo(instId: string, algoId: string): Promise<void>;
   closeMarket(instId: string, posSide: "long" | "short", sz: string): Promise<void>;
@@ -240,27 +227,6 @@ export function createTradeClient(prefix: OkxKeyPrefix): OkxTradeClient {
       return String(d.ordId);
     },
 
-    async orderDetails(instId, ordId) {
-      const data = await privateCall(
-        "GET",
-        `/api/v5/trade/order?instId=${encodeURIComponent(instId)}&ordId=${encodeURIComponent(ordId)}`,
-      );
-      const d = data[0];
-      if (!d) return null;
-      const num = (v: string | undefined) => {
-        if (v === undefined || v === "") return null;
-        const n = Number(v);
-        return Number.isFinite(n) ? n : null;
-      };
-      return {
-        state: d.state ?? "",
-        avgPx: num(d.avgPx),
-        accFillSz: num(d.accFillSz) ?? 0,
-        fillTime: num(d.fillTime),
-        fee: num(d.fee),
-      };
-    },
-
     async algoDetails(algoClOrdId) {
       try {
         const data = await privateCall(
@@ -320,16 +286,6 @@ export const algoDetails: OkxTradeClient["algoDetails"] = (a) => live.algoDetail
 export const cancelAlgo: OkxTradeClient["cancelAlgo"] = (...a) => live.cancelAlgo(...a);
 export const closeMarket: OkxTradeClient["closeMarket"] = (...a) => live.closeMarket(...a);
 export const positions: OkxTradeClient["positions"] = (a) => live.positions(a);
-
-/**
- * 주 매매계정(`OKX_MANUAL_*`) — 근거를 적은 뒤 사람이 내는 주문의 통로.
- *
- * 매번 새로 만들지만 키는 부를 때 읽으므로 비용은 없다. 이 클라이언트가 향하는 계좌는
- * 호출부가 반드시 `accountId()` 로 확인하고 화면에 적는다 — 주문 화면의 불변식이다.
- */
-export function manualClient(): OkxTradeClient {
-  return createTradeClient("OKX_MANUAL");
-}
 
 /**
  * 배포 환경 불변식 — 허용목록 없이 실주문 경로를 열지 않는다.

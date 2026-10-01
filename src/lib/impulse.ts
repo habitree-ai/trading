@@ -85,7 +85,7 @@ export function impulseLevel(score: number): "low" | "mid" | "high" {
   return "low";
 }
 
-/** 지수 구간 색(Tailwind) — 표·노트·주문 화면이 같은 색을 쓴다. 낮으면 흐리게, 높을수록 진하게 */
+/** 지수 구간 색(Tailwind) — 표·노트·무포지션 화면이 같은 색을 쓴다. 낮으면 흐리게, 높을수록 진하게 */
 export function impulseTone(score: number): string {
   return { low: "text-dim", mid: "text-beta", high: "font-medium text-loss" }[impulseLevel(score)];
 }

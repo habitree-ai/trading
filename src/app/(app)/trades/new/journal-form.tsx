@@ -215,7 +215,7 @@ function EntryRecordFields({
 /**
  * 진입 기록 — 거래 행의 근거·복기·감정. 시간순 기록의 첫 줄이고, 저장 경로는 REQ-0048 그대로다.
  *
- * `/review` 통계와 `/order` 근거 게이트가 이 칸을 본다 — 추가 기록과 섞지 않는다.
+ * `/review` 통계와 `/flat` 직전 매매가 이 칸을 본다 — 추가 기록과 섞지 않는다.
  */
 function EntryRecord({
   trade,
