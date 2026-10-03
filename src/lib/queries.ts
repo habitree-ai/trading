@@ -1,6 +1,7 @@
 import { cookies } from "next/headers";
 import { cache } from "react";
 
+import type { AiReviewRow } from "@/lib/ai-review";
 import { toAnnotation, type AnnotationRow } from "@/lib/annotations";
 import { isAllowedEmail } from "@/lib/auth/allowlist";
 import {
@@ -391,6 +392,18 @@ export async function getLatestFlat(bookId: string): Promise<FlatSession | null>
     .limit(1);
   if (error) throw new Error(error.message);
   return (data[0] as FlatSession | undefined) ?? null;
+}
+
+/** AI 분석 회차 — 최신 회차가 먼저. 쓰기는 `scripts/ai-review.mjs` 만 한다(REQ-0088). */
+export async function listAiReviews(bookId: string): Promise<AiReviewRow[]> {
+  const { supabase } = await requireUser();
+  const { data, error } = await supabase
+    .from("ai_reviews")
+    .select("*")
+    .eq("book_id", bookId)
+    .order("round", { ascending: false });
+  if (error) throw new Error(error.message);
+  return data;
 }
 
 export async function listGoals(bookId: string): Promise<Goal[]> {

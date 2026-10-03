@@ -13,7 +13,8 @@
     "seed:research-notes": "node --env-file=.env.local scripts/seed-research-notes.mjs",
     "seed:senior-notes": "node --env-file=.env.local scripts/seed-senior-notes.mjs",
     "senior-notes": "node --env-file=.env.local scripts/senior-notes.mjs",
-    "kakao-auth": "node --env-file=.env.local scripts/kakao-auth.mjs"
+    "kakao-auth": "node --env-file=.env.local scripts/kakao-auth.mjs",
+    "ai-review": "node --env-file=.env.local scripts/ai-review.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.3",

@@ -23,6 +23,56 @@ export type Database = {
   }
   public: {
     Tables: {
+      ai_reviews: {
+        Row: {
+          book_id: string
+          content: Json
+          created_at: string
+          generated_at: string
+          id: string
+          period_from: string | null
+          period_to: string | null
+          round: number
+          title: string
+          trade_count: number
+          user_id: string
+        }
+        Insert: {
+          book_id: string
+          content: Json
+          created_at?: string
+          generated_at?: string
+          id?: string
+          period_from?: string | null
+          period_to?: string | null
+          round: number
+          title: string
+          trade_count?: number
+          user_id: string
+        }
+        Update: {
+          book_id?: string
+          content?: Json
+          created_at?: string
+          generated_at?: string
+          id?: string
+          period_from?: string | null
+          period_to?: string | null
+          round?: number
+          title?: string
+          trade_count?: number
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_reviews_book_id_fkey"
+            columns: ["book_id"]
+            isOneToOne: false
+            referencedRelation: "books"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       balance_snapshots: {
         Row: {
           at: string

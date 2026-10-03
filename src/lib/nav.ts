@@ -53,6 +53,7 @@ export const AREAS: Area[] = [
       { href: "/notes", label: "매매 노트", icon: "📝", hint: "근거·복기·기록을 한 화면에서 보고 고치기" },
       { href: "/trades/new", label: "기록 추가", icon: "➕", hint: "포지션 기록(진입·추가 진입·변경·메모) · 일반 기록" },
       { href: "/review", label: "복기 분석", icon: "🔍", hint: "감정·셋업별 성과" },
+      { href: "/ai-review", label: "AI 분석", icon: "🧠", hint: "지시할 때 만드는 종합 분석 — 문제·교정·못 본 것" },
       { href: "/mistakes", label: "오답노트", icon: "❌", hint: "빠른매매·잘못된 매매와 하지 말 것" },
       { href: "/principles", label: "원칙", icon: "📐", hint: "지킴/어김과 그 대가" },
       { href: "/goals", label: "목표", icon: "🎯", hint: "계획 β · 목표 α" },
