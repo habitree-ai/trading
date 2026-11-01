@@ -1179,6 +1179,47 @@ export type Database = {
           },
         ]
       }
+      trade_stop_backfill: {
+        Row: {
+          created_at: string
+          id: string
+          new_source: string | null
+          new_stop_px_0: number | null
+          old_source: string | null
+          old_stop_px_0: number | null
+          trade_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          new_source?: string | null
+          new_stop_px_0?: number | null
+          old_source?: string | null
+          old_stop_px_0?: number | null
+          trade_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          new_source?: string | null
+          new_stop_px_0?: number | null
+          old_source?: string | null
+          old_stop_px_0?: number | null
+          trade_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "trade_stop_backfill_trade_id_fkey"
+            columns: ["trade_id"]
+            isOneToOne: false
+            referencedRelation: "trades"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       trades: {
         Row: {
           book_id: string
@@ -1201,6 +1242,8 @@ export type Database = {
           okx_pos_id: string | null
           okx_sl_source: Database["public"]["Enums"]["okx_sl_source"] | null
           okx_stop_price: number | null
+          okx_stop_first: number | null
+          okx_tp_first: number | null
           okx_tp_price: number | null
           openness: Database["public"]["Enums"]["market_openness"] | null
           plan_on_loss: string | null
@@ -1254,6 +1297,8 @@ export type Database = {
           okx_pos_id?: string | null
           okx_sl_source?: Database["public"]["Enums"]["okx_sl_source"] | null
           okx_stop_price?: number | null
+          okx_stop_first?: number | null
+          okx_tp_first?: number | null
           okx_tp_price?: number | null
           openness?: Database["public"]["Enums"]["market_openness"] | null
           plan_on_loss?: string | null
@@ -1307,6 +1352,8 @@ export type Database = {
           okx_pos_id?: string | null
           okx_sl_source?: Database["public"]["Enums"]["okx_sl_source"] | null
           okx_stop_price?: number | null
+          okx_stop_first?: number | null
+          okx_tp_first?: number | null
           okx_tp_price?: number | null
           openness?: Database["public"]["Enums"]["market_openness"] | null
           plan_on_loss?: string | null

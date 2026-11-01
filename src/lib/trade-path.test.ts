@@ -320,6 +320,8 @@ describe("pathRequest", () => {
     tp2_price: null,
     tp3_price: null,
     okx_tp_price: null,
+    okx_stop_first: null,
+    okx_tp_first: null,
   } as Trade;
 
   it("끝은 청산과 무관하게 지금까지, notional 을 넘긴다", () => {

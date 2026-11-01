@@ -37,6 +37,8 @@ function trade(over: Partial<Trade> = {}): Trade {
     tp3_pct: null,
     okx_stop_price: null,
     okx_tp_price: null,
+    okx_stop_first: null,
+    okx_tp_first: null,
     okx_sl_source: null,
     stop_px_0: null,
     stop_px_0_source: null,

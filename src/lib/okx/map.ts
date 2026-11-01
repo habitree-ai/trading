@@ -269,6 +269,9 @@ function stopTargetUpdate(row: StopTarget): Partial<StopTarget> {
     okx_stop_price: row.okx_stop_price,
     okx_tp_price: row.okx_tp_price,
     okx_sl_source: row.okx_sl_source,
+    // 처음 값은 DB 트리거가 한 번 정해지면 지킨다(0041) — 여기서 늦게 본 값을 보내도 덮이지 않는다.
+    okx_stop_first: row.okx_stop_first,
+    okx_tp_first: row.okx_tp_first,
   };
 }
 
@@ -325,17 +328,27 @@ export function toCloseUpdate(row: TradeInsert) {
 /** 값을 어느 경로로 얻었는지. `algo`만 추정이고 나머지 둘은 식별자가 일치한 사실이다. */
 export type StopTargetSource = "attached" | "position" | "algo";
 
-/** 거래 행에 실을 손절·익절 한 쌍. 못 찾았으면 셋 다 null 이다. */
+/**
+ * 거래 행에 실을 손절·익절. 못 찾았으면 전부 null 이다.
+ *
+ * `okx_stop_price`·`okx_tp_price` 는 **마지막에** 걸린 값(차트의 손절선), `okx_stop_first`·`okx_tp_first` 는
+ * **처음** 건 값이다(REQ-0093). R 의 분모인 최초 손절은 처음 값에서 나온다 — 손절을 옮긴 거래의 마지막 값은
+ * 진입 때 위험이 아니다.
+ */
 export interface StopTarget {
   okx_stop_price: number | null;
   okx_tp_price: number | null;
   okx_sl_source: StopTargetSource | null;
+  okx_stop_first: number | null;
+  okx_tp_first: number | null;
 }
 
 export const NO_STOP_TARGET: StopTarget = {
   okx_stop_price: null,
   okx_tp_price: null,
   okx_sl_source: null,
+  okx_stop_first: null,
+  okx_tp_first: null,
 };
 
 /** 트리거가를 담은 것이면 무엇이든 — 부착 주문·청산 예약·알고 주문이 같은 모양이다. */
@@ -397,7 +410,7 @@ function hasTrigger(t: TriggerPair): boolean {
 }
 
 /**
- * 손절과 익절을 **따로** 고른다 — 각각 마지막에 등록된 값이다.
+ * 손절과 익절을 **따로** 고른다 — 각각 마지막에 등록된 값과 처음 등록된 값.
  *
  * 한 레코드만 보면 안 되는 이유: 손절과 익절을 따로 걸면 예약이 두 건으로 나뉜다.
  * 최신 한 건만 취하면 먼저 건 쪽이 통째로 사라진다. 입력은 시각 오름차순이어야 한다.
@@ -405,12 +418,26 @@ function hasTrigger(t: TriggerPair): boolean {
 function pickLatest(pairs: readonly TriggerPair[], source: StopTargetSource): StopTarget | null {
   let stop: number | null = null;
   let target: number | null = null;
+  let firstStop: number | null = null;
+  let firstTarget: number | null = null;
   for (const p of pairs) {
-    if (p.slTriggerPx !== null) stop = p.slTriggerPx;
-    if (p.tpTriggerPx !== null) target = p.tpTriggerPx;
+    if (p.slTriggerPx !== null) {
+      stop = p.slTriggerPx;
+      firstStop ??= p.slTriggerPx;
+    }
+    if (p.tpTriggerPx !== null) {
+      target = p.tpTriggerPx;
+      firstTarget ??= p.tpTriggerPx;
+    }
   }
   if (stop === null && target === null) return null;
-  return { okx_stop_price: stop, okx_tp_price: target, okx_sl_source: source };
+  return {
+    okx_stop_price: stop,
+    okx_tp_price: target,
+    okx_sl_source: source,
+    okx_stop_first: firstStop,
+    okx_tp_first: firstTarget,
+  };
 }
 
 /**
@@ -484,12 +511,16 @@ export function stopTargetOf(input: {
 }): StopTarget {
   const { span, entryOrdIds, orders, algos, siblings, closeOrderAlgo } = input;
 
-  return (
-    fromAttached(entryOrdIds, orders) ??
-    pickLatest((closeOrderAlgo ?? []).filter(hasTrigger), "position") ??
-    fromAlgo(span, algos, siblings) ??
-    NO_STOP_TARGET
-  );
+  const attached = fromAttached(entryOrdIds, orders);
+  const position = pickLatest((closeOrderAlgo ?? []).filter(hasTrigger), "position");
+  const algo = fromAlgo(span, algos, siblings);
+  const last = attached ?? position ?? algo ?? NO_STOP_TARGET;
+
+  // 처음 값은 경로를 따로 고른다. 들고 있는 포지션의 청산 예약(`position`)은 **지금** 걸린 것이라 처음 값이
+  // 아니다 — 옮기기 전 예약은 취소돼 알고 이력에 남는다. 이력에 없을 때만(한 번도 안 옮김) 그 값을 쓴다.
+  const firstOf = (key: "okx_stop_first" | "okx_tp_first") =>
+    attached?.[key] ?? algo?.[key] ?? position?.[key] ?? null;
+  return { ...last, okx_stop_first: firstOf("okx_stop_first"), okx_tp_first: firstOf("okx_tp_first") };
 }
 
 /**

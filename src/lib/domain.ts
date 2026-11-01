@@ -140,6 +140,10 @@ export interface Trade {
   okx_stop_price: number | null;
   /** 거래소에 걸려 있던 익절 트리거가. 익절을 걸지 않은 거래가 대부분이라 보통 null */
   okx_tp_price: number | null;
+  /** 처음 건 거래소 손절 — 부착 주문·알고 이력의 가장 이른 값. 최초 손절(stop_px_0)의 근거가 된다(REQ-0093) */
+  okx_stop_first: number | null;
+  /** 처음 건 거래소 익절 */
+  okx_tp_first: number | null;
   /**
    * 위 두 값을 어느 경로로 얻었는지.
    *

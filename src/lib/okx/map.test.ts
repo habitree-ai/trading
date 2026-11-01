@@ -42,6 +42,7 @@ import {
   spanOfClosed,
   spanOfOpen,
   stopTargetOf,
+  NO_STOP_TARGET,
 } from "@/lib/okx/map";
 
 /** OKX 문서 예시를 본뜬 응답 — 모든 수치가 문자열로 온다. */
@@ -558,7 +559,13 @@ describe("stopTargetOf — 거래소에 걸려 있던 손절·익절", () => {
 
     expect(
       stopTargetOf({ span, entryOrdIds: ["ORD-1"], orders, algos: [], siblings: [span] }),
-    ).toEqual({ okx_stop_price: 28500, okx_tp_price: 31000, okx_sl_source: "attached" });
+    ).toEqual({
+      okx_stop_price: 28500,
+      okx_tp_price: 31000,
+      okx_sl_source: "attached",
+      okx_stop_first: 28500,
+      okx_tp_first: 31000,
+    });
   });
 
   it("부착이 없으면 알고 주문을 시각으로 되짚는다", () => {
@@ -573,7 +580,13 @@ describe("stopTargetOf — 거래소에 걸려 있던 손절·익절", () => {
         algos: [algo({ slTriggerPx: "29100" })],
         siblings: [span],
       }),
-    ).toEqual({ okx_stop_price: 29100, okx_tp_price: null, okx_sl_source: "algo" });
+    ).toEqual({
+      okx_stop_price: 29100,
+      okx_tp_price: null,
+      okx_sl_source: "algo",
+      okx_stop_first: 29100,
+      okx_tp_first: null,
+    });
   });
 
   /*
@@ -589,10 +602,10 @@ describe("stopTargetOf — 거래소에 걸려 있던 손절·익절", () => {
       algo({ algoId: "A2", slTriggerPx: "29200", cTime: "1695359800000" }),
     ];
 
-    expect(
-      stopTargetOf({ span, entryOrdIds: [], orders: NO_ORDERS, algos, siblings: [span] })
-        .okx_stop_price,
-    ).toBe(29500);
+    const target = stopTargetOf({ span, entryOrdIds: [], orders: NO_ORDERS, algos, siblings: [span] });
+    expect(target.okx_stop_price).toBe(29500);
+    // 처음 건 값도 따로 남긴다 — R 의 최초 손절(REQ-0093)
+    expect(target.okx_stop_first).toBe(29000);
   });
 
   it("손절과 익절을 따로 걸었으면 각각의 마지막 값을 살린다", () => {
@@ -605,7 +618,13 @@ describe("stopTargetOf — 거래소에 걸려 있던 손절·익절", () => {
 
     expect(
       stopTargetOf({ span, entryOrdIds: [], orders: NO_ORDERS, algos, siblings: [span] }),
-    ).toEqual({ okx_stop_price: 29000, okx_tp_price: 31000, okx_sl_source: "algo" });
+    ).toEqual({
+      okx_stop_price: 29000,
+      okx_tp_price: 31000,
+      okx_sl_source: "algo",
+      okx_stop_first: 29000,
+      okx_tp_first: 31000,
+    });
   });
 
   /*
@@ -626,7 +645,7 @@ describe("stopTargetOf — 거래소에 걸려 있던 손절·익절", () => {
         algos: [algo()],
         siblings: [mine, other],
       }),
-    ).toEqual({ okx_stop_price: null, okx_tp_price: null, okx_sl_source: null });
+    ).toEqual(NO_STOP_TARGET);
   });
 
   it("겹쳐도 부착 주문은 살아남는다 — 그쪽은 ordId로 특정되니 헷갈릴 일이 없다", () => {
@@ -684,7 +703,7 @@ describe("stopTargetOf — 거래소에 걸려 있던 손절·익절", () => {
 
     expect(
       stopTargetOf({ span, entryOrdIds: [], orders: NO_ORDERS, algos: [], siblings: [span] }),
-    ).toEqual({ okx_stop_price: null, okx_tp_price: null, okx_sl_source: null });
+    ).toEqual(NO_STOP_TARGET);
   });
 
   /*
@@ -716,6 +735,29 @@ describe("stopTargetOf — 거래소에 걸려 있던 손절·익절", () => {
           closeOrderAlgo: [{ slTriggerPx: "28480", tpTriggerPx: "0" }],
         }).closeOrderAlgo,
       }),
-    ).toEqual({ okx_stop_price: 28480, okx_tp_price: null, okx_sl_source: "position" });
+    ).toEqual({
+      okx_stop_price: 28480,
+      okx_tp_price: null,
+      okx_sl_source: "position",
+      okx_stop_first: 28480,
+      okx_tp_first: null,
+    });
+  });
+
+  it("들고 있는 동안 손절을 옮겼으면 마지막은 지금 예약, 처음은 취소된 이력의 값", () => {
+    const held = openPosition();
+    const span = spanOfOpen(held);
+    const target = stopTargetOf({
+      span,
+      entryOrdIds: [],
+      orders: NO_ORDERS,
+      // 옮기기 전 손절은 취소돼 알고 이력에 남는다
+      algos: [algo({ algoId: "OLD", slTriggerPx: "28000", cTime: "1695359710000" })],
+      siblings: [span],
+      closeOrderAlgo: [{ slTriggerPx: 28480, tpTriggerPx: null }],
+    });
+    expect(target.okx_stop_price).toBe(28480);
+    expect(target.okx_sl_source).toBe("position");
+    expect(target.okx_stop_first).toBe(28000);
   });
 });
