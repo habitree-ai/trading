@@ -236,6 +236,8 @@ export function TradeChart({
   entryPrice,
   exitPrice,
   stopPrice,
+  initialStopPrice = null,
+  firstTarget = null,
   targets = NO_TARGETS,
   targetShares = NO_TARGETS,
   notional = null,
@@ -266,6 +268,13 @@ export function TradeChart({
   entryPrice: number | null;
   exitPrice: number | null;
   stopPrice: number | null;
+  /**
+   * 최초 손절(stop_px_0) — R 의 분모. 지금 손절선(`stopPrice`, 마지막에 걸린 값)과 다를 때만 따로 긋는다(REQ-0091).
+   * 손절을 옮긴 거래에서 "처음 얼마를 걸었나"와 "어디서 끊겼나"가 한 차트에 같이 보이게.
+   */
+  initialStopPrice?: number | null;
+  /** 처음 건 거래소 익절(okx_tp_first) — 지금 1차 목표와 다를 때만 따로 긋는다 */
+  firstTarget?: number | null;
   /**
    * 목표가 TP1~3 — 없는 단은 null. 배열로 받지만 안에서 스칼라 셋으로 풀어 effect 의존성에
    * 넣는다 — 목록의 map 안에서 매 렌더 새 배열이 와도 선을 다시 긋지 않게.
@@ -799,8 +808,28 @@ export function TradeChart({
     // 청산 기준선도 그 봉에 닿기 전에는 숨긴다 — 어디서 나갔는지 미리 보이면 복기가 아니다.
     const exitReached = replayIdx === null || (exitMs !== null && exitMs < lastVisMs);
 
+    // 같은 값이면 선을 겹쳐 긋지 않는다 — 옮겨지지 않은 손절·목표는 한 줄이다.
+    const movedStop =
+      initialStopPrice !== null && (stopPrice === null || Math.abs(initialStopPrice - stopPrice) > 1e-12);
+    const movedTarget = firstTarget !== null && (tp1 === null || Math.abs(firstTarget - tp1) > 1e-12);
     const lines = [
-      stopPrice !== null && { price: stopPrice, color: theme.down, title: "손절" },
+      stopPrice !== null && {
+        price: stopPrice,
+        color: theme.down,
+        title: movedStop ? "손절(마지막)" : "손절",
+      },
+      movedStop && {
+        price: initialStopPrice as number,
+        color: theme.down,
+        title: "최초 손절",
+        style: LineStyle.Dotted,
+      },
+      movedTarget && {
+        price: firstTarget as number,
+        color: theme.up,
+        title: "처음 목표",
+        style: LineStyle.Dotted,
+      },
       // TP2·TP3 는 점선으로 위계를 낮춘다 — 셋이 같은 모양이면 어느 것이 1차인지 안 보인다.
       tp1 !== null && {
         price: tp1,
@@ -859,7 +888,7 @@ export function TradeChart({
       markerApi.detach();
       for (const line of lines) series.removePriceLine(line);
     };
-  }, [candles, fills, entryPrice, exitPrice, stopPrice, tp1, tp2, tp3, sh1, sh2, sh3, notional, symbol, entryMs, exitMs, bar, replayIdx, entryIdx, extraMarkers]);
+  }, [candles, fills, entryPrice, exitPrice, stopPrice, initialStopPrice, firstTarget, tp1, tp2, tp3, sh1, sh2, sh3, notional, symbol, entryMs, exitMs, bar, replayIdx, entryIdx, extraMarkers]);
 
   /* ---------- 측정(자)·메모 도구 ---------- */
   const toPoint = useCallback((x: number, y: number): MeasurePoint | null => {

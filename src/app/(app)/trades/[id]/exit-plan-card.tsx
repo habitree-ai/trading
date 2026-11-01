@@ -1,7 +1,7 @@
 import { ActualTable, ExitPlanLines, PlanTable } from "@/components/exit-plan";
 import type { Trade } from "@/lib/domain";
 import type { ExitSummary } from "@/lib/exit-plan";
-import { DASH, num, signed, signedPct } from "@/lib/format";
+import { DASH, num, price, signed, signedPct } from "@/lib/format";
 import { netOf } from "@/lib/metrics";
 
 const MODE_LABEL: Record<ExitSummary["mode"], string> = {
@@ -48,7 +48,7 @@ export function ExitPlanCard({ trade, summary }: { trade: Trade; summary: ExitSu
         <span className="rounded border border-loss/40 px-1.5 py-0.5 text-xs text-loss">손절</span>{" "}
         {stop ? (
           <>
-            {num(stop.price)}{" "}
+            {price(stop.price)}{" "}
             <span className="text-xs text-dim">
               {stop.source === "okx" ? "거래소" : "내 계획"}
               {stop.planPrice !== null ? ` · 내 계획 ${num(stop.planPrice)}` : ""}
@@ -66,7 +66,9 @@ export function ExitPlanCard({ trade, summary }: { trade: Trade; summary: ExitSu
       </p>
       {plan.rBasis === "okx" ? (
         <p className="mt-1 text-xs text-dim">
-          R 은 거래소 손절(마지막 등록값) 기준입니다 — 계획 손절가를 적으면 그쪽으로 잽니다.
+          R 은 최초 손절(
+          {trade.stop_px_0_source === "okx_last" ? "거래소에 남은 마지막 손절 · 추정" : "처음 건 거래소 손절"}
+          {trade.stop_px_0 !== null ? ` ${num(trade.stop_px_0)}` : ""}) 기준입니다 — R 열·R 엣지와 같은 값입니다.
         </p>
       ) : plan.rBasis === null && plan.steps.length > 0 ? (
         <p className="mt-1 text-xs text-dim">손절가가 없어 R 을 잴 수 없습니다.</p>

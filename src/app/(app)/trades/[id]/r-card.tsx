@@ -1,5 +1,5 @@
 import type { StopSource } from "@/lib/domain";
-import { DASH, num, pnlClass, signed } from "@/lib/format";
+import { DASH, num, pnlClass, price, signed } from "@/lib/format";
 import { R_UNMEASURED_LABEL, type TradeR } from "@/lib/r-multiple";
 
 const SOURCE_LABEL: Record<StopSource, string> = {
@@ -7,10 +7,6 @@ const SOURCE_LABEL: Record<StopSource, string> = {
   okx_first: "거래소 손절(처음 본 값)",
   okx_last: "거래소 손절(마지막 값 · 추정)",
 };
-
-/** 가격 — 저가 코인은 소수 둘째 자리로 자르면 진입가와 손절이 같아 보인다. */
-const price = (v: number | null) =>
-  v === null ? DASH : num(v, Math.abs(v) >= 100 ? 2 : Math.abs(v) >= 1 ? 4 : 6);
 
 /**
  * 거래 상세의 R 카드(REQ-0089) — 목록에는 R 배수·위험 배수만 두고 나머지는 여기서 본다.

@@ -189,7 +189,7 @@ function KellyCard({ m, currency }: { m: BookMetrics; currency: string }) {
     { label: "표본 n", value: `${m.closedCount}건`, hint: `청산 완료 거래만 · ${RELIABLE_SAMPLE}건부터 믿고 봅니다` },
     {
       label: "기대치",
-      value: m.expectancy === null ? DASH : `${signed(m.expectancy, 2)} R`,
+      value: m.expectancy === null ? DASH : `${signed(m.expectancy, 2)} × 평균손실`,
       hint: "W × b − (1 − W) — 켈리는 이 값을 b 로 나눈 것과 같습니다",
     },
   ];

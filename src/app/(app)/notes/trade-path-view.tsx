@@ -133,6 +133,8 @@ export function TradeChartFor({
       entryPrice={trade.entry_price}
       exitPrice={trade.exit_price}
       stopPrice={trade.okx_stop_price ?? trade.stop_price}
+      initialStopPrice={trade.stop_px_0}
+      firstTarget={trade.okx_tp_first}
       targets={activeTargetPrices(trade)}
       targetShares={activeTargetShares(trade)}
       notional={trade.notional}

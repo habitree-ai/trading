@@ -18,7 +18,7 @@ import {
   type TradeResult,
 } from "@/lib/domain";
 import { summarizeExits } from "@/lib/exit-plan";
-import { DASH, dateTime, num, pct, pnlClass, signed, signedPct } from "@/lib/format";
+import { DASH, dateTime, price as fmtPrice, num, pct, pnlClass, signed, signedPct } from "@/lib/format";
 import { describeImpulse, impulseTone, type Impulse } from "@/lib/impulse";
 import type { TradeDerived } from "@/lib/metrics";
 import { R_UNMEASURED_LABEL, type TradeR } from "@/lib/r-multiple";
@@ -34,7 +34,11 @@ const RISK_WARN = 2;
 
 /** 짧게 줄인 머리글의 풀이 */
 const COLUMN_TITLE: Record<string, string> = {
-  R: "R 배수 — 순손익 ÷ 최초 위험(최초 손절폭 × 최초 수량). * 는 추정 손절로 잰 값",
+  R: "R 배수 — 순손익 ÷ 최초 위험(최초 손절폭 × 진입 수량). * 는 추정 손절로 잰 값",
+  "투입 · Lv": "투입(명목가) · 레버리지",
+  진입: "진입 가격 · 시각 · 직전 청산 뒤 간격 · 뇌동매매지수",
+  청산: "청산 가격 · 시각",
+  "자금 · MDD": "청산 뒤 자금 · 고점 대비 낙폭",
   "위험×": "위험 배수 — 최초 위험(예상 왕복 수수료 포함) ÷ 진입 때 기준 R",
 };
 
@@ -188,20 +192,19 @@ export function TradeTable({
     "",
     "방향",
     "종목",
-    "진입 (가격 · 시각)",
+    "진입",
     "손절 · 목표",
     "손익비",
-    "청산 (가격 · 시각)",
+    "청산",
     "승패",
-    "투입",
-    "Lv",
-    `실현손익 (${currency})`,
+    // 짝으로 읽는 값은 한 칸에 두 줄로 — 1263px 화면에서 R 열까지 가로 스크롤 없이 보이게(REQ-0091).
+    "투입 · Lv",
+    "실현손익",
     "손익률",
     // 머리글은 짧게 — 열 하나가 머리글 폭만큼 넓어진다. 풀이는 마우스 올림(COLUMN_TITLE)
     "R",
     "위험×",
-    "자금",
-    "MDD",
+    "자금 · MDD",
     "",
   ];
 
@@ -317,7 +320,7 @@ export function TradeTable({
                   className={`px-2 py-1.5 text-left font-medium whitespace-nowrap ${
                     i === 0 ? "pin-col" : ""
                   }`}
-                  title={COLUMN_TITLE[h]}
+                  title={h === "실현손익" ? `실현손익 (${currency}) — 수수료·펀딩 반영` : COLUMN_TITLE[h]}
                 >
                   {h}
                 </th>
@@ -397,7 +400,7 @@ export function TradeTable({
                 <td className="px-2 py-1.5 font-medium">{trade.symbol}</td>
                 <FillCell price={trade.entry_price} at={trade.entry_at} sinceLastExitMs={row.sinceLastExitMs} impulse={row.impulse} />
                 {/* 진입 옆 — 단계별 청산. 체결된 차수는 실현값, 아직이면 등록된 TP 기준 예상치. */}
-                <td className="px-2 py-1.5 whitespace-nowrap">
+                <td className="w-[150px] px-2 py-1.5">
                   <ExitPlanLines summary={exits} />
                   {tpEdit?.id === trade.id ? (
                     <div className="mt-1.5 space-y-1">
@@ -472,23 +475,27 @@ export function TradeTable({
                 <FillCell price={trade.exit_price} at={trade.exit_at} />
                 <td className="px-2 py-1.5 whitespace-nowrap">
                   <ResultBadge result={outcome} />
-                  {/* 근거 입력 여부 — 어느 쪽이든 누르면 수정 화면에서 바로 적거나 읽는다. */}
-                  <Link
-                    href={`/trades/${trade.id}`}
-                    className={`ml-1 rounded border px-1 py-0.5 text-xs ${
-                      hasRationale ? "border-border text-dim" : "border-accent/40 text-accent"
-                    }`}
-                  >
-                    {hasRationale ? "근거 ✓" : "근거 쓰기"}
-                  </Link>
-                  {needsReview(row) ? (
-                    <span className="ml-1 rounded border border-accent/40 px-1 py-0.5 text-xs text-accent">
-                      복기
-                    </span>
-                  ) : null}
+                  {/* 근거 입력 여부 — 어느 쪽이든 누르면 수정 화면에서 바로 적거나 읽는다. 배지 아래 줄에 둔다. */}
+                  <div className="mt-1 flex flex-col items-start gap-1">
+                    <Link
+                      href={`/trades/${trade.id}`}
+                      className={`rounded border px-1 py-0.5 text-xs ${
+                        hasRationale ? "border-border text-dim" : "border-accent/40 text-accent"
+                      }`}
+                    >
+                      {hasRationale ? "근거 ✓" : "근거 쓰기"}
+                    </Link>
+                    {needsReview(row) ? (
+                      <span className="rounded border border-accent/40 px-1 py-0.5 text-xs text-accent">
+                        복기
+                      </span>
+                    ) : null}
+                  </div>
                 </td>
-                <td className="tnum px-2 py-1.5 text-dim">{num(trade.notional, 0)}</td>
-                <td className="tnum px-2 py-1.5 text-dim">{num(trade.leverage, 1)}</td>
+                <td className="tnum px-2 py-1.5 whitespace-nowrap text-dim">
+                  <div>{num(trade.notional, 0)}</div>
+                  <div className="text-xs">×{num(trade.leverage, 1)}</div>
+                </td>
                 {/*
                   계좌가 실제로 움직인 값(=손익+수수료)을 앞세우고, 내역은 아래 작게.
                   아직 들고 있는 거래는 확정된 게 없어 평가손익을 대신 세운다 — 시세를
@@ -510,7 +517,8 @@ export function TradeTable({
                       <div className="tnum font-medium">{signed(net)}</div>
                       {trade.fee ? (
                         <div className="tnum text-xs text-dim">
-                          {signed(trade.pnl)} · 수수료 {signed(trade.fee)}
+                          <div>{signed(trade.pnl)}</div>
+                          <div>수수료 {signed(trade.fee)}</div>
                         </div>
                       ) : null}
                     </>
@@ -518,9 +526,9 @@ export function TradeTable({
                 </td>
                 <td className={`tnum px-2 py-1.5 ${pnlClass(pnlPct)}`}>{signedPct(pnlPct)}</td>
                 <RCells r={rs[trade.id]} />
-                <td className="tnum px-2 py-1.5">{num(equityAfter, 0)}</td>
-                <td className={`tnum px-2 py-1.5 ${drawdownPct < 0 ? "text-loss" : "text-dim"}`}>
-                  {pct(drawdownPct)}
+                <td className="tnum px-2 py-1.5 whitespace-nowrap">
+                  <div>{num(equityAfter, 0)}</div>
+                  <div className={`text-xs ${drawdownPct < 0 ? "text-loss" : "text-dim"}`}>{pct(drawdownPct)}</div>
                 </td>
                 {/* 삭제만 끝에 따로, 작고 흐리게 — 자주 누르는 셋과 한 줄에 두지 않는다. */}
                 <td className="px-2 py-1.5 whitespace-nowrap">
@@ -588,7 +596,7 @@ function FillCell({
   const hurried = typeof sinceLastExitMs === "number" && sinceLastExitMs < COOLDOWN_MS;
   return (
     <td className="px-2 py-1.5 whitespace-nowrap">
-      <div className="tnum text-sm">{num(price)}</div>
+      <div className="tnum text-sm">{fmtPrice(price)}</div>
       <div className="tnum text-xs text-dim">{dateTime(at)}</div>
       {typeof sinceLastExitMs === "number" ? (
         <div

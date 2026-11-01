@@ -61,7 +61,7 @@ export interface PlanStep {
 export interface ExitPlan {
   entry: number | null;
   stop: StopLeg | null;
-  /** R을 무엇 기준으로 쟀는지 — 계획 손절이 없을 때만 거래소 최종 손절로 대신한다 */
+  /** R을 무엇 기준으로 쟀는지 — 최초 손절(stop_px_0)의 출처. 계획 손절이면 plan, 거래소 손절이면 okx */
   rBasis: LevelSource | null;
   steps: PlanStep[];
   shareSum: number | null;
@@ -339,6 +339,21 @@ function stepProblem(side: Side, price: number, movePct: number | null): string 
   return null;
 }
 
+/**
+ * R 분모가 되는 손절 — 최초 손절(stop_px_0, DB 트리거가 계획 → 처음 건 거래소 → 마지막 거래소 순으로 고정)이 먼저다.
+ * 아직 최초 손절이 없는 행(트리거 전 데이터·화면에서 막 만든 객체)만 예전 순서로 대신한다.
+ */
+function rStopOf(
+  trade: Pick<Trade, 'stop_px_0' | 'stop_px_0_source' | 'stop_price' | 'okx_stop_price'>,
+): { price: number | null; basis: LevelSource | null } {
+  if (trade.stop_px_0 !== null) {
+    return { price: trade.stop_px_0, basis: trade.stop_px_0_source === 'plan' ? 'plan' : 'okx' };
+  }
+  if (trade.stop_price !== null) return { price: trade.stop_price, basis: 'plan' };
+  if (trade.okx_stop_price !== null) return { price: trade.okx_stop_price, basis: 'okx' };
+  return { price: null, basis: null };
+}
+
 /** 손으로 적은 손절·TP와 비중에서 계획을 세운다. `size`가 없으면 거래 행의 명목가를 쓴다. */
 export function buildExitPlan(trade: Trade, size?: PositionSize | null): ExitPlan {
   const entry = entryOf(trade);
@@ -367,11 +382,9 @@ export function buildExitPlan(trade: Trade, size?: PositionSize | null): ExitPla
     };
   }
 
-  // R의 기준은 계획 손절이다. 거래소 값은 마지막에 등록된 것이라 진입 당시 리스크가 아니다 —
-  // 계획이 없을 때만 그것으로 대신하고 기준을 남긴다.
-  const rBasisPrice = trade.stop_price ?? trade.okx_stop_price;
-  const rBasis: LevelSource | null =
-    trade.stop_price !== null ? 'plan' : trade.okx_stop_price !== null ? 'okx' : null;
+  // R의 기준은 최초 손절이다(REQ-0091) — R 열·R 엣지(r-multiple.ts)와 같은 분모라야 한 거래의 R 이 화면마다
+  // 달라지지 않는다. 거래소 마지막 손절은 옮긴 뒤 값이라 진입 당시 위험이 아니다.
+  const { price: rBasisPrice, basis: rBasis } = rStopOf(trade);
   const riskPlanRaw =
     entry !== null && rBasisPrice !== null && validPrice(rBasisPrice)
       ? Math.abs(entry - rBasisPrice) / entry
@@ -476,7 +489,7 @@ export function buildExitActual(
   const entry = entryOf(trade);
   const d = directionOf(trade.side);
   const margin = marginFor(size.notional, trade.leverage);
-  const stopBasis = trade.stop_price ?? trade.okx_stop_price;
+  const stopBasis = rStopOf(trade).price;
   const riskPlanRaw =
     entry !== null && stopBasis !== null && validPrice(stopBasis)
       ? Math.abs(entry - stopBasis) / entry

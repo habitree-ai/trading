@@ -254,6 +254,23 @@ describe('buildExitPlan — 계획', () => {
     expect(plan.steps[0].r).toBeCloseTo(0.05 / 0.06, 10);
   });
 
+  it('최초 손절(stop_px_0)이 있으면 그걸로 R 을 잰다 — R 열·R 엣지와 같은 분모(REQ-0091)', () => {
+    // 처음 건 거래소 손절 92(손절폭 8%), 지금 걸린 손절 94, 계획 손절 없음
+    const plan = buildExitPlan(
+      trade({ stop_price: null, okx_stop_price: 94, stop_px_0: 92, stop_px_0_source: 'okx_first' }),
+      NO_SIZE,
+    );
+    expect(plan.stop).toMatchObject({ price: 94, source: 'okx' }); // 손절 줄은 지금 걸린 값 그대로
+    expect(plan.rBasis).toBe('okx');
+    expect(plan.steps[0].r).toBeCloseTo(0.05 / 0.08, 10);
+  });
+
+  it('최초 손절이 계획 손절에서 왔으면 기준은 plan', () => {
+    const plan = buildExitPlan(trade({ stop_px_0: 95, stop_px_0_source: 'plan', stop_price: 96 }), NO_SIZE);
+    expect(plan.rBasis).toBe('plan');
+    expect(plan.steps[0].r).toBeCloseTo(1, 10);
+  });
+
   it('손절이 아예 없으면 R 도 없다', () => {
     const plan = buildExitPlan(trade({ stop_price: null }), NO_SIZE);
     expect(plan.stop).toBeNull();

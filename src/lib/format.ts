@@ -10,6 +10,16 @@ export function num(value: number | null | undefined, decimals = 2): string {
   });
 }
 
+/**
+ * 가격 — 자릿수를 크기에 맞춘다(REQ-0091). 소수 둘째 자리로 자르면 저가 코인(ONDO 0.4097)의 진입가와
+ * 손절이 둘 다 「0.41」로 보여 손절폭이 안 읽힌다. 100 이상은 2자리, 1 이상은 4자리, 그 아래는 5자리.
+ */
+export function price(value: number | null | undefined): string {
+  if (value === null || value === undefined || !Number.isFinite(value)) return DASH;
+  const abs = Math.abs(value);
+  return num(value, abs >= 100 ? 2 : abs >= 1 ? 4 : 5);
+}
+
 /** 비율(0.375) → `37.5%` */
 export function pct(value: number | null | undefined, decimals = 1): string {
   if (value === null || value === undefined || !Number.isFinite(value)) return DASH;

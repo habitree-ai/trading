@@ -63,7 +63,9 @@ export function readSample(closedCount: number): Verdict {
 }
 
 /**
- * 기대치값 — 한 거래를 반복했을 때 남는 R.
+ * 기대치값 — 한 거래를 반복했을 때 남는 값, **평균손실 1 단위**(금액 기준).
+ *
+ * R 배수(최초 위험 단위, r-multiple.ts)와 단위가 달라 「R」로 적지 않는다(REQ-0091).
  *
  * 부호가 전부다. 양수면 반복할수록 늘고 음수면 반복할수록 준다.
  */
@@ -72,13 +74,13 @@ export function readExpectancy(expectancy: number | null): Verdict {
   if (expectancy > 0) {
     return {
       tone: 'good',
-      text: `같은 방식으로 100번 반복하면 ${signed(expectancy * 100, 0)}R을 기대할 수 있습니다.`,
+      text: `같은 방식으로 100번 반복하면 평균손실의 ${signed(expectancy * 100, 0)}배를 기대할 수 있습니다.`,
     };
   }
   if (expectancy < 0) {
     return {
       tone: 'bad',
-      text: `반복할수록 줄어드는 구조입니다 — 100번이면 ${signed(expectancy * 100, 0)}R입니다.`,
+      text: `반복할수록 줄어드는 구조입니다 — 100번이면 평균손실의 ${signed(expectancy * 100, 0)}배입니다.`,
     };
   }
   return { tone: 'neutral', text: '벌지도 잃지도 않는 지점입니다.' };

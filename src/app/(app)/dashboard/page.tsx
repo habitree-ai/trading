@@ -6,6 +6,7 @@ import { Details, Note, worstTone } from "@/app/(app)/dashboard/details";
 import { PerformanceSummary } from "@/app/(app)/dashboard/performance-summary";
 import { PnlPanel } from "@/app/(app)/dashboard/pnl-panel";
 import { RecentTrades } from "@/app/(app)/dashboard/recent-trades";
+import { RSummary } from "@/app/(app)/dashboard/r-summary";
 import { SyncAction } from "@/app/(app)/trades/okx-sync-button";
 import { DrawdownChart, EquityCurve, type EquityPoint } from "@/components/charts";
 import type { PnlBar } from "@/components/charts";
@@ -38,6 +39,8 @@ import {
   listTrades,
 } from "@/lib/queries";
 import { unjustifiedTrades } from "@/lib/rationale";
+import { buildREdgeReport } from "@/lib/r-edge-report";
+import { tradeR } from "@/lib/r-multiple";
 import { reconcileEquity } from "@/lib/reconcile";
 import { dailySnapshots, mergeSnapshotLine } from "@/lib/snapshot-curve";
 import {
@@ -180,6 +183,8 @@ export default async function DashboardPage() {
   const winRate = readWinRate(m.winRate, m.payoffRatio);
   const payoff = readPayoff(m.payoffRatio);
   const expectancy = readExpectancy(m.expectancy);
+  // R 엣지 — 청산 거래만 쓰므로 체결 없이 거래 행으로 잰다(R 엣지 탭과 같은 값)
+  const rReport = buildREdgeReport(trades.map((t) => ({ trade: t, r: tradeR(t) })));
   const sample = readSample(m.closedCount);
   const drawdown = readDrawdown(m.maxDrawdownPct);
   const risk = readRisk(m.avgRiskPct);
@@ -312,9 +317,9 @@ export default async function DashboardPage() {
             />
             <StatTile
               label="기대치"
-              value={m.expectancy === null ? DASH : `${signed(m.expectancy, 2)} R`}
+              value={m.expectancy === null ? DASH : `${signed(m.expectancy, 2)} × 평균손실`}
               valueClass={pnlClass(m.expectancy)}
-              sub={`완결 ${m.closedCount}건 기준`}
+              sub={`금액 기준 · 완결 ${m.closedCount}건`}
               verdict={m.closedCount < 30 ? sample : expectancy}
             />
             <StatTile
@@ -325,6 +330,9 @@ export default async function DashboardPage() {
               verdict={drawdown}
             />
           </div>
+
+          {/* ── 2-0. R 엣지 한 줄 — 상세는 /kelly?tab=r (REQ-0091) ─────── */}
+          <RSummary report={rReport} />
 
           {/* ── 2-1. 그럼 얼마나 걸어야 하나 ─────── */}
           <section className="rounded-xl border border-border bg-surface p-4">

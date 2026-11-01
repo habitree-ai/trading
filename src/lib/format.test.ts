@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { date, dateTime, fromLocalInput, keepIfSameMinute, toLocalInput } from "@/lib/format";
+import { date, dateTime, fromLocalInput, keepIfSameMinute, price, toLocalInput } from "@/lib/format";
 
 describe("시각 포맷 — 서버/브라우저가 같은 문자열을 만들어야 한다", () => {
   it("표시 타임존(KST) 기준으로 찍는다", () => {
@@ -68,5 +68,21 @@ describe("keepIfSameMinute — 시각을 안 바꾼 저장이 초를 잘라먹�
   it("어느 쪽이든 비어 있으면 제출값 그대로", () => {
     expect(keepIfSameMinute(null, stored)).toBeNull();
     expect(keepIfSameMinute("2026-09-01T09:17:00.000Z", null)).toBe("2026-09-01T09:17:00.000Z");
+  });
+});
+
+describe("price — 크기에 맞춘 자릿수", () => {
+  it("저가 코인은 5자리 — 진입가와 손절이 같아 보이지 않게", () => {
+    expect(price(0.4096629)).toBe("0.40966");
+    expect(price(0.4121)).toBe("0.41210");
+  });
+
+  it("1 이상 100 미만은 4자리, 100 이상은 2자리", () => {
+    expect(price(2.5)).toBe("2.5000");
+    expect(price(100_000)).toBe("100,000.00");
+  });
+
+  it("값이 없으면 —", () => {
+    expect(price(null)).toBe("—");
   });
 });

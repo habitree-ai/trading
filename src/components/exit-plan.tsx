@@ -7,7 +7,7 @@ import {
   type PlanStep,
   type StopLeg,
 } from "@/lib/exit-plan";
-import { DASH, dateTime, num, pct, pnlClass, signed, signedPct } from "@/lib/format";
+import { DASH, dateTime, num, pct, pnlClass, price, signed, signedPct } from "@/lib/format";
 
 /**
  * 분할 청산 계획·실적의 표시 조각 — 훅이 없어 서버·클라이언트 어디서든 그린다.
@@ -44,7 +44,7 @@ function SourceTag({ source, planPrice }: { source: "plan" | "okx"; planPrice: n
   if (source !== "okx") return null;
   return (
     <span className="text-dim">
-      거래소{planPrice !== null ? ` · 내 계획 ${num(planPrice)}` : ""}
+      거래소{planPrice !== null ? ` · 내 계획 ${price(planPrice)}` : ""}
     </span>
   );
 }
@@ -60,7 +60,7 @@ function StopLine({ stop }: { stop: StopLeg | null }) {
   return (
     <div className="flex flex-wrap items-baseline gap-x-1.5">
       <span className={SL_BADGE}>SL</span>
-      <span>{num(stop.price)}</span>
+      <span>{price(stop.price)}</span>
       <span className="text-loss">{signedPct(stop.riskPct === null ? null : -stop.riskPct, 2)}</span>
       <span className="text-loss">{signed(stop.lossAmount, 0)}</span>
       <SourceTag source={stop.source} planPrice={stop.planPrice} />
@@ -76,7 +76,7 @@ function PlanLine({ step }: { step: PlanStep }) {
   return (
     <div className="flex flex-wrap items-baseline gap-x-1.5">
       <span className={TP_BADGE}>TP{step.n}</span>
-      <span>{num(step.price)}</span>
+      <span>{price(step.price)}</span>
       <span className="text-dim">{shareText(step.share, step.shareAmount)}</span>
       <span className={pnlClass(step.movePct)}>{signedPct(step.movePct, 2)}</span>
       <span className={pnlClass(step.amount)}>{signed(step.amount, 0)}</span>
@@ -104,7 +104,7 @@ function StageLine({ stage }: { stage: ExitStage }) {
       <span className={filled ? ACTUAL_BADGE : TP_BADGE}>
         {stage.n}차 {filled ? "체결" : "예상"}
       </span>
-      <span>{num(stage.price)}</span>
+      <span>{price(stage.price)}</span>
       <span className="text-dim">{shareText(stage.share, stage.shareAmount)}</span>
       <span className={pnlClass(stage.movePct)}>{signedPct(stage.movePct, 2)}</span>
       <span className={pnlClass(stage.pnl)}>{signed(stage.pnl, 0)}</span>
@@ -201,10 +201,10 @@ export function PlanTable({ plan, hideTotal }: { plan: ExitPlan; hideTotal: bool
                 <span className={TP_BADGE}>TP{s.n}</span> <Warn text={s.problem} />
               </td>
               <td className="py-1.5 text-right">
-                {num(s.price)}
+                {price(s.price)}
                 {s.source === "okx" ? (
                   <span className="block text-xs text-dim">
-                    거래소{s.planPrice !== null ? ` · 내 계획 ${num(s.planPrice)}` : ""}
+                    거래소{s.planPrice !== null ? ` · 내 계획 ${price(s.planPrice)}` : ""}
                   </span>
                 ) : null}
               </td>
@@ -278,7 +278,7 @@ export function ActualTable({ actual }: { actual: ExitActual }) {
               {s.estimated ? <span className="ml-1 text-xs text-dim">추정</span> : null}
             </td>
             <td className="py-1.5 text-right">
-              {num(s.price)}
+              {price(s.price)}
               {s.fillCount > 1 ? (
                 <span className="block text-xs text-dim">{s.fillCount}체결 평균</span>
               ) : null}
