@@ -100,7 +100,7 @@ export interface TradeDerived {
  * 거래소가 준 실현손익이 정본이다. 없을 때만(수기 입력 경로) 손익·수수료·펀딩비로
  * 되짚는데, 그 셋에는 청산 수수료·ADL이 실리지 않아 근사값이다.
  */
-export function netOf(trade: Trade): number {
+export function netOf(trade: Pick<Trade, 'realized_pnl' | 'pnl' | 'fee' | 'funding_fee'>): number {
   if (trade.realized_pnl !== null) return trade.realized_pnl;
   return (trade.pnl ?? 0) + (trade.fee ?? 0) + (trade.funding_fee ?? 0);
 }

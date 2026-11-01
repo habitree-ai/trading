@@ -14,6 +14,7 @@ import {
   type Goal,
   type JournalNote,
   type Principle,
+  type RBase,
   type ResearchHeadline,
   type ResearchNote,
   type ResearchSnapshot,
@@ -333,6 +334,17 @@ export async function listCashFlows(bookId: string): Promise<CashFlow[]> {
  *
  * 계산 자금과 대조하는 데 쓴다 — 둘이 벌어지면 어딘가 놓친 거래나 입출금이 있다.
  */
+/** 기준 R 이력 — 최근 것이 먼저. 첫 행이 지금 적용 중인 값이다. */
+export async function listRBaseHistory(): Promise<RBase[]> {
+  const { supabase } = await requireUser();
+  const { data, error } = await supabase
+    .from("r_base_history")
+    .select("*")
+    .order("effective_from", { ascending: false });
+  if (error) throw new Error(error.message);
+  return data;
+}
+
 export async function getLatestBalance(bookId: string): Promise<BalanceSnapshot | null> {
   const { supabase } = await requireUser();
   const { data, error } = await supabase

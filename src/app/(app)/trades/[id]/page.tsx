@@ -1,10 +1,12 @@
 import { notFound } from "next/navigation";
 
 import { ExitPlanCard } from "@/app/(app)/trades/[id]/exit-plan-card";
+import { RCard } from "@/app/(app)/trades/[id]/r-card";
 import { TradeForm } from "@/app/(app)/trades/trade-form";
 import { summarizeExits } from "@/lib/exit-plan";
 import { isOpenTrade } from "@/lib/metrics";
 import { getTrade, listFieldSuggestions, listFills } from "@/lib/queries";
+import { tradeR } from "@/lib/r-multiple";
 
 /**
  * 거래 수정 — 차트는 여기 없다. 목록 행에서 펼치는 것으로 충분하고, 위를 차트가 차지하면
@@ -36,6 +38,8 @@ export default async function EditTradePage({ params }: { params: Promise<{ id: 
       />
 
       <ExitPlanCard trade={trade} summary={exits} />
+
+      <RCard r={tradeR(trade, fills)} rBase={trade.r_base_at_entry} />
     </div>
   );
 }

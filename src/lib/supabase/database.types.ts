@@ -377,6 +377,33 @@ export type Database = {
           },
         ]
       }
+      r_base_history: {
+        Row: {
+          amount: number
+          created_at: string
+          effective_from: string
+          fee_rate: number
+          id: string
+          user_id: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          effective_from?: string
+          fee_rate?: number
+          id?: string
+          user_id: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          effective_from?: string
+          fee_rate?: number
+          id?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       research_notes: {
         Row: {
           body: string | null
@@ -1187,6 +1214,10 @@ export type Database = {
           setup: string | null
           side: Database["public"]["Enums"]["trade_side"]
           stop_price: number | null
+          stop_px_0: number | null
+          stop_px_0_source: "plan" | "okx_first" | "okx_last" | null
+          r_base_at_entry: number | null
+          fee_rate_at_entry: number | null
           symbol: string
           timeframe_bias: Database["public"]["Enums"]["timeframe"] | null
           timeframe_entry: Database["public"]["Enums"]["timeframe"] | null
@@ -1236,6 +1267,10 @@ export type Database = {
           setup?: string | null
           side: Database["public"]["Enums"]["trade_side"]
           stop_price?: number | null
+          stop_px_0?: number | null
+          stop_px_0_source?: "plan" | "okx_first" | "okx_last" | null
+          r_base_at_entry?: number | null
+          fee_rate_at_entry?: number | null
           symbol: string
           timeframe_bias?: Database["public"]["Enums"]["timeframe"] | null
           timeframe_entry?: Database["public"]["Enums"]["timeframe"] | null
@@ -1285,6 +1320,10 @@ export type Database = {
           setup?: string | null
           side?: Database["public"]["Enums"]["trade_side"]
           stop_price?: number | null
+          stop_px_0?: number | null
+          stop_px_0_source?: "plan" | "okx_first" | "okx_last" | null
+          r_base_at_entry?: number | null
+          fee_rate_at_entry?: number | null
           symbol?: string
           timeframe_bias?: Database["public"]["Enums"]["timeframe"] | null
           timeframe_entry?: Database["public"]["Enums"]["timeframe"] | null

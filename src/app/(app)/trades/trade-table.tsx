@@ -21,8 +21,22 @@ import { summarizeExits } from "@/lib/exit-plan";
 import { DASH, dateTime, num, pct, pnlClass, signed, signedPct } from "@/lib/format";
 import { describeImpulse, impulseTone, type Impulse } from "@/lib/impulse";
 import type { TradeDerived } from "@/lib/metrics";
+import { R_UNMEASURED_LABEL, type TradeR } from "@/lib/r-multiple";
 
 type ResultFilter = TradeResult | "all";
+/** 정렬 — 시간순이 기본, R 배수·위험 배수는 큰 것부터(REQ-0089) */
+type SortKey = "time" | "r" | "risk";
+/** 위험 배수 거르기 — 기준 R 의 몇 배를 걸었나. 미측정은 R 을 잴 수 없는 청산 거래 */
+type RiskFilter = "all" | "over2" | "over10" | "unmeasured";
+
+/** 위험 배수가 이보다 크면 노랗게 — 1R 수량보다 두 배 넘게 걸었다 */
+const RISK_WARN = 2;
+
+/** 짧게 줄인 머리글의 풀이 */
+const COLUMN_TITLE: Record<string, string> = {
+  R: "R 배수 — 순손익 ÷ 최초 위험(최초 손절폭 × 최초 수량). * 는 추정 손절로 잰 값",
+  "위험×": "위험 배수 — 최초 위험(예상 왕복 수수료 포함) ÷ 진입 때 기준 R",
+};
 
 /** 닫힌 거래의 체결은 목록이 읽지 않는다(북 전량 부담) — 실적은 청산가 한 점으로 되짚는다. */
 const NO_FILLS: TradeFill[] = [];
@@ -40,12 +54,15 @@ function needsReview({ trade, result }: TradeDerived): boolean {
 export function TradeTable({
   rows,
   fills,
+  rs,
   currency,
   now,
 }: {
   rows: TradeDerived[];
   /** 들고 있는 거래의 체결 — 거래 id 로 묶여 온다. 부분청산 단계가 여기서 나온다 */
   fills: Record<string, TradeFill[]>;
+  /** 거래별 R(REQ-0089) — 서버가 진입 체결로 계산해 넘긴다 */
+  rs: Record<string, TradeR>;
   currency: string;
   /** 페이지를 그린 시각 — 아직 들고 있는 거래의 차트를 여기까지 그린다 */
   now: number;
@@ -55,6 +72,8 @@ export function TradeTable({
   const [symbol, setSymbol] = useState("all");
   const [newestFirst, setNewestFirst] = useState(true);
   const [onlyPending, setOnlyPending] = useState(false);
+  const [sortKey, setSortKey] = useState<SortKey>("time");
+  const [risk, setRisk] = useState<RiskFilter>("all");
   /** 한 번에 하나만 펼친다 — 여러 개를 열면 OKX 요청이 동시에 쏟아진다. */
   const [openChart, setOpenChart] = useState<string | null>(null);
   /** "복기"로 연 거래 — 그 차트는 진입 봉부터 한 봉씩 다시 보는 모드로 시작한다. */
@@ -122,14 +141,36 @@ export function TradeTable({
   const pendingCount = useMemo(() => rows.filter(needsReview).length, [rows]);
 
   const visible = useMemo(() => {
+    const riskOk = (r: TradeDerived) => {
+      if (risk === "all") return true;
+      const tr = rs[r.trade.id];
+      if (risk === "unmeasured") return tr !== undefined && tr.closed && !tr.measurable;
+      const m = tr?.riskMultiple ?? null;
+      return m !== null && m > (risk === "over2" ? 2 : 10);
+    };
     const filtered = rows.filter(
       (r) =>
         (result === "all" || r.result === result) &&
         (symbol === "all" || r.trade.symbol === symbol) &&
-        (!onlyPending || needsReview(r)),
+        (!onlyPending || needsReview(r)) &&
+        riskOk(r),
     );
+    if (sortKey !== "time") {
+      // 값이 없는 행은 맨 아래 — 큰 것부터 보는 정렬이라 null 이 위에 끼면 읽을 게 밀린다.
+      const key = (r: TradeDerived) => {
+        const tr = rs[r.trade.id];
+        return (sortKey === "r" ? tr?.rMultiple : tr?.riskMultiple) ?? null;
+      };
+      return [...filtered].sort((a, b) => {
+        const ka = key(a);
+        const kb = key(b);
+        if (ka === null) return kb === null ? 0 : 1;
+        if (kb === null) return -1;
+        return newestFirst ? kb - ka : ka - kb;
+      });
+    }
     return newestFirst ? [...filtered].reverse() : filtered;
-  }, [rows, result, symbol, newestFirst, onlyPending]);
+  }, [rows, rs, result, symbol, newestFirst, onlyPending, sortKey, risk]);
 
   const SELECT =
     "rounded-lg border border-border bg-surface px-2 py-1 text-xs outline-none focus:border-accent";
@@ -156,6 +197,9 @@ export function TradeTable({
     "Lv",
     `실현손익 (${currency})`,
     "손익률",
+    // 머리글은 짧게 — 열 하나가 머리글 폭만큼 넓어진다. 풀이는 마우스 올림(COLUMN_TITLE)
+    "R",
+    "위험×",
     "자금",
     "MDD",
     "",
@@ -189,13 +233,40 @@ export function TradeTable({
             </option>
           ))}
         </select>
+        <select
+          aria-label="정렬"
+          className={SELECT}
+          value={sortKey}
+          onChange={(e) => setSortKey(e.target.value as SortKey)}
+        >
+          <option value="time">시간순</option>
+          <option value="r">R 배수순</option>
+          <option value="risk">위험 배수순</option>
+        </select>
         <button
           type="button"
           className={SELECT}
           onClick={() => setNewestFirst((v) => !v)}
         >
-          {newestFirst ? "최신순 ↓" : "오래된순 ↑"}
+          {sortKey === "time"
+            ? newestFirst
+              ? "최신순 ↓"
+              : "오래된순 ↑"
+            : newestFirst
+              ? "큰 것부터 ↓"
+              : "작은 것부터 ↑"}
         </button>
+        <select
+          aria-label="위험 배수 필터"
+          className={SELECT}
+          value={risk}
+          onChange={(e) => setRisk(e.target.value as RiskFilter)}
+        >
+          <option value="all">전체 위험 배수</option>
+          <option value="over2">위험 2배 초과</option>
+          <option value="over10">위험 10배 초과</option>
+          <option value="unmeasured">R 미측정</option>
+        </select>
         <button
           type="button"
           aria-pressed={onlyPending}
@@ -246,6 +317,7 @@ export function TradeTable({
                   className={`px-2 py-1.5 text-left font-medium whitespace-nowrap ${
                     i === 0 ? "pin-col" : ""
                   }`}
+                  title={COLUMN_TITLE[h]}
                 >
                   {h}
                 </th>
@@ -445,6 +517,7 @@ export function TradeTable({
                   )}
                 </td>
                 <td className={`tnum px-2 py-1.5 ${pnlClass(pnlPct)}`}>{signedPct(pnlPct)}</td>
+                <RCells r={rs[trade.id]} />
                 <td className="tnum px-2 py-1.5">{num(equityAfter, 0)}</td>
                 <td className={`tnum px-2 py-1.5 ${drawdownPct < 0 ? "text-loss" : "text-dim"}`}>
                   {pct(drawdownPct)}
@@ -531,6 +604,48 @@ function FillCell({
         </div>
       ) : null}
     </td>
+  );
+}
+
+/**
+ * R 배수 · 위험 배수 두 칸(REQ-0089). 추정 손절(과거 거래의 마지막 거래소 손절)로 잰 값은 `*` 를 단다 —
+ * 손절을 옮긴 거래는 최초 위험이 틀릴 수 있다. 청산됐는데 잴 수 없으면 이유를 짧게.
+ */
+function RCells({ r }: { r: TradeR | undefined }) {
+  const mark =
+    r?.stop0Source === "okx_last" ? (
+      <span title="추정 손절 — 과거 거래에 남은 마지막 거래소 손절로 잼" className="text-dim">
+        *
+      </span>
+    ) : null;
+  const m = r?.riskMultiple ?? null;
+  let rCell;
+  if (r !== undefined && r.closed && r.reason !== null) {
+    rCell = (
+      <span className="text-xs text-dim" title={R_UNMEASURED_LABEL[r.reason]}>
+        미측정
+      </span>
+    );
+  } else if (r !== undefined && r.rMultiple !== null) {
+    rCell = (
+      <span className={`tnum font-medium ${pnlClass(r.rMultiple)}`}>
+        {signed(r.rMultiple, 2)}R{mark}
+      </span>
+    );
+  } else {
+    rCell = <span className="text-dim">{DASH}</span>;
+  }
+  return (
+    <>
+      <td className="px-2 py-1.5 whitespace-nowrap">{rCell}</td>
+      <td
+        className={`tnum px-2 py-1.5 whitespace-nowrap ${m !== null && m > RISK_WARN ? "text-beta" : "text-dim"}`}
+        title="기준 R 의 몇 배를 걸었나 — 최초 위험(예상 왕복 수수료 포함) ÷ 진입 때 기준 R"
+      >
+        {m === null ? DASH : `${num(m, m >= 10 ? 0 : 1)}×`}
+        {m !== null ? mark : null}
+      </td>
+    </>
   );
 }
 

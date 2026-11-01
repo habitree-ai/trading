@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { loadOkxCredentials } from "@/lib/okx/credentials";
 import { okxPrivateGet } from "@/lib/okx/private";
 import { getExchangeAccount, requireUser } from "@/lib/queries";
+import { parseRBaseInput } from "@/lib/r-multiple";
 
 export interface ExchangeAccountState {
   error?: string;
@@ -136,4 +137,33 @@ export async function linkBook(bookId: string | null) {
   }
 
   revalidatePath("/", "layout");
+}
+
+export interface RBaseState {
+  error?: string;
+  message?: string;
+}
+
+/**
+ * 기준 R 을 바꾼다 — 고치지 않고 새 이력 행을 넣는다(REQ-0089).
+ *
+ * 적용 시작은 지금이다. 이 뒤에 들어오는 거래부터 DB 트리거가 새 값을 찍고,
+ * 지난 거래는 그때 찍힌 값을 그대로 쓴다.
+ */
+export async function saveRBase(_prev: RBaseState, formData: FormData): Promise<RBaseState> {
+  const { supabase, user } = await requireUser();
+
+  const parsed = parseRBaseInput(
+    String(formData.get("amount") ?? ""),
+    String(formData.get("fee_pct") ?? ""),
+  );
+  if ("error" in parsed) return { error: parsed.error };
+
+  const { error } = await supabase
+    .from("r_base_history")
+    .insert({ user_id: user.id, amount: parsed.amount, fee_rate: parsed.feeRate });
+  if (error) return { error: error.message };
+
+  revalidatePath("/", "layout");
+  return { message: `기준 R ${parsed.amount} USDT 를 지금부터 적용합니다.` };
 }

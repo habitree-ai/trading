@@ -13,6 +13,7 @@ import {
   listFillsByTrade,
   listTrades,
 } from "@/lib/queries";
+import { tradeR } from "@/lib/r-multiple";
 
 export default async function TradesPage() {
   const book = await getActiveBook();
@@ -30,6 +31,8 @@ export default async function TradesPage() {
   const openFills = await listFillsByTrade(trades.filter(isOpenTrade).map((t) => t.id));
   // 표의 `자금` 칸이 대시보드와 같은 값을 가리키도록 이체를 함께 넘긴다.
   const derived = deriveTrades(book, trades, flows);
+  // R 의 진입 수량 — 청산 거래는 거래 행, 보유 중은 위에서 읽은 체결(남은 물량이 아니라 원래 크기).
+  const rs = Object.fromEntries(trades.map((t) => [t.id, tradeR(t, openFills[t.id] ?? [])]));
 
   return (
     <div className="space-y-5">
@@ -59,7 +62,7 @@ export default async function TradesPage() {
           아직 거래가 없습니다. 첫 기록을 추가해 주세요.
         </p>
       ) : (
-        <TradeTable rows={derived} fills={openFills} currency={book.base_currency} now={nowMs()} />
+        <TradeTable rows={derived} fills={openFills} rs={rs} currency={book.base_currency} now={nowMs()} />
       )}
     </div>
   );

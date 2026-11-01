@@ -4,14 +4,31 @@ import {
   DeleteAccountButton,
 } from "@/app/(app)/settings/account-controls";
 import { ExchangeAccountForm } from "@/app/(app)/settings/exchange-account-form";
+import { RBaseForm } from "@/app/(app)/settings/r-base-form";
 import { EXCHANGE_LABEL } from "@/lib/domain";
-import { dateTime } from "@/lib/format";
-import { getExchangeAccount, listBooks, requireUser } from "@/lib/queries";
+import { dateTime, num, pct } from "@/lib/format";
+import {
+  getActiveBook,
+  getExchangeAccount,
+  getLatestBalance,
+  listBooks,
+  listRBaseHistory,
+  requireUser,
+} from "@/lib/queries";
 
 export default async function SettingsPage() {
   const { user } = await requireUser();
-  const [account, books] = await Promise.all([getExchangeAccount(), listBooks()]);
+  const [account, books, rBases] = await Promise.all([
+    getExchangeAccount(),
+    listBooks(),
+    listRBaseHistory(),
+  ]);
   const linked = books.find((b) => b.exchange_account_id === account?.id) ?? null;
+  const activeBook = await getActiveBook(books);
+  const balance = activeBook ? await getLatestBalance(activeBook.id) : null;
+  const rBase = rBases[0] ?? null;
+  // 참고값 — 책은 계좌의 1% 를 1R 로 둔다. 지금 북의 최근 잔액 스냅샷 대비
+  const rBaseShare = rBase && balance && balance.equity > 0 ? rBase.amount / balance.equity : null;
 
   return (
     <div className="mx-auto max-w-5xl space-y-8">
@@ -19,6 +36,55 @@ export default async function SettingsPage() {
         <h1 className="text-xl font-semibold tracking-tight">설정</h1>
         <p className="mt-1 text-sm text-dim">{user.email}</p>
       </header>
+
+      <section className="rounded-xl border border-border bg-surface p-4">
+        <div className="flex flex-wrap items-center gap-2">
+          <h2 className="text-sm font-medium">리스크 기준 (R)</h2>
+          {rBase ? (
+            <span className="rounded border border-accent/40 px-1.5 py-0.5 text-xs text-accent">
+              1R = {num(rBase.amount)} USDT
+            </span>
+          ) : (
+            <span className="text-xs text-dim">미설정</span>
+          )}
+          {rBaseShare !== null && activeBook ? (
+            <span className="text-xs text-dim">
+              {activeBook.name} 최근 잔액 {num(balance?.equity ?? null)}의 {pct(rBaseShare, 2)} (책은 1%)
+            </span>
+          ) : null}
+        </div>
+        <p className="mt-2 text-xs text-dim">
+          1회 거래에서 감수할 위험 금액입니다. 손익을 R 배수로 나눠 보는 단위가 됩니다. 바꾸면 이후
+          들어오는 거래부터 새 값이 찍히고, 지난 거래는 다시 계산하지 않습니다. 수수료율은 위험
+          배수(기준 R 의 몇 배를 걸었나)의 예상 왕복 비용에만 씁니다.
+        </p>
+
+        <RBaseForm
+          amount={rBase?.amount ?? null}
+          feePct={rBase ? Math.round(rBase.fee_rate * 1e6) / 1e4 : null}
+        />
+
+        {rBases.length > 0 ? (
+          <table className="mt-4 w-full text-sm">
+            <thead className="text-xs text-dim">
+              <tr className="text-left">
+                <th className="py-1 font-normal">적용 시작</th>
+                <th className="py-1 text-right font-normal">기준 R (USDT)</th>
+                <th className="py-1 text-right font-normal">수수료율</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rBases.map((r, i) => (
+                <tr key={r.id} className={i === 0 ? "" : "text-dim"}>
+                  <td className="py-1">{dateTime(r.effective_from)}</td>
+                  <td className="py-1 text-right tabular-nums">{num(r.amount)}</td>
+                  <td className="py-1 text-right tabular-nums">{pct(r.fee_rate, 3)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        ) : null}
+      </section>
 
       <section className="rounded-xl border border-border bg-surface p-4">
         <div className="flex flex-wrap items-center gap-2">

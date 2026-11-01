@@ -1,6 +1,11 @@
+import Link from "next/link";
+
+import { REdgeTab, type REdgeFilters } from "@/app/(app)/kelly/r-edge-tab";
+import { EmptyBook } from "@/components/empty-book";
 import { StatTile } from "@/components/stat-tile";
 import { DASH, num, pct, pnlClass, signed, signedPct } from "@/lib/format";
 import { loadOkxKelly, MIN_SAMPLE, type KellyDimension } from "@/lib/okx-kelly";
+import { getActiveBook } from "@/lib/queries";
 import { readKelly, RELIABLE_SAMPLE, TONE_CLASS } from "@/lib/verdict";
 
 /**
@@ -14,7 +19,33 @@ import { readKelly, RELIABLE_SAMPLE, TONE_CLASS } from "@/lib/verdict";
  * 때문이다. 대신 **음수가 어디서 만들어졌는지**를 축마다 갈라 보여 준다.
  */
 
-export default function KellyPage() {
+export default async function KellyPage({
+  searchParams,
+}: {
+  searchParams: Promise<REdgeFilters & { tab?: string }>;
+}) {
+  const { tab, ...filters } = await searchParams;
+  const rTab = tab === "r";
+  const book = rTab ? await getActiveBook() : null;
+  const TAB = "rounded-lg px-3 py-1.5 text-sm";
+
+  return (
+    <div className="space-y-5">
+      {/* 켈리 = OKX 전 이력 정적 집계, R 엣지 = 활성 북의 앱 DB 거래(REQ-0089). 데이터 출처가 달라 탭으로 나눈다. */}
+      <nav className="flex gap-1 border-b border-border pb-2" aria-label="분석 탭">
+        <Link href="/kelly" className={`${TAB} ${rTab ? "text-dim hover:bg-surface-2" : "bg-surface-2 font-medium"}`}>
+          켈리 · OKX 전 이력
+        </Link>
+        <Link href="/kelly?tab=r" className={`${TAB} ${rTab ? "bg-surface-2 font-medium" : "text-dim hover:bg-surface-2"}`}>
+          R 엣지 · 활성 북
+        </Link>
+      </nav>
+      {rTab ? book ? <REdgeTab book={book} filters={filters} /> : <EmptyBook /> : <OkxKellyView />}
+    </div>
+  );
+}
+
+function OkxKellyView() {
   const report = loadOkxKelly();
   const { overall, period, source } = report;
   const verdict = readKelly(overall.kelly, overall.decided);

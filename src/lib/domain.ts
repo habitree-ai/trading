@@ -7,6 +7,8 @@
 
 export type Side = 'long' | 'short';
 export type TradeResult = 'win' | 'loss' | 'be' | 'open';
+/** 최초 손절의 출처(REQ-0089) */
+export type StopSource = 'plan' | 'okx_first' | 'okx_last';
 /** 진입 시점의 장기추세 판단 — 상승추세 / 하락추세 / 기간조정 */
 export type Trend = 'up' | 'down' | 'range';
 /** 시장 위·아래 열림/닫힘 — 선배님 「질문과 답 2.」의 네 경우(REQ-0050). */
@@ -145,6 +147,20 @@ export interface Trade {
    * 되짚은 추정이다. 숫자가 이상하면 여기부터 의심한다.
    */
   okx_sl_source: 'attached' | 'position' | 'algo' | null;
+  /**
+   * 최초 손절가 — `stop_price`(계획 손절)가 **처음 채워질 때** DB 트리거가 고정한 값(REQ-0089).
+   * 나중에 `stop_price`를 고쳐도 바뀌지 않는다. R 배수의 분모(최초 위험)가 여기서 나온다.
+   */
+  stop_px_0: number | null;
+  /**
+   * 최초 손절의 출처 — `plan` 계획 손절 / `okx_first` 보유 중 처음 본 거래소 손절 /
+   * `okx_last` 과거 거래의 **마지막** 거래소 손절(추정 — 손절을 옮긴 거래는 최초 위험이 틀린다). REQ-0089
+   */
+  stop_px_0_source: StopSource | null;
+  /** 진입 시각 기준 기준 R(USDT) — 삽입 트리거가 `r_base_history`에서 찍는다. 이력 전 거래는 null */
+  r_base_at_entry: number | null;
+  /** 같은 이력 행의 예상 수수료율(한쪽 체결, 예 0.0005) — 위험 배수의 예상 왕복 비용에만 쓴다 */
+  fee_rate_at_entry: number | null;
   /**
    * 장기추세 판단 — 진입 시점에 사람이 고른 중장기 국면. 손 입력 전용, 동기화는 건드리지 않는다.
    *
@@ -435,6 +451,18 @@ export const PRINCIPLE_CATEGORIES: PrincipleCategory[] = [
   'mental',
   'routine',
 ];
+
+/** 기준 R 이력 1행 — 바꾸면 새 행을 넣는다. 지난 거래는 다시 계산하지 않는다(REQ-0089). */
+export interface RBase {
+  id: string;
+  user_id: string;
+  /** 기준 R 금액(USDT) — 1회 위험 단위 */
+  amount: number;
+  /** 예상 수수료율(한쪽 체결, 예 0.0005) */
+  fee_rate: number;
+  effective_from: string;
+  created_at: string;
+}
 
 export interface BalanceSnapshot {
   id: string;

@@ -99,7 +99,7 @@ function fitTicks(values: number[]): { domain: [number, number]; ticks: number[]
   return { domain: [a, b], ticks };
 }
 
-function TooltipBox({ rows }: { rows: [string, string, string?][] }) {
+export function TooltipBox({ rows }: { rows: [string, string, string?][] }) {
   return (
     <div className="rounded-lg border border-border bg-surface px-3 py-2 text-xs shadow-lg">
       {rows.map(([label, value, cls]) => (
