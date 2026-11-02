@@ -18,6 +18,7 @@ import {
   fetchFillsHistory,
   fetchOpenPositions,
   fetchOrders,
+  fetchPendingOrders,
   fetchPositionsHistory,
   fetchTotalEquity,
   fetchWithdrawals,
@@ -43,11 +44,18 @@ import {
   toTradeInsert,
   toTransferInsert,
   toWithdrawalInsert,
+  tpLimitsOf,
   type CashFlowInsert,
   type PositionSpan,
 } from "@/lib/okx/map";
 import { MAX_HISTORY_MS, type OkxCredentials } from "@/lib/okx/private";
-import type { OkxAlgoOrder, OkxFill, OkxOpenPosition, OkxOrder } from "@/lib/okx/schema";
+import type {
+  OkxAlgoOrder,
+  OkxFill,
+  OkxOpenPosition,
+  OkxOrder,
+  OkxPendingOrder,
+} from "@/lib/okx/schema";
 import type { Database } from "@/lib/supabase/database.types";
 
 type Db = SupabaseClient<Database>;
@@ -283,7 +291,10 @@ async function runSync(
     ? await collectStops(creds, positions, open, fills)
     : NO_STOP_SOURCES;
 
-  const counts = await syncTrades(supabase, userId, bookId, positions, open, ctVals, stops);
+  // 지정가 청산 주문으로 건 TP 는 걸려 있는 동안에만 읽힌다(REQ-0096) — 들고 있을 때만 부른다.
+  const pending = open.length > 0 ? await fetchPendingOrders(creds) : [];
+
+  const counts = await syncTrades(supabase, userId, bookId, positions, open, ctVals, stops, pending);
   const fillsAdded = hasPositions
     ? await syncFills(supabase, userId, positions, open, ctVals, fills)
     : 0;
@@ -337,6 +348,7 @@ async function syncTrades(
   open: readonly OkxOpenPosition[],
   ctVals: Map<string, number | null>,
   stops: StopSources,
+  pending: readonly OkxPendingOrder[],
 ): Promise<{ tradesAdded: number; tradesClosed: number; openCount: number }> {
   const posIds = [...new Set([...positions, ...open].map((p) => p.posId))];
   if (posIds.length === 0) return { tradesAdded: 0, tradesClosed: 0, openCount: 0 };
@@ -416,7 +428,8 @@ async function syncTrades(
       siblings: stops.siblings,
       closeOrderAlgo: pos.closeOrderAlgo,
     });
-    const row = toOpenTradeInsert({ pos, ctVal, bookId, userId, seq, stopTarget });
+    const tpLimits = tpLimitsOf(pos, pending);
+    const row = toOpenTradeInsert({ pos, ctVal, bookId, userId, seq, stopTarget, tpLimits });
     if (row === null) continue;
     openCount += 1;
 

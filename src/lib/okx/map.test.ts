@@ -7,6 +7,7 @@ import {
   fillSchema,
   openPositionSchema,
   orderSchema,
+  pendingOrderSchema,
   positionSchema,
   withdrawalSchema,
   type OkxAccountBill,
@@ -15,6 +16,7 @@ import {
   type OkxFill,
   type OkxOpenPosition,
   type OkxOrder,
+  type OkxPendingOrder,
   type OkxPosition,
   type OkxWithdrawal,
 } from "@/lib/okx/schema";
@@ -42,6 +44,7 @@ import {
   spanOfClosed,
   spanOfOpen,
   stopTargetOf,
+  tpLimitsOf,
   NO_STOP_TARGET,
 } from "@/lib/okx/map";
 
@@ -759,5 +762,72 @@ describe("stopTargetOf — 거래소에 걸려 있던 손절·익절", () => {
     expect(target.okx_stop_price).toBe(28480);
     expect(target.okx_sl_source).toBe("position");
     expect(target.okx_stop_first).toBe(28000);
+  });
+});
+
+describe("tpLimitsOf — 지정가 청산 주문으로 건 TP (REQ-0096)", () => {
+  // 11-02 실계좌: ONDO 롱 373계약 @0.3937, 감소 전용 매도 지정가 3개
+  const ondo = openPosition({ instId: "ONDO-USDT-SWAP", posSide: "long", pos: "373", avgPx: "0.3937" });
+  const order = (over: Record<string, string> = {}): OkxPendingOrder =>
+    pendingOrderSchema.parse({
+      instId: "ONDO-USDT-SWAP",
+      ordType: "limit",
+      side: "sell",
+      posSide: "long",
+      px: "0.413",
+      sz: "186",
+      accFillSz: "0",
+      reduceOnly: "true",
+      ...over,
+    });
+
+  it("이익 쪽 감소 전용 지정가를 진입가에서 가까운 순으로, 비중은 보유 대비 %", () => {
+    const got = tpLimitsOf(ondo, [
+      order({ px: "0.471", sz: "45" }),
+      order({ px: "0.413", sz: "186" }),
+      order({ px: "0.432", sz: "93" }),
+    ]);
+    expect(got).toEqual([
+      { px: 0.413, pct: 49.866 },
+      { px: 0.432, pct: 24.933 },
+      { px: 0.471, pct: 12.0643 },
+    ]);
+  });
+
+  it("손실 쪽·다른 종목·감소 전용 아님·진입 쪽 주문·다른 포지션 방향은 TP 가 아니다", () => {
+    expect(
+      tpLimitsOf(ondo, [
+        order({ px: "0.38" }),
+        order({ instId: "BTC-USDT-SWAP" }),
+        order({ reduceOnly: "false" }),
+        order({ side: "buy" }),
+        order({ posSide: "short" }),
+        order({ ordType: "market" }),
+      ]),
+    ).toBeNull();
+  });
+
+  it("숏은 진입가 아래 매수 지정가, 4개 이상이면 가까운 3개", () => {
+    const short = openPosition({ instId: "ONDO-USDT-SWAP", posSide: "short", pos: "100", avgPx: "0.4" });
+    const buy = (px: string) => order({ side: "buy", posSide: "short", px, sz: "10" });
+    expect(tpLimitsOf(short, [buy("0.30"), buy("0.39"), buy("0.35"), buy("0.37")])).toEqual([
+      { px: 0.39, pct: 10 },
+      { px: 0.37, pct: 10 },
+      { px: 0.35, pct: 10 },
+    ]);
+  });
+
+  it("일부 체결된 주문은 남은 몫만, 다 찬 주문은 뺀다", () => {
+    expect(
+      tpLimitsOf(ondo, [order({ sz: "186", accFillSz: "93" }), order({ px: "0.43", sz: "10", accFillSz: "10" })]),
+    ).toEqual([{ px: 0.413, pct: 24.933 }]);
+  });
+
+  it("행에 실리고 갱신에도 실린다 — 처음 묶음 지키기는 DB 트리거 몫", () => {
+    const tpLimits = [{ px: 0.413, pct: 49.866 }];
+    const row = toOpenTradeInsert({ pos: ondo, ctVal: 10, ...owner, seq: 1, tpLimits })!;
+    expect(row.okx_tp_limits_first).toEqual(tpLimits);
+    expect(toOpenUpdate(row).okx_tp_limits_first).toEqual(tpLimits);
+    expect(toOpenTradeInsert({ pos: ondo, ctVal: 10, ...owner, seq: 1 })!.okx_tp_limits_first).toBeNull();
   });
 });

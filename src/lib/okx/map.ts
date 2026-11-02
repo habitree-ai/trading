@@ -12,6 +12,7 @@ import type {
   OkxFill,
   OkxOpenPosition,
   OkxOrder,
+  OkxPendingOrder,
   OkxPosition,
   OkxWithdrawal,
 } from "@/lib/okx/schema";
@@ -207,6 +208,48 @@ export interface OpenTradeInsert extends StopTarget {
   fee: number | null;
   funding_fee: number | null;
   realized_pnl: number | null;
+  /** 지금 걸려 있는 지정가 청산(TP) 주문 — 처음 본 묶음은 DB 트리거가 지키고 TP1~3 에 채운다(0043) */
+  okx_tp_limits_first: TpLimit[] | null;
+}
+
+/** 지정가 청산 주문 하나 — 가격과 보유 수량 대비 비중(%). */
+export type TpLimit = { px: number; pct: number };
+
+/**
+ * 보유 포지션에 걸린 지정가 청산 주문을 TP 로 읽는다(REQ-0096). 없으면 null.
+ *
+ * 감소 전용 지정가 주문 중 같은 종목·같은 포지션 방향의 청산 쪽, 진입가보다 **이익 쪽**만 고른다 —
+ * 손실 쪽 지정가는 TP 가 아니다. 진입가에서 가까운 순으로 최대 3개, 비중은 남은 계약 수 ÷ 보유 계약 수.
+ */
+export function tpLimitsOf(
+  pos: OkxOpenPosition,
+  orders: readonly OkxPendingOrder[],
+): TpLimit[] | null {
+  const side = openSideOf(pos);
+  const entry = pos.avgPx;
+  const held = pos.pos === null ? null : Math.abs(pos.pos);
+  if (side === null || entry === null || held === null || held === 0) return null;
+
+  const closeSide = side === "long" ? "sell" : "buy";
+  const picked = orders
+    .filter(
+      (o) =>
+        o.instId === pos.instId &&
+        o.ordType === "limit" &&
+        o.reduceOnly === "true" &&
+        o.side === closeSide &&
+        (pos.posSide === "net" || o.posSide === pos.posSide) &&
+        o.px !== null &&
+        (side === "long" ? o.px > entry : o.px < entry),
+    )
+    .map((o) => ({ px: o.px as number, left: (o.sz ?? 0) - (o.accFillSz ?? 0) }))
+    .filter((o) => o.left > 0)
+    .sort((a, b) => Math.abs(a.px - entry) - Math.abs(b.px - entry))
+    .slice(0, 3)
+    .map((o) => ({ px: o.px, pct: Math.min(100, Math.round((o.left / held) * 1e6) / 1e4) }))
+    .filter((o) => o.pct > 0);
+
+  return picked.length > 0 ? picked : null;
 }
 
 /**
@@ -224,8 +267,10 @@ export function toOpenTradeInsert(input: {
   seq: number;
   /** 지금 걸려 있는 손절·익절 */
   stopTarget?: StopTarget;
+  /** 지금 걸려 있는 지정가 청산(TP) 주문 */
+  tpLimits?: TpLimit[] | null;
 }): OpenTradeInsert | null {
-  const { pos, ctVal, bookId, userId, seq, stopTarget } = input;
+  const { pos, ctVal, bookId, userId, seq, stopTarget, tpLimits } = input;
   const side = openSideOf(pos);
   if (side === null) return null;
 
@@ -253,6 +298,7 @@ export function toOpenTradeInsert(input: {
     fee: pos.fee ?? null,
     funding_fee: pos.fundingFee ?? null,
     realized_pnl: openRealizedOf(pos),
+    okx_tp_limits_first: tpLimits ?? null,
   };
 }
 
@@ -291,6 +337,8 @@ export function toOpenUpdate(row: OpenTradeInsert) {
     fee: row.fee,
     funding_fee: row.funding_fee,
     realized_pnl: row.realized_pnl,
+    // 처음 본 묶음은 DB 트리거가 지킨다(0043) — 지금 안 걸려 있어 null 을 보내도 지워지지 않는다.
+    okx_tp_limits_first: row.okx_tp_limits_first,
   };
 }
 

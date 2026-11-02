@@ -18,6 +18,7 @@ import {
   openPositionSchema,
   orderSchema,
   parseList,
+  pendingOrderSchema,
   positionSchema,
   withdrawalSchema,
   type OkxAccountBill,
@@ -26,6 +27,7 @@ import {
   type OkxFill,
   type OkxOpenPosition,
   type OkxOrder,
+  type OkxPendingOrder,
   type OkxPosition,
   type OkxWithdrawal,
 } from "@/lib/okx/schema";
@@ -255,6 +257,20 @@ export function fetchOrders(creds: OkxCredentials, sinceMs: number): Promise<Okx
     tsOf: (o) => Number(o.cTime),
     cursorOf: (o) => o.ordId,
   });
+}
+
+/**
+ * 지금 걸려 있는 일반 주문 — 지정가 청산 주문으로 건 TP 를 읽으려고 부른다(REQ-0096).
+ *
+ * 체결 없이 취소된 주문은 OKX 가 곧 이력에서 지우므로, 보유 중에 걸린 것을 지금 읽는 수밖에 없다.
+ */
+export async function fetchPendingOrders(creds: OkxCredentials): Promise<OkxPendingOrder[]> {
+  const rows = await okxPrivateGet(
+    "/api/v5/trade/orders-pending",
+    { instType: INST_TYPE, limit: PAGE },
+    creds,
+  );
+  return parseList(pendingOrderSchema, rows);
 }
 
 /**

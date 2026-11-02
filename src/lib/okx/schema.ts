@@ -257,6 +257,29 @@ export const orderSchema = z.object({
 export type OkxOrder = z.infer<typeof orderSchema>;
 
 /**
+ * `GET /api/v5/trade/orders-pending` — 아직 안 채워진 주문 1건.
+ *
+ * TP 를 거래소 TP/SL 이 아니라 **감소 전용 지정가 주문**으로 걸면 알고 주문에 안 남고 여기 걸려 있다(REQ-0096).
+ * `posId`가 없어 종목·방향으로 포지션에 붙인다(`tpLimitsOf`).
+ */
+export const pendingOrderSchema = z.object({
+  instId: z.string(),
+  ordType: z.string(),
+  /** `buy` | `sell` */
+  side: z.string(),
+  /** `long` | `short` — 넷 모드에서는 `net` */
+  posSide: z.string().optional().default(""),
+  px: numeric,
+  /** 주문 계약 수 */
+  sz: numeric,
+  /** 이미 체결된 계약 수 — 남은 몫만 TP 로 센다 */
+  accFillSz: numeric.optional(),
+  reduceOnly: z.string().optional().default(""),
+});
+
+export type OkxPendingOrder = z.infer<typeof pendingOrderSchema>;
+
+/**
  * 배열을 항목별로 검증하고, 형태가 깨진 항목만 버린다.
  *
  * 한 건이 이상하다고 동기화 전체를 멈추면 그날 거래가 통째로 안 들어온다.
