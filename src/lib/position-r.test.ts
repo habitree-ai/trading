@@ -1,6 +1,14 @@
 import { describe, expect, it } from 'vitest';
 
-import { buildFlow, mergeFills, sameSnapshot, type FlowFill, type FlowSnapshot, type Stage } from '@/lib/position-r';
+import {
+  buildFlow,
+  mergeFills,
+  previewAdd,
+  sameSnapshot,
+  type FlowFill,
+  type FlowSnapshot,
+  type Stage,
+} from '@/lib/position-r';
 
 /** 한 시간 — 60초 안의 같은 역할 체결은 묶이므로 단계 사이를 넉넉히 둔다. */
 const H = 3_600_000;
@@ -210,6 +218,63 @@ describe('숏·현재 열·예외', () => {
     expect(m).toHaveLength(2);
     expect(m[0].price).toBe(101);
     expect(m[0].qty).toBe(2);
+  });
+});
+
+describe('previewAdd — 추가 진입 미리 보기', () => {
+  // 명세 예시 ③ 4단계: 0.01 @100,000 보유, 102,000 에 0.01 추가 (기준 R 10, 1E 0.01, 진입 CR 1)
+  const ex3 = {
+    side: 'long' as const,
+    rBase: 10,
+    oneE: 0.01,
+    cr0: 1,
+    qty: 0.01,
+    avgPx: 100_000,
+    addPrice: 102_000,
+    addQty: 0.01,
+  };
+
+  it('손절을 100,000 에 둔 채 추가하면 CR 2.0 — 위험 증가', () => {
+    const p = previewAdd({ ...ex3, stopPx: 100_000 });
+    expect(p.before.cr).toBe(0);
+    close(p.after.avgPx, 101_000);
+    close(p.after.cr, 2);
+    close(p.after.e, 2);
+    expect(p.riskUp).toBe(true);
+  });
+
+  it('손절을 101,000(추가 후 평단)으로 올려 두면 CR 0', () => {
+    const p = previewAdd({ ...ex3, stopPx: 101_000 });
+    close(p.after.cr, 0);
+    close(p.after.lockedR, 0);
+    expect(p.riskUp).toBe(false);
+  });
+
+  it('#2 ONDO 숏 — 손절 0.399 그대로 570개를 0.388 에 더하면 CR 이 늘고 위험 증가', () => {
+    const p = previewAdd({
+      side: 'short',
+      rBase: 10,
+      oneE: 10 / (0.399 - 0.3906),
+      cr0: 0.9576,
+      qty: 1140,
+      avgPx: 0.3906,
+      stopPx: 0.399,
+      addPrice: 0.388,
+      addQty: 570,
+    });
+    close(p.before.cr, 0.9576);
+    const avg = (0.3906 * 1140 + 0.388 * 570) / 1710;
+    close(p.after.avgPx, avg);
+    close(p.after.cr, ((0.399 - avg) * 1710) / 10);
+    expect(p.after.cr as number).toBeGreaterThan(p.before.cr as number);
+    expect(p.riskUp).toBe(true);
+  });
+
+  it('손절이 없으면 CR·잠긴 R 을 비운다', () => {
+    const p = previewAdd({ ...ex3, stopPx: null });
+    expect(p.after.cr).toBeNull();
+    expect(p.after.lockedR).toBeNull();
+    expect(p.riskUp).toBe(false);
   });
 });
 

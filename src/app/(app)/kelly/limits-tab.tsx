@@ -1,10 +1,11 @@
 import { StatTile } from "@/components/stat-tile";
-import type { Book, Trade } from "@/lib/domain";
+import type { Book } from "@/lib/domain";
 import { EDGE_VERDICT_LABEL } from "@/lib/edge";
 import { DASH, dateTime, num, pct, pnlClass, signed } from "@/lib/format";
 import {
   BREACH_LABEL,
   breachHistory,
+  closedLimitTrades,
   daySums,
   kstDayKey,
   LIMIT_RULES,
@@ -14,9 +15,8 @@ import {
   periodStart,
   STREAK_RULES,
   type LimitState,
-  type LimitTrade,
 } from "@/lib/loss-limits";
-import { isOpenTrade, netOf } from "@/lib/metrics";
+import { isOpenTrade } from "@/lib/metrics";
 import { getLatestBalance, listBooks, listRBaseHistory, listTrades } from "@/lib/queries";
 import { buildREdgeReport } from "@/lib/r-edge-report";
 import { tradeR } from "@/lib/r-multiple";
@@ -32,18 +32,6 @@ const STATE_TONE: Record<LimitState, string> = {
 const at = (ms: number | null) => (ms === null ? DASH : dateTime(new Date(ms).toISOString()));
 const rText = (v: number | null) => (v === null ? DASH : `${signed(v, 2)}R`);
 
-function toLimitTrade(t: Trade): LimitTrade | null {
-  if (isOpenTrade(t) || t.exit_at === null) return null;
-  return {
-    id: t.id,
-    seq: t.seq,
-    symbol: t.symbol,
-    exitMs: Date.parse(t.exit_at),
-    net: netOf(t),
-    rBase: t.r_base_at_entry,
-  };
-}
-
 /** 데이터와 기준 시각 — 시각은 읽는 순간 한 번 잡는다(렌더 안에서 `Date.now()` 금지, react-hooks/purity). */
 async function load(book: Book) {
   const [trades, rHistory, balance, books] = await Promise.all([
@@ -54,8 +42,6 @@ async function load(book: Book) {
   ]);
   return { nowMs: Date.now(), trades, rHistory, balance, books };
 }
-
-const closedOf = (trades: readonly Trade[]) => trades.map(toLimitTrade).filter((t): t is LimitTrade => t !== null);
 
 /**
  * 손실 한도 탭 — 일·주·월·분기·연 한도와 연속 손실 멈춤 기준(REQ-0097).
@@ -74,7 +60,7 @@ export async function LimitsTab({ book }: { book: Book }) {
     );
   }
 
-  const closed = closedOf(trades);
+  const closed = closedLimitTrades(trades);
   const open = trades.filter(isOpenTrade);
   const openRisks = open.map((t) => {
     const qty = t.entry_price && t.notional ? Math.abs(t.notional) / t.entry_price : null;
@@ -109,7 +95,7 @@ export async function LimitsTab({ book }: { book: Book }) {
     s.winRate !== null && s.winRate > 0 && s.avgLossR !== null ? ((1 - s.winRate) * s.avgLossR) / s.winRate : null;
 
   // 이력(참고) — 예전 북 포함. 이 숫자는 지금 상태 판정에 쓰지 않는다.
-  const allClosed = closedOf(allTrades);
+  const allClosed = closedLimitTrades(allTrades);
   const breaches = breachHistory(allClosed, rBaseNow).slice(0, 15);
   const fromMs = periodStart("day", nowMs) - 55 * 86_400_000;
   const sums = new Map(daySums(allClosed, rBaseNow).map((d) => [d.day, d]));

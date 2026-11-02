@@ -1,10 +1,13 @@
+import { AddPreviewPanel } from "@/app/(app)/kelly/add-preview";
+import { EntryCalcPanel, type EntryCalcProps } from "@/app/(app)/kelly/entry-calc";
 import { StatTile } from "@/components/stat-tile";
 import { SIDE_LABEL, type Book, type Trade } from "@/lib/domain";
 import { DASH, dateTime, num, pnlClass, price, signed } from "@/lib/format";
+import { closedLimitTrades, STREAK_RULES, streakStatus } from "@/lib/loss-limits";
 import { isOpenTrade } from "@/lib/metrics";
 import { lastPrice } from "@/lib/okx-live";
 import { buildFlow, STAGE_LABEL, type Flow, type Stage } from "@/lib/position-r";
-import { listFills, listPositionSnapshots, listRBaseHistory, listTrades } from "@/lib/queries";
+import { getLatestBalance, listFills, listPositionSnapshots, listRBaseHistory, listTrades } from "@/lib/queries";
 
 const rText = (v: number | null) => (v === null ? DASH : `${signed(v, 2)}R`);
 const plain = (v: number | null) => (v === null ? DASH : num(v, 2));
@@ -19,11 +22,33 @@ interface PositionView {
 }
 
 /** 보유 포지션마다 체결·스냅샷·현재가를 읽어 흐름을 만든다. 시각은 읽는 순간 한 번(렌더 안 `Date.now()` 금지). */
-async function load(book: Book): Promise<{ views: PositionView[]; nowMs: number }> {
-  const [trades, rHistory] = await Promise.all([listTrades(book.id), listRBaseHistory()]);
+async function load(book: Book): Promise<{ views: PositionView[]; nowMs: number; calc: EntryCalcProps | null }> {
+  const [trades, rHistory, balance] = await Promise.all([
+    listTrades(book.id),
+    listRBaseHistory(),
+    getLatestBalance(book.id),
+  ]);
   const rNow = rHistory[0]?.amount ?? null;
   const open = trades.filter(isOpenTrade);
   const nowMs = Date.now();
+  // 진입 계산기 — 연속 손실 단계는 손실 한도 탭과 같은 판정(활성 북 청산 거래, REQ-0097).
+  let calc: EntryCalcProps | null = null;
+  if (rNow !== null) {
+    const streak = streakStatus(closedLimitTrades(trades), nowMs, rNow);
+    calc = {
+      rBase: rNow,
+      feeRate: rHistory[0]?.fee_rate ?? 0,
+      equity: balance?.equity ?? null,
+      riskFactor: streak.shrink ? STREAK_RULES.shrinkFactor : 1,
+      streakNote: streak.cooling
+        ? `휴식 중 — 손실일 ${streak.lossDayStreak}일 연속`
+        : streak.dayStopped
+          ? `오늘 ${STREAK_RULES.dayStopLosses}연패 — 그날 종료`
+          : streak.shrink
+            ? `축소 단계 — ${streak.lossStreak}연패, 다음 거래 ${STREAK_RULES.shrinkFactor}R`
+            : null,
+    };
+  }
   const views = await Promise.all(
     open.map(async (trade): Promise<PositionView | null> => {
       const rBase = trade.r_base_at_entry ?? rNow;
@@ -68,7 +93,7 @@ async function load(book: Book): Promise<{ views: PositionView[]; nowMs: number 
       return { trade, rBase, estimatedR: trade.r_base_at_entry === null, livePrice: live, flow };
     }),
   );
-  return { views: views.filter((v): v is PositionView => v !== null), nowMs };
+  return { views: views.filter((v): v is PositionView => v !== null), nowMs, calc };
 }
 
 /**
@@ -78,13 +103,17 @@ async function load(book: Book): Promise<{ views: PositionView[]; nowMs: number 
  * 「현재」 열만 화면을 여는 순간의 공개 시세로 다시 계산한다.
  */
 export async function PositionTab({ book }: { book: Book }) {
-  const { views, nowMs } = await load(book);
+  const { views, nowMs, calc } = await load(book);
+  const calcPanel = calc ? <EntryCalcPanel {...calc} /> : null;
 
   if (views.length === 0) {
     return (
-      <p className="rounded-xl border border-dashed border-border p-10 text-center text-sm text-dim">
-        보유 중인 포지션이 없습니다. 진입한 뒤 동기화하면 이곳에 단계별 흐름이 쌓입니다.
-      </p>
+      <div className="space-y-5">
+        {calcPanel}
+        <p className="rounded-xl border border-dashed border-border p-10 text-center text-sm text-dim">
+          보유 중인 포지션이 없습니다. 진입한 뒤 동기화하면 이곳에 단계별 흐름이 쌓입니다.
+        </p>
+      </div>
     );
   }
 
@@ -97,6 +126,7 @@ export async function PositionTab({ book }: { book: Book }) {
 
   return (
     <div className="space-y-5">
+      {calcPanel}
       <section className="rounded-xl border border-border bg-surface p-4">
         <div className="flex flex-wrap items-baseline justify-between gap-2">
           <h2 className="text-sm font-medium">
@@ -150,6 +180,7 @@ export async function PositionTab({ book }: { book: Book }) {
 function PositionFlow({ view }: { view: PositionView }) {
   const { trade, rBase, flow, livePrice } = view;
   const { stages } = flow;
+  const last = stages[stages.length - 1];
   const prices = stages.flatMap((s) => [s.price, s.stopPx, s.qty > 0 ? s.avgPx : null]);
   const known = prices.filter((p): p is number => p !== null && p > 0);
   const lo = Math.min(...known);
@@ -258,6 +289,18 @@ function PositionFlow({ view }: { view: PositionView }) {
         <p className="mt-2 text-xs text-loss">
           빨간 CR = 진입 때 위험({plain(stages[0].cr)})보다 커진 단계 — 손절을 올리지 않고 추가했거나 손절을 넓혔습니다.
         </p>
+      ) : null}
+      {last.qty > 0 ? (
+        <AddPreviewPanel
+          side={trade.side}
+          rBase={rBase}
+          oneE={flow.oneE}
+          cr0={stages[0].cr}
+          qty={last.qty}
+          avgPx={last.avgPx}
+          stopPx={last.stopPx}
+          livePrice={livePrice}
+        />
       ) : null}
     </section>
   );

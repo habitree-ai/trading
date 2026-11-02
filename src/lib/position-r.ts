@@ -226,6 +226,63 @@ export function buildFlow(input: FlowInput): Flow {
   };
 }
 
+export interface AddPreviewInput {
+  side: Side;
+  rBase: number;
+  /** 1E 수량 — 흐름의 `oneE`. 없으면 E 를 비운다 */
+  oneE: Maybe;
+  /** 진입 때 CR — 이보다 커지면 위험 증가 */
+  cr0: Maybe;
+  qty: number;
+  avgPx: number;
+  /** 지금 걸려 있는 손절 — 추가 뒤에도 그대로 둔다고 본다 */
+  stopPx: Maybe;
+  addPrice: number;
+  addQty: number;
+}
+
+export interface PositionState {
+  qty: number;
+  avgPx: number;
+  e: Maybe;
+  cr: Maybe;
+  lockedR: Maybe;
+}
+
+export interface AddPreview {
+  before: PositionState;
+  after: PositionState;
+  /** 추가 뒤 CR 이 진입 때 CR 보다 크다 */
+  riskUp: boolean;
+}
+
+/**
+ * 추가 진입 미리 보기 — 지금 손절을 그대로 둔 채 더 사면 CR·E 가 어떻게 되나(명세 「현재포지션」).
+ * 식은 `buildFlow` 단계와 같다: CR = 방향 × (평단 − 손절) × 수량 ÷ 기준 R, 음수 몫은 잠긴 R.
+ */
+export function previewAdd(input: AddPreviewInput): AddPreview {
+  const { side, rBase, oneE, cr0, stopPx } = input;
+  const dir = side === 'long' ? 1 : -1;
+  const state = (qty: number, avgPx: number): PositionState => {
+    const raw = stopPx === null ? null : (dir * (avgPx - stopPx) * qty) / rBase;
+    return {
+      qty,
+      avgPx,
+      e: oneE === null ? null : qty / oneE,
+      cr: raw === null ? null : Math.max(0, raw),
+      lockedR: raw === null ? null : Math.max(0, -raw),
+    };
+  };
+  const qty = input.qty + input.addQty;
+  const avgPx = (input.avgPx * input.qty + input.addPrice * input.addQty) / qty;
+  const after = state(qty, avgPx);
+  return {
+    before: state(input.qty, input.avgPx),
+    after,
+    riskUp: after.cr !== null && cr0 !== null && after.cr > cr0 + 1e-6,
+  };
+}
+
 /** 직전 스냅샷과 수량·평단·손절이 모두 같은가 — 같으면 동기화가 새 줄을 남기지 않는다(시세만 다른 건 단계가 아니다). */
 export function sameSnapshot(
   prev: Pick<FlowSnapshot, 'qty' | 'avgPx' | 'stopPx'> | null,

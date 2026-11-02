@@ -16,6 +16,8 @@
  * 무엇을 넣을지는 부르는 쪽이 정한다. 화면은 **활성 북의 거래만** 넣는다(11-03 사용자 결정 — 중간정산 뒤
  * 새로 시작한 북부터 관리). 예전 북까지 넣으면 10월 손실로 분기·연 한도가 이미 넘어 2027-01-01 까지 막힌다.
  */
+import type { Trade } from '@/lib/domain';
+import { isOpenTrade, netOf } from '@/lib/metrics';
 
 export type LimitPeriod = 'day' | 'week' | 'month' | 'quarter' | 'year';
 
@@ -129,6 +131,23 @@ export interface LimitTrade {
   /** 진입 시점 기준 R — 이력 전 거래는 null(현재 기준 R 로 환산, 「추정」) */
   rBase: number | null;
 }
+
+/** 청산 거래 → 한도 계산용 한 건. 보유 중이면 null. */
+export function toLimitTrade(t: Trade): LimitTrade | null {
+  if (isOpenTrade(t) || t.exit_at === null) return null;
+  return {
+    id: t.id,
+    seq: t.seq,
+    symbol: t.symbol,
+    exitMs: Date.parse(t.exit_at),
+    net: netOf(t),
+    rBase: t.r_base_at_entry,
+  };
+}
+
+/** 거래 목록 중 청산 거래만 한도 계산용으로. */
+export const closedLimitTrades = (trades: readonly Trade[]) =>
+  trades.map(toLimitTrade).filter((t): t is LimitTrade => t !== null);
 
 /** 기준R 손익 — 순손익 ÷ 진입 시점 기준 R(없으면 현재 기준 R). */
 export function tradeBaseR(t: LimitTrade, rBaseNow: number): number {
