@@ -49,6 +49,8 @@ export const AREAS: Area[] = [
     links: [
       { href: "/dashboard", label: "대시보드", icon: "📊", hint: "자금·성과·리스크 한 장" },
       { href: "/flat", label: "무포지션", icon: "⏸️", hint: "내가 넣는 중립 기어" },
+      // 바로가기 — 화면은 과거데이터 분석의 탭이다(REQ-0090·0098).
+      { href: "/kelly?tab=pos", label: "현재 포지션", icon: "🧭", hint: "단계별 R·E·CR · 진입 계산기" },
       { href: "/trades", label: "거래 목록", icon: "📒", hint: "전 거래와 차트" },
       { href: "/notes", label: "매매 노트", icon: "📝", hint: "근거·복기·기록을 한 화면에서 보고 고치기" },
       { href: "/trades/new", label: "기록 추가", icon: "➕", hint: "포지션 기록(진입·추가 진입·변경·메모) · 일반 기록" },
