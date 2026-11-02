@@ -116,6 +116,18 @@ export async function listFills(tradeId: string): Promise<TradeFill[]> {
   return data;
 }
 
+/** 보유 포지션 스냅샷(동기화 때 수량·평단·시세·손절) — 시각순. 포지션 흐름의 손절 이동 단계 재료(REQ-0090). */
+export async function listPositionSnapshots(tradeId: string) {
+  const { supabase } = await requireUser();
+  const { data, error } = await supabase
+    .from("position_snapshots")
+    .select("at, qty, avg_px, mark_px, stop_px")
+    .eq("trade_id", tradeId)
+    .order("at", { ascending: true });
+  if (error) throw new Error(error.message);
+  return data;
+}
+
 /** 이 북에서 전에 적었던 기준·근거·감정·복기 — 폼이 골라 넣을 선택지. */
 export interface FieldSuggestions {
   setup: string[];

@@ -184,6 +184,8 @@ export const openPositionSchema = z.object({
   lever: numeric,
   /** 미실현 손익 — 시세를 따라 매 순간 흔들리는 유일한 값이다 */
   upl: numeric,
+  /** 표시 가격 — 포지션 흐름 스냅샷의 그 순간 시세(REQ-0090) */
+  markPx: numeric.optional(),
   /**
    * 이 포지션이 지금까지 **확정한** 손익 — 부분청산 손익 + 수수료 + 펀딩비.
    *

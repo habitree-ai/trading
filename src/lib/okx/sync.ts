@@ -49,6 +49,7 @@ import {
   type PositionSpan,
 } from "@/lib/okx/map";
 import { MAX_HISTORY_MS, type OkxCredentials } from "@/lib/okx/private";
+import { sameSnapshot } from "@/lib/position-r";
 import type {
   OkxAlgoOrder,
   OkxFill,
@@ -300,6 +301,7 @@ async function runSync(
     : 0;
 
   await snapshotBalance(supabase, creds, userId, bookId, open);
+  await snapshotPositions(supabase, userId, bookId, open, ctVals);
 
   return { ...counts, fillsAdded, flowsAdded, since, until };
 }
@@ -613,4 +615,69 @@ async function snapshotBalance(
     unrealized_pnl: open.unrealized,
     source: "okx",
   });
+}
+
+/**
+ * 보유 포지션의 수량·평단·시세·손절을 남긴다 — 포지션 흐름(책 표 3-6)의 손절 이동 단계 재료(REQ-0090).
+ *
+ * 체결은 진입·추가·청산을 남기지만 손절을 옮긴 기록은 어디에도 없다. 직전 줄과 수량·평단·손절이 모두 같으면
+ * 남기지 않는다. 손절은 거래 행에 방금 쓴 값(거래소 손절, 없으면 계획 손절)을 읽는다 — 화면 「현재」 열과 같은 기준.
+ *
+ * 잔고 스냅샷처럼 덧붙이는 기록이라 실패해도 동기화를 멈추지 않는다.
+ */
+async function snapshotPositions(
+  supabase: Db,
+  userId: string,
+  bookId: string,
+  open: readonly OkxOpenPosition[],
+  ctVals: Map<string, number | null>,
+): Promise<void> {
+  if (open.length === 0) return;
+  const { data: trades } = await supabase
+    .from("trades")
+    .select("id, okx_pos_id, okx_stop_price, stop_price")
+    .eq("book_id", bookId)
+    .is("exit_at", null)
+    .in(
+      "okx_pos_id",
+      open.map((p) => p.posId),
+    );
+  if (!trades || trades.length === 0) return;
+
+  const { data: prior } = await supabase
+    .from("position_snapshots")
+    .select("trade_id, at, qty, avg_px, stop_px")
+    .in(
+      "trade_id",
+      trades.map((t) => t.id),
+    )
+    .order("at", { ascending: false });
+  const last = new Map<string, { qty: number; avgPx: number; stopPx: number | null }>();
+  for (const p of prior ?? []) {
+    if (!last.has(p.trade_id)) last.set(p.trade_id, { qty: p.qty, avgPx: p.avg_px, stopPx: p.stop_px });
+  }
+
+  const at = new Date().toISOString();
+  const rows = [];
+  for (const pos of open) {
+    const trade = trades.find((t) => t.okx_pos_id === pos.posId);
+    const ctVal = ctVals.get(pos.instId) ?? null;
+    if (!trade || ctVal === null || pos.pos === null || pos.avgPx === null || !(pos.avgPx > 0)) continue;
+    const next = {
+      qty: Math.abs(pos.pos) * ctVal,
+      avgPx: pos.avgPx,
+      stopPx: trade.okx_stop_price ?? trade.stop_price,
+    };
+    if (sameSnapshot(last.get(trade.id) ?? null, next)) continue;
+    rows.push({
+      user_id: userId,
+      trade_id: trade.id,
+      at,
+      qty: next.qty,
+      avg_px: next.avgPx,
+      mark_px: pos.markPx ?? null,
+      stop_px: next.stopPx,
+    });
+  }
+  if (rows.length > 0) await supabase.from("position_snapshots").insert(rows);
 }

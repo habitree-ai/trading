@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { LimitsTab } from "@/app/(app)/kelly/limits-tab";
+import { PositionTab } from "@/app/(app)/kelly/position-tab";
 import { REdgeTab, type REdgeFilters } from "@/app/(app)/kelly/r-edge-tab";
 import { EmptyBook } from "@/components/empty-book";
 import { StatTile } from "@/components/stat-tile";
@@ -28,7 +29,8 @@ export default async function KellyPage({
   const { tab, ...filters } = await searchParams;
   const rTab = tab === "r";
   const limitsTab = tab === "limits";
-  const book = rTab || limitsTab ? await getActiveBook() : null;
+  const posTab = tab === "pos";
+  const book = rTab || limitsTab || posTab ? await getActiveBook() : null;
   const TAB = "rounded-lg px-3 py-1.5 text-sm";
 
   return (
@@ -37,7 +39,7 @@ export default async function KellyPage({
       <nav className="flex flex-wrap gap-1 border-b border-border pb-2" aria-label="분석 탭">
         <Link
           href="/kelly"
-          className={`${TAB} ${rTab || limitsTab ? "text-dim hover:bg-surface-2" : "bg-surface-2 font-medium"}`}
+          className={`${TAB} ${rTab || limitsTab || posTab ? "text-dim hover:bg-surface-2" : "bg-surface-2 font-medium"}`}
         >
           켈리 · OKX 전 이력
         </Link>
@@ -50,13 +52,21 @@ export default async function KellyPage({
         >
           손실 한도 · 연속 손실
         </Link>
+        <Link
+          href="/kelly?tab=pos"
+          className={`${TAB} ${posTab ? "bg-surface-2 font-medium" : "text-dim hover:bg-surface-2"}`}
+        >
+          현재 포지션 흐름
+        </Link>
       </nav>
-      {rTab || limitsTab ? (
+      {rTab || limitsTab || posTab ? (
         book ? (
           rTab ? (
             <REdgeTab book={book} filters={filters} />
-          ) : (
+          ) : limitsTab ? (
             <LimitsTab book={book} />
+          ) : (
+            <PositionTab book={book} />
           )
         ) : (
           <EmptyBook />

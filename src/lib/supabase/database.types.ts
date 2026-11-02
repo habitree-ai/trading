@@ -377,6 +377,50 @@ export type Database = {
           },
         ]
       }
+      position_snapshots: {
+        Row: {
+          at: string
+          avg_px: number
+          created_at: string
+          id: string
+          mark_px: number | null
+          qty: number
+          stop_px: number | null
+          trade_id: string
+          user_id: string
+        }
+        Insert: {
+          at: string
+          avg_px: number
+          created_at?: string
+          id?: string
+          mark_px?: number | null
+          qty: number
+          stop_px?: number | null
+          trade_id: string
+          user_id: string
+        }
+        Update: {
+          at?: string
+          avg_px?: number
+          created_at?: string
+          id?: string
+          mark_px?: number | null
+          qty?: number
+          stop_px?: number | null
+          trade_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "position_snapshots_trade_id_fkey"
+            columns: ["trade_id"]
+            isOneToOne: false
+            referencedRelation: "trades"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       r_base_history: {
         Row: {
           amount: number
