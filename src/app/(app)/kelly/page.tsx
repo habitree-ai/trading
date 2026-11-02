@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { LimitsTab } from "@/app/(app)/kelly/limits-tab";
 import { REdgeTab, type REdgeFilters } from "@/app/(app)/kelly/r-edge-tab";
 import { EmptyBook } from "@/components/empty-book";
 import { StatTile } from "@/components/stat-tile";
@@ -26,21 +27,43 @@ export default async function KellyPage({
 }) {
   const { tab, ...filters } = await searchParams;
   const rTab = tab === "r";
-  const book = rTab ? await getActiveBook() : null;
+  const limitsTab = tab === "limits";
+  const book = rTab || limitsTab ? await getActiveBook() : null;
   const TAB = "rounded-lg px-3 py-1.5 text-sm";
 
   return (
     <div className="space-y-5">
       {/* 켈리 = OKX 전 이력 정적 집계, R 엣지 = 활성 북의 앱 DB 거래(REQ-0089). 데이터 출처가 달라 탭으로 나눈다. */}
-      <nav className="flex gap-1 border-b border-border pb-2" aria-label="분석 탭">
-        <Link href="/kelly" className={`${TAB} ${rTab ? "text-dim hover:bg-surface-2" : "bg-surface-2 font-medium"}`}>
+      <nav className="flex flex-wrap gap-1 border-b border-border pb-2" aria-label="분석 탭">
+        <Link
+          href="/kelly"
+          className={`${TAB} ${rTab || limitsTab ? "text-dim hover:bg-surface-2" : "bg-surface-2 font-medium"}`}
+        >
           켈리 · OKX 전 이력
         </Link>
         <Link href="/kelly?tab=r" className={`${TAB} ${rTab ? "bg-surface-2 font-medium" : "text-dim hover:bg-surface-2"}`}>
           R 엣지 · 활성 북
         </Link>
+        <Link
+          href="/kelly?tab=limits"
+          className={`${TAB} ${limitsTab ? "bg-surface-2 font-medium" : "text-dim hover:bg-surface-2"}`}
+        >
+          손실 한도 · 연속 손실
+        </Link>
       </nav>
-      {rTab ? book ? <REdgeTab book={book} filters={filters} /> : <EmptyBook /> : <OkxKellyView />}
+      {rTab || limitsTab ? (
+        book ? (
+          rTab ? (
+            <REdgeTab book={book} filters={filters} />
+          ) : (
+            <LimitsTab book={book} />
+          )
+        ) : (
+          <EmptyBook />
+        )
+      ) : (
+        <OkxKellyView />
+      )}
     </div>
   );
 }
