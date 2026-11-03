@@ -254,6 +254,8 @@ export const pendingAlgoSchema = z.object({
   /** 1 이면 남은 수량 전부 */
   closeFraction: numeric.optional(),
   slTriggerPx: triggerPx,
+  /** 조건부로 건 TP 의 트리거가(REQ-0101) */
+  tpTriggerPx: triggerPx,
 });
 
 export type OkxPendingAlgo = z.infer<typeof pendingAlgoSchema>;

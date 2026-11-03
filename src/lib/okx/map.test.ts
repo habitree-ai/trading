@@ -826,6 +826,33 @@ describe("tpLimitsOf — 지정가 청산 주문으로 건 TP (REQ-0096)", () =>
     ).toEqual([{ px: 0.413, pct: 24.933 }]);
   });
 
+  it("조건부(트리거) TP 주문도 TP 다 — 11-03 ONDO 롱 568계약 (REQ-0101)", () => {
+    const long = openPosition({ instId: "ONDO-USDT-SWAP", posSide: "long", pos: "568", avgPx: "0.3861" });
+    const cond = (over: Record<string, string>) =>
+      pendingAlgoSchema.parse({
+        instId: "ONDO-USDT-SWAP",
+        side: "sell",
+        posSide: "long",
+        sz: "",
+        closeFraction: "",
+        ...over,
+      });
+    expect(
+      tpLimitsOf(
+        long,
+        [],
+        [
+          cond({ sz: "156", tpTriggerPx: "0.432" }),
+          cond({ sz: "284", tpTriggerPx: "0.394" }),
+          cond({ closeFraction: "1", slTriggerPx: "0.3823" }),
+          cond({ sz: "100", tpTriggerPx: "0.38" }),
+        ],
+      ),
+    ).toEqual([
+      { px: 0.394, pct: 50 },
+      { px: 0.432, pct: 27.4648 },
+    ]);
+  });
   it("행에 실리고 갱신에도 실린다 — 처음 묶음 지키기는 DB 트리거 몫", () => {
     const tpLimits = [{ px: 0.413, pct: 49.866 }];
     const row = toOpenTradeInsert({ pos: ondo, ctVal: 10, ...owner, seq: 1, tpLimits })!;

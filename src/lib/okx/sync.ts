@@ -437,7 +437,7 @@ async function syncTrades(
       closeOrderAlgo: pos.closeOrderAlgo,
       liveStop: liveStopOf(pos, pendingAlgos),
     });
-    const tpLimits = tpLimitsOf(pos, pending);
+    const tpLimits = tpLimitsOf(pos, pending, pendingAlgos);
     const row = toOpenTradeInsert({ pos, ctVal, bookId, userId, seq, stopTarget, tpLimits });
     if (row === null) continue;
     openCount += 1;

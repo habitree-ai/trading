@@ -218,6 +218,7 @@ export type TpLimit = { px: number; pct: number };
 
 /**
  * 보유 포지션에 걸린 지정가 청산 주문을 TP 로 읽는다(REQ-0096). 없으면 null.
+ * 조건부·OCO 주문의 TP 트리거도 같은 규칙으로 함께 센다 — 전량 TP 는 보유 전부(REQ-0101).
  *
  * 감소 전용 지정가 주문 중 같은 종목·같은 포지션 방향의 청산 쪽, 진입가보다 **이익 쪽**만 고른다 —
  * 손실 쪽 지정가는 TP 가 아니다. 진입가에서 가까운 순으로 최대 3개, 비중은 남은 계약 수 ÷ 보유 계약 수.
@@ -225,6 +226,7 @@ export type TpLimit = { px: number; pct: number };
 export function tpLimitsOf(
   pos: OkxOpenPosition,
   orders: readonly OkxPendingOrder[],
+  algos: readonly OkxPendingAlgo[] = [],
 ): TpLimit[] | null {
   const side = openSideOf(pos);
   const entry = pos.avgPx;
@@ -232,6 +234,17 @@ export function tpLimitsOf(
   if (side === null || entry === null || held === null || held === 0) return null;
 
   const closeSide = side === "long" ? "sell" : "buy";
+  const profitSide = (px: number) => (side === "long" ? px > entry : px < entry);
+  const triggers = algos
+    .filter(
+      (a) =>
+        a.instId === pos.instId &&
+        a.side === closeSide &&
+        (pos.posSide === "net" || a.posSide === pos.posSide) &&
+        a.tpTriggerPx !== null &&
+        profitSide(a.tpTriggerPx),
+    )
+    .map((a) => ({ px: a.tpTriggerPx as number, left: a.closeFraction === 1 ? held : (a.sz ?? 0) }));
   const picked = orders
     .filter(
       (o) =>
@@ -244,6 +257,7 @@ export function tpLimitsOf(
         (side === "long" ? o.px > entry : o.px < entry),
     )
     .map((o) => ({ px: o.px as number, left: (o.sz ?? 0) - (o.accFillSz ?? 0) }))
+    .concat(triggers)
     .filter((o) => o.left > 0)
     .sort((a, b) => Math.abs(a.px - entry) - Math.abs(b.px - entry))
     .slice(0, 3)
