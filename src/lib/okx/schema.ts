@@ -238,6 +238,27 @@ export const algoOrderSchema = z.object({
 export type OkxAlgoOrder = z.infer<typeof algoOrderSchema>;
 
 /**
+ * `GET /api/v5/trade/orders-algo-pending` — 지금 걸려 있는 손절·익절 예약 1건(REQ-0100).
+ *
+ * 수량을 정해 건 분할 손절은 `closeOrderAlgo` 에 안 실리고 여기에만 있다(실계좌 확인).
+ * 전량 손절은 `closeFraction` 이 1 이고 `sz` 가 비어 온다.
+ */
+export const pendingAlgoSchema = z.object({
+  instId: z.string(),
+  /** `buy` | `sell` — 청산 쪽이어야 손절이다 */
+  side: z.string(),
+  /** `long` | `short` — 넷 모드에서는 `net` */
+  posSide: z.string().optional().default(""),
+  /** 계약 수 — 전량 손절이면 빈 값 */
+  sz: numeric.optional(),
+  /** 1 이면 남은 수량 전부 */
+  closeFraction: numeric.optional(),
+  slTriggerPx: triggerPx,
+});
+
+export type OkxPendingAlgo = z.infer<typeof pendingAlgoSchema>;
+
+/**
  * `GET /api/v5/trade/orders-history-archive` — 일반 주문 1건.
  *
  * 손절·익절을 **진입 주문에 부착**한 경우 `attachAlgoOrds`에 담겨 온다. 시스템 봇이

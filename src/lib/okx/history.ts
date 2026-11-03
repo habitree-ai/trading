@@ -18,6 +18,7 @@ import {
   openPositionSchema,
   orderSchema,
   parseList,
+  pendingAlgoSchema,
   pendingOrderSchema,
   positionSchema,
   withdrawalSchema,
@@ -27,6 +28,7 @@ import {
   type OkxFill,
   type OkxOpenPosition,
   type OkxOrder,
+  type OkxPendingAlgo,
   type OkxPendingOrder,
   type OkxPosition,
   type OkxWithdrawal,
@@ -271,6 +273,24 @@ export async function fetchPendingOrders(creds: OkxCredentials): Promise<OkxPend
     creds,
   );
   return parseList(pendingOrderSchema, rows);
+}
+
+/**
+ * 지금 걸려 있는 손절·익절 예약 — 옮긴 손절과 수량을 정해 건 분할 손절을 읽으려고 부른다(REQ-0100).
+ *
+ * 이력(`fetchAlgoOrders`)은 발동·취소된 것만 담고, `closeOrderAlgo` 는 전량 손절만 담는다.
+ */
+export async function fetchPendingAlgoOrders(creds: OkxCredentials): Promise<OkxPendingAlgo[]> {
+  const out: OkxPendingAlgo[] = [];
+  for (const ordType of SLTP_ALGO_TYPES) {
+    const rows = await okxPrivateGet(
+      "/api/v5/trade/orders-algo-pending",
+      { instType: INST_TYPE, ordType, limit: PAGE },
+      creds,
+    );
+    out.push(...parseList(pendingAlgoSchema, rows));
+  }
+  return out;
 }
 
 /**

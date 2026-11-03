@@ -12,6 +12,7 @@ import type {
   OkxFill,
   OkxOpenPosition,
   OkxOrder,
+  OkxPendingAlgo,
   OkxPendingOrder,
   OkxPosition,
   OkxWithdrawal,
@@ -556,19 +557,62 @@ export function stopTargetOf(input: {
   siblings: readonly PositionSpan[];
   /** 아직 들고 있는 포지션이면 지금 걸려 있는 청산 예약 */
   closeOrderAlgo?: readonly TriggerPair[];
+  /** 아직 들고 있는 포지션이면 지금 걸린 손절(`liveStopOf`) — 있으면 마지막 손절은 이 값이다(REQ-0100) */
+  liveStop?: number | null;
 }): StopTarget {
-  const { span, entryOrdIds, orders, algos, siblings, closeOrderAlgo } = input;
+  const { span, entryOrdIds, orders, algos, siblings, closeOrderAlgo, liveStop } = input;
 
   const attached = fromAttached(entryOrdIds, orders);
   const position = pickLatest((closeOrderAlgo ?? []).filter(hasTrigger), "position");
   const algo = fromAlgo(span, algos, siblings);
-  const last = attached ?? position ?? algo ?? NO_STOP_TARGET;
+  const found = attached ?? position ?? algo ?? NO_STOP_TARGET;
+  // 진입 주문 부착 손절은 옮기기 전 값이다 — 들고 있는 동안 지금 걸린 손절이 읽히면 그쪽이 마지막 손절이다.
+  const last =
+    liveStop === null || liveStop === undefined
+      ? found
+      : { ...found, okx_stop_price: liveStop, okx_sl_source: "position" as const };
 
   // 처음 값은 경로를 따로 고른다. 들고 있는 포지션의 청산 예약(`position`)은 **지금** 걸린 것이라 처음 값이
   // 아니다 — 옮기기 전 예약은 취소돼 알고 이력에 남는다. 이력에 없을 때만(한 번도 안 옮김) 그 값을 쓴다.
   const firstOf = (key: "okx_stop_first" | "okx_tp_first") =>
     attached?.[key] ?? algo?.[key] ?? position?.[key] ?? null;
   return { ...last, okx_stop_first: firstOf("okx_stop_first"), okx_tp_first: firstOf("okx_tp_first") };
+}
+
+/**
+ * 보유 포지션에 지금 걸린 손절 — 분할이면 수량 가중 평균(REQ-0100). 못 정하면 null.
+ *
+ * 닿는 순서대로 수량을 채운다(롱은 높은 손절부터, 숏은 낮은 손절부터). 전량 손절(`closeFraction` 1)은 남은
+ * 수량 전부, 수량 손절은 `sz` 만큼. CR 식이 선형이라 가중 평균 손절 하나로 재도 손절별 합과 같다.
+ * 걸린 손절이 보유 수량을 다 덮지 못하면 일부가 무손절이라 평균을 내지 않는다.
+ */
+export function liveStopOf(pos: OkxOpenPosition, algos: readonly OkxPendingAlgo[]): number | null {
+  const side = openSideOf(pos);
+  const held = pos.pos === null ? null : Math.abs(pos.pos);
+  if (side === null || held === null || held === 0) return null;
+
+  const closeSide = side === "long" ? "sell" : "buy";
+  const legs = algos
+    .filter(
+      (a) =>
+        a.instId === pos.instId &&
+        a.side === closeSide &&
+        (pos.posSide === "net" || a.posSide === pos.posSide) &&
+        a.slTriggerPx !== null &&
+        (a.closeFraction === 1 || (a.sz ?? 0) > 0),
+    )
+    .map((a) => ({ px: a.slTriggerPx as number, all: a.closeFraction === 1, sz: a.sz ?? 0 }))
+    .sort((a, b) => (side === "long" ? b.px - a.px : a.px - b.px));
+
+  let left = held;
+  let sum = 0;
+  for (const leg of legs) {
+    if (left <= 0) break;
+    const q = leg.all ? left : Math.min(leg.sz, left);
+    sum += leg.px * q;
+    left -= q;
+  }
+  return left > 1e-9 ? null : sum / held;
 }
 
 /**

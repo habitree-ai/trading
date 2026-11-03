@@ -7,6 +7,7 @@ import {
   fillSchema,
   openPositionSchema,
   orderSchema,
+  pendingAlgoSchema,
   pendingOrderSchema,
   positionSchema,
   withdrawalSchema,
@@ -16,6 +17,7 @@ import {
   type OkxFill,
   type OkxOpenPosition,
   type OkxOrder,
+  type OkxPendingAlgo,
   type OkxPendingOrder,
   type OkxPosition,
   type OkxWithdrawal,
@@ -24,6 +26,7 @@ import {
   baseSymbol,
   fillRole,
   isFullyClosed,
+  liveStopOf,
   matchOpenPosition,
   openRealizedOf,
   openSideOf,
@@ -829,5 +832,87 @@ describe("tpLimitsOf — 지정가 청산 주문으로 건 TP (REQ-0096)", () =>
     expect(row.okx_tp_limits_first).toEqual(tpLimits);
     expect(toOpenUpdate(row).okx_tp_limits_first).toEqual(tpLimits);
     expect(toOpenTradeInsert({ pos: ondo, ctVal: 10, ...owner, seq: 1 })!.okx_tp_limits_first).toBeNull();
+  });
+});
+
+describe("liveStopOf — 지금 걸린 손절, 분할이면 수량 가중 (REQ-0100)", () => {
+  // 11-03 실계좌: ONDO 숏 568계약 @0.38919, 전량 손절 0.3879 + 284계약 손절 0.3871 — 둘 다 이익 쪽
+  const ondo = openPosition({ instId: "ONDO-USDT-SWAP", posSide: "short", pos: "568", avgPx: "0.3891921180931748" });
+  const algo = (over: Record<string, string> = {}): OkxPendingAlgo =>
+    pendingAlgoSchema.parse({
+      instId: "ONDO-USDT-SWAP",
+      side: "buy",
+      posSide: "short",
+      sz: "",
+      closeFraction: "1",
+      slTriggerPx: "0.3879",
+      ...over,
+    });
+  const full = algo();
+  const half = algo({ sz: "284", closeFraction: "", slTriggerPx: "0.3871" });
+
+  it("전량 손절 + 분할 손절 → 수량 가중 평균(0.3875)", () => {
+    expect(liveStopOf(ondo, [full, half])).toBeCloseTo(0.3875, 10);
+  });
+
+  it("전량 손절 하나면 그 값", () => {
+    expect(liveStopOf(ondo, [full])).toBe(0.3879);
+  });
+
+  it("전량 손절이 먼저 닿으면 그 뒤 분할 손절은 안 걸린다 — 숏은 낮은 손절부터", () => {
+    expect(
+      liveStopOf(ondo, [
+        algo({ slTriggerPx: "0.3871" }),
+        algo({ sz: "284", closeFraction: "", slTriggerPx: "0.3879" }),
+      ]),
+    ).toBe(0.3871);
+  });
+
+  it("롱은 높은 손절부터 채운다", () => {
+    const long = openPosition({ instId: "ONDO-USDT-SWAP", posSide: "long", pos: "100", avgPx: "0.40" });
+    const sell = (over: Record<string, string>) => algo({ side: "sell", posSide: "long", ...over });
+    // 60계약 0.39 → 나머지 40계약 전량 손절 0.38
+    expect(
+      liveStopOf(long, [sell({ slTriggerPx: "0.38" }), sell({ sz: "60", closeFraction: "", slTriggerPx: "0.39" })]),
+    ).toBeCloseTo(0.386, 10);
+  });
+
+  it("분할 손절만으로 수량을 다 덮지 못하면 null — 일부가 무손절이라 평균을 낼 수 없다", () => {
+    expect(liveStopOf(ondo, [half])).toBeNull();
+  });
+
+  it("분할 손절 합이 보유보다 많으면 먼저 닿는 것부터 보유만큼", () => {
+    expect(liveStopOf(ondo, [half, algo({ sz: "568", closeFraction: "", slTriggerPx: "0.39" })])).toBeCloseTo(
+      (0.3871 + 0.39) / 2,
+      10,
+    );
+  });
+
+  it("다른 종목·다른 방향·진입 쪽·익절만 있는 주문은 빼고, 아무것도 없으면 null", () => {
+    expect(
+      liveStopOf(ondo, [
+        algo({ instId: "BTC-USDT-SWAP" }),
+        algo({ posSide: "long" }),
+        algo({ side: "sell" }),
+        algo({ slTriggerPx: "" }),
+      ]),
+    ).toBeNull();
+  });
+
+  it("stopTargetOf — 걸린 손절이 진입 주문 부착 손절(0.399)을 이긴다, 처음 손절은 그대로", () => {
+    const span = spanOfOpen(ondo);
+    const orders = new Map([["ORD-1", order({ attachAlgoOrds: [{ slTriggerPx: "0.399", tpTriggerPx: "" }] })]]);
+    const target = stopTargetOf({
+      span,
+      entryOrdIds: ["ORD-1"],
+      orders,
+      algos: [],
+      siblings: [span],
+      closeOrderAlgo: [{ slTriggerPx: 0.3879, tpTriggerPx: null }],
+      liveStop: liveStopOf(ondo, [full, half]),
+    });
+    expect(target.okx_stop_price).toBeCloseTo(0.3875, 10);
+    expect(target.okx_sl_source).toBe("position");
+    expect(target.okx_stop_first).toBe(0.399);
   });
 });

@@ -18,6 +18,7 @@ import {
   fetchFillsHistory,
   fetchOpenPositions,
   fetchOrders,
+  fetchPendingAlgoOrders,
   fetchPendingOrders,
   fetchPositionsHistory,
   fetchTotalEquity,
@@ -28,6 +29,7 @@ import {
   ALGO_WINDOW_MS,
   fillRole,
   isFullyClosed,
+  liveStopOf,
   matchOpenPosition,
   matchPosition,
   openSideOf,
@@ -55,6 +57,7 @@ import type {
   OkxFill,
   OkxOpenPosition,
   OkxOrder,
+  OkxPendingAlgo,
   OkxPendingOrder,
 } from "@/lib/okx/schema";
 import type { Database } from "@/lib/supabase/database.types";
@@ -294,8 +297,10 @@ async function runSync(
 
   // 지정가 청산 주문으로 건 TP 는 걸려 있는 동안에만 읽힌다(REQ-0096) — 들고 있을 때만 부른다.
   const pending = open.length > 0 ? await fetchPendingOrders(creds) : [];
+  // 옮긴 손절·분할 손절도 걸려 있는 동안에만 정확히 읽힌다(REQ-0100).
+  const pendingAlgos = open.length > 0 ? await fetchPendingAlgoOrders(creds) : [];
 
-  const counts = await syncTrades(supabase, userId, bookId, positions, open, ctVals, stops, pending);
+  const counts = await syncTrades(supabase, userId, bookId, positions, open, ctVals, stops, pending, pendingAlgos);
   const fillsAdded = hasPositions
     ? await syncFills(supabase, userId, positions, open, ctVals, fills)
     : 0;
@@ -351,6 +356,7 @@ async function syncTrades(
   ctVals: Map<string, number | null>,
   stops: StopSources,
   pending: readonly OkxPendingOrder[],
+  pendingAlgos: readonly OkxPendingAlgo[],
 ): Promise<{ tradesAdded: number; tradesClosed: number; openCount: number }> {
   const posIds = [...new Set([...positions, ...open].map((p) => p.posId))];
   if (posIds.length === 0) return { tradesAdded: 0, tradesClosed: 0, openCount: 0 };
@@ -429,6 +435,7 @@ async function syncTrades(
       algos: stops.algos,
       siblings: stops.siblings,
       closeOrderAlgo: pos.closeOrderAlgo,
+      liveStop: liveStopOf(pos, pendingAlgos),
     });
     const tpLimits = tpLimitsOf(pos, pending);
     const row = toOpenTradeInsert({ pos, ctVal, bookId, userId, seq, stopTarget, tpLimits });
