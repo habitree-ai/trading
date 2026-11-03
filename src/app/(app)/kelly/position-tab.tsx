@@ -1,5 +1,6 @@
 import { AddPreviewPanel } from "@/app/(app)/kelly/add-preview";
 import { EntryCalcPanel, type EntryCalcProps } from "@/app/(app)/kelly/entry-calc";
+import { SyncAction } from "@/app/(app)/trades/okx-sync-button";
 import { StatTile } from "@/components/stat-tile";
 import { SIDE_LABEL, type Book, type Trade } from "@/lib/domain";
 import { DASH, dateTime, num, pnlClass, price, signed } from "@/lib/format";
@@ -7,11 +8,24 @@ import { closedLimitTrades, STREAK_RULES, streakStatus } from "@/lib/loss-limits
 import { isOpenTrade } from "@/lib/metrics";
 import { lastPrice } from "@/lib/okx-live";
 import { buildFlow, STAGE_LABEL, type Flow, type Stage } from "@/lib/position-r";
-import { getLatestBalance, listFills, listPositionSnapshots, listRBaseHistory, listTrades } from "@/lib/queries";
+import {
+  getLastSync,
+  getLatestBalance,
+  listFills,
+  listPositionSnapshots,
+  listRBaseHistory,
+  listTrades,
+} from "@/lib/queries";
 
 const rText = (v: number | null) => (v === null ? DASH : `${signed(v, 2)}R`);
 const plain = (v: number | null) => (v === null ? DASH : num(v, 2));
 const at = (ms: number) => dateTime(new Date(ms).toISOString());
+
+/**
+ * 직전 동기화가 이보다 오래면 화면을 열 때 동기화를 한 번 돌린다(REQ-0099). 손절 이동은 동기화 때만 기록되므로
+ * 화면을 여는 순간 OKX 를 읽어야 옮긴 손절이 단계와 「현재」 열에 나온다. 1분은 다시 그려질 때 되풀이를 막는 여유다.
+ */
+const AUTO_SYNC_AFTER_MS = 60_000;
 
 interface PositionView {
   trade: Trade;
@@ -22,11 +36,18 @@ interface PositionView {
 }
 
 /** 보유 포지션마다 체결·스냅샷·현재가를 읽어 흐름을 만든다. 시각은 읽는 순간 한 번(렌더 안 `Date.now()` 금지). */
-async function load(book: Book): Promise<{ views: PositionView[]; nowMs: number; calc: EntryCalcProps | null }> {
-  const [trades, rHistory, balance] = await Promise.all([
+async function load(book: Book): Promise<{
+  views: PositionView[];
+  nowMs: number;
+  calc: EntryCalcProps | null;
+  lastSyncMs: number | null;
+}> {
+  const linked = Boolean(book.exchange_account_id);
+  const [trades, rHistory, balance, lastSync] = await Promise.all([
     listTrades(book.id),
     listRBaseHistory(),
     getLatestBalance(book.id),
+    linked ? getLastSync(book.id) : null,
   ]);
   const rNow = rHistory[0]?.amount ?? null;
   const open = trades.filter(isOpenTrade);
@@ -93,7 +114,12 @@ async function load(book: Book): Promise<{ views: PositionView[]; nowMs: number;
       return { trade, rBase, estimatedR: trade.r_base_at_entry === null, livePrice: live, flow };
     }),
   );
-  return { views: views.filter((v): v is PositionView => v !== null), nowMs, calc };
+  return {
+    views: views.filter((v): v is PositionView => v !== null),
+    nowMs,
+    calc,
+    lastSyncMs: lastSync ? Date.parse(lastSync.started_at) : null,
+  };
 }
 
 /**
@@ -103,12 +129,26 @@ async function load(book: Book): Promise<{ views: PositionView[]; nowMs: number;
  * 「현재」 열만 화면을 여는 순간의 공개 시세로 다시 계산한다.
  */
 export async function PositionTab({ book }: { book: Book }) {
-  const { views, nowMs, calc } = await load(book);
+  const { views, nowMs, calc, lastSyncMs } = await load(book);
+  const linked = Boolean(book.exchange_account_id);
+  const syncStale = lastSyncMs === null || nowMs - lastSyncMs > AUTO_SYNC_AFTER_MS;
+  // 화면을 열 때 OKX 를 읽는다 — 옮긴 손절이 「손절 이동」 단계와 「현재」 열에 들어오게(REQ-0099).
+  const syncBar = (
+    <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-dim">
+      <span>
+        {linked
+          ? `마지막 동기화 ${lastSyncMs === null ? "없음" : at(lastSyncMs)} — 화면을 열면 OKX 손절·수량을 다시 읽습니다`
+          : "거래소 계정이 연결되지 않은 북 — 손절 변경을 받아 올 수 없습니다"}
+      </span>
+      <SyncAction linked={linked} auto={syncStale} />
+    </div>
+  );
   const calcPanel = calc ? <EntryCalcPanel {...calc} /> : null;
 
   if (views.length === 0) {
     return (
       <div className="space-y-5">
+        {syncBar}
         {calcPanel}
         <p className="rounded-xl border border-dashed border-border p-10 text-center text-sm text-dim">
           보유 중인 포지션이 없습니다. 진입한 뒤 동기화하면 이곳에 단계별 흐름이 쌓입니다.
@@ -126,6 +166,7 @@ export async function PositionTab({ book }: { book: Book }) {
 
   return (
     <div className="space-y-5">
+      {syncBar}
       {calcPanel}
       <section className="rounded-xl border border-border bg-surface p-4">
         <div className="flex flex-wrap items-baseline justify-between gap-2">
@@ -170,8 +211,9 @@ export async function PositionTab({ book }: { book: Book }) {
 
       <p className="text-xs leading-relaxed text-dim">
         R = 처음 감수한 위험(진입 때 고정) · CR = 지금 손절에 걸리면 잃는 R(0 아래는 잠긴 R) · E = 현재 수량 ÷ 1E 수량 ·
-        미실현·누적 확정은 가격만(책 정의) — 수수료·펀딩은 거래 행의 실현손익에 있습니다. 손절 이동은 동기화 때만
-        기록되어(하루 1회 + 수동) 그 사이에 옮겼다 되돌린 손절은 보이지 않습니다.
+        미실현·누적 확정은 가격만(책 정의) — 수수료·펀딩은 거래 행의 실현손익에 있습니다. 손절 이동은 동기화 때
+        기록됩니다(이 화면을 열 때 · 하루 1회 · 수동). 단계 시각은 옮긴 시각이 아니라 동기화 시각이고, 그 사이에 옮겼다
+        되돌린 손절은 보이지 않습니다.
       </p>
     </div>
   );
