@@ -13,6 +13,7 @@ import {
   type FlatSession,
   type Goal,
   type JournalNote,
+  type MerZoneHit,
   type Principle,
   type RBase,
   type ResearchHeadline,
@@ -22,6 +23,7 @@ import {
   type Trade,
   type TradeAnnotation,
   type TradeFill,
+  type TradeLeg,
   type TradePrincipleCheck,
 } from "@/lib/domain";
 import { parseBasis } from "@/lib/journal-basis";
@@ -126,6 +128,52 @@ export async function listPositionSnapshots(tradeId: string) {
     .order("at", { ascending: true });
   if (error) throw new Error(error.message);
   return data;
+}
+
+/** 이 거래의 추가 진입 다리 — 다리 번호순(REQ-0102). */
+export async function listTradeLegs(tradeId: string): Promise<TradeLeg[]> {
+  const { supabase } = await requireUser();
+  const { data, error } = await supabase
+    .from("trade_legs")
+    .select("*")
+    .eq("trade_id", tradeId)
+    .order("leg_no", { ascending: true });
+  if (error) throw new Error(error.message);
+  return data as TradeLeg[];
+}
+
+/** 로그인한 사용자의 다리 전부 — 기록 시각순. MER 탭의 실제 다리 목록·누적 곡선 재료(REQ-0102). */
+export async function listLegsByUser(): Promise<TradeLeg[]> {
+  const { supabase, user } = await requireUser();
+  const { data, error } = await supabase
+    .from("trade_legs")
+    .select("*")
+    .eq("user_id", user.id)
+    .order("at", { ascending: true })
+    .order("leg_no", { ascending: true });
+  if (error) throw new Error(error.message);
+  return data as TradeLeg[];
+}
+
+/** MER 시뮬 관측값 — 시뮬 버전 하나만(규칙이 바뀌면 버전이 올라간다). REQ-0102 */
+export async function listZoneHits(simVersion = 1): Promise<MerZoneHit[]> {
+  const { supabase } = await requireUser();
+  // 거래 1건이 5행이라 200건이면 1,000행 — 한 번 조회 상한(1,000행)에 걸려 나머지가 안 보였다. 나눠 읽는다.
+  const PAGE = 1000;
+  const out: MerZoneHit[] = [];
+  for (let from = 0; ; from += PAGE) {
+    const { data, error } = await supabase
+      .from("mer_zone_hits")
+      .select("*")
+      .eq("sim_version", simVersion)
+      .order("entry_at", { ascending: true })
+      .order("zone_r", { ascending: true })
+      .order("id", { ascending: true })
+      .range(from, from + PAGE - 1);
+    if (error) throw new Error(error.message);
+    out.push(...(data as MerZoneHit[]));
+    if (data.length < PAGE) return out;
+  }
 }
 
 /** 이 북에서 전에 적었던 기준·근거·감정·복기 — 폼이 골라 넣을 선택지. */

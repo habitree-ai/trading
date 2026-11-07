@@ -330,6 +330,77 @@ export type Database = {
           },
         ]
       }
+      mer_zone_hits: {
+        Row: {
+          bar: string
+          common_stop_hit_at: string | null
+          common_stop_px: number
+          computed_at: string
+          entry_at: string
+          entry_px: number
+          exit_at: string
+          exit_px: number
+          fee_rate: number
+          id: string
+          outcome: string
+          reached_at: string | null
+          sim_version: number
+          stop_px: number
+          trade_id: string
+          user_id: string
+          zone_px: number
+          zone_r: number
+        }
+        Insert: {
+          bar: string
+          common_stop_hit_at?: string | null
+          common_stop_px: number
+          computed_at?: string
+          entry_at: string
+          entry_px: number
+          exit_at: string
+          exit_px: number
+          fee_rate: number
+          id?: string
+          outcome: string
+          reached_at?: string | null
+          sim_version?: number
+          stop_px: number
+          trade_id: string
+          user_id: string
+          zone_px: number
+          zone_r: number
+        }
+        Update: {
+          bar?: string
+          common_stop_hit_at?: string | null
+          common_stop_px?: number
+          computed_at?: string
+          entry_at?: string
+          entry_px?: number
+          exit_at?: string
+          exit_px?: number
+          fee_rate?: number
+          id?: string
+          outcome?: string
+          reached_at?: string | null
+          sim_version?: number
+          stop_px?: number
+          trade_id?: string
+          user_id?: string
+          zone_px?: number
+          zone_r?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mer_zone_hits_trade_id_fkey"
+            columns: ["trade_id"]
+            isOneToOne: false
+            referencedRelation: "trades"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       principles: {
         Row: {
           active: boolean
@@ -1174,6 +1245,72 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "trade_images_trade_id_fkey"
+            columns: ["trade_id"]
+            isOneToOne: false
+            referencedRelation: "trades"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      trade_legs: {
+        Row: {
+          at: string
+          checklist: Json | null
+          common_stop: number | null
+          created_at: string
+          fill_id: string | null
+          id: string
+          leg_no: number
+          note: string | null
+          price: number
+          qty: number
+          signals: Json | null
+          trade_id: string
+          user_id: string
+          zone_r: number | null
+        }
+        Insert: {
+          at: string
+          checklist?: Json | null
+          common_stop?: number | null
+          created_at?: string
+          fill_id?: string | null
+          id?: string
+          leg_no: number
+          note?: string | null
+          price: number
+          qty: number
+          signals?: Json | null
+          trade_id: string
+          user_id: string
+          zone_r?: number | null
+        }
+        Update: {
+          at?: string
+          checklist?: Json | null
+          common_stop?: number | null
+          created_at?: string
+          fill_id?: string | null
+          id?: string
+          leg_no?: number
+          note?: string | null
+          price?: number
+          qty?: number
+          signals?: Json | null
+          trade_id?: string
+          user_id?: string
+          zone_r?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "trade_legs_fill_id_fkey"
+            columns: ["fill_id"]
+            isOneToOne: false
+            referencedRelation: "trade_fills"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "trade_legs_trade_id_fkey"
             columns: ["trade_id"]
             isOneToOne: false
             referencedRelation: "trades"

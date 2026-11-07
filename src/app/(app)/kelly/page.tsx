@@ -1,8 +1,10 @@
 import Link from "next/link";
 
 import { LimitsTab } from "@/app/(app)/kelly/limits-tab";
+import { MerTab } from "@/app/(app)/kelly/mer-tab";
 import { PositionTab } from "@/app/(app)/kelly/position-tab";
 import { REdgeTab, type REdgeFilters } from "@/app/(app)/kelly/r-edge-tab";
+import { SignalsTab } from "@/app/(app)/kelly/signals-tab";
 import { EmptyBook } from "@/components/empty-book";
 import { StatTile } from "@/components/stat-tile";
 import { DASH, num, pct, pnlClass, signed, signedPct } from "@/lib/format";
@@ -24,13 +26,16 @@ import { readKelly, RELIABLE_SAMPLE, TONE_CLASS } from "@/lib/verdict";
 export default async function KellyPage({
   searchParams,
 }: {
-  searchParams: Promise<REdgeFilters & { tab?: string }>;
+  searchParams: Promise<REdgeFilters & { tab?: string; scope?: string }>;
 }) {
-  const { tab, ...filters } = await searchParams;
+  const { tab, scope, ...filters } = await searchParams;
   const rTab = tab === "r";
   const limitsTab = tab === "limits";
   const posTab = tab === "pos";
-  const book = rTab || limitsTab || posTab ? await getActiveBook() : null;
+  const merTab = tab === "mer";
+  const signalsTab = tab === "signals";
+  const bookTab = rTab || limitsTab || posTab || merTab;
+  const book = bookTab ? await getActiveBook() : null;
   const TAB = "rounded-lg px-3 py-1.5 text-sm";
 
   return (
@@ -39,7 +44,7 @@ export default async function KellyPage({
       <nav className="flex flex-wrap gap-1 border-b border-border pb-2" aria-label="분석 탭">
         <Link
           href="/kelly"
-          className={`${TAB} ${rTab || limitsTab || posTab ? "text-dim hover:bg-surface-2" : "bg-surface-2 font-medium"}`}
+          className={`${TAB} ${bookTab || signalsTab ? "text-dim hover:bg-surface-2" : "bg-surface-2 font-medium"}`}
         >
           켈리 · OKX 전 이력
         </Link>
@@ -58,13 +63,26 @@ export default async function KellyPage({
         >
           현재 포지션 흐름
         </Link>
+        <Link href="/kelly?tab=mer" className={`${TAB} ${merTab ? "bg-surface-2 font-medium" : "text-dim hover:bg-surface-2"}`}>
+          MER · 피라미딩
+        </Link>
+        <Link
+          href="/kelly?tab=signals"
+          className={`${TAB} ${signalsTab ? "bg-surface-2 font-medium" : "text-dim hover:bg-surface-2"}`}
+        >
+          시장 임계점
+        </Link>
       </nav>
-      {rTab || limitsTab || posTab ? (
+      {signalsTab ? (
+        <SignalsTab />
+      ) : bookTab ? (
         book ? (
           rTab ? (
             <REdgeTab book={book} filters={filters} />
           ) : limitsTab ? (
             <LimitsTab book={book} />
+          ) : merTab ? (
+            <MerTab book={book} scope={scope} />
           ) : (
             <PositionTab book={book} />
           )

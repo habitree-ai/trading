@@ -1,11 +1,12 @@
 import { notFound } from "next/navigation";
 
 import { ExitPlanCard } from "@/app/(app)/trades/[id]/exit-plan-card";
+import { LegsCard } from "@/app/(app)/trades/[id]/legs-card";
 import { RCard } from "@/app/(app)/trades/[id]/r-card";
 import { TradeForm } from "@/app/(app)/trades/trade-form";
 import { summarizeExits } from "@/lib/exit-plan";
 import { isOpenTrade } from "@/lib/metrics";
-import { getTrade, listFieldSuggestions, listFills } from "@/lib/queries";
+import { getTrade, listFieldSuggestions, listFills, listRBaseHistory, listTradeLegs } from "@/lib/queries";
 import { tradeR } from "@/lib/r-multiple";
 
 /**
@@ -21,9 +22,11 @@ export default async function EditTradePage({ params }: { params: Promise<{ id: 
   const trade = await getTrade(id);
   if (!trade) notFound();
 
-  const [fills, suggestions] = await Promise.all([
+  const [fills, suggestions, legs, rHistory] = await Promise.all([
     listFills(trade.id),
     listFieldSuggestions(trade.book_id),
+    listTradeLegs(trade.id),
+    listRBaseHistory(),
   ]);
   const exits = summarizeExits(trade, fills, isOpenTrade(trade));
 
@@ -40,6 +43,8 @@ export default async function EditTradePage({ params }: { params: Promise<{ id: 
       <ExitPlanCard trade={trade} summary={exits} />
 
       <RCard r={tradeR(trade, fills)} rBase={trade.r_base_at_entry} />
+
+      <LegsCard trade={trade} legs={legs} fills={fills} feeRateNow={rHistory[0]?.fee_rate ?? null} />
     </div>
   );
 }

@@ -770,3 +770,52 @@ export const RESEARCH_NOTE_CATEGORIES: ResearchNoteCategory[] = [
   'macro',
   'briefing',
 ];
+
+/**
+ * 추가 진입 다리 1개 — 추가를 결정한 순간의 의도·구간·공통 손절·체크리스트·시장 지표 원값(REQ-0102).
+ *
+ * 체결(trade_fills)은 사실이고 이 행은 판단이다. 결과 R·MER 은 저장하지 않고 화면이 계산한다.
+ * `signals`·`checklist` 는 jsonb 원문 — `legs.ts` 의 parse 함수로 읽는다.
+ */
+export interface TradeLeg {
+  id: string;
+  user_id: string;
+  trade_id: string;
+  /** 1부터. 최초 진입(다리 0)은 거래 행 자체 */
+  leg_no: number;
+  at: string;
+  /** 추가가(의도) */
+  price: number;
+  /** 코인 수량 */
+  qty: number;
+  /** 최초 손절폭의 R 배수 구간 — 구간 밖이면 null */
+  zone_r: number | null;
+  common_stop: number | null;
+  fill_id: string | null;
+  signals: unknown;
+  checklist: unknown;
+  note: string | null;
+  created_at: string;
+}
+
+/** MER 시뮬 관측값 1행 — 거래 1건 × 구간 1개(REQ-0102). 다리 R·MER 은 화면이 계산한다. */
+export interface MerZoneHit {
+  id: string;
+  user_id: string;
+  trade_id: string;
+  zone_r: number;
+  sim_version: number;
+  bar: string;
+  entry_at: string;
+  entry_px: number;
+  stop_px: number;
+  common_stop_px: number;
+  fee_rate: number;
+  zone_px: number;
+  outcome: 'reached' | 'stop_first' | 'exit_first';
+  reached_at: string | null;
+  common_stop_hit_at: string | null;
+  exit_at: string;
+  exit_px: number;
+  computed_at: string;
+}

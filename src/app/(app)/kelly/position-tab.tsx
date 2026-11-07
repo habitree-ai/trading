@@ -1,3 +1,4 @@
+import { loadAddContext, type AddContext } from "@/app/(app)/kelly/add-context";
 import { AddPreviewPanel } from "@/app/(app)/kelly/add-preview";
 import { EntryCalcPanel, type EntryCalcProps } from "@/app/(app)/kelly/entry-calc";
 import { SyncAction } from "@/app/(app)/trades/okx-sync-button";
@@ -6,6 +7,7 @@ import { SIDE_LABEL, type Book, type Trade } from "@/lib/domain";
 import { DASH, dateTime, num, pnlClass, price, signed } from "@/lib/format";
 import { closedLimitTrades, STREAK_RULES, streakStatus } from "@/lib/loss-limits";
 import { isOpenTrade } from "@/lib/metrics";
+import { firstEntry } from "@/lib/mer-report";
 import { lastPrice } from "@/lib/okx-live";
 import { buildFlow, STAGE_LABEL, type Flow, type Stage } from "@/lib/position-r";
 import {
@@ -33,6 +35,10 @@ interface PositionView {
   estimatedR: boolean;
   livePrice: number | null;
   flow: Flow;
+  /** 첫 진입 체결가 — 공통 손절의 기준(REQ-0102). 모르면 null */
+  entry0: number | null;
+  /** 진입 때 수수료율, 없으면 지금 설정값 */
+  feeRate: number | null;
 }
 
 /** 보유 포지션마다 체결·스냅샷·현재가를 읽어 흐름을 만든다. 시각은 읽는 순간 한 번(렌더 안 `Date.now()` 금지). */
@@ -41,6 +47,7 @@ async function load(book: Book): Promise<{
   nowMs: number;
   calc: EntryCalcProps | null;
   lastSyncMs: number | null;
+  addCtx: AddContext | null;
 }> {
   const linked = Boolean(book.exchange_account_id);
   const [trades, rHistory, balance, lastSync] = await Promise.all([
@@ -111,14 +118,27 @@ async function load(book: Book): Promise<{
               }
             : null,
       });
-      return { trade, rBase, estimatedR: trade.r_base_at_entry === null, livePrice: live, flow };
+      return {
+        trade,
+        rBase,
+        estimatedR: trade.r_base_at_entry === null,
+        livePrice: live,
+        flow,
+        entry0: firstEntry(trade, fills)?.px ?? null,
+        feeRate: trade.fee_rate_at_entry ?? rHistory[0]?.fee_rate ?? null,
+      };
     }),
   );
+  const kept = views.filter((v): v is PositionView => v !== null);
+  // 추가 진입 체크리스트 재료 — 보유가 있을 때만 읽는다(임계점 수집은 외부 API 여러 번).
+  const addCtx =
+    kept.length > 0 ? await loadAddContext(book, trades, kept.map((v) => v.trade.symbol), nowMs) : null;
   return {
-    views: views.filter((v): v is PositionView => v !== null),
+    views: kept,
     nowMs,
     calc,
     lastSyncMs: lastSync ? Date.parse(lastSync.started_at) : null,
+    addCtx,
   };
 }
 
@@ -129,7 +149,7 @@ async function load(book: Book): Promise<{
  * 「현재」 열만 화면을 여는 순간의 공개 시세로 다시 계산한다.
  */
 export async function PositionTab({ book }: { book: Book }) {
-  const { views, nowMs, calc, lastSyncMs } = await load(book);
+  const { views, nowMs, calc, lastSyncMs, addCtx } = await load(book);
   const linked = Boolean(book.exchange_account_id);
   const syncStale = lastSyncMs === null || nowMs - lastSyncMs > AUTO_SYNC_AFTER_MS;
   // 화면을 열 때 OKX 를 읽는다 — 옮긴 손절이 「손절 이동」 단계와 「현재」 열에 들어오게(REQ-0099).
@@ -206,7 +226,7 @@ export async function PositionTab({ book }: { book: Book }) {
       </section>
 
       {views.map((v) => (
-        <PositionFlow key={v.trade.id} view={v} />
+        <PositionFlow key={v.trade.id} view={v} addCtx={addCtx} />
       ))}
 
       <p className="text-xs leading-relaxed text-dim">
@@ -220,7 +240,7 @@ export async function PositionTab({ book }: { book: Book }) {
   );
 }
 
-function PositionFlow({ view }: { view: PositionView }) {
+function PositionFlow({ view, addCtx }: { view: PositionView; addCtx: AddContext | null }) {
   const { trade, rBase, flow, livePrice } = view;
   const { stages } = flow;
   const last = stages[stages.length - 1];
@@ -343,6 +363,13 @@ function PositionFlow({ view }: { view: PositionView }) {
           avgPx={last.avgPx}
           stopPx={last.stopPx}
           livePrice={livePrice}
+          tradeId={trade.id}
+          stop0={trade.stop_px_0}
+          entry0={view.entry0}
+          feeRate={view.feeRate}
+          merRows={addCtx?.merRows ?? null}
+          threshold={addCtx?.thresholds[trade.symbol] ?? null}
+          accel={addCtx?.accel ?? []}
         />
       ) : null}
     </section>
