@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-import { MerSimButton } from "@/app/(app)/kelly/mer-sim-button";
+import { MerSimButton, type MerSimLast } from "@/app/(app)/kelly/mer-sim-button";
 import { CumulativeR } from "@/components/r-edge-charts";
 import { StatTile } from "@/components/stat-tile";
 import type { Book, Trade, TradeFill } from "@/lib/domain";
@@ -8,7 +8,7 @@ import { EDGE_MIN_SAMPLE, EDGE_VERDICT_LABEL } from "@/lib/edge";
 import { DASH, dateTime, num, pct, pnlClass, signed } from "@/lib/format";
 import { LEG_UNMEASURED_LABEL, legPoints, legResult, parseChecklist, parseLegSignals, type LegResult } from "@/lib/legs";
 import type { MerZoneRow } from "@/lib/mer";
-import { buildMerReport, merCandidate, openGroupCount } from "@/lib/mer-report";
+import { buildMerReport, merCandidate, merSimEntry, openGroupCount } from "@/lib/mer-report";
 import { listBooks, listLegsByUser, listRBaseHistory, listTrades, listZoneHits, requireUser } from "@/lib/queries";
 import type { RPoint } from "@/lib/r-edge-report";
 
@@ -25,19 +25,25 @@ async function fillsFor(tradeIds: readonly string[]): Promise<Record<string, Fil
   const CHUNK = 100;
   const chunks: string[][] = [];
   for (let i = 0; i < tradeIds.length; i += CHUNK) chunks.push(tradeIds.slice(i, i + CHUNK));
-  const results = await Promise.all(
-    chunks.map((ids) =>
-      supabase
+  // 한 묶음의 체결이 조회 상한(1,000행)을 넘으면 잘린다 — 묶음 안에서도 쪽을 나눠 끝까지 읽는다(REQ-0103).
+  const PAGE = 1000;
+  const readChunk = async (ids: string[]): Promise<FillRow[]> => {
+    const rows: FillRow[] = [];
+    for (let from = 0; ; from += PAGE) {
+      const { data, error } = await supabase
         .from("trade_fills")
         .select("id, trade_id, role, filled_at, price, amount")
         .in("trade_id", ids)
-        .order("filled_at", { ascending: true }),
-    ),
-  );
-  for (const { data, error } of results) {
-    if (error) throw new Error(error.message);
-    for (const f of data as FillRow[]) (out[f.trade_id] ??= []).push(f);
-  }
+        .order("filled_at", { ascending: true })
+        .order("id", { ascending: true })
+        .range(from, from + PAGE - 1);
+      if (error) throw new Error(error.message);
+      rows.push(...(data as FillRow[]));
+      if (data.length < PAGE) return rows;
+    }
+  };
+  const results = await Promise.all(chunks.map(readChunk));
+  for (const rows of results) for (const f of rows) (out[f.trade_id] ??= []).push(f);
   return out;
 }
 
@@ -47,7 +53,13 @@ async function fillsFor(tradeIds: readonly string[]): Promise<Record<string, Fil
  * 표본은 전체 북이 기본이다(D10) — 활성 북 하나로는 구간별 50건이 오래 안 찬다. 시뮬 관측은 사용자 단위로
  * 쌓이고 범위는 화면에서 거른다.
  */
-export async function MerTab({ book, scope }: { book: Book; scope?: string }) {
+/** `sim` 주소 값(넣음.남음.실패) → 직전 시뮬 결과. 시뮬 버튼이 새로 불러올 때 붙인다(REQ-0103). */
+function parseSimParam(raw: string | undefined): MerSimLast | null {
+  const m = raw?.match(/^(\d+)\.(\d+)\.(\d+)$/);
+  return m ? { done: Number(m[1]), remaining: Number(m[2]), failed: Number(m[3]) } : null;
+}
+
+export async function MerTab({ book, scope, sim }: { book: Book; scope?: string; sim?: string }) {
   const bookOnly = scope === "book";
   const [books, hits, legs, rHistory] = await Promise.all([
     listBooks(),
@@ -63,13 +75,21 @@ export async function MerTab({ book, scope }: { book: Book; scope?: string }) {
   const scoped = bookOnly ? allTrades.filter((t) => t.book_id === book.id) : allTrades;
   const scopedIds = new Set(scoped.map((t) => t.id));
 
-  // 미계산 — 시뮬은 범위와 무관하게 전부 돌리므로 전체 기준.
+  // 미계산 — 시뮬은 범위와 무관하게 전부 돌리므로 전체 기준. 첫 진입가로 시뮬이 못 하는 거래는
+  // 미계산이 아니라 「제외」다 — 시뮬 액션과 같은 merSimEntry 로 가른다(REQ-0103).
   const simulated = new Set(hits.map((h) => h.trade_id));
-  const pendingCount = allTrades.filter((t) => merCandidate(t) && !simulated.has(t.id)).length;
+  const unsimulated = allTrades.filter((t) => merCandidate(t) && !simulated.has(t.id));
 
   const scopedLegs = legs.filter((l) => scopedIds.has(l.trade_id));
   const sampleIds = [...new Set(hits.map((h) => h.trade_id))].filter((id) => scopedIds.has(id));
-  const fills = await fillsFor([...new Set([...sampleIds, ...scopedLegs.map((l) => l.trade_id)])]);
+  const fills = await fillsFor([
+    ...new Set([...sampleIds, ...scopedLegs.map((l) => l.trade_id), ...unsimulated.map((t) => t.id)]),
+  ]);
+  const excluded = unsimulated.flatMap((t) => {
+    const check = merSimEntry(t, fills[t.id] ?? []);
+    return check.ok ? [] : [{ seq: t.seq, symbol: t.symbol, reason: check.reason }];
+  });
+  const pendingCount = unsimulated.length - excluded.length;
   const openGroups: Record<string, number> = {};
   for (const id of sampleIds) openGroups[id] = openGroupCount(fills[id] ?? []);
 
@@ -120,7 +140,7 @@ export async function MerTab({ book, scope }: { book: Book; scope?: string }) {
           활성 북 · {book.name}
         </Link>
         <div className="ml-auto">
-          <MerSimButton pending={pendingCount} />
+          <MerSimButton pending={pendingCount} excluded={excluded} last={parseSimParam(sim)} />
         </div>
       </div>
 

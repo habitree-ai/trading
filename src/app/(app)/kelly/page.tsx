@@ -26,9 +26,9 @@ import { readKelly, RELIABLE_SAMPLE, TONE_CLASS } from "@/lib/verdict";
 export default async function KellyPage({
   searchParams,
 }: {
-  searchParams: Promise<REdgeFilters & { tab?: string; scope?: string }>;
+  searchParams: Promise<REdgeFilters & { tab?: string; scope?: string; sim?: string }>;
 }) {
-  const { tab, scope, ...filters } = await searchParams;
+  const { tab, scope, sim, ...filters } = await searchParams;
   const rTab = tab === "r";
   const limitsTab = tab === "limits";
   const posTab = tab === "pos";
@@ -82,7 +82,7 @@ export default async function KellyPage({
           ) : limitsTab ? (
             <LimitsTab book={book} />
           ) : merTab ? (
-            <MerTab book={book} scope={scope} />
+            <MerTab book={book} scope={scope} sim={sim} />
           ) : (
             <PositionTab book={book} />
           )

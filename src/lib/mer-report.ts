@@ -69,6 +69,28 @@ export function firstEntry(
   return { px: trade.entry_price, atMs, fromFills: false };
 }
 
+export type MerSimEntry =
+  | { ok: true; entry: { px: number; atMs: number; fromFills: boolean } }
+  | { ok: false; reason: string };
+
+/**
+ * 시뮬 입력 판정 — 첫 진입가로 다시 본다. 「미계산」 집계와 시뮬 액션이 같은 함수를 써야
+ * 영원히 실패만 하는 거래가 미계산에 남지 않는다(REQ-0103). merCandidate 를 통과한 거래에 쓴다.
+ */
+export function merSimEntry(
+  t: Pick<Trade, 'side' | 'entry_at' | 'entry_price' | 'exit_at' | 'stop_px_0'>,
+  fills: readonly EntryFill[],
+): MerSimEntry {
+  const entry = firstEntry(t, fills);
+  if (entry === null) return { ok: false, reason: '첫 진입가 없음' };
+  if (!pos(t.stop_px_0) || !(stopDistance(t.side, entry.px, t.stop_px_0) > 0)) {
+    return { ok: false, reason: '첫 진입 체결 기준으로 최초 손절이 이익 쪽' };
+  }
+  const exitMs = t.exit_at === null ? NaN : Date.parse(t.exit_at);
+  if (!(exitMs > entry.atMs)) return { ok: false, reason: '청산 시각이 진입보다 이르거나 같음' };
+  return { ok: true, entry };
+}
+
 /** 진입 체결 묶음 수 — 2 이상이면 실제로 추가 진입을 한 거래. 수량을 몰라도 묶음 수는 시각만으로 센다. */
 export function openGroupCount(fills: readonly Pick<TradeFill, 'role' | 'filled_at' | 'price'>[]): number {
   const flow = fills

@@ -7,6 +7,7 @@ import {
   firstEntry,
   hitToInput,
   merCandidate,
+  merSimEntry,
   openGroupCount,
   type MerReportTrade,
 } from '@/lib/mer-report';
@@ -24,6 +25,27 @@ describe('merCandidate — 시뮬 대상', () => {
   it('숏은 손절이 위여야 대상', () => {
     expect(merCandidate({ ...base, side: 'short', stop_px_0: 101 })).toBe(true);
     expect(merCandidate({ ...base, side: 'short' })).toBe(false);
+  });
+});
+
+describe('merSimEntry — 시뮬 입력 판정(미계산과 시뮬이 같은 기준, REQ-0103)', () => {
+  const trade = { side: 'long' as const, entry_at: iso(T0), exit_at: iso(T0 + 60 * M), exit_price: 101, entry_price: 100, stop_px_0: 99.5 };
+  it('평균 진입가로는 대상이지만 첫 체결가 기준 손절이 이익 쪽이면 제외 사유', () => {
+    // 평균 100 > 손절 99.5 라 merCandidate 는 대상. 첫 체결은 99.2 — 손절 99.5 가 그 위(이익 쪽)
+    expect(merCandidate(trade)).toBe(true);
+    const r = merSimEntry(trade, [
+      { role: 'open', filled_at: iso(T0), price: 99.2, amount: 992 },
+      { role: 'open', filled_at: iso(T0 + 30 * M), price: 100.8, amount: 1008 },
+    ]);
+    expect(r).toEqual({ ok: false, reason: '첫 진입 체결 기준으로 최초 손절이 이익 쪽' });
+  });
+  it('정상이면 첫 진입가·시각', () => {
+    const r = merSimEntry(trade, [{ role: 'open', filled_at: iso(T0), price: 100, amount: 1000 }]);
+    expect(r).toEqual({ ok: true, entry: { px: 100, atMs: T0, fromFills: true } });
+  });
+  it('청산이 진입보다 이르면 제외 사유', () => {
+    const r = merSimEntry({ ...trade, exit_at: iso(T0) }, []);
+    expect(r).toEqual({ ok: false, reason: '청산 시각이 진입보다 이르거나 같음' });
   });
 });
 

@@ -3,10 +3,9 @@
 
 import type { Trade } from "@/lib/domain";
 import { commonStopPrice, simulateZones } from "@/lib/mer";
-import { firstEntry, merCandidate } from "@/lib/mer-report";
+import { merCandidate, merSimEntry } from "@/lib/mer-report";
 import { fetchCandles, floorToBar, toInstId } from "@/lib/okx";
 import { listBooks, listFills, listRBaseHistory, listTrades, listZoneHits, requireUser } from "@/lib/queries";
-import { stopDistance } from "@/lib/r-multiple";
 import { pickPathBar } from "@/lib/trade-path";
 
 /** 시뮬 규칙 버전 — 규칙이 바뀌면 올리고 새로 쌓는다(0046). */
@@ -82,22 +81,14 @@ export async function runMerSimulation(budgetMs = MAX_BUDGET_MS): Promise<MerSim
     }
 
     try {
-      const entry = firstEntry(t, await listFills(t.id));
+      // 「미계산」 집계와 같은 판정(REQ-0103) — 여기서 걸리는 거래는 탭이 「제외」로 따로 센다.
+      const check = merSimEntry(t, await listFills(t.id));
+      // 실패가 아니라 시뮬 대상이 아니다 — 탭이 「제외」로 보인다. 매번 실패로 찍지 않는다.
+      if (!check.ok) continue;
+      const { entry } = check;
       const stop0 = t.stop_px_0 as number;
       const exit0 = t.exit_price as number;
       const exitMs = Date.parse(t.exit_at as string);
-      if (entry === null) {
-        fail("첫 진입가 없음");
-        continue;
-      }
-      if (!(stopDistance(t.side, entry.px, stop0) > 0)) {
-        fail("첫 진입 체결 기준으로 최초 손절이 이익 쪽");
-        continue;
-      }
-      if (!(exitMs > entry.atMs)) {
-        fail("청산 시각이 진입보다 이르거나 같음");
-        continue;
-      }
 
       const bar = pickPathBar(exitMs - entry.atMs);
       const candles = await fetchCandles(toInstId(t.symbol), bar, floorToBar(entry.atMs, bar), floorToBar(exitMs, bar));
@@ -141,6 +132,6 @@ export async function runMerSimulation(budgetMs = MAX_BUDGET_MS): Promise<MerSim
     }
   }
 
-  // 화면 갱신은 버튼이 router.refresh 로 한다 — 액션 응답에 새 화면을 싣게 하면 연속 실행 때 갱신이 멈췄다.
+  // 화면 갱신은 버튼이 액션 뒤 router.refresh() 로 따로 한다 — 응답에 화면을 실으면 연속 실행 때 적용이 멈췄다(REQ-0103).
   return { done, remaining: queue.length - i, failed: failures.length, failures };
 }
