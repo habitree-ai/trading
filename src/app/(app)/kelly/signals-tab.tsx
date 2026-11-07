@@ -8,7 +8,8 @@ import {
   type ThresholdKey,
   type ThresholdVerdict,
 } from "@/lib/threshold";
-import type { PriceRange, SignalSide, ThresholdReport, VolatilityTf } from "@/lib/threshold/types";
+import { nextHvnDistPct } from "@/lib/threshold/liquidity";
+import type { SignalSide, ThresholdReport, VolatilityTf } from "@/lib/threshold/types";
 
 /**
  * 임계점 지표판 — 피라미딩(추가 진입) 전에 시장 구조가 내 방향으로 열렸는지 본다(REQ-0102).
@@ -103,23 +104,6 @@ function Row({ label, value, sub }: { label: string; value: string; sub?: string
       </span>
     </div>
   );
-}
-
-/** 현재가에서 가장 가까운 위/아래 HVN 까지 거리(%) — 현재가가 HVN 안이면 0. */
-function nearestHvn(hvn: PriceRange[], spot: number, dir: "up" | "down"): number | null {
-  let best: number | null = null;
-  for (const h of hvn) {
-    const d =
-      dir === "up"
-        ? h.hi > spot
-          ? (Math.max(0, h.lo - spot) / spot) * 100
-          : null
-        : h.lo < spot
-          ? (Math.max(0, spot - h.hi) / spot) * 100
-          : null;
-    if (d !== null && (best === null || d < best)) best = d;
-  }
-  return best;
 }
 
 export async function SignalsTab({ symbol = "BTC-USDT-SWAP" }: { symbol?: string }) {
@@ -375,8 +359,16 @@ export async function SignalsTab({ symbol = "BTC-USDT-SWAP" }: { symbol?: string
             <div>
               <Row label="위 공백(LVN)까지" value={distPct(liquidity.gapUpDistPct)} />
               <Row label="아래 공백(LVN)까지" value={distPct(liquidity.gapDownDistPct)} />
-              <Row label="위 HVN 까지" value={distPct(nearestHvn(liquidity.hvn, spot, "up"))} />
-              <Row label="아래 HVN 까지" value={distPct(nearestHvn(liquidity.hvn, spot, "down"))} />
+              <Row
+                label="위 다음 HVN 까지"
+                value={distPct(nextHvnDistPct(liquidity.hvn, spot, "up"))}
+                sub={liquidity.inHvn ? "지금 HVN 제외" : undefined}
+              />
+              <Row
+                label="아래 다음 HVN 까지"
+                value={distPct(nextHvnDistPct(liquidity.hvn, spot, "down"))}
+                sub={liquidity.inHvn ? "지금 HVN 제외" : undefined}
+              />
             </div>
             <div>
               <Row

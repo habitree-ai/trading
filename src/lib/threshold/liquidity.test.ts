@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { liquidityState, volumeProfile } from "./liquidity";
+import { liquidityState, nextHvnDistPct, volumeProfile } from "./liquidity";
 import type { VolumeBin } from "./types";
 
 /** ref 100, 칸 1(=1%) 짜리 칸을 거래량 배열로 만든다 */
@@ -81,5 +81,25 @@ describe("liquidityState", () => {
     expect(r.gapUpDistPct).not.toBeNull();
     expect(r.lvn).toHaveLength(1);
     expect(r.hvn).toHaveLength(1);
+  });
+});
+
+describe("nextHvnDistPct — 다음 HVN 까지 거리(REQ-0104)", () => {
+  const hvn = [
+    { lo: 90, hi: 92 },
+    { lo: 99, hi: 101 },
+    { lo: 110, hi: 112 },
+  ];
+  it("현재가가 HVN 안이면 그 HVN 은 빼고 위·아래 다음 HVN", () => {
+    expect(nextHvnDistPct(hvn, 100, "up")).toBeCloseTo(10); // 110 까지
+    expect(nextHvnDistPct(hvn, 100, "down")).toBeCloseTo(8); // 92 까지
+  });
+  it("현재가가 HVN 밖이면 가장 가까운 HVN 경계까지", () => {
+    expect(nextHvnDistPct(hvn, 105, "up")).toBeCloseTo((5 / 105) * 100);
+    expect(nextHvnDistPct(hvn, 105, "down")).toBeCloseTo((4 / 105) * 100);
+  });
+  it("그쪽에 HVN 이 없으면 null", () => {
+    expect(nextHvnDistPct(hvn, 115, "up")).toBeNull();
+    expect(nextHvnDistPct([], 100, "up")).toBeNull();
   });
 });

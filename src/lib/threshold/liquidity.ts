@@ -182,3 +182,17 @@ export function liquidityState(
     state: { on, warn: hvnAbove, measured, reasons },
   };
 }
+
+/**
+ * 현재가에서 위/아래 다음 HVN 경계까지 거리(%) — 현재가를 품은 HVN 은 뺀다(REQ-0104).
+ * 그 HVN 안에 있다는 사실은 「현재가 칸」이 보이므로, 여기서는 그 다음 벽까지가 쓸모 있다. 없으면 null.
+ */
+export function nextHvnDistPct(hvn: readonly PriceRange[], spot: number, dir: "up" | "down"): number | null {
+  let best: number | null = null;
+  for (const h of hvn) {
+    if (h.lo <= spot && spot <= h.hi) continue;
+    const d = dir === "up" ? (h.lo > spot ? h.lo - spot : null) : h.hi < spot ? spot - h.hi : null;
+    if (d !== null && (best === null || d < best)) best = d;
+  }
+  return best === null ? null : (best / spot) * 100;
+}
