@@ -21,6 +21,14 @@ import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from
 import { AnnotationList } from "@/components/annotation-list";
 import { tradeAnnotationStore, type AnnotationStore } from "@/components/annotation-store";
 import {
+  ATR_LEGEND_CLASS,
+  AtrBandToggle,
+  addAtrBandSeries,
+  attachAtrLegend,
+  useAtrMultiples,
+  type AtrBandLayer,
+} from "@/components/atr-band";
+import {
   AnnotationPrimitive,
   type AnnotationColorMap,
   type AnnotationDraft,
@@ -47,9 +55,9 @@ import {
   type TradeFill,
 } from "@/lib/domain";
 import { groupCloseFills } from "@/lib/exit-plan";
-import { num, pct, signed } from "@/lib/format";
+import { num, pct, priceDecimals, signed } from "@/lib/format";
 import { handleMovesTime, type AnnotationHit } from "@/lib/hit-test";
-import { rsi } from "@/lib/indicators";
+import { ATR_BAND_PERIOD, atrWilder, rsi, stopAtrMultiple } from "@/lib/indicators";
 import { formatLevel, levelFields, parseLevel } from "@/lib/annotation-levels";
 import { edgePointIndex, positionProblemOf } from "@/lib/position-tool";
 import {
@@ -161,6 +169,8 @@ export function readTheme(el: HTMLElement) {
     down: v("--loss") || "#f0616d",
     accent: v("--accent") || "#5b8cff",
     beta: v("--beta") || "#f5b23c",
+    /** ATR 밴드 — 손절·목표(빨강·초록)·진입(파랑)·청산(노랑)·메모 색과 겹치지 않는 보라 */
+    alpha: v("--alpha") || "#9b83ff",
   };
 }
 
@@ -314,6 +324,10 @@ export function TradeChart({
   const volumeRef = useRef<ISeriesApi<"Histogram"> | null>(null);
   const rsiRef = useRef<ISeriesApi<"Line"> | null>(null);
   const layerRef = useRef<AnnotationPrimitive | null>(null);
+  /** ATR 밴드(±1·2·3배)와 그 값을 띄우는 범례 상자 */
+  const atrRef = useRef<AtrBandLayer | null>(null);
+  const atrLegendRef = useRef<HTMLDivElement>(null);
+  const atrMultiples = useAtrMultiples();
   /** 캔들 범위 밖 좌표 역산용 — 첫 봉 시각(초)·봉 간격(초). 포인터 처리기가 ref 로 읽는다. */
   const rangeRef = useRef<{ t0: number; barSec: number } | null>(null);
 
@@ -575,6 +589,10 @@ export function TradeChart({
       },
     });
 
+    // ATR 밴드 — 캔들과 같은 가격 축. 캔들보다 먼저 붙여야 캔들 아래에 깔린다.
+    // 켜고 끄는 것은 자료를 줄 때 정한다(아래 밴드 effect).
+    const atr = addAtrBandSeries(chart, theme.alpha);
+
     const series = chart.addSeries(CandlestickSeries, {
       upColor: theme.up,
       downColor: theme.down,
@@ -629,6 +647,7 @@ export function TradeChart({
     volumeRef.current = volume;
     rsiRef.current = rsiSeries;
     layerRef.current = layer;
+    atrRef.current = atr;
 
     const observer = new ResizeObserver(() => {
       chart.applyOptions({ width: host.clientWidth });
@@ -644,6 +663,7 @@ export function TradeChart({
       volumeRef.current = null;
       rsiRef.current = null;
       layerRef.current = null;
+      atrRef.current = null;
     };
   }, []);
 
@@ -889,6 +909,51 @@ export function TradeChart({
       for (const line of lines) series.removePriceLine(line);
     };
   }, [candles, fills, entryPrice, exitPrice, stopPrice, initialStopPrice, firstTarget, tp1, tp2, tp3, sh1, sh2, sh3, notional, symbol, entryMs, exitMs, bar, replayIdx, entryIdx, extraMarkers]);
+
+  /*
+   * ---------- ATR 밴드 — 손절 후보 1·2·3배 ----------
+   *
+   * 가격 축 자릿수도 여기서 맞춘다. 소수 둘째 자리 고정이면 저가 코인(0.41)의 손절선과
+   * 1·2·3배 밴드 값이 한 숫자로 뭉쳐 읽히지 않는다 — 표의 `price` 와 같은 기준.
+   */
+  const axisPrecision =
+    candles && candles.length > 0 ? priceDecimals(candles[candles.length - 1].c) : 2;
+  useEffect(() => {
+    seriesRef.current?.applyOptions({
+      priceFormat: { type: "price", precision: axisPrecision, minMove: 10 ** -axisPrecision },
+    });
+  }, [axisPrecision]);
+
+  /** 끝난 거래의 범례는 진입 봉 값이 기본이다 — "그때 손절을 어디 둬야 했나"를 읽는 자리. */
+  const legendAtEntry = !live && exitAt !== null && replayIdx === null;
+  useEffect(() => {
+    const chart = chartRef.current;
+    const atr = atrRef.current;
+    const legend = atrLegendRef.current;
+    if (!chart || !atr || !legend || !candles || candles.length === 0) return;
+
+    // 복기 중에는 보이는 봉까지만 — 캔들·RSI 와 같은 규칙.
+    const visibleCount =
+      replayIdx === null ? candles.length : Math.min(replayIdx + 1, candles.length);
+    atr.setData(candles, visibleCount, atrMultiples, axisPrecision);
+
+    return attachAtrLegend(chart, atr, legend, {
+      anchorIndex: legendAtEntry ? Math.min(entryIdx, visibleCount - 1) : visibleCount - 1,
+      anchorLabel: legendAtEntry ? "진입 봉" : null,
+      multiples: atrMultiples,
+      precision: axisPrecision,
+    });
+  }, [candles, replayIdx, atrMultiples, axisPrecision, entryIdx, legendAtEntry]);
+
+  /**
+   * 진입 봉의 ATR — 최초 손절이 그 봉 흔들림의 몇 배였는지(손절폭 ÷ ATR) 읽는다.
+   * 지금 보는 봉 단위의 ATR(14)이라 봉을 바꾸면 값도 바뀐다 — 4시간봉으로 방향을 봤다면 4시간봉으로 본다.
+   */
+  const entryAtr = useMemo(
+    () =>
+      candles && candles.length > 0 ? (atrWilder(candles, ATR_BAND_PERIOD)[entryIdx] ?? null) : null,
+    [candles, entryIdx],
+  );
 
   /* ---------- 측정(자)·메모 도구 ---------- */
   const toPoint = useCallback((x: number, y: number): MeasurePoint | null => {
@@ -1552,6 +1617,10 @@ export function TradeChart({
     markPrice !== null && entryPrice !== null
       ? ((markPrice - entryPrice) / entryPrice) * (side === "long" ? 1 : -1)
       : null;
+  // 손절폭 ÷ 진입 봉 ATR — R 의 분모와 같은 최초 손절로 잰다(없으면 지금 손절).
+  const stopAtr = live ? null : stopAtrMultiple(entryPrice, initialStopPrice ?? stopPrice, entryAtr);
+  const stopWasMoved =
+    initialStopPrice !== null && stopPrice !== null && Math.abs(initialStopPrice - stopPrice) > 1e-12;
 
   return (
     <section className="rounded-xl border border-border bg-surface p-4">
@@ -1667,6 +1736,8 @@ export function TradeChart({
               {viewLabel[v]}
             </button>
           ))}
+          <span className="mx-1 w-px self-stretch bg-border" aria-hidden />
+          <AtrBandToggle />
         </div>
       </div>
 
@@ -1684,10 +1755,24 @@ export function TradeChart({
         {held !== null ? (
           <span className={held >= 0 ? "text-profit" : "text-loss"}> ({signed(held * 100, 2)}%)</span>
         ) : null}
+        {/* 1배 안쪽이면 그 봉의 평소 흔들림 안에 손절을 둔 것이다 — 빨강으로 띄운다. */}
+        {stopAtr !== null ? (
+          <span
+            title={`진입 봉(${bar}) ATR(${ATR_BAND_PERIOD}) ${num(entryAtr, axisPrecision)} 기준 — 1배 아래면 그 봉의 평소 흔들림 안에 손절을 둔 것입니다. 봉을 바꾸면 그 봉의 ATR 로 다시 잽니다.`}
+          >
+            {" "}
+            · {stopWasMoved ? "최초 손절폭" : "손절폭"}{" "}
+            {/* 둘째 자리까지 — 0.96 을 「1.0」으로 반올림하면 빨강과 숫자가 어긋난다. */}
+            <b className={stopAtr < 1 ? "text-loss" : "text-text"}>{num(stopAtr, 2)}×ATR</b>
+          </span>
+        ) : null}
       </p>
 
       <div className="relative mt-3">
         <div ref={hostRef} className="w-full" />
+
+        {/* ATR 밴드 값 — 마우스가 올라간 봉, 없으면 진입 봉(끝난 거래)이나 마지막 봉. */}
+        <div ref={atrLegendRef} className={`absolute top-1 left-1 ${ATR_LEGEND_CLASS}`} style={{ zIndex: 4 }} />
 
         {/*
           측정 중에만 덮는 판 — 차트가 드래그를 가로채지 않도록 이벤트를 먼저 받는다.

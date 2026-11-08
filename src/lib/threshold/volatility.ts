@@ -5,12 +5,18 @@
  * 종가가 밴드 밖이었다가 돌아오는 가짜 켜짐이 생긴다.
  */
 
-import { sma } from "@/lib/indicators";
+import { atrWilder, sma } from "@/lib/indicators";
 import type { Candle } from "@/lib/okx";
 
 import { THRESHOLD_RULES, type SignalState, type SignalTf, type VolatilityTf } from "./types";
 
 type Hlc = Pick<Candle, "h" | "l" | "c">;
+
+/**
+ * ATR — 차트의 ATR 밴드와 같은 값을 봐야 해서 계산은 `@/lib/indicators` 로 옮겼다.
+ * 이 모듈에서 가져다 쓰던 자리가 그대로 동작하도록 다시 내보낸다.
+ */
+export { atrWilder };
 
 export interface Band {
   mid: number;
@@ -18,30 +24,6 @@ export interface Band {
   lower: number;
   /** (upper − lower) ÷ mid — k=2 이면 4σ/SMA */
   width: number;
-}
-
-/**
- * ATR — Wilder 방식.
- * TR[0] = 고−저(직전 종가 없음), 이후 max(고−저, |고−전종|, |저−전종|).
- * 첫 값은 index period−1 에 TR[0..period−1] 단순평균, 이후 (전값×(p−1)+TR)/p.
- */
-export function atrWilder(candles: readonly Hlc[], period: number): (number | null)[] {
-  const out: (number | null)[] = new Array(candles.length).fill(null);
-  if (period < 1 || candles.length < period) return out;
-  const tr = candles.map((c, i) => {
-    if (i === 0) return c.h - c.l;
-    const pc = candles[i - 1].c;
-    return Math.max(c.h - c.l, Math.abs(c.h - pc), Math.abs(c.l - pc));
-  });
-  let atr = 0;
-  for (let i = 0; i < period; i += 1) atr += tr[i];
-  atr /= period;
-  out[period - 1] = atr;
-  for (let i = period; i < candles.length; i += 1) {
-    atr = (atr * (period - 1) + tr[i]) / period;
-    out[i] = atr;
-  }
-  return out;
 }
 
 /** 볼린저 밴드 — 모표준편차(트레이딩뷰와 같음). 재료 부족·mid 0 이면 null. */

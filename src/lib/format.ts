@@ -16,8 +16,16 @@ export function num(value: number | null | undefined, decimals = 2): string {
  */
 export function price(value: number | null | undefined): string {
   if (value === null || value === undefined || !Number.isFinite(value)) return DASH;
+  return num(value, priceDecimals(value));
+}
+
+/**
+ * `price` 의 자릿수 — 차트 가격축도 같은 기준을 쓴다. 축이 소수 둘째 자리로 고정이면 저가 코인의
+ * 손절선과 ATR 밴드가 한 값으로 뭉쳐 읽히지 않는다.
+ */
+export function priceDecimals(value: number): number {
   const abs = Math.abs(value);
-  return num(value, abs >= 100 ? 2 : abs >= 1 ? 4 : 5);
+  return abs >= 100 ? 2 : abs >= 1 ? 4 : 5;
 }
 
 /** 비율(0.375) → `37.5%` */

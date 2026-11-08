@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 
 import { QuadPane } from "@/app/(app)/quad/quad-pane";
+import { AtrBandToggle } from "@/components/atr-band";
 import {
   DRAW_TOOLS,
   DrawToolbar,
@@ -114,6 +115,9 @@ export function QuadChart({ now: initialNow }: { now: number }) {
         <span className="mr-1 text-xs text-dim">USDT 무기한 · OKX</span>
         <span className="mx-1 w-px self-stretch bg-border" aria-hidden />
         <DrawToolbar board={board} />
+        {/* ATR 밴드는 네 창이 함께 켜고 끈다 — 폭은 창마다 그 봉 단위의 ATR 이다. */}
+        <span className="mx-1 w-px self-stretch bg-border" aria-hidden />
+        <AtrBandToggle />
       </div>
 
       <div className="relative min-h-0 flex-1">

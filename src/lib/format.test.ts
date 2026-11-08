@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { date, dateTime, fromLocalInput, keepIfSameMinute, price, toLocalInput } from "@/lib/format";
+import { date, dateTime, fromLocalInput, keepIfSameMinute, price, priceDecimals, toLocalInput } from "@/lib/format";
 
 describe("시각 포맷 — 서버/브라우저가 같은 문자열을 만들어야 한다", () => {
   it("표시 타임존(KST) 기준으로 찍는다", () => {
@@ -84,5 +84,12 @@ describe("price — 크기에 맞춘 자릿수", () => {
 
   it("값이 없으면 —", () => {
     expect(price(null)).toBe("—");
+  });
+
+  it("차트 가격축 자릿수도 같은 기준 — 음수(가격 차)는 크기로 본다", () => {
+    expect(priceDecimals(0.4097)).toBe(5);
+    expect(priceDecimals(15.2)).toBe(4);
+    expect(priceDecimals(100_000)).toBe(2);
+    expect(priceDecimals(-250)).toBe(2);
   });
 });

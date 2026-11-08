@@ -17,6 +17,13 @@ import {
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import {
+  ATR_LEGEND_CLASS,
+  addAtrBandSeries,
+  attachAtrLegend,
+  useAtrMultiples,
+  type AtrBandLayer,
+} from "@/components/atr-band";
+import {
   AnnotationPrimitive,
   type AnnotationDraft,
 } from "@/components/chart-annotations";
@@ -32,6 +39,7 @@ import {
   type ChartPoint,
   type TradeAnnotation,
 } from "@/lib/domain";
+import { priceDecimals } from "@/lib/format";
 import { handleMovesTime, type AnnotationHit } from "@/lib/hit-test";
 import { rsi } from "@/lib/indicators";
 import { edgePointIndex } from "@/lib/position-tool";
@@ -147,6 +155,10 @@ export function QuadPane({
   const volumeRef = useRef<ISeriesApi<"Histogram"> | null>(null);
   const rsiRef = useRef<ISeriesApi<"Line"> | null>(null);
   const layerRef = useRef<AnnotationPrimitive | null>(null);
+  /** ATR 밴드(±1·2·3배)와 그 값을 띄우는 범례 — 네 창이 같은 토글을 따른다 */
+  const atrRef = useRef<AtrBandLayer | null>(null);
+  const atrLegendRef = useRef<HTMLDivElement>(null);
+  const atrMultiples = useAtrMultiples();
   /** 캔들 범위 밖 좌표 역산용 — 첫 봉 시각(초)·봉 간격(초). 포인터 처리기가 ref 로 읽는다. */
   const rangeRef = useRef<{ t0: number; barSec: number } | null>(null);
 
@@ -209,6 +221,10 @@ export function QuadPane({
       },
     });
 
+    // ATR 밴드 — 당시 차트와 같은 여섯 줄. 이 창의 봉 단위 ATR 이라 창마다 폭이 다르다.
+    // 캔들보다 먼저 붙여야 캔들 아래에 깔린다.
+    const atr = addAtrBandSeries(chart, theme.alpha);
+
     const series = chart.addSeries(CandlestickSeries, {
       upColor: theme.up,
       downColor: theme.down,
@@ -265,6 +281,7 @@ export function QuadPane({
     volumeRef.current = volume;
     rsiRef.current = rsiSeries;
     layerRef.current = layer;
+    atrRef.current = atr;
 
     // 4분할은 창 크기가 화면을 따라 변한다 — 너비뿐 아니라 높이도 맞춘다.
     // 크기가 바뀌어도 보던 구간은 그대로 늘려 보여준다(확대 버튼·창 리사이즈 공통).
@@ -286,6 +303,7 @@ export function QuadPane({
       volumeRef.current = null;
       rsiRef.current = null;
       layerRef.current = null;
+      atrRef.current = null;
     };
   }, []);
 
@@ -378,6 +396,35 @@ export function QuadPane({
       chart.timeScale().fitContent();
     }
   }, [candles, symbol, bar]);
+
+  /*
+   * ---------- ATR 밴드 — 손절 후보 1·2·3배 ----------
+   *
+   * 가격 축 자릿수는 당시 차트와 같은 기준(표의 `price`)으로 맞춘다 — 저가 코인에서 밴드
+   * 셋이 한 값으로 뭉치지 않게. 범례의 기본은 마지막 봉 — 이 창은 늘 "지금"을 본다.
+   */
+  const axisPrecision =
+    candles && candles.length > 0 ? priceDecimals(candles[candles.length - 1].c) : 2;
+  useEffect(() => {
+    seriesRef.current?.applyOptions({
+      priceFormat: { type: "price", precision: axisPrecision, minMove: 10 ** -axisPrecision },
+    });
+  }, [axisPrecision]);
+
+  useEffect(() => {
+    const chart = chartRef.current;
+    const atr = atrRef.current;
+    const legend = atrLegendRef.current;
+    if (!chart || !atr || !legend || !candles || candles.length === 0) return;
+
+    atr.setData(candles, candles.length, atrMultiples, axisPrecision);
+    return attachAtrLegend(chart, atr, legend, {
+      anchorIndex: candles.length - 1,
+      anchorLabel: null,
+      multiples: atrMultiples,
+      precision: axisPrecision,
+    });
+  }, [candles, atrMultiples, axisPrecision]);
 
   // 도구를 켠 동안에는 차트의 드래그 이동을 꺼야 도형을 그릴 수 있다.
   useEffect(() => {
@@ -649,28 +696,34 @@ export function QuadPane({
     >
       <div ref={hostRef} className="absolute inset-0" />
 
-      {/* 컨트롤은 차트 위에 겹친다 — 줄을 따로 차지하면 그만큼 차트가 준다. */}
-      <div className="absolute top-1 left-1 flex items-center gap-1" style={{ zIndex: 6 }}>
-        <select
-          value={bar}
-          onChange={(e) => onBarChange(e.target.value as Bar)}
-          className="rounded border border-border bg-surface/80 px-1 py-0.5 text-xs text-text backdrop-blur-sm"
-          aria-label="봉 단위"
-        >
-          {BARS.map((b) => (
-            <option key={b} value={b}>
-              {BAR_LABEL[b]}
-            </option>
-          ))}
-        </select>
-        <button
-          type="button"
-          onClick={onToggleMax}
-          title={maximizedSelf ? "원래 배치로 돌아갑니다" : "이 창만 크게 봅니다"}
-          className="rounded border border-border bg-surface/80 px-1.5 py-0.5 text-xs text-dim backdrop-blur-sm hover:text-text"
-        >
-          {maximizedSelf ? "🗗" : "⛶"}
-        </button>
+      {/*
+        컨트롤은 차트 위에 겹친다 — 줄을 따로 차지하면 그만큼 차트가 준다.
+        ATR 범례는 그 바로 아래 — 손가락 화면에서 버튼이 커져도 겹치지 않게 같은 세로 줄에 둔다.
+      */}
+      <div className="absolute top-1 left-1 flex flex-col items-start gap-1" style={{ zIndex: 6 }}>
+        <div className="flex items-center gap-1">
+          <select
+            value={bar}
+            onChange={(e) => onBarChange(e.target.value as Bar)}
+            className="rounded border border-border bg-surface/80 px-1 py-0.5 text-xs text-text backdrop-blur-sm"
+            aria-label="봉 단위"
+          >
+            {BARS.map((b) => (
+              <option key={b} value={b}>
+                {BAR_LABEL[b]}
+              </option>
+            ))}
+          </select>
+          <button
+            type="button"
+            onClick={onToggleMax}
+            title={maximizedSelf ? "원래 배치로 돌아갑니다" : "이 창만 크게 봅니다"}
+            className="rounded border border-border bg-surface/80 px-1.5 py-0.5 text-xs text-dim backdrop-blur-sm hover:text-text"
+          >
+            {maximizedSelf ? "🗗" : "⛶"}
+          </button>
+        </div>
+        <div ref={atrLegendRef} className={ATR_LEGEND_CLASS} />
       </div>
 
       {/* 도구를 켠 동안에만 포인터를 받는 판 — 차트의 팬·줌을 가로챈다. */}
