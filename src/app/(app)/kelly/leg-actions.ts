@@ -87,6 +87,8 @@ export async function recordLeg(input: RecordLegInput): Promise<RecordLegResult>
   });
   if (error) return { ok: false, error: error.message };
 
+  // 다리는 두 화면에 나온다 — 기록하는 현재 포지션 화면과 MER 탭의 다리 목록.
+  revalidatePath("/position");
   revalidatePath("/kelly");
   revalidatePath(`/trades/${tradeId}`);
   return { ok: true, legNo };

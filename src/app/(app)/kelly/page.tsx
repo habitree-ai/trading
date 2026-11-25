@@ -1,8 +1,8 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 
 import { LimitsTab } from "@/app/(app)/kelly/limits-tab";
 import { MerTab } from "@/app/(app)/kelly/mer-tab";
-import { PositionTab } from "@/app/(app)/kelly/position-tab";
 import { REdgeTab, type REdgeFilters } from "@/app/(app)/kelly/r-edge-tab";
 import { SignalsTab } from "@/app/(app)/kelly/signals-tab";
 import { EmptyBook } from "@/components/empty-book";
@@ -29,12 +29,13 @@ export default async function KellyPage({
   searchParams: Promise<REdgeFilters & { tab?: string; scope?: string; sim?: string }>;
 }) {
   const { tab, scope, sim, ...filters } = await searchParams;
+  // 현재 포지션 흐름은 수동매매 영역의 화면으로 옮겼다(REQ-0107) — 예전 주소로 들어오면 그쪽으로 보낸다.
+  if (tab === "pos") redirect("/position");
   const rTab = tab === "r";
   const limitsTab = tab === "limits";
-  const posTab = tab === "pos";
   const merTab = tab === "mer";
   const signalsTab = tab === "signals";
-  const bookTab = rTab || limitsTab || posTab || merTab;
+  const bookTab = rTab || limitsTab || merTab;
   const book = bookTab ? await getActiveBook() : null;
   const TAB = "rounded-lg px-3 py-1.5 text-sm";
 
@@ -57,12 +58,6 @@ export default async function KellyPage({
         >
           손실 한도 · 연속 손실
         </Link>
-        <Link
-          href="/kelly?tab=pos"
-          className={`${TAB} ${posTab ? "bg-surface-2 font-medium" : "text-dim hover:bg-surface-2"}`}
-        >
-          현재 포지션 흐름
-        </Link>
         <Link href="/kelly?tab=mer" className={`${TAB} ${merTab ? "bg-surface-2 font-medium" : "text-dim hover:bg-surface-2"}`}>
           MER · 피라미딩
         </Link>
@@ -81,10 +76,8 @@ export default async function KellyPage({
             <REdgeTab book={book} filters={filters} />
           ) : limitsTab ? (
             <LimitsTab book={book} />
-          ) : merTab ? (
-            <MerTab book={book} scope={scope} sim={sim} />
           ) : (
-            <PositionTab book={book} />
+            <MerTab book={book} scope={scope} sim={sim} />
           )
         ) : (
           <EmptyBook />
