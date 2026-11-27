@@ -8,6 +8,7 @@ import { DASH, dateTime, num, pnlClass, price, signed } from "@/lib/format";
 import { closedLimitTrades, STREAK_RULES, streakStatus } from "@/lib/loss-limits";
 import { isOpenTrade } from "@/lib/metrics";
 import { firstEntry } from "@/lib/mer-report";
+import { stageChange, stopOutcome } from "@/lib/position-flow-text";
 import { lastPrice } from "@/lib/okx-live";
 import { buildFlow, STAGE_LABEL, type Flow, type Stage } from "@/lib/position-r";
 import {
@@ -240,45 +241,79 @@ export async function PositionTab({ book }: { book: Book }) {
   );
 }
 
+/** 단계 한 열의 폭(px) — 가격 그림이 표의 열과 같은 눈금이어야 옆으로 읽힌다. */
+const COL = 112;
+/** 행 이름 열의 폭(px) */
+const LABEL_COL = 152;
+const EPS = 1e-9;
+
+const crClass = (s: Stage) =>
+  s.riskUp ? "font-semibold text-loss" : s.cr !== null && s.cr <= EPS ? "text-profit" : "";
+
+const OUTCOME_CLASS = {
+  bad: "bg-loss/15 text-loss",
+  good: "bg-profit/15 text-profit",
+  flat: "bg-surface text-dim",
+} as const;
+
 function PositionFlow({ view, addCtx }: { view: PositionView; addCtx: AddContext | null }) {
   const { trade, rBase, flow, livePrice } = view;
   const { stages } = flow;
   const last = stages[stages.length - 1];
-  const prices = stages.flatMap((s) => [s.price, s.stopPx, s.qty > 0 ? s.avgPx : null]);
-  const known = prices.filter((p): p is number => p !== null && p > 0);
-  const lo = Math.min(...known);
-  const hi = Math.max(...known);
+  const outcome = stopOutcome(last);
 
-  const rows: { label: string; cell: (s: Stage) => React.ReactNode; strong?: boolean }[] = [
-    { label: "R", cell: (s) => plain(s.r) },
-    { label: "E", cell: (s) => plain(s.e), strong: true },
+  // 행 이름 아래 한 줄 설명 — 맨 아래 긴 문단까지 내려가지 않아도 뜻이 읽히게(REQ-0109).
+  const rows: { label: string; help: string; cell: (s: Stage) => React.ReactNode; strong?: boolean }[] = [
+    { label: "R", help: "진입 때 정한 위험 · 고정", cell: (s) => plain(s.r) },
+    { label: "E", help: "포지션 크기 (1E 배수)", cell: (s) => plain(s.e), strong: true },
     {
       label: "CR",
-      cell: (s) => <span className={s.riskUp ? "font-semibold text-loss" : ""}>{plain(s.cr)}</span>,
+      help: "지금 손절되면 잃는 R",
+      cell: (s) => <span className={crClass(s)}>{plain(s.cr)}</span>,
       strong: true,
     },
-    { label: "잠긴 R", cell: (s) => plain(s.lockedR) },
+    {
+      label: "잠긴 R",
+      help: "손절돼도 남는 이익",
+      cell: (s) => <span className={(s.lockedR ?? 0) > EPS ? "text-profit" : ""}>{plain(s.lockedR)}</span>,
+    },
     {
       label: "미실현",
+      help: "그 시점 가격 기준 평가",
       cell: (s) => <span className={pnlClass(s.unrealizedR)}>{rText(s.unrealizedR)}</span>,
       strong: true,
     },
     {
       label: "누적 확정",
+      help: "부분 청산으로 확정된 몫",
       cell: (s) => <span className={pnlClass(s.realizedR)}>{rText(s.realizedR)}</span>,
       strong: true,
     },
   ];
 
+  const nowCell = (s: Stage) => (s.kind === "now" ? "bg-surface-2" : "");
+  const chips = [
+    { k: "1R", v: `${num(rBase, 2)} USDT${view.estimatedR ? " (추정)" : ""}`, tip: "1R = 한 번에 감수하기로 정한 손실 금액" },
+    {
+      k: "1E",
+      v: flow.oneE === null ? "최초 손절 없음" : `${num(flow.oneE, 2)}개`,
+      tip: "1E = 최초 손절까지 1R 만 잃는 수량",
+    },
+    { k: "최대 CR", v: plain(flow.maxCr), tip: "보유 중 가장 컸던 남은 위험" },
+    { k: "최대 E", v: plain(flow.maxE), tip: "보유 중 가장 컸던 포지션 크기" },
+  ];
+
   return (
     <section className="rounded-xl border border-border bg-surface p-4">
-      <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h2 className="text-sm font-medium">
-          #{trade.seq} {trade.symbol} {SIDE_LABEL[trade.side]}{" "}
-          <span className="font-normal text-dim">
-            — 1R = {num(rBase, 2)} USDT{view.estimatedR ? "(현재 기준 R, 추정)" : ""} · 1E ={" "}
-            {flow.oneE === null ? "최초 손절 없음" : `${num(flow.oneE, 2)}개`} · 최대 CR {plain(flow.maxCr)} · 최대 E{" "}
-            {plain(flow.maxE)}
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h2 className="flex items-center gap-2 text-base font-semibold">
+          <span>
+            #{trade.seq} {trade.symbol}
+          </span>
+          <span
+            className={`rounded-md px-1.5 py-0.5 text-xs font-medium ${trade.side === "long" ? "bg-profit/15 text-profit" : "bg-loss/15 text-loss"}`}
+          >
+            {SIDE_LABEL[trade.side]}
           </span>
         </h2>
         <span className="text-xs text-dim">
@@ -286,45 +321,110 @@ function PositionFlow({ view, addCtx }: { view: PositionView; addCtx: AddContext
           USDT
         </span>
       </div>
+      <div className="mt-2 flex flex-wrap gap-1.5 text-xs">
+        {chips.map((c) => (
+          <span key={c.k} title={c.tip} className="rounded-md border border-border px-2 py-0.5">
+            <span className="text-dim">{c.k}</span> <span className="tnum">{c.v}</span>
+          </span>
+        ))}
+      </div>
 
-      <div className="mt-3 overflow-x-auto">
-        <table className="text-sm">
+      {/* 지금 상태 한 줄 — 표를 읽기 전에 결론부터. */}
+      <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-lg bg-surface-2 px-3 py-2 text-sm">
+        <span className="text-xs text-dim">지금</span>
+        {last.qty > 0 ? (
+          <>
+            <span className="tnum">
+              {num(last.qty, 0)}개 · 평단 {price(last.avgPx)} · 손절{" "}
+              <span className="text-loss">{last.stopPx === null ? "없음" : price(last.stopPx)}</span>
+            </span>
+            {outcome ? (
+              <span className={`rounded-md px-2 py-0.5 text-xs font-medium tnum ${OUTCOME_CLASS[outcome.tone]}`}>
+                {outcome.text}
+              </span>
+            ) : null}
+            <span className={`tnum ${pnlClass(last.unrealizedR)}`}>미실현 {rText(last.unrealizedR)}</span>
+          </>
+        ) : (
+          <span className="tnum">
+            포지션 없음 · 누적 확정 <span className={pnlClass(last.realizedR)}>{rText(last.realizedR)}</span>
+          </span>
+        )}
+      </div>
+
+      <p className="mt-3 text-xs text-dim">왼쪽부터 시간순으로 단계가 쌓이고, 맨 오른쪽 「현재」 열이 지금 상태입니다.</p>
+      <div className="mt-1.5 overflow-x-auto">
+        <table className="table-fixed text-sm" style={{ width: LABEL_COL + stages.length * COL }}>
+          <colgroup>
+            <col style={{ width: LABEL_COL }} />
+            {stages.map((s, i) => (
+              <col key={`${s.kind}-${s.atMs}-${i}`} style={{ width: COL }} />
+            ))}
+          </colgroup>
           <thead>
             <tr className="border-b border-border text-xs text-dim">
-              <th className="sticky left-0 bg-surface py-2 pr-3 text-left font-normal">단계</th>
-              {stages.map((s, i) => (
-                <th
-                  key={`${s.kind}-${s.atMs}-${i}`}
-                  className={`min-w-[5.5rem] px-2 py-2 text-center font-normal ${s.kind === "now" ? "bg-surface-2 text-text" : ""}`}
-                >
-                  <div className={s.kind === "stop_widen" || s.riskUp ? "text-loss" : "text-text"}>
-                    {s.kind === "now" ? STAGE_LABEL.now : `${i + 1} ${STAGE_LABEL[s.kind]}`}
-                  </div>
-                  <div className="tnum">{at(s.atMs)}</div>
-                </th>
-              ))}
+              <th className="sticky left-0 z-10 bg-surface py-2 pr-3 text-left font-normal">단계</th>
+              {stages.map((s, i) => {
+                const change = stageChange(i === 0 ? null : stages[i - 1], s);
+                return (
+                  <th key={i} className={`px-1 py-2 text-center align-top font-normal ${nowCell(s)}`}>
+                    <div
+                      className={`text-sm font-medium ${s.kind === "stop_widen" || s.riskUp ? "text-loss" : "text-text"}`}
+                    >
+                      {s.kind === "now" ? STAGE_LABEL.now : `${i + 1} ${STAGE_LABEL[s.kind]}`}
+                    </div>
+                    <div className="mt-0.5 min-h-4 text-[11px] leading-tight text-text/80">{change ?? ""}</div>
+                    <div className="mt-0.5 tnum">{at(s.atMs)}</div>
+                  </th>
+                );
+              })}
             </tr>
           </thead>
           <tbody className="tnum">
-            {/* 책 표의 가격 사다리 — 같은 세로 눈금에 ★ 가격, 빨간 선 손절, 점선 평단. */}
             <tr className="border-b border-border/60">
-              <td className="sticky left-0 bg-surface py-2 pr-3 text-xs text-dim">
+              <td className="sticky left-0 z-10 bg-surface py-2 pr-3 align-top text-xs text-dim">
+                <div className="font-medium text-text">가격 흐름</div>
+                <ul className="mt-1.5 space-y-1">
+                  <li className="flex items-center gap-1.5">
+                    <span className="inline-block size-2 rounded-full bg-text" /> 체결·시세가
+                  </li>
+                  <li className="flex items-center gap-1.5">
+                    <span className="inline-block w-3 border-t border-dashed border-dim" /> 평단
+                  </li>
+                  <li className="flex items-center gap-1.5">
+                    <span className="inline-block w-3 border-t-2 border-loss" /> 손절
+                  </li>
+                  <li className="flex items-center gap-1.5">
+                    <span className="inline-block size-2 rounded-sm bg-profit/40" /> 손절이 이익 쪽
+                  </li>
+                  <li className="flex items-center gap-1.5">
+                    <span className="inline-block size-2 rounded-sm bg-loss/40" /> 손절이 손실 쪽
+                  </li>
+                </ul>
+              </td>
+              <td colSpan={stages.length} className="p-0">
+                <FlowChart stages={stages} side={trade.side} />
+              </td>
+            </tr>
+            <tr className="border-b border-border/60 text-xs">
+              <td className="sticky left-0 z-10 bg-surface py-1.5 pr-3 text-dim">
                 가격
-                <div>{price(hi)}</div>
-                <div className="mt-14">{price(lo)}</div>
+                <div className="text-[11px] text-dim/80">체결가 · 현재는 시세</div>
               </td>
               {stages.map((s, i) => (
-                <td key={i} className={`px-2 py-2 text-center ${s.kind === "now" ? "bg-surface-2" : ""}`}>
-                  <Ladder stage={s} lo={lo} hi={hi} />
-                  <div className="text-xs">{s.price === null ? DASH : price(s.price)}</div>
+                <td key={i} className={`px-1 py-1.5 text-center font-medium ${nowCell(s)}`}>
+                  {s.price === null ? DASH : price(s.price)}
                 </td>
               ))}
             </tr>
             <tr className="border-b border-border/60 text-xs text-dim">
-              <td className="sticky left-0 bg-surface py-1.5 pr-3">수량 · 평단 · 손절</td>
+              <td className="sticky left-0 z-10 bg-surface py-1.5 pr-3">
+                수량 · 평단 · 손절
+                <div className="text-[11px] text-dim/80">단계가 끝난 뒤 상태</div>
+              </td>
               {stages.map((s, i) => (
-                <td key={i} className={`px-2 py-1.5 text-center ${s.kind === "now" ? "bg-surface-2" : ""}`}>
-                  <div>{num(s.qty, 0)}개</div>
+                <td key={i} className={`px-1 py-1.5 text-center ${nowCell(s)}`}>
+                  <div className="text-text">{num(s.qty, 0)}개</div>
                   <div>{s.qty > 0 ? price(s.avgPx) : DASH}</div>
                   <div className="text-loss">{s.stopPx === null ? "손절 없음" : price(s.stopPx)}</div>
                 </td>
@@ -332,14 +432,12 @@ function PositionFlow({ view, addCtx }: { view: PositionView; addCtx: AddContext
             </tr>
             {rows.map((row) => (
               <tr key={row.label} className="border-b border-border/60">
-                <td className={`sticky left-0 bg-surface py-1.5 pr-3 ${row.strong ? "font-medium" : "text-dim"}`}>
-                  {row.label}
+                <td className="sticky left-0 z-10 bg-surface py-1.5 pr-3">
+                  <div className={row.strong ? "font-medium" : "text-dim"}>{row.label}</div>
+                  <div className="text-[11px] leading-tight text-dim">{row.help}</div>
                 </td>
                 {stages.map((s, i) => (
-                  <td
-                    key={i}
-                    className={`px-2 py-1.5 text-center ${s.kind === "now" ? "bg-surface-2 font-medium" : ""}`}
-                  >
+                  <td key={i} className={`px-1 py-1.5 text-center ${s.kind === "now" ? "bg-surface-2 font-medium" : ""}`}>
                     {row.cell(s)}
                   </td>
                 ))}
@@ -352,6 +450,9 @@ function PositionFlow({ view, addCtx }: { view: PositionView; addCtx: AddContext
         <p className="mt-2 text-xs text-loss">
           빨간 CR = 진입 때 위험({plain(stages[0].cr)})보다 커진 단계 — 손절을 올리지 않고 추가했거나 손절을 넓혔습니다.
         </p>
+      ) : null}
+      {stages.some((s) => s.cr !== null && s.cr <= EPS) ? (
+        <p className="mt-1 text-xs text-profit">초록 CR = 손절이 평단 이익 쪽으로 올라와 손절돼도 잃지 않는 단계입니다.</p>
       ) : null}
       {last.qty > 0 ? (
         <AddPreviewPanel
@@ -376,32 +477,99 @@ function PositionFlow({ view, addCtx }: { view: PositionView; addCtx: AddContext
   );
 }
 
-/** 한 단계의 가격 사다리 칸 — 모든 칸이 같은 눈금이라 옆으로 읽으면 가격의 흐름이 된다. */
-function Ladder({ stage, lo, hi }: { stage: Stage; lo: number; hi: number }) {
-  const H = 72;
-  const pad = 8;
+/** 값이 null 인 곳에서 끊어 이어진 구간만 선으로 — 손절이 없던 단계를 0 으로 잇지 않는다. */
+function runs(points: ({ x: number; y: number } | null)[]): string[] {
+  const out: string[] = [];
+  let cur: string[] = [];
+  for (const p of points) {
+    if (p === null) {
+      if (cur.length > 1) out.push(cur.join(" "));
+      cur = [];
+    } else cur.push(`${p.x},${p.y}`);
+  }
+  if (cur.length > 1) out.push(cur.join(" "));
+  return out;
+}
+
+/**
+ * 단계 전체를 가로지르는 한 장의 가격 그림 — 표의 열과 같은 폭이라 칸 아래 숫자와 줄이 맞는다.
+ *
+ * 열마다 평단(점선)과 손절(빨간 선)을 그 칸 폭만큼 긋고 다음 칸과 이어, 손절이 평단을 넘어서는 순간이
+ * 선의 교차로 보인다. 둘 사이는 손절이 이익 쪽이면 초록, 손실 쪽이면 빨강으로 칠한다(REQ-0109).
+ */
+function FlowChart({ stages, side }: { stages: Stage[]; side: Trade["side"] }) {
+  const H = 132;
+  const pad = 14;
+  const inset = 10;
+  const W = stages.length * COL;
+  const known = stages
+    .flatMap((s) => [s.price, s.stopPx, s.qty > 0 ? s.avgPx : null])
+    .filter((p): p is number => p !== null && p > 0);
+  const lo = Math.min(...known);
+  const hi = Math.max(...known);
   const y = (p: number) => (hi === lo ? H / 2 : pad + ((hi - p) / (hi - lo)) * (H - 2 * pad));
+  const x0 = (i: number) => i * COL + inset;
+  const x1 = (i: number) => (i + 1) * COL - inset;
+  const xc = (i: number) => i * COL + COL / 2;
+
+  const step = (pick: (s: Stage) => number | null) =>
+    runs(
+      stages.flatMap((s, i) => {
+        const v = pick(s);
+        return v === null ? [null] : [{ x: x0(i), y: y(v) }, { x: x1(i), y: y(v) }];
+      }),
+    );
+  const avgRuns = step((s) => (s.qty > 0 ? s.avgPx : null));
+  const stopRuns = step((s) => s.stopPx);
+  const priceRuns = runs(stages.map((s, i) => (s.price === null ? null : { x: xc(i), y: y(s.price) })));
+
   return (
-    <svg viewBox={`0 0 40 ${H}`} width={40} height={H} className="mx-auto" aria-hidden>
-      {stage.qty > 0 ? (
-        <line
-          x1={2}
-          x2={38}
-          y1={y(stage.avgPx)}
-          y2={y(stage.avgPx)}
-          className="stroke-dim"
-          strokeWidth={1}
-          strokeDasharray="3 2"
-        />
-      ) : null}
-      {stage.stopPx !== null ? (
-        <line x1={2} x2={38} y1={y(stage.stopPx)} y2={y(stage.stopPx)} className="stroke-loss" strokeWidth={1.5} />
-      ) : null}
-      {stage.price !== null ? (
-        <text x={20} y={y(stage.price) + 5} textAnchor="middle" className="fill-text text-[14px]">
-          ★
-        </text>
-      ) : null}
+    <svg viewBox={`0 0 ${W} ${H}`} width={W} height={H} className="block" role="img" aria-label="단계별 가격·평단·손절 흐름">
+      {stages.map((s, i) =>
+        s.kind === "now" ? <rect key={`bg${i}`} x={i * COL} y={0} width={COL} height={H} className="fill-surface-2" /> : null,
+      )}
+      <text x={4} y={11} className="fill-dim text-[10px]">
+        {price(hi)}
+      </text>
+      <text x={4} y={H - 3} className="fill-dim text-[10px]">
+        {price(lo)}
+      </text>
+      {stages.map((s, i) => {
+        if (s.qty <= 0 || s.stopPx === null) return null;
+        const safe = side === "long" ? s.stopPx >= s.avgPx : s.stopPx <= s.avgPx;
+        const top = Math.min(y(s.avgPx), y(s.stopPx));
+        const h = Math.max(Math.abs(y(s.avgPx) - y(s.stopPx)), 1);
+        return (
+          <rect
+            key={`z${i}`}
+            x={x0(i)}
+            y={top}
+            width={x1(i) - x0(i)}
+            height={h}
+            className={safe ? "fill-profit/25" : "fill-loss/20"}
+          />
+        );
+      })}
+      {avgRuns.map((pts, k) => (
+        <polyline key={`a${k}`} points={pts} fill="none" className="stroke-dim" strokeWidth={1.2} strokeDasharray="4 3" />
+      ))}
+      {stopRuns.map((pts, k) => (
+        <polyline key={`s${k}`} points={pts} fill="none" className="stroke-loss" strokeWidth={2} />
+      ))}
+      {priceRuns.map((pts, k) => (
+        <polyline key={`p${k}`} points={pts} fill="none" className="stroke-text/40" strokeWidth={1.2} />
+      ))}
+      {stages.map((s, i) =>
+        s.price === null ? null : (
+          <circle
+            key={`c${i}`}
+            cx={xc(i)}
+            cy={y(s.price)}
+            r={s.kind === "now" ? 5 : 3.5}
+            className="fill-text"
+          />
+        ),
+      )}
     </svg>
   );
 }
